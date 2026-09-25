@@ -58,6 +58,21 @@ GET /manage/health                              - Health check
 
 > **WARNING:** The REST facade is **read-only**. All policy mutations must go through CICS transactions on the mainframe.
 
+### Authentication and entitlements
+
+All `/api/v1/**` routes require HTTP Basic authentication as a registered API client; only `GET /manage/health` is anonymous. Clients are configured in `application.properties`:
+
+```
+pas.security.clients[0].username=claims-engine
+pas.security.clients[0].password-hash=${CLAIMS_ENGINE_PASSWORD_HASH}   # BCrypt ($2a) hash
+pas.security.clients[0].unrestricted=true                              # whole book of business
+pas.security.clients[1].username=broker-portal
+pas.security.clients[1].password-hash=${BROKER_PORTAL_PASSWORD_HASH}
+pas.security.clients[1].agent-codes=AG1001,AG1002                      # scoped entitlement
+```
+
+A client only receives policies matching its `agent-codes` / `policyholder-ids` entitlements; anything else returns `404` so policy numbers cannot be enumerated. The application refuses to start with no client configured.
+
 ## Integration Points
 
 - **Claims Engine:** Nightly flat-file extract (FTP) via DAILY-EXTRACT.jcl
@@ -71,9 +86,8 @@ GET /manage/health                              - Health check
 2. **Hardcoded rating factors** - Base rates and territory factors are hardcoded in PREMBAT; should be table-driven
 3. **Leap year bug** - POLRNW renewal date calculation does not handle leap years correctly
 4. **No state-specific rate caps** - Using flat 15% rate increase cap instead of state-specific regulatory limits
-5. **Java facade has no authentication** - Relies on network segmentation (internal VPN only)
-6. **Single-threaded batch** - PREMBAT processes policies sequentially; takes ~4 hours for full book
-7. **FTP file transfer** - No encryption on daily extract files (regulatory risk)
+5. **Single-threaded batch** - PREMBAT processes policies sequentially; takes ~4 hours for full book
+6. **FTP file transfer** - No encryption on daily extract files (regulatory risk)
 
 ## Source Control
 
