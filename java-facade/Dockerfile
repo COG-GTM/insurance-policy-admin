@@ -37,6 +37,14 @@ WORKDIR /app
 # DB2 connection credentials passed via environment
 ENV DB2_USERNAME=PASFACAD
 ENV DB2_PASSWORD=changeme
+
+# The DB2 connection is TLS-only. Mount the truststore holding the CA that
+# signed the DB2 server certificate and supply its password at runtime, e.g.
+#   -v /etc/pki/db2:/etc/pki/db2:ro \
+#   -e DB2_SSL_TRUSTSTORE=/etc/pki/db2/db2-truststore.p12 \
+#   -e DB2_SSL_TRUSTSTORE_PASSWORD=... \
+#   -e DB2_PORT=<SECPORT of the DB2 subsystem>
+ENV DB2_SSL_TRUSTSTORE_TYPE=PKCS12
 ENV JAVA_OPTS="-Xmx512m -Xms256m"
 
 EXPOSE 8080
