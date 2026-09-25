@@ -34,9 +34,9 @@ COPY --from=build /workspace/target/pas-facade-1.0.0.jar /app/pas-facade.jar
 
 WORKDIR /app
 
-# DB2 connection credentials passed via environment
-ENV DB2_USERNAME=PASFACAD
-ENV DB2_PASSWORD=changeme
+# DB2 credentials are NOT baked into the image. Inject DB2_USERNAME and
+# DB2_PASSWORD at runtime from an orchestrator secret (Kubernetes Secret,
+# Docker secret, or vault sidecar); the application fails to start without them.
 ENV JAVA_OPTS="-Xmx512m -Xms256m"
 
 EXPOSE 8080
