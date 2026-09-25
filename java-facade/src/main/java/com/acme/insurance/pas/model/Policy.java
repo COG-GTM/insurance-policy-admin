@@ -8,7 +8,7 @@ import java.util.Date;
  * Maps to ACMEINS.POLICIES DB2 table on the mainframe.
  *
  * NOTE: Using old-style Java bean pattern (no Lombok, no records)
- * for compatibility with Java 8 and Spring Boot 1.5.
+ * for compatibility with Java 8.
  *
  * @author T. Nguyen (2022)
  */
