@@ -145,6 +145,10 @@ CREATE TABLE ACMEINS.UNDERWRITING_DECISIONS (
 
 ------------------------------------------------------------------------
 -- POLICY_HOLDERS - Customer/policyholder master
+--
+-- Regulated columns (DATE_OF_BIRTH, SSN_LAST4, TAX_ID, CREDIT_SCORE) are
+-- protected by the column masks and grants in pii-protection.sql, which
+-- must be applied after this script.
 ------------------------------------------------------------------------
 CREATE TABLE ACMEINS.POLICY_HOLDERS (
     CUST_ID             CHAR(10)        NOT NULL,
