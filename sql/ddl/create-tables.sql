@@ -125,6 +125,22 @@ CREATE TABLE ACMEINS.ENDORSEMENTS (
 ) IN ACMEDB.PASTS01;
 
 ------------------------------------------------------------------------
+-- USER_AUTHORITY - Policy entitlements for online transaction users
+--                 SCOPE_TYPE 'A' = agent code, 'B' = branch code,
+--                            'X' = whole book of business
+------------------------------------------------------------------------
+CREATE TABLE ACMEINS.USER_AUTHORITY (
+    USER_ID             CHAR(8)         NOT NULL,
+    SCOPE_TYPE          CHAR(1)         NOT NULL,
+    SCOPE_VALUE         CHAR(6)         NOT NULL DEFAULT ' ',
+    LAST_UPDATED        TIMESTAMP       NOT NULL DEFAULT CURRENT TIMESTAMP,
+    UPDATED_BY          CHAR(8)         NOT NULL DEFAULT 'SYSTEM',
+    CONSTRAINT PK_USER_AUTHORITY PRIMARY KEY
+        (USER_ID, SCOPE_TYPE, SCOPE_VALUE),
+    CONSTRAINT CK_UA_SCOPE_TYPE CHECK (SCOPE_TYPE IN ('A', 'B', 'X'))
+) IN ACMEDB.PASTS01;
+
+------------------------------------------------------------------------
 -- UNDERWRITING_DECISIONS - UW decision audit trail
 ------------------------------------------------------------------------
 CREATE TABLE ACMEINS.UNDERWRITING_DECISIONS (
