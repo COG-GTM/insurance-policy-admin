@@ -190,6 +190,31 @@ CREATE SEQUENCE ACMEINS.POLICY_SEQ
     CACHE 50;
 
 ------------------------------------------------------------------------
+-- USER_ENTITLEMENTS - Book-of-business scope per signed-on user
+--   SCOPE_LEVEL: 'A' = enterprise wide, 'B' = single branch,
+--                'G' = single agent code
+--   PII_ACCESS : 'Y' = may see policyholder phone/email
+------------------------------------------------------------------------
+CREATE TABLE ACMEINS.USER_ENTITLEMENTS (
+    USER_ID             CHAR(8)         NOT NULL,
+    SCOPE_LEVEL         CHAR(1)         NOT NULL DEFAULT 'G',
+    AGENT_CODE          CHAR(6),
+    BRANCH_CODE         CHAR(4),
+    PII_ACCESS          CHAR(1)         NOT NULL DEFAULT 'N',
+    ACTIVE_IND          CHAR(1)         NOT NULL DEFAULT 'Y',
+    LAST_UPDATED        TIMESTAMP       NOT NULL DEFAULT CURRENT TIMESTAMP,
+    UPDATED_BY          CHAR(8)         NOT NULL DEFAULT 'SYSTEM',
+    CONSTRAINT PK_USER_ENTITLEMENTS PRIMARY KEY (USER_ID),
+    CONSTRAINT CK_UE_SCOPE_LEVEL CHECK (SCOPE_LEVEL IN ('A', 'B', 'G')),
+    CONSTRAINT CK_UE_PII_ACCESS CHECK (PII_ACCESS IN ('Y', 'N')),
+    CONSTRAINT CK_UE_ACTIVE_IND CHECK (ACTIVE_IND IN ('Y', 'N')),
+    CONSTRAINT CK_UE_SCOPE_KEYS CHECK (
+        (SCOPE_LEVEL = 'A')
+     OR (SCOPE_LEVEL = 'B' AND BRANCH_CODE IS NOT NULL)
+     OR (SCOPE_LEVEL = 'G' AND AGENT_CODE IS NOT NULL))
+) IN ACMEDB.PASTS01;
+
+------------------------------------------------------------------------
 -- Territory rating factors (reference table)
 ------------------------------------------------------------------------
 CREATE TABLE ACMEINS.TERRITORY_FACTORS (

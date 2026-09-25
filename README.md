@@ -47,6 +47,7 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 - `ENDORSEMENTS` - Policy changes
 - `UNDERWRITING_DECISIONS` - UW decision audit trail
 - `POLICY_HOLDERS` - Customer master
+- `USER_ENTITLEMENTS` - Per-user book-of-business scope for inquiry
 
 ## REST API Endpoints (Facade)
 
