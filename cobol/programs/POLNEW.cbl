@@ -9,6 +9,8 @@
       * Modified: 2003-06-15 - Added terrorism coverage check
       *           2010-09-20 - Added cyber liability option
       *           2022-03-01 - Added API flag for REST facade
+      *           2026-09-25 - Bind agent/branch to signed-on user and
+      *                        enforce server-side financial bounds
       *
       * This program handles creation of new insurance policies
       * via CICS terminal or BMS map input. Validates customer
@@ -31,6 +33,20 @@
        01  WS-MQ-QUEUE               PIC X(48)
            VALUE 'ACME.PAS.UNDERWRITING.REQUEST'.
        01  WS-MQ-MSG-LENGTH          PIC S9(08) COMP.
+       01  WS-USER-ID                PIC X(08).
+
+       01  WS-AGENT-AUTHORITY.
+           05  WS-AUTH-AGENT-CODE    PIC X(06).
+           05  WS-AUTH-BRANCH-CODE   PIC X(04).
+           05  WS-AUTH-STATUS        PIC X(01).
+               88  WS-AUTH-ACTIVE    VALUE 'A'.
+
+       01  WS-PRODUCT-LIMITS.
+           05  WS-MIN-PREMIUM        PIC S9(09)V99 COMP-3.
+           05  WS-MAX-PREMIUM        PIC S9(09)V99 COMP-3.
+           05  WS-MIN-COV-LIMIT      PIC S9(11)V99 COMP-3.
+           05  WS-MAX-COV-LIMIT      PIC S9(11)V99 COMP-3.
+           05  WS-MAX-DEDUCTIBLE     PIC S9(07)V99 COMP-3.
 
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
@@ -70,6 +86,14 @@
            PERFORM 2000-RECEIVE-MAP
            PERFORM 3000-VALIDATE-INPUT
            IF WS-ERROR-MSG = SPACES
+               PERFORM 3100-VALIDATE-AUTHORITY
+                   THRU 3100-EXIT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 3200-VALIDATE-FINANCIALS
+                   THRU 3200-EXIT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 4000-GENERATE-POLICY-NUM
                PERFORM 5000-INSERT-POLICY
                PERFORM 6000-INSERT-COVERAGES
@@ -83,6 +107,10 @@
 
        1000-INITIALIZE.
            MOVE SPACES TO WS-ERROR-MSG
+           MOVE SPACES TO WS-AGENT-AUTHORITY
+           MOVE ZEROS  TO WS-MIN-PREMIUM WS-MAX-PREMIUM
+                          WS-MIN-COV-LIMIT WS-MAX-COV-LIMIT
+                          WS-MAX-DEDUCTIBLE
            EXEC CICS ASKTIME
                ABSTIME(WS-CURRENT-DATE)
            END-EXEC
@@ -133,6 +161,122 @@
            END-IF
            .
 
+       3100-VALIDATE-AUTHORITY.
+      *    The acting user may only write business for the agent and
+      *    branch they are registered against in ACMEINS.AGENTS.
+           EXEC CICS ASSIGN
+               USERID(WS-USER-ID)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               MOVE 'UNABLE TO DETERMINE SIGNED-ON USER'
+                   TO WS-ERROR-MSG
+               GO TO 3100-EXIT
+           END-IF
+
+           EXEC SQL
+               SELECT AGENT_CODE, BRANCH_CODE, AGENT_STATUS
+               INTO :WS-AUTH-AGENT-CODE,
+                    :WS-AUTH-BRANCH-CODE,
+                    :WS-AUTH-STATUS
+               FROM AGENTS
+               WHERE RACF_USER_ID = :WS-USER-ID
+           END-EXEC
+           EVALUATE SQLCODE
+               WHEN 0
+                   CONTINUE
+               WHEN 100
+                   MOVE 'USER NOT REGISTERED TO WRITE NEW BUSINESS'
+                       TO WS-ERROR-MSG
+                   GO TO 3100-EXIT
+               WHEN OTHER
+                   MOVE 'DB2 ERROR READING AGENT AUTHORITY'
+                       TO WS-ERROR-MSG
+                   GO TO 3100-EXIT
+           END-EVALUATE
+
+           IF NOT WS-AUTH-ACTIVE
+               MOVE 'AGENT APPOINTMENT IS NOT ACTIVE'
+                   TO WS-ERROR-MSG
+               GO TO 3100-EXIT
+           END-IF
+
+           IF POLICY-AGENT-CODE = SPACES
+               MOVE WS-AUTH-AGENT-CODE TO POLICY-AGENT-CODE
+           END-IF
+           IF POLICY-BRANCH-CODE = SPACES
+               MOVE WS-AUTH-BRANCH-CODE TO POLICY-BRANCH-CODE
+           END-IF
+
+           IF POLICY-AGENT-CODE NOT = WS-AUTH-AGENT-CODE
+               MOVE 'NOT AUTHORIZED FOR REQUESTED AGENT CODE'
+                   TO WS-ERROR-MSG
+               GO TO 3100-EXIT
+           END-IF
+           IF POLICY-BRANCH-CODE NOT = WS-AUTH-BRANCH-CODE
+               MOVE 'NOT AUTHORIZED FOR REQUESTED BRANCH CODE'
+                   TO WS-ERROR-MSG
+           END-IF
+           .
+       3100-EXIT.
+           EXIT
+           .
+
+       3200-VALIDATE-FINANCIALS.
+      *    Premium, limit and deductible entered on the map are bounded
+      *    by the filed product rules rather than trusted as keyed.
+           EXEC SQL
+               SELECT MIN_PREMIUM, MAX_PREMIUM,
+                      MIN_COVERAGE_LIMIT, MAX_COVERAGE_LIMIT,
+                      MAX_DEDUCTIBLE
+               INTO :WS-MIN-PREMIUM, :WS-MAX-PREMIUM,
+                    :WS-MIN-COV-LIMIT, :WS-MAX-COV-LIMIT,
+                    :WS-MAX-DEDUCTIBLE
+               FROM PRODUCT_LIMITS
+               WHERE POLICY_TYPE = :POLICY-TYPE
+                 AND EFFECTIVE_DATE <= CURRENT DATE
+                 AND EXPIRY_DATE >= CURRENT DATE
+           END-EXEC
+           EVALUATE SQLCODE
+               WHEN 0
+                   CONTINUE
+               WHEN 100
+                   MOVE 'NO FILED PRODUCT RULES FOR POLICY TYPE'
+                       TO WS-ERROR-MSG
+                   GO TO 3200-EXIT
+               WHEN OTHER
+                   MOVE 'DB2 ERROR READING PRODUCT LIMITS'
+                       TO WS-ERROR-MSG
+                   GO TO 3200-EXIT
+           END-EVALUATE
+
+           IF POLICY-LIMIT < WS-MIN-COV-LIMIT
+              OR POLICY-LIMIT > WS-MAX-COV-LIMIT
+               MOVE 'COVERAGE LIMIT OUTSIDE FILED PRODUCT RANGE'
+                   TO WS-ERROR-MSG
+               GO TO 3200-EXIT
+           END-IF
+           IF POLICY-TOTAL-PREMIUM < WS-MIN-PREMIUM
+              OR POLICY-TOTAL-PREMIUM > WS-MAX-PREMIUM
+               MOVE 'TOTAL PREMIUM OUTSIDE FILED PRODUCT RANGE'
+                   TO WS-ERROR-MSG
+               GO TO 3200-EXIT
+           END-IF
+           IF POLICY-DEDUCTIBLE < ZERO
+              OR POLICY-DEDUCTIBLE > WS-MAX-DEDUCTIBLE
+               MOVE 'DEDUCTIBLE OUTSIDE FILED PRODUCT RANGE'
+                   TO WS-ERROR-MSG
+               GO TO 3200-EXIT
+           END-IF
+           IF POLICY-DEDUCTIBLE >= POLICY-LIMIT
+               MOVE 'DEDUCTIBLE MUST BE LESS THAN COVERAGE LIMIT'
+                   TO WS-ERROR-MSG
+           END-IF
+           .
+       3200-EXIT.
+           EXIT
+           .
+
        4000-GENERATE-POLICY-NUM.
       *    Get next policy sequence from DB2 sequence
            EXEC SQL
@@ -150,8 +294,8 @@
            MOVE POLICY-TYPE        TO POL-TYP
            MOVE 'PN'               TO POL-STAT
            MOVE POLICY-HOLDER-ID   TO POL-HOLDER
-           MOVE POLICY-AGENT-CODE  TO POL-AGENT
-           MOVE POLICY-BRANCH-CODE TO POL-BRANCH
+           MOVE WS-AUTH-AGENT-CODE  TO POL-AGENT
+           MOVE WS-AUTH-BRANCH-CODE TO POL-BRANCH
            MOVE POLICY-TOTAL-PREMIUM TO POL-TOTAL-PREM
            MOVE POLICY-DEDUCTIBLE  TO POL-DEDUCT
            MOVE POLICY-LIMIT       TO POL-LMT
@@ -160,7 +304,7 @@
            MOVE 0                  TO POL-RISK
            MOVE 'N'                TO POL-WEB
            MOVE 'N'                TO POL-API
-           MOVE 'POLNEW'           TO POL-UPD-BY
+           MOVE WS-USER-ID         TO POL-UPD-BY
 
            EXEC SQL
                INSERT INTO POLICIES
