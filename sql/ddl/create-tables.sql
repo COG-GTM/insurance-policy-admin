@@ -7,6 +7,8 @@
 --             2010-04-22 - Added cyber coverage types
 --             2018-05-25 - Added GDPR fields to POLICY_HOLDERS
 --             2022-01-15 - Added API_FLAG to POLICIES
+--             2026-09-28 - Encrypted/masked PII in POLICY_HOLDERS,
+--                          least-privilege grant for PAS facade
 --
 -- Database:   DBPD (Production)
 -- Schema:     ACMEINS
@@ -145,6 +147,16 @@ CREATE TABLE ACMEINS.UNDERWRITING_DECISIONS (
 
 ------------------------------------------------------------------------
 -- POLICY_HOLDERS - Customer/policyholder master
+--
+-- DATE_OF_BIRTH, SSN_LAST4 and TAX_ID store AES-256 ciphertext produced
+-- by ENCRYPT_DATAKEY (V12R1M505) with ICSF key label ACME.PAS.PII.KEY;
+-- plaintext is never stored. DATE_OF_BIRTH is encrypted from its ISO
+-- CHAR(10) form because ENCRYPT_DATAKEY does not accept DATE.
+--   Write: ENCRYPT_DATAKEY(:ssn-last4, 'ACME.PAS.PII.KEY', AES256R)
+--   Read:  DECRYPT_DATAKEY_VARCHAR(SSN_LAST4)
+-- VARBINARY(95) = CEIL(10/16)*16 + 15-byte header + 64-byte key label.
+-- Use of the key label is restricted in RACF class CSFKEYS to group
+-- PASPII.
 ------------------------------------------------------------------------
 CREATE TABLE ACMEINS.POLICY_HOLDERS (
     CUST_ID             CHAR(10)        NOT NULL,
@@ -161,9 +173,9 @@ CREATE TABLE ACMEINS.POLICY_HOLDERS (
     COUNTRY_CODE        CHAR(3)         DEFAULT 'USA',
     PHONE               VARCHAR(15),
     EMAIL               VARCHAR(60),
-    DATE_OF_BIRTH       DATE,
-    SSN_LAST4           CHAR(4),
-    TAX_ID              CHAR(10),
+    DATE_OF_BIRTH       VARBINARY(95),
+    SSN_LAST4           VARBINARY(95),
+    TAX_ID              VARBINARY(95),
     CREDIT_SCORE        SMALLINT,
     RISK_TIER           CHAR(1)         DEFAULT 'S',
     GDPR_CONSENT        CHAR(1)         DEFAULT 'N',
@@ -177,6 +189,50 @@ CREATE INDEX ACMEINS.IX_PH_NAME
 
 CREATE INDEX ACMEINS.IX_PH_COMPANY
     ON ACMEINS.POLICY_HOLDERS (COMPANY_NAME);
+
+------------------------------------------------------------------------
+-- Column access control on POLICY_HOLDERS PII (requires SECADM).
+-- Only IDs connected to RACF group PASPII (CICS PAS DB2ENTRY authid,
+-- underwriting batch) see real values; every other reader - including
+-- ad-hoc SPUFI/DSNTEP2 extracts, the broker ODBC link and the facade -
+-- gets NULL, so neither ciphertext nor credit scores leave DB2.
+------------------------------------------------------------------------
+CREATE MASK ACMEINS.PH_DOB_MASK ON ACMEINS.POLICY_HOLDERS
+    FOR COLUMN DATE_OF_BIRTH RETURN
+        CASE WHEN VERIFY_GROUP_FOR_USER(SESSION_USER, 'PASPII') = 1
+             THEN DATE_OF_BIRTH
+             ELSE NULL
+        END
+    ENABLE;
+
+CREATE MASK ACMEINS.PH_SSN_MASK ON ACMEINS.POLICY_HOLDERS
+    FOR COLUMN SSN_LAST4 RETURN
+        CASE WHEN VERIFY_GROUP_FOR_USER(SESSION_USER, 'PASPII') = 1
+             THEN SSN_LAST4
+             ELSE NULL
+        END
+    ENABLE;
+
+CREATE MASK ACMEINS.PH_TAXID_MASK ON ACMEINS.POLICY_HOLDERS
+    FOR COLUMN TAX_ID RETURN
+        CASE WHEN VERIFY_GROUP_FOR_USER(SESSION_USER, 'PASPII') = 1
+             THEN TAX_ID
+             ELSE NULL
+        END
+    ENABLE;
+
+CREATE MASK ACMEINS.PH_CREDIT_MASK ON ACMEINS.POLICY_HOLDERS
+    FOR COLUMN CREDIT_SCORE RETURN
+        CASE WHEN VERIFY_GROUP_FOR_USER(SESSION_USER, 'PASPII') = 1
+             THEN CREDIT_SCORE
+             ELSE NULL
+        END
+    ENABLE;
+
+COMMIT;
+
+ALTER TABLE ACMEINS.POLICY_HOLDERS
+    ACTIVATE COLUMN ACCESS CONTROL;
 
 ------------------------------------------------------------------------
 -- Sequence for policy number generation
@@ -199,5 +255,12 @@ CREATE TABLE ACMEINS.TERRITORY_FACTORS (
     CONSTRAINT PK_TERR_FACTORS PRIMARY KEY
         (TERRITORY_CODE, EFFECTIVE_DATE)
 ) IN ACMEDB.PASTS01;
+
+------------------------------------------------------------------------
+-- Least-privilege grants for the PAS REST facade (PASFACAD).
+-- The facade only reads policies and coverages; no POLICY_HOLDERS access.
+------------------------------------------------------------------------
+GRANT SELECT ON ACMEINS.POLICIES  TO PASFACAD;
+GRANT SELECT ON ACMEINS.COVERAGES TO PASFACAD;
 
 COMMIT;
