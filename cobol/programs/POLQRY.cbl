@@ -12,6 +12,11 @@
       * Read-only policy inquiry. Displays policy header, coverages,
       * premium details, and underwriting status on BMS maps.
       * Used by CSRs and underwriters for policy lookup.
+      *
+      * Access is restricted to policies within the signed-on user's
+      * book of business (USER_POLICY_ACCESS agent/branch grants).
+      * Policyholder phone/email are only read for users granted
+      * PII access.
       ******************************************************************
        ENVIRONMENT DIVISION.
        DATA DIVISION.
@@ -23,6 +28,10 @@
        01  WS-ERROR-MSG              PIC X(79).
        01  WS-COV-COUNT              PIC 9(03).
        01  WS-DISPLAY-LINE           PIC X(80).
+       01  WS-USER-ID                PIC X(08).
+       01  WS-GRANT-COUNT            PIC S9(09) COMP.
+       01  WS-PII-ACCESS             PIC X(01).
+           88  WS-PII-ALLOWED        VALUE 'Y'.
 
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
@@ -45,6 +54,9 @@
        PROCEDURE DIVISION.
        0000-MAIN-LOGIC.
            PERFORM 1000-RECEIVE-INPUT
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 1500-AUTHORIZE-USER
+           END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 2000-READ-POLICY
            END-IF
@@ -75,6 +87,36 @@
            END-IF
            .
 
+       1500-AUTHORIZE-USER.
+           MOVE SPACES TO WS-USER-ID
+           MOVE 'N' TO WS-PII-ACCESS
+           EXEC CICS ASSIGN
+               USERID(WS-USER-ID)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+              OR WS-USER-ID = SPACES
+               MOVE 'NOT AUTHORIZED FOR POLICY INQUIRY'
+                   TO WS-ERROR-MSG
+           ELSE
+               EXEC SQL
+                   SELECT COUNT(*), COALESCE(MAX(PII_ACCESS), 'N')
+                   INTO :WS-GRANT-COUNT, :WS-PII-ACCESS
+                   FROM USER_POLICY_ACCESS
+                   WHERE USER_ID = :WS-USER-ID
+               END-EXEC
+               IF SQLCODE NOT = 0
+                   MOVE 'DB2 ERROR CHECKING AUTHORIZATION'
+                       TO WS-ERROR-MSG
+               ELSE
+                   IF WS-GRANT-COUNT = 0
+                       MOVE 'NOT AUTHORIZED FOR POLICY INQUIRY'
+                           TO WS-ERROR-MSG
+                   END-IF
+               END-IF
+           END-IF
+           .
+
        2000-READ-POLICY.
            EXEC SQL
                SELECT POLICY_NUMBER, POLICY_TYPE, POLICY_STATUS,
@@ -93,8 +135,17 @@
                     :POLICY-INCEPTION-DATE, :POLICY-RENEWAL-COUNT,
                     :POLICY-UW-STATUS, :POLICY-RISK-SCORE,
                     :POLICY-WEB-IND, :POLICY-API-FLAG
-               FROM POLICIES
-               WHERE POLICY_NUMBER = :POLICY-NUMBER
+               FROM POLICIES P
+               WHERE P.POLICY_NUMBER = :POLICY-NUMBER
+                 AND EXISTS
+                     (SELECT 1
+                        FROM USER_POLICY_ACCESS A
+                       WHERE A.USER_ID = :WS-USER-ID
+                         AND ((A.SCOPE_TYPE = 'A'
+                               AND A.SCOPE_CODE = P.AGENT_CODE)
+                           OR (A.SCOPE_TYPE = 'B'
+                               AND A.SCOPE_CODE = P.BRANCH_CODE)
+                           OR  A.SCOPE_TYPE = 'G'))
            END-EXEC
            IF SQLCODE = 100
                MOVE 'POLICY NOT FOUND' TO WS-ERROR-MSG
@@ -105,17 +156,31 @@
            .
 
        3000-READ-CUSTOMER.
-           EXEC SQL
-               SELECT CUST_ID, CUST_TYPE,
-                      LAST_NAME, FIRST_NAME,
-                      COMPANY_NAME, PHONE, EMAIL
-               INTO :CUST-ID, :CUST-TYPE,
-                    :CUST-LAST-NAME, :CUST-FIRST-NAME,
-                    :CUST-COMPANY-NAME, :CUST-PHONE,
-                    :CUST-EMAIL
-               FROM POLICY_HOLDERS
-               WHERE CUST_ID = :POLICY-HOLDER-ID
-           END-EXEC
+           MOVE SPACES TO CUST-PHONE CUST-EMAIL
+           IF WS-PII-ALLOWED
+               EXEC SQL
+                   SELECT CUST_ID, CUST_TYPE,
+                          LAST_NAME, FIRST_NAME,
+                          COMPANY_NAME, PHONE, EMAIL
+                   INTO :CUST-ID, :CUST-TYPE,
+                        :CUST-LAST-NAME, :CUST-FIRST-NAME,
+                        :CUST-COMPANY-NAME, :CUST-PHONE,
+                        :CUST-EMAIL
+                   FROM POLICY_HOLDERS
+                   WHERE CUST_ID = :POLICY-HOLDER-ID
+               END-EXEC
+           ELSE
+               EXEC SQL
+                   SELECT CUST_ID, CUST_TYPE,
+                          LAST_NAME, FIRST_NAME,
+                          COMPANY_NAME
+                   INTO :CUST-ID, :CUST-TYPE,
+                        :CUST-LAST-NAME, :CUST-FIRST-NAME,
+                        :CUST-COMPANY-NAME
+                   FROM POLICY_HOLDERS
+                   WHERE CUST_ID = :POLICY-HOLDER-ID
+               END-EXEC
+           END-IF
            .
 
        4000-READ-COVERAGES.

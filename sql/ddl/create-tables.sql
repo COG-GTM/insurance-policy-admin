@@ -7,6 +7,7 @@
 --             2010-04-22 - Added cyber coverage types
 --             2018-05-25 - Added GDPR fields to POLICY_HOLDERS
 --             2022-01-15 - Added API_FLAG to POLICIES
+--             2026-09-28 - Added USER_POLICY_ACCESS entitlements
 --
 -- Database:   DBPD (Production)
 -- Schema:     ACMEINS
@@ -177,6 +178,26 @@ CREATE INDEX ACMEINS.IX_PH_NAME
 
 CREATE INDEX ACMEINS.IX_PH_COMPANY
     ON ACMEINS.POLICY_HOLDERS (COMPANY_NAME);
+
+------------------------------------------------------------------------
+-- USER_POLICY_ACCESS - Book-of-business entitlements for online users
+--   SCOPE_TYPE: 'A' = agent (SCOPE_CODE = AGENT_CODE)
+--               'B' = branch (SCOPE_CODE = BRANCH_CODE)
+--               'G' = all policies (SCOPE_CODE = '*')
+--   PII_ACCESS: 'Y' permits policyholder contact details (phone/email)
+------------------------------------------------------------------------
+CREATE TABLE ACMEINS.USER_POLICY_ACCESS (
+    USER_ID             CHAR(8)         NOT NULL,
+    SCOPE_TYPE          CHAR(1)         NOT NULL,
+    SCOPE_CODE          CHAR(6)         NOT NULL,
+    PII_ACCESS          CHAR(1)         NOT NULL DEFAULT 'N',
+    GRANTED_BY          CHAR(8)         NOT NULL,
+    GRANTED_DATE        DATE            NOT NULL DEFAULT CURRENT DATE,
+    CONSTRAINT PK_USER_POL_ACCESS PRIMARY KEY
+        (USER_ID, SCOPE_TYPE, SCOPE_CODE),
+    CONSTRAINT CK_UPA_SCOPE CHECK (SCOPE_TYPE IN ('A', 'B', 'G')),
+    CONSTRAINT CK_UPA_PII CHECK (PII_ACCESS IN ('Y', 'N'))
+) IN ACMEDB.PASTS01;
 
 ------------------------------------------------------------------------
 -- Sequence for policy number generation
