@@ -37,6 +37,8 @@ import java.util.List;
 @RequestMapping("/api/v1/policies")
 public class PolicyController {
 
+    private static final String ACTIVE_STATUS = "AC";
+
     @Autowired
     private PolicyRepository policyRepository;
 
@@ -66,8 +68,13 @@ public class PolicyController {
     }
 
     /**
-     * Premium breakdown as calculated by the PREMBAT batch program, computed
-     * on demand in Java. Read-only: nothing is written to PREMIUMS.
+     * Fresh PREMBAT premium calculation (paragraph 3200), computed on demand in
+     * Java from the policy type. This is not a breakdown of the stored
+     * POLICIES.TOTAL_PREMIUM, which may include coverage-level and manual
+     * adjustments. Read-only: nothing is written to PREMIUMS.
+     *
+     * Like PREMBAT's POL_CURSOR, only active ('AC') policies are rated; other
+     * statuses return 422 Unprocessable Entity.
      */
     @GetMapping("/{policyNumber}/premium-calculation")
     public ResponseEntity<PremiumBreakdown> getPremiumCalculation(
@@ -76,7 +83,14 @@ public class PolicyController {
         if (policy == null) {
             return new ResponseEntity<PremiumBreakdown>(HttpStatus.NOT_FOUND);
         }
+        if (!ACTIVE_STATUS.equals(trim(policy.getPolicyStatus()))) {
+            return new ResponseEntity<PremiumBreakdown>(HttpStatus.UNPROCESSABLE_ENTITY);
+        }
         return new ResponseEntity<PremiumBreakdown>(
                 premiumCalculator.calculate(policy.getPolicyType()), HttpStatus.OK);
+    }
+
+    private static String trim(String value) {
+        return value == null ? null : value.trim();
     }
 }

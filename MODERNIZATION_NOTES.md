@@ -11,7 +11,7 @@ COBOL and the Java code and diffs every field.
 | Java implementation | `java-facade/src/main/java/com/acme/insurance/pas/rating/PremiumCalculator.java` |
 | Java level | Java 8 / Spring Boot 1.5, the facade's existing convention (see Dockerfile) |
 | Parity harness | `modernization/prembat/run-parity.sh` (GnuCOBOL 3.x + Maven) |
-| New read-only endpoint | `GET /api/v1/policies/{policyNumber}/premium-calculation` |
+| New read-only endpoint | `GET /api/v1/policies/{policyNumber}/premium-calculation`: a fresh PREMBAT calculation for active policies, not a breakdown of the stored `TOTAL_PREMIUM` |
 
 ## Why PREMBAT
 
@@ -70,7 +70,7 @@ This slice replaces `3200` only. The I/O paragraphs stay on the mainframe.
 | BR-6 | Final premium = modified premium + tax + surcharge | `COMPUTE WS-FINAL-PREMIUM` | `calculate` |
 | BR-7 | **Every intermediate result is truncated, not rounded, to 2 dp.** Each COMPUTE stores into a `V99` COMP-3 field without `ROUNDED` | `PIC S9(09)V99 COMP-3` | `RoundingMode.DOWN` per step |
 | BR-8 | There is no `ON SIZE ERROR`, so overflow silently drops high-order digits (premium > 999,999,999.99, or tax > 9,999,999.99) | pictures above | Java throws `PremiumOverflowException` (intentional divergence) |
-| BR-9 | Only `POLICY_STATUS = 'AC'` policies are rated | `POL_CURSOR` | still on the mainframe (I/O) |
+| BR-9 | Only `POLICY_STATUS = 'AC'` policies are rated | `POL_CURSOR` | endpoint returns 422 for non-`AC` policies (batch selection stays on the mainframe) |
 
 Findings worth raising with the business:
 - The seed policy `POL-00000003` is type `CGL`, which isn't a known type, so

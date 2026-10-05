@@ -6,8 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -20,6 +22,9 @@ public class PolicyControllerTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     public void getPolicy_returnsPolicy() throws Exception {
@@ -71,6 +76,16 @@ public class PolicyControllerTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.policyType", is("CGL")))
                 .andExpect(jsonPath("$.finalPremium", is(1060.0)));
+    }
+
+    @Test
+    @Transactional
+    public void getPremiumCalculation_inactivePolicyIsNotRated() throws Exception {
+        jdbcTemplate.update("INSERT INTO ACMEINS.POLICIES (POLICY_NUMBER, POLICY_TYPE, "
+                + "POLICY_STATUS, EFFECTIVE_DATE, EXPIRY_DATE, POLICYHOLDER_ID) "
+                + "VALUES ('POL-CN000001', 'AUT', 'CN', '2024-01-01', '2025-01-01', 'C000000001')");
+        mockMvc.perform(get("/api/v1/policies/POL-CN000001/premium-calculation"))
+                .andExpect(status().isUnprocessableEntity());
     }
 
     @Test
