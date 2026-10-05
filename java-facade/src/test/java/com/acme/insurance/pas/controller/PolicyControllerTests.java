@@ -55,6 +55,31 @@ public class PolicyControllerTests {
     }
 
     @Test
+    public void getPremiumCalculation_returnsPrembatBreakdown() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000001/premium-calculation"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.policyType", is("HOM")))
+                .andExpect(jsonPath("$.basePremium", is(1200.0)))
+                .andExpect(jsonPath("$.taxAmount", is(42.0)))
+                .andExpect(jsonPath("$.surcharge", is(25.0)))
+                .andExpect(jsonPath("$.finalPremium", is(1267.0)));
+    }
+
+    @Test
+    public void getPremiumCalculation_unknownTypeUsesDefaultRate() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000003/premium-calculation"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.policyType", is("CGL")))
+                .andExpect(jsonPath("$.finalPremium", is(1060.0)));
+    }
+
+    @Test
+    public void getPremiumCalculation_policyNotFound() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/NONEXISTENT/premium-calculation"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     public void healthCheck_returnsUp() throws Exception {
         mockMvc.perform(get("/manage/health"))
                 .andExpect(status().isOk())

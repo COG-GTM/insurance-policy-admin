@@ -53,8 +53,12 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 ```
 GET /api/v1/policies/{policyNumber}            - Policy details (JSON)
 GET /api/v1/policies/{policyNumber}/coverages   - Coverage list (JSON)
+GET /api/v1/policies/{policyNumber}/premium-calculation - PREMBAT premium breakdown (Java)
 GET /manage/health                              - Health check
 ```
+
+See [MODERNIZATION_NOTES.md](MODERNIZATION_NOTES.md) for the PREMBAT → Java
+modernization slice and its COBOL/Java parity harness.
 
 > **WARNING:** The REST facade is **read-only**. All policy mutations must go through CICS transactions on the mainframe.
 
