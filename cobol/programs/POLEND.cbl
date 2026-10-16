@@ -58,6 +58,19 @@
            02  PECNFI                 PIC X(01).
                88  IN-CANCEL-CONFIRMED VALUE 'Y'.
 
+       01  WS-NULL-INDICATORS.
+           05  WS-AGENT-IND           PIC S9(04) COMP.
+           05  WS-BRANCH-IND          PIC S9(04) COMP.
+           05  WS-PREM-IND            PIC S9(04) COMP.
+           05  WS-DEDUCT-IND          PIC S9(04) COMP.
+           05  WS-LIMIT-IND           PIC S9(04) COMP.
+           05  WS-INCEPT-IND          PIC S9(04) COMP.
+           05  WS-RENEW-IND           PIC S9(04) COMP.
+           05  WS-UWSTAT-IND          PIC S9(04) COMP.
+           05  WS-RISK-IND            PIC S9(04) COMP.
+           05  WS-WEB-IND             PIC S9(04) COMP.
+           05  WS-API-IND             PIC S9(04) COMP.
+
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
 
@@ -110,7 +123,9 @@
                MOVE PENUMI TO POLICY-NUMBER
                MOVE PETYPI TO WS-ENDORSEMENT-TYPE
            END-IF
-      *    Read current policy from DB2
+      *    Read current policy from DB2; null indicators keep a
+      *    NULL column from tripping -305, and the initialized
+      *    host variable stays spaces/zeros (fails closed below)
            IF WS-ERROR-MSG = SPACES
                EXEC SQL
                    SELECT POLICY_NUMBER, POLICY_TYPE, POLICY_STATUS,
@@ -124,20 +139,29 @@
                         :POLICY-STATUS,
                         :POLICY-EFFECTIVE-DATE,
                         :POLICY-EXPIRY-DATE,
-                        :POLICY-HOLDER-ID, :POLICY-AGENT-CODE,
-                        :POLICY-BRANCH-CODE,
-                        :POLICY-TOTAL-PREMIUM, :POLICY-DEDUCTIBLE,
-                        :POLICY-LIMIT,
-                        :POLICY-INCEPTION-DATE,
-                        :POLICY-RENEWAL-COUNT,
-                        :POLICY-UW-STATUS, :POLICY-RISK-SCORE,
-                        :POLICY-WEB-IND, :POLICY-API-FLAG
+                        :POLICY-HOLDER-ID,
+                        :POLICY-AGENT-CODE :WS-AGENT-IND,
+                        :POLICY-BRANCH-CODE :WS-BRANCH-IND,
+                        :POLICY-TOTAL-PREMIUM :WS-PREM-IND,
+                        :POLICY-DEDUCTIBLE :WS-DEDUCT-IND,
+                        :POLICY-LIMIT :WS-LIMIT-IND,
+                        :POLICY-INCEPTION-DATE :WS-INCEPT-IND,
+                        :POLICY-RENEWAL-COUNT :WS-RENEW-IND,
+                        :POLICY-UW-STATUS :WS-UWSTAT-IND,
+                        :POLICY-RISK-SCORE :WS-RISK-IND,
+                        :POLICY-WEB-IND :WS-WEB-IND,
+                        :POLICY-API-FLAG :WS-API-IND
                    FROM POLICIES
                    WHERE POLICY_NUMBER = :POLICY-NUMBER
                    WITH RS USE AND KEEP UPDATE LOCKS
                END-EXEC
-               IF SQLCODE NOT = 0
+               IF SQLCODE = 100
                    MOVE 'POLICY NOT FOUND' TO WS-ERROR-MSG
+               ELSE
+                   IF SQLCODE NOT = 0
+                       MOVE 'DB2 ERROR READING POLICY'
+                           TO WS-ERROR-MSG
+                   END-IF
                END-IF
            END-IF
            .

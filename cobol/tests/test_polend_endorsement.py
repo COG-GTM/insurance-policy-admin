@@ -195,7 +195,8 @@ class TestPolendEndorsement(PolEndTestBase):
                            re.S)
         self.assertIsNotNone(select, "no SELECT in paragraph 2000")
         cols = [c.strip() for c in select.group(1).split(",")]
-        hvs = [h.strip().lstrip(":") for h in select.group(2).split(",")]
+        hvs = [h.strip().split()[0].lstrip(":")
+               for h in select.group(2).split(",")]
         self.assertIn("AGENT_CODE", cols)
         self.assertEqual(cols.index("AGENT_CODE"),
                          hvs.index("POLICY-AGENT-CODE"),
@@ -295,11 +296,48 @@ class TestPolendEndorsement(PolEndTestBase):
                            re.S)
         self.assertIsNotNone(select, "no SELECT in paragraph 2000")
         cols = [c.strip() for c in select.group(1).split(",")]
-        hvs = [h.strip().lstrip(":") for h in select.group(2).split(",")]
+        # each INTO entry may carry a null indicator: ":HV :IND"
+        hvs = [h.strip().split()[0].lstrip(":")
+               for h in select.group(2).split(",")]
         self.assertEqual(cols, [c for c, _ in expected],
                          "SELECT column list != POLQRY's full-record list")
         self.assertEqual(hvs, [h for _, h in expected],
                          "host variables not aligned with columns")
+
+    def test_nullable_policy_columns_have_indicators(self):
+        # nullable POLICIES columns per DDL must have :HV :IND in INTO
+        ddl = (Path(__file__).resolve().parents[2]
+               / "sql" / "ddl" / "create-tables.sql").read_text()
+        m = re.search(r"CREATE TABLE ACMEINS\.POLICIES\s*\((.*?)\)\s+IN\b",
+                      ddl, re.S)
+        self.assertIsNotNone(m, "POLICIES CREATE TABLE not found in DDL")
+        nullable = set()
+        for line in m.group(1).splitlines():
+            cm = re.match(r"\s*([A-Z_]+)\s+([A-Z0-9(),]+)(.*)$", line)
+            if cm and cm.group(1) != "CONSTRAINT":
+                if "NOT NULL" not in cm.group(3):
+                    nullable.add(cm.group(1))
+
+        p2000 = self.paras.get("2000-RECEIVE-ENDORSEMENT", "")
+        select = re.search(r"SELECT\s+(.*?)\s+INTO\s+(.*?)\s+FROM", p2000,
+                           re.S)
+        self.assertIsNotNone(select)
+        cols = [c.strip() for c in select.group(1).split(",")]
+        entries = [e.strip() for e in select.group(2).split(",")]
+        self.assertEqual(len(cols), len(entries))
+        for col, entry in zip(cols, entries):
+            if col not in nullable:
+                continue
+            tokens = re.findall(r":([A-Z0-9-]+)", entry)
+            self.assertGreaterEqual(
+                len(tokens), 2,
+                f"nullable column {col} has no null indicator in INTO")
+            ind = tokens[1]
+            item = self.ws.get(ind, {})
+            self.assertEqual(item.get("pic"), "S9(04)",
+                             f"indicator {ind} for {col} not PIC S9(04)")
+            self.assertEqual(item.get("usage"), "COMP",
+                             f"indicator {ind} for {col} not COMP")
 
 
 if __name__ == "__main__":
