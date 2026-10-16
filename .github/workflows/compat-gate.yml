@@ -35,6 +35,16 @@ jobs:
         if: always()
         run: python3 compat/check_security.py
 
+  cobol-test:
+    name: COBOL program tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GnuCOBOL
+        run: sudo apt-get update && sudo apt-get install -y gnucobol
+      - name: Run COBOL program tests
+        run: python3 -m unittest discover -s cobol/tests -p 'test_*.py' -v
+
   build-test:
     name: Build & tests
     runs-on: ubuntu-latest
