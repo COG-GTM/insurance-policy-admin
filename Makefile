@@ -1,5 +1,11 @@
 .PHONY: compat compat-static compat-api compat-build dev build fmt down logs
 
+PAS_HTTP_PORT ?= 8080
+PAS_MANAGEMENT_PORT ?= 8081
+PAS_DB_PORT ?= 5432
+
+export PAS_HTTP_PORT PAS_MANAGEMENT_PORT PAS_DB_PORT
+
 compat: compat-static compat-build compat-api
 
 compat-static:
@@ -16,10 +22,10 @@ compat-api:
 dev:
 	cd pas && ./mvnw -B verify
 	docker compose up --build --wait
-	@echo "Policy service: http://localhost:8080"
-	@echo "Liveness:       http://localhost:8081/actuator/health/liveness"
-	@echo "Readiness:      http://localhost:8081/actuator/health/readiness"
-	@echo "Prometheus:     http://localhost:8081/actuator/prometheus"
+	@echo "Policy service: http://localhost:$(PAS_HTTP_PORT)"
+	@echo "Liveness:       http://localhost:$(PAS_MANAGEMENT_PORT)/actuator/health/liveness"
+	@echo "Readiness:      http://localhost:$(PAS_MANAGEMENT_PORT)/actuator/health/readiness"
+	@echo "Prometheus:     http://localhost:$(PAS_MANAGEMENT_PORT)/actuator/prometheus"
 
 build:
 	cd pas && ./mvnw -B verify

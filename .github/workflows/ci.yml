@@ -79,7 +79,7 @@ jobs:
           file: ./pas/pas-policy-service/Dockerfile
           push: false
           load: true
-          tags: pas-policy-service:ci
+          tags: pas-policy-service:local
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Start stack and check readiness

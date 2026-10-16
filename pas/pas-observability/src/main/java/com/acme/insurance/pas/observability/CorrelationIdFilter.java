@@ -29,7 +29,7 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         MDC.put(MDC_KEY, correlationId);
         response.setHeader(HEADER_NAME, correlationId);
         try {
-            LOGGER.info("Incoming HTTP request");
+            LOGGER.debug("Incoming HTTP request");
             filterChain.doFilter(request, response);
         } finally {
             MDC.remove(MDC_KEY);

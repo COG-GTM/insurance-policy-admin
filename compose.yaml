@@ -4,9 +4,9 @@ services:
     environment:
       POSTGRES_DB: pas
       POSTGRES_USER: pas
-      POSTGRES_PASSWORD: ${PAS_DB_PASSWORD:-pas-local}
+      POSTGRES_PASSWORD: ${PAS_DB_PASSWORD:-pas}
     ports:
-      - "5432:5432"
+      - "${PAS_DB_PORT:-5432}:5432"
     volumes:
       - pas-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -16,22 +16,28 @@ services:
       retries: 10
 
   policy-service:
-    image: pas-policy-service:ci
+    image: pas-policy-service:local
     build:
       context: ./pas
       dockerfile: pas-policy-service/Dockerfile
     environment:
       PAS_DB_URL: jdbc:postgresql://postgres:5432/pas
       PAS_DB_USERNAME: pas
-      PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:-pas-local}
+      PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:-pas}
     ports:
-      - "8080:8080"
-      - "8081:8081"
+      - "${PAS_HTTP_PORT:-8080}:8080"
+      - "${PAS_MANAGEMENT_PORT:-8081}:8081"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "java", "-jar", "/app/pas-policy-service.jar", "--healthcheck"]
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET /actuator/health/readiness HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '\"status\":\"UP\"' <&3",
+        ]
       interval: 10s
       timeout: 4s
       start_period: 30s

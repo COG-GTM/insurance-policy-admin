@@ -16,16 +16,19 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"management.server.port=0", "PAS_DB_PASSWORD=test-password"})
+        properties = {
+            "management.server.port=0",
+            "PAS_DB_PASSWORD=test-password",
+            "logging.level.com.acme.insurance.pas.observability=DEBUG"
+        })
 @Testcontainers
-@ExtendWith({SpringExtension.class, OutputCaptureExtension.class})
+@ExtendWith(OutputCaptureExtension.class)
 class PolicyServiceApplicationIT {
     @Container
     @ServiceConnection
