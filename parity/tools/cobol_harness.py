@@ -178,7 +178,7 @@ def preprocess_source(source):
             while not _END_EXEC_RE.search(block[-1]):
                 i += 1
                 block.append(lines[i])
-            text = " ".join(b.strip() for b in block)
+            text = re.sub(r"\s+", " ", " ".join(b.strip() for b in block)).strip()
             if in_data:
                 if "INCLUDE SQLCA" in text:
                     out.append(f"{AREA_A}COPY HXSQLCA.")
@@ -256,8 +256,9 @@ def process_program(prog_dir, cobc):
             f"{prog}: stub set mismatch; missing from stubs.cpy: {missing or 'none'}; "
             f"extra in stubs.cpy: {extra or 'none'}")
 
-    (bdir / "stubs.txt").write_text(
-        "".join(f"{n}\n    {t}\n" for n, t in stubs))
+    manifest_path = bdir / "exec-blocks.txt"
+    manifest_path.write_text(
+        "".join(f"{n} {t}\n" for n, t in stubs))
 
     binary = bdir / prog
     cmd = [cobc, "-x", "-std=ibm",
@@ -315,7 +316,7 @@ def process_program(prog_dir, cobc):
         w = csv.writer(fh)
         w.writerow(["case_id"] + outputs)
         w.writerows(golden_rows)
-    return out_path
+    return out_path, manifest_path
 
 
 def main(argv=None):
@@ -343,16 +344,27 @@ def main(argv=None):
         if not (d / "spec.json").exists():
             continue
         try:
-            generated = process_program(d, cobc)
+            generated, manifest = process_program(d, cobc)
         except HarnessError as e:
             print(str(e), file=sys.stderr)
             failures += 1
             continue
         committed = d / "golden.csv"
+        committed_manifest = d / "exec-blocks.txt"
         if args.command == "update":
             shutil.copyfile(generated, committed)
+            shutil.copyfile(manifest, committed_manifest)
             print(f"{d.name}: updated {committed.relative_to(REPO_ROOT)}")
         else:
+            new_m = manifest.read_text().splitlines(keepends=True)
+            old_m = committed_manifest.read_text().splitlines(keepends=True) \
+                if committed_manifest.exists() else []
+            if new_m != old_m:
+                print(f"{d.name}: EXEC SQL/CICS statements changed — review "
+                      f"stubs.cpy/fixtures, then make parity-golden")
+                sys.stdout.writelines(difflib.unified_diff(
+                    old_m, new_m, str(committed_manifest), str(manifest)))
+                failures += 1
             new = generated.read_text().splitlines(keepends=True)
             old = committed.read_text().splitlines(keepends=True) \
                 if committed.exists() else []
@@ -361,7 +373,7 @@ def main(argv=None):
                 sys.stdout.writelines(difflib.unified_diff(
                     old, new, str(committed), str(generated)))
                 failures += 1
-            else:
+            elif new_m == old_m:
                 print(f"{d.name}: golden matches")
     return 1 if failures else 0
 

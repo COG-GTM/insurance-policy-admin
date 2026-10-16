@@ -129,6 +129,16 @@ class TestPreprocess(unittest.TestCase):
         self.assertEqual([n for n, _ in stubs], ["STUB-0000-1", "STUB-2000-1"])
         self.assertIn("      *    9000-FAKE-PARAGRAPH.", gen)
 
+    def test_exec_manifest_changes_with_sql(self):
+        _, stubs = h.preprocess_source(SAMPLE)
+        changed = SAMPLE.replace("SELECT A INTO :WS-A FROM T",
+                                 "SELECT A INTO :WS-A FROM T WHERE B = 2")
+        _, stubs2 = h.preprocess_source(changed)
+        text1 = "".join(f"{n} {t}\n" for n, t in stubs)
+        text2 = "".join(f"{n} {t}\n" for n, t in stubs2)
+        self.assertNotEqual(text1, text2)
+        self.assertIn("WHERE B = 2", text2)
+
     def test_area_b_name_not_a_paragraph(self):
         # name starting in area B (column 12+) must not set the stub prefix
         src = SAMPLE.replace(

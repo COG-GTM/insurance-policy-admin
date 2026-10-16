@@ -26,7 +26,12 @@ values for the same fixtures.
    CICS task). `batch` mode (PREMBAT): one process fed all rows then an
    `*EOF*` sentinel.
 5. Programs emit `PARITY|<case_id>|<out1>|...` lines (helpers in `HXPROC.cpy`);
-   the harness splits them and compares to `golden.csv`.
+   the harness splits them and compares to `golden.csv`. Separately, the
+   stub name → original EXEC text mapping is committed as
+   `parity/programs/<prog>/exec-blocks.txt` — a drift gate so a changed
+   EXEC SQL/CICS block in the COBOL source can't go unnoticed: `check`
+   diffs the regenerated manifest and fails with "EXEC SQL/CICS statements
+   changed — review stubs.cpy/fixtures, then make parity-golden".
 
 ## Running
 
@@ -47,9 +52,10 @@ stay usable on machines without GnuCOBOL); CI sets `PARITY_REQUIRE_COBC=1`.
 2. Write `spec.json` (`program`, `source`, `mode`, `input` PICs, `output`
    column names), `fixtures.csv` (`case_id,note,<inputs>`), and `stubs.cpy`
    with exactly the `STUB-*` paragraphs the preprocessor generates — the
-   harness reports missing/extra stubs by name and writes
-   `build/<prog>/stubs.txt` mapping each stub to the EXEC text it replaced.
-3. `make parity-golden` then review + commit `golden.csv`.
+   harness reports missing/extra stubs by name.
+3. `make parity-golden` then review + commit `golden.csv` and
+   `exec-blocks.txt` (the EXEC-statement manifest used as a drift gate in
+   step 1 above).
 
 Stub conventions (see existing programs): the first-executed stub (the
 ASKTIME replacement) does `PERFORM HX-READ-FIXTURE` + `PERFORM HX-BEGIN`;

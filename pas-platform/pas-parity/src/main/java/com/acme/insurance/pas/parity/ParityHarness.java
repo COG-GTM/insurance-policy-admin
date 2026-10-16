@@ -134,6 +134,9 @@ public final class ParityHarness {
 
     List<KnownDifference> known = readKnownDifferences(parityDir, program, failures);
     boolean[] knownUsed = new boolean[known.size()];
+    Map<String, Map<String, String>> goldenByCase = new LinkedHashMap<>();
+    Map<String, Map<String, String>> actualByCase = new LinkedHashMap<>();
+    java.util.Set<String> adapterThrew = new java.util.HashSet<>();
 
     int n = Math.min(cases.size(), goldenData.size());
     for (int i = 0; i < n; i++) {
@@ -148,11 +151,14 @@ public final class ParityHarness {
         actual = adapter.run(pc);
       } catch (RuntimeException e) {
         failures.add(pc.caseId() + ": adapter threw " + e);
+        adapterThrew.add(pc.caseId());
         continue;
       }
       if (actual == null) {
         actual = Map.of();
       }
+      actualByCase.put(pc.caseId(), actual);
+      goldenByCase.put(pc.caseId(), goldenMap);
       for (String extra : actual.keySet()) {
         if (!goldenMap.containsKey(extra)) {
           failures.add(pc.caseId() + "/" + extra + ": unexpected output column");
@@ -188,34 +194,35 @@ public final class ParityHarness {
               pc.caseId() + "/" + e.getKey() + ": cobol=<" + cobol + "> java=<" + java + ">");
         }
       }
-      // stale known differences for this case
-      for (int k = 0; k < known.size(); k++) {
-        KnownDifference kd = known.get(k);
-        if (kd.caseId().equals(pc.caseId()) && !knownUsed[k]) {
-          if (!goldenMap.containsKey(kd.field())) {
-            failures.add("stale known difference: unknown field " + kd.caseId() + "/" + kd.field());
-          } else {
-            String cobol = goldenMap.get(kd.field());
-            String java = actual.get(kd.field());
-            if (!kd.cobol().equals(cobol) || !kd.java().equals(java)) {
-              failures.add(
-                  "stale known difference "
-                      + kd.caseId()
-                      + "/"
-                      + kd.field()
-                      + ": golden=<"
-                      + cobol
-                      + "> java=<"
-                      + java
-                      + ">");
-            }
-          }
-        }
-      }
     }
+    // every unused known difference for this program is stale; say why
     for (int k = 0; k < known.size(); k++) {
-      if (!knownUsed[k] && fixtureIds.contains(known.get(k).caseId()) == false) {
-        failures.add("stale known difference: unknown case " + known.get(k).caseId());
+      if (knownUsed[k]) {
+        continue;
+      }
+      KnownDifference kd = known.get(k);
+      String tag = "stale known difference " + kd.caseId() + "/" + kd.field() + ": ";
+      if (!goldenByCase.containsKey(kd.caseId()) && !fixtureIds.contains(kd.caseId())) {
+        failures.add(tag + "unknown case");
+      } else if (adapterThrew.contains(kd.caseId())) {
+        failures.add(tag + "adapter threw");
+      } else {
+        Map<String, String> gm = goldenByCase.get(kd.caseId());
+        if (gm == null) {
+          // case exists in fixtures but was beyond the compared range
+          failures.add(tag + "values no longer match: case not compared");
+        } else if (!gm.containsKey(kd.field())) {
+          failures.add(tag + "unknown field");
+        } else {
+          Map<String, String> act = actualByCase.getOrDefault(kd.caseId(), Map.of());
+          failures.add(
+              tag
+                  + "values no longer match: golden=<"
+                  + gm.get(kd.field())
+                  + "> java=<"
+                  + act.get(kd.field())
+                  + ">");
+        }
       }
     }
 
@@ -256,6 +263,16 @@ public final class ParityHarness {
         }
         String quirk = n.path("quirk").asText("");
         String decision = n.path("decision").asText("");
+        String cobol = n.path("cobol").asText("");
+        String java = n.path("java").asText("");
+        if (cobol.equals(java)) {
+          failures.add(
+              "known difference "
+                  + n.path("case_id").asText()
+                  + "/"
+                  + n.path("field").asText()
+                  + " has identical cobol and java values — nothing differs");
+        }
         if (quirk.isBlank()) {
           failures.add(
               "known difference "
@@ -279,8 +296,8 @@ public final class ParityHarness {
                 program,
                 n.path("case_id").asText(""),
                 n.path("field").asText(""),
-                n.path("cobol").asText(""),
-                n.path("java").asText(""),
+                cobol,
+                java,
                 quirk,
                 decision));
       }
@@ -319,44 +336,62 @@ public final class ParityHarness {
     }
   }
 
-  /** Minimal CSV reader handling quoted fields (as written by python csv). */
+  /**
+   * Minimal RFC 4180 CSV reader: whole-file char stream so quoted fields may contain newlines;
+   * {@code ""} escapes a quote inside quotes, CRLF and LF line endings tolerated, fully empty lines
+   * skipped (outside quotes only).
+   */
   static List<List<String>> readCsv(Path file) {
-    List<String> lines;
+    String content;
     try {
-      lines = Files.readAllLines(file);
+      content = Files.readString(file);
     } catch (IOException e) {
       throw new UncheckedIOException("reading " + file, e);
     }
     List<List<String>> rows = new ArrayList<>();
-    for (String line : lines) {
-      if (line.isEmpty()) {
-        continue;
-      }
-      List<String> row = new ArrayList<>();
-      StringBuilder cur = new StringBuilder();
-      boolean quoted = false;
-      for (int i = 0; i < line.length(); i++) {
-        char ch = line.charAt(i);
-        if (quoted) {
-          if (ch == '"') {
-            if (i + 1 < line.length() && line.charAt(i + 1) == '"') {
-              cur.append('"');
-              i++;
-            } else {
-              quoted = false;
-            }
+    List<String> row = new ArrayList<>();
+    StringBuilder cur = new StringBuilder();
+    boolean quoted = false;
+    boolean rowHasContent = false;
+    for (int i = 0; i < content.length(); i++) {
+      char ch = content.charAt(i);
+      if (quoted) {
+        if (ch == '"') {
+          if (i + 1 < content.length() && content.charAt(i + 1) == '"') {
+            cur.append('"');
+            i++;
           } else {
-            cur.append(ch);
+            quoted = false;
           }
-        } else if (ch == '"') {
-          quoted = true;
-        } else if (ch == ',') {
-          row.add(cur.toString());
-          cur.setLength(0);
         } else {
           cur.append(ch);
         }
+        continue;
       }
+      if (ch == '"') {
+        quoted = true;
+        rowHasContent = true;
+      } else if (ch == ',') {
+        row.add(cur.toString());
+        cur.setLength(0);
+        rowHasContent = true;
+      } else if (ch == '\n' || ch == '\r') {
+        if (ch == '\r' && i + 1 < content.length() && content.charAt(i + 1) == '\n') {
+          i++;
+        }
+        row.add(cur.toString());
+        cur.setLength(0);
+        if (rowHasContent || row.size() > 1) {
+          rows.add(row);
+        }
+        row = new ArrayList<>();
+        rowHasContent = false;
+      } else {
+        cur.append(ch);
+        rowHasContent = true;
+      }
+    }
+    if (rowHasContent || !cur.isEmpty() || row.size() > 1) {
       row.add(cur.toString());
       rows.add(row);
     }

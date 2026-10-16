@@ -146,6 +146,54 @@ class ParityHarnessTest {
   }
 
   @Test
+  void multilineQuotedFieldInFixtures() throws IOException {
+    Files.writeString(
+        progDir.resolve("fixtures.csv"),
+        "case_id,note,policy_type,effective_date,expiry_date\n"
+            + "CASE-1,\"first line\nsecond line\",AUT,20240101,20250101\n"
+            + "CASE-2,second,HOM,20240301,20250301\n");
+    ParityHarness.ParityReport report =
+        ParityHarness.run(
+            adapter(Map.of("total_premium", "904.75"), Map.of("total_premium", "1267.00")),
+            parityDir);
+    assertTrue(report.ok());
+    assertEquals(2, report.cases());
+  }
+
+  @Test
+  void equalValuesKnownDifferenceRejected() throws IOException {
+    Files.writeString(
+        parityDir.resolve("known-differences.json"),
+        "[{\"program\":\"demo\",\"case_id\":\"CASE-1\",\"field\":\"total_premium\","
+            + "\"cobol\":\"904.75\",\"java\":\"904.75\",\"quirk\":\"same\","
+            + "\"decision\":\"https://cog-gtm.atlassian.net/browse/AB-517\","
+            + "\"rationale\":\"accepted\"}]");
+    ParityHarness.ParityReport report =
+        ParityHarness.run(
+            adapter(Map.of("total_premium", "904.75"), Map.of("total_premium", "1267.00")),
+            parityDir);
+    assertTrue(report.failures().stream().anyMatch(f -> f.contains("identical cobol and java")));
+  }
+
+  @Test
+  void knownDifferenceForFieldThatNowMatchesIsStale() throws IOException {
+    Files.writeString(
+        parityDir.resolve("known-differences.json"),
+        "[{\"program\":\"demo\",\"case_id\":\"CASE-1\",\"field\":\"total_premium\","
+            + "\"cobol\":\"904.76\",\"java\":\"904.77\",\"quirk\":\"cent rounding\","
+            + "\"decision\":\"https://cog-gtm.atlassian.net/browse/AB-517\","
+            + "\"rationale\":\"accepted\"}]");
+    ParityHarness.ParityReport report =
+        ParityHarness.run(
+            adapter(Map.of("total_premium", "904.75"), Map.of("total_premium", "1267.00")),
+            parityDir);
+    assertTrue(
+        report.failures().stream()
+            .anyMatch(
+                f -> f.contains("stale known difference") && f.contains("values no longer match")));
+  }
+
+  @Test
   void assertParityThrowsListingMismatch() {
     System.setProperty("pas.parity.dir", parityDir.toString());
     try {
