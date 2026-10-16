@@ -39,6 +39,11 @@ def destructive_statements():
     return out
 
 
+TYPE_RE = re.compile(r"^(\w+)(?:\s*\(\s*(\d+)\s*(?:,\s*(\d+))?\s*\))?", re.I)
+NUMERIC = {"DECIMAL", "NUMERIC", "DEC"}
+INT_RANK = {"SMALLINT": 1, "INTEGER": 2, "INT": 2, "BIGINT": 3}
+
+
 def strip_comments(sql):
     return re.sub(r"--[^\n]*", "", sql)
 
