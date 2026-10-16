@@ -8,7 +8,7 @@ The `pas-platform` services run locally in Docker Compose with PostgreSQL and Ka
 - JDK 21 for Maven commands and IDE runs
 - GNU Make
 
-`make dev` and `make dev-up` create `pas-platform/.env` from the example on first run. To customize the local settings, copy and edit the template:
+`make dev` and `make dev-up` create `pas-platform/.env` from the example on first run. To customize the local settings, edit that file; you can also copy the template first:
 
 ```sh
 cp pas-platform/.env.example pas-platform/.env
@@ -60,17 +60,18 @@ Override environment variables in `pas-platform/.env`, or override Make variable
 | `PAS_DB_USERNAME` | `pas` | Compose/apps | PostgreSQL and application database user. |
 | `PAS_DB_PASSWORD` | `changeme` | Compose/apps | Local-only PostgreSQL and application password. |
 | `PAS_SPRING_PROFILES_ACTIVE` | `local` | Compose/apps | Spring profile; `local` enables plain-text logs. Other profiles use JSON logs. |
-| `PAS_POLICY_HTTP_PORT` | `8080` | Compose, Make | Host port for the policy service. |
-| `PAS_BATCH_HTTP_PORT` | `8081` | Compose, Make | Host port for the batch service. |
-| `PAS_POSTGRES_PORT` | `5432` | Compose, Make | Host port for PostgreSQL. |
-| `PAS_KAFKA_PORT` | `9092` | Compose, Make | Host port for Kafka's advertised host listener. |
+| `PAS_BIND_ADDRESS` | `127.0.0.1` | Compose | Host address for published ports; loopback-only by default. |
+| `PAS_POLICY_HTTP_PORT` | `8080` | Compose | Host port for the policy service. |
+| `PAS_BATCH_HTTP_PORT` | `8081` | Compose | Host port for the batch service. |
+| `PAS_POSTGRES_PORT` | `5432` | Compose | Host port for PostgreSQL. |
+| `PAS_KAFKA_PORT` | `9092` | Compose | Host port for Kafka's advertised host listener. |
 | `PAS_POSTGRES_IMAGE` | `postgres:16` | Compose | PostgreSQL image override. |
 | `PAS_KAFKA_IMAGE` | `apache/kafka:3.9.1` | Compose | Kafka image override. |
-| `MVNW_REPOURL` | Empty (Maven Central) | Make, Docker builds | Alternate Maven Wrapper distribution repository base. Supply it through the environment or as a Make variable when Maven Central is unavailable. |
+| `MVNW_REPOURL` | Empty (Maven Central) | Shell/Make, Docker builds | Alternate Maven Wrapper distribution repository base. Supply it through the shell or as a Make variable; it is not read from `.env`. |
 | `MAVEN_SETTINGS` | `$(HOME)/.m2/settings.xml` | `make dev-images` | Maven settings file passed to Docker BuildKit only when the file exists. It is not copied into an image. |
 | `TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX` | Unset | `make test` | Optional registry prefix for Docker images pulled by Testcontainers. |
 
-Compose reads port overrides from `pas-platform/.env`. Make does not load `.env`, so pass the same overrides through the shell when invoking `make` to update the printed URLs, for example `PAS_POLICY_HTTP_PORT=18080 make dev`.
+Set `PAS_BIND_ADDRESS` and the `PAS_*_PORT` variables in `pas-platform/.env` or the shell; Compose uses either source. `make dev-up` prints the addresses Compose actually published, so its URLs reflect the active overrides. `MVNW_REPOURL` is build-time configuration supplied through the shell or Make, not `.env`.
 
 Example for a customized local environment:
 
@@ -110,10 +111,11 @@ SPRING_PROFILES_ACTIVE=local \
 
 ## Troubleshooting
 
-- **A port is already in use:** set `PAS_POLICY_HTTP_PORT`, `PAS_BATCH_HTTP_PORT`, `PAS_POSTGRES_PORT`, or `PAS_KAFKA_PORT` in `pas-platform/.env` or the environment. If invoking Make, pass the override in the shell as well so its printed URLs match.
+- **A port is already in use:** set `PAS_POLICY_HTTP_PORT`, `PAS_BATCH_HTTP_PORT`, `PAS_POSTGRES_PORT`, or `PAS_KAFKA_PORT` in `pas-platform/.env` or the environment. `make dev-up` prints the actual published addresses. Set `PAS_BIND_ADDRESS` only if you intentionally need to change the host interface; `0.0.0.0` exposes unauthenticated local services and the local-only database password on the network.
 - **Image registry requests are rate-limited:** authenticate or use an approved registry mirror. Maven downloads can use `MAVEN_SETTINGS` and `MVNW_REPOURL`; Docker base images can be pre-pulled and tagged locally with the expected image name.
 - **Maven cannot download the wrapper distribution:** configure `MVNW_REPOURL` in the shell or Make invocation to use an available Maven repository base. Do not commit environment-specific mirror URLs.
 - **The image build fails Maven Wrapper checksum validation:** the build stage needs `unzip` so the wrapper uses the pinned ZIP distribution and checksum.
+- **PostgreSQL authentication fails after changing `PAS_DB_USERNAME` or `PAS_DB_PASSWORD`:** PostgreSQL creates its user and password only when the volume is first initialized. Connect as the old user with `docker compose -f pas-platform/docker-compose.yml exec postgres psql -U OLD_USERNAME -d pas` (replace `OLD_USERNAME`), then use `ALTER USER` to rename the existing role and/or update its password. Alternatively, run `make dev-down` to reset the volume; this destroys local data.
 - **A service is unhealthy:** inspect `make dev-ps` and `make dev-logs`. The readiness endpoint includes the database check; the policy service also waits for Kafka health before starting.
 - **Logs are JSON instead of plain text:** set `PAS_SPRING_PROFILES_ACTIVE=local` in `pas-platform/.env` and recreate the application containers.
 - **The database needs a clean reset:** `make dev-down` removes all Compose services and the `pas-pgdata` volume. Starting again recreates the Flyway-owned `pas` and `pas_batch` schemas.

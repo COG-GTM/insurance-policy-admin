@@ -19,10 +19,6 @@ PAS_DIR := pas-platform
 COMPOSE := docker compose -f $(PAS_DIR)/docker-compose.yml
 MAVEN_SETTINGS ?= $(HOME)/.m2/settings.xml
 MVNW_REPOURL ?=
-PAS_POLICY_HTTP_PORT ?= 8080
-PAS_BATCH_HTTP_PORT ?= 8081
-PAS_POSTGRES_PORT ?= 5432
-PAS_KAFKA_PORT ?= 9092
 comma := ,
 
 build:
@@ -38,18 +34,20 @@ dev-images:
 dev-up:
 	@test -f $(PAS_DIR)/.env || { cp $(PAS_DIR)/.env.example $(PAS_DIR)/.env; echo "Created $(PAS_DIR)/.env from .env.example (local-only defaults)"; }
 	$(COMPOSE) up -d --wait --wait-timeout 300
-	@printf '%s\n' \
-		'Policy service: http://localhost:$(PAS_POLICY_HTTP_PORT)' \
-		'  liveness:   http://localhost:$(PAS_POLICY_HTTP_PORT)/actuator/health/liveness' \
-		'  readiness:  http://localhost:$(PAS_POLICY_HTTP_PORT)/actuator/health/readiness' \
-		'  prometheus: http://localhost:$(PAS_POLICY_HTTP_PORT)/actuator/prometheus' \
-		'  ping:       http://localhost:$(PAS_POLICY_HTTP_PORT)/api/v2/ping' \
-		'Batch: http://localhost:$(PAS_BATCH_HTTP_PORT)' \
-		'  liveness:   http://localhost:$(PAS_BATCH_HTTP_PORT)/actuator/health/liveness' \
-		'  readiness:  http://localhost:$(PAS_BATCH_HTTP_PORT)/actuator/health/readiness' \
-		'  prometheus: http://localhost:$(PAS_BATCH_HTTP_PORT)/actuator/prometheus' \
-		'PostgreSQL: localhost:$(PAS_POSTGRES_PORT)' \
-		'Kafka: localhost:$(PAS_KAFKA_PORT)'
+	@policy=$$($(COMPOSE) port pas-policy-service 8080); batch=$$($(COMPOSE) port pas-batch 8081); \
+	pg=$$($(COMPOSE) port postgres 5432); kafka=$$($(COMPOSE) port kafka 9092); \
+	printf '%s\n' \
+		"Policy service: http://$$policy" \
+		"  liveness:   http://$$policy/actuator/health/liveness" \
+		"  readiness:  http://$$policy/actuator/health/readiness" \
+		"  prometheus: http://$$policy/actuator/prometheus" \
+		"  ping:       http://$$policy/api/v2/ping" \
+		"Batch: http://$$batch" \
+		"  liveness:   http://$$batch/actuator/health/liveness" \
+		"  readiness:  http://$$batch/actuator/health/readiness" \
+		"  prometheus: http://$$batch/actuator/prometheus" \
+		"PostgreSQL: $$pg" \
+		"Kafka: $$kafka"
 
 dev:
 	$(MAKE) dev-images

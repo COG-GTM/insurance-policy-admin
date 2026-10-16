@@ -10,7 +10,7 @@ services:
     volumes:
       - pas-pgdata:/var/lib/postgresql/data
     ports:
-      - "${PAS_POSTGRES_PORT:-5432}:5432"
+      - "${PAS_BIND_ADDRESS:-127.0.0.1}:${PAS_POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d pas']
       interval: 5s
@@ -33,7 +33,7 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
-      - "${PAS_KAFKA_PORT:-9092}:9092"
+      - "${PAS_BIND_ADDRESS:-127.0.0.1}:${PAS_KAFKA_PORT:-9092}:9092"
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
       interval: 10s
@@ -54,7 +54,7 @@ services:
       PAS_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
     ports:
-      - "${PAS_POLICY_HTTP_PORT:-8080}:8080"
+      - "${PAS_BIND_ADDRESS:-127.0.0.1}:${PAS_POLICY_HTTP_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,7 +80,7 @@ services:
       PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:?Set PAS_DB_PASSWORD or copy .env.example to .env}
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
     ports:
-      - "${PAS_BATCH_HTTP_PORT:-8081}:8081"
+      - "${PAS_BIND_ADDRESS:-127.0.0.1}:${PAS_BATCH_HTTP_PORT:-8081}:8081"
     depends_on:
       postgres:
         condition: service_healthy
