@@ -1,0 +1,187 @@
+{
+  "/api/v1/policies/POL-00000001": {
+    "body": {
+      "agentCode": "AG1001",
+      "apiFlag": "Y",
+      "branchCode": "CHI1",
+      "coverageLimit": 500000.0,
+      "deductible": 1000.0,
+      "effectiveDate": "2025-01-01",
+      "expiryDate": "2026-01-01",
+      "inceptionDate": "2020-01-01",
+      "lastUpdated": 1792133760685,
+      "policyNumber": "POL-00000001",
+      "policyStatus": "AC",
+      "policyType": "HOM",
+      "policyholderId": "C000000001",
+      "renewalCount": 5,
+      "riskScore": 35,
+      "totalPremium": 1250.0,
+      "updatedBy": "TNGUYEN",
+      "uwStatus": "AP",
+      "webIndicator": "Y"
+    },
+    "status": 200
+  },
+  "/api/v1/policies/POL-00000001/coverages": {
+    "body": [
+      {
+        "classCode": "R1001",
+        "coinsurancePct": 80,
+        "coverageLimit": 400000.0,
+        "coverageType": "DWEL",
+        "deductible": 1000.0,
+        "description": "Dwelling Coverage",
+        "effectiveDate": "2025-01-01",
+        "expiryDate": "2026-01-01",
+        "policyNumber": "POL-00000001",
+        "premium": 850.0,
+        "ratingTerritory": "IL0627",
+        "sequenceNum": 1,
+        "status": "AC"
+      },
+      {
+        "classCode": "R1001",
+        "coinsurancePct": 100,
+        "coverageLimit": 100000.0,
+        "coverageType": "PERS",
+        "deductible": 500.0,
+        "description": "Personal Property",
+        "effectiveDate": "2025-01-01",
+        "expiryDate": "2026-01-01",
+        "policyNumber": "POL-00000001",
+        "premium": 400.0,
+        "ratingTerritory": "IL0627",
+        "sequenceNum": 2,
+        "status": "AC"
+      }
+    ],
+    "status": 200
+  },
+  "/api/v1/policies/POL-00000002": {
+    "body": {
+      "agentCode": "AG2005",
+      "apiFlag": "Y",
+      "branchCode": "CHI1",
+      "coverageLimit": 100000.0,
+      "deductible": 500.0,
+      "effectiveDate": "2025-03-15",
+      "expiryDate": "2026-03-15",
+      "inceptionDate": "2023-03-15",
+      "lastUpdated": 1792133760686,
+      "policyNumber": "POL-00000002",
+      "policyStatus": "AC",
+      "policyType": "AUT",
+      "policyholderId": "C000000002",
+      "renewalCount": 2,
+      "riskScore": 42,
+      "totalPremium": 890.5,
+      "updatedBy": "TNGUYEN",
+      "uwStatus": "AP",
+      "webIndicator": "N"
+    },
+    "status": 200
+  },
+  "/api/v1/policies/POL-00000002/coverages": {
+    "body": [
+      {
+        "classCode": "A2010",
+        "coinsurancePct": 100,
+        "coverageLimit": 50000.0,
+        "coverageType": "LIAB",
+        "deductible": 0.0,
+        "description": "Liability",
+        "effectiveDate": "2025-03-15",
+        "expiryDate": "2026-03-15",
+        "policyNumber": "POL-00000002",
+        "premium": 450.5,
+        "ratingTerritory": "IL0601",
+        "sequenceNum": 1,
+        "status": "AC"
+      },
+      {
+        "classCode": "A2010",
+        "coinsurancePct": 100,
+        "coverageLimit": 50000.0,
+        "coverageType": "COLL",
+        "deductible": 500.0,
+        "description": "Collision",
+        "effectiveDate": "2025-03-15",
+        "expiryDate": "2026-03-15",
+        "policyNumber": "POL-00000002",
+        "premium": 440.0,
+        "ratingTerritory": "IL0601",
+        "sequenceNum": 2,
+        "status": "AC"
+      }
+    ],
+    "status": 200
+  },
+  "/api/v1/policies/POL-00000003": {
+    "body": {
+      "agentCode": "AG3010",
+      "apiFlag": "Y",
+      "branchCode": "DET1",
+      "coverageLimit": 2000000.0,
+      "deductible": 2500.0,
+      "effectiveDate": "2025-06-01",
+      "expiryDate": "2026-06-01",
+      "inceptionDate": "2022-06-01",
+      "lastUpdated": 1792133760687,
+      "policyNumber": "POL-00000003",
+      "policyStatus": "AC",
+      "policyType": "CGL",
+      "policyholderId": "C000000003",
+      "renewalCount": 3,
+      "riskScore": 55,
+      "totalPremium": 4500.0,
+      "updatedBy": "TNGUYEN",
+      "uwStatus": "AP",
+      "webIndicator": "Y"
+    },
+    "status": 200
+  },
+  "/api/v1/policies/POL-00000003/coverages": {
+    "body": [
+      {
+        "classCode": "C5001",
+        "coinsurancePct": 100,
+        "coverageLimit": 1000000.0,
+        "coverageType": "PREM",
+        "deductible": 2500.0,
+        "description": "Premises Liability",
+        "effectiveDate": "2025-06-01",
+        "expiryDate": "2026-06-01",
+        "policyNumber": "POL-00000003",
+        "premium": 2800.0,
+        "ratingTerritory": "MI0482",
+        "sequenceNum": 1,
+        "status": "AC"
+      },
+      {
+        "classCode": "C5001",
+        "coinsurancePct": 100,
+        "coverageLimit": 1000000.0,
+        "coverageType": "PROD",
+        "deductible": 2500.0,
+        "description": "Products Liability",
+        "effectiveDate": "2025-06-01",
+        "expiryDate": "2026-06-01",
+        "policyNumber": "POL-00000003",
+        "premium": 1700.0,
+        "ratingTerritory": "MI0482",
+        "sequenceNum": 2,
+        "status": "AC"
+      }
+    ],
+    "status": 200
+  },
+  "/api/v1/policies/POL-99999999": {
+    "body": null,
+    "status": 404
+  },
+  "/api/v1/policies/POL-99999999/coverages": {
+    "body": null,
+    "status": 404
+  }
+}
