@@ -42,13 +42,10 @@ class PremiumCalculatorTest {
   }
 
   @Test
-  void taxTruncatesLikeCobolCompute() {
-    // COBOL COMPUTE without ROUNDED truncates; 999.99 * 0.0350 = 34.9996500 -> 34.99
-    // (verified against the golden: no HALF_UP rounding anywhere in the calc)
+  void termDatesPassThrough() {
     PremiumCalculation c =
         calculator.rate(
             new PolicyTerm("AUT", LocalDate.of(2024, 2, 29), LocalDate.of(2025, 2, 28)));
-    // base 850 * 0.0350 = 29.7500 exactly -> 29.75
     assertEquals(new BigDecimal("29.75"), c.tax());
     assertEquals(LocalDate.of(2024, 2, 29), c.termEffectiveDate());
     assertEquals(LocalDate.of(2025, 2, 28), c.termExpiryDate());

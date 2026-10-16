@@ -98,6 +98,21 @@ class ParityHarnessTest {
   }
 
   @Test
+  void ab5170DecisionRejected() throws IOException {
+    Files.writeString(
+        parityDir.resolve("known-differences.json"),
+        "[{\"program\":\"demo\",\"case_id\":\"CASE-1\",\"field\":\"total_premium\","
+            + "\"cobol\":\"904.75\",\"java\":\"904.76\",\"quirk\":\"cent rounding\","
+            + "\"decision\":\"https://cog-gtm.atlassian.net/browse/AB-5170\","
+            + "\"rationale\":\"accepted\"}]");
+    ParityHarness.ParityReport report =
+        ParityHarness.run(
+            adapter(Map.of("total_premium", "904.76"), Map.of("total_premium", "1267.00")),
+            parityDir);
+    assertTrue(report.failures().stream().anyMatch(f -> f.contains("invalid decision")));
+  }
+
+  @Test
   void staleKnownDifferenceFails() throws IOException {
     Files.writeString(
         parityDir.resolve("known-differences.json"),

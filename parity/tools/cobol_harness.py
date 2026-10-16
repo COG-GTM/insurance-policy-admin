@@ -126,10 +126,11 @@ def encode_record(spec, row):
 # COBOL preprocessor
 # --------------------------------------------------------------------------
 
-_PARA_RE = re.compile(r"^\s*([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)\.\s*$")
+_PARA_RE = re.compile(r"^ {0,3}([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)\.\s*$")
 _EXEC_RE = re.compile(r"\bEXEC\s+(SQL|CICS)\b")
 _END_EXEC_RE = re.compile(r"\bEND-EXEC\b")
 _DFH_RE = re.compile(r"DFHRESP\(([^)]+)\)")
+_COMMENT_CHARS = "*/"
 
 
 def _stub_prefix(paragraph):
@@ -150,6 +151,12 @@ def preprocess_source(source):
     while i < len(lines):
         line = lines[i]
         stripped = line.strip()
+        # fixed-format comment lines (indicator '*' or '/' in column 7)
+        # pass through untouched
+        if len(line) > 6 and line[6] in _COMMENT_CHARS:
+            out.append(line)
+            i += 1
+            continue
         if stripped == "DATA DIVISION.":
             in_data = True
         if stripped == "PROCEDURE DIVISION.":
@@ -159,8 +166,11 @@ def preprocess_source(source):
             out.append(f"{AREA_A}COPY HXFIX.")
             out.append(f"{AREA_A}COPY HXWS.")
             ws_done = True
-        if _PARA_RE.match(line) and not in_data:
-            paragraph = _PARA_RE.match(line).group(1)
+        # paragraph headers only when the name starts in area A
+        # (columns 8-11, i.e. <= 3 leading spaces after the indicator col)
+        pm = _PARA_RE.match(line[7:]) if len(line) > 7 else None
+        if pm and not in_data:
+            paragraph = pm.group(1)
         m = _EXEC_RE.search(line)
         if m:
             # gather the whole EXEC block (single or multi line)

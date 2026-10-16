@@ -111,6 +111,33 @@ class TestPreprocess(unittest.TestCase):
         self.assertIn("ASKTIME", stubs[0][1])
         self.assertIn("SELECT A", stubs[1][1])
 
+    def test_comment_line_with_exec_untouched(self):
+        src = SAMPLE.replace(
+            "           EXEC CICS ASKTIME ABSTIME(WS-A) END-EXEC",
+            "      *    EXEC SQL SELECT 1 END-EXEC\n"
+            "           EXEC CICS ASKTIME ABSTIME(WS-A) END-EXEC")
+        gen, stubs = h.preprocess_source(src)
+        self.assertEqual([n for n, _ in stubs], ["STUB-0000-1", "STUB-2000-1"])
+        self.assertIn("      *    EXEC SQL SELECT 1 END-EXEC", gen)
+
+    def test_commented_paragraph_line_ignored(self):
+        src = SAMPLE.replace(
+            "       2000-EXIT.",
+            "      *    9000-FAKE-PARAGRAPH.\n"
+            "       2000-EXIT.")
+        gen, stubs = h.preprocess_source(src)
+        self.assertEqual([n for n, _ in stubs], ["STUB-0000-1", "STUB-2000-1"])
+        self.assertIn("      *    9000-FAKE-PARAGRAPH.", gen)
+
+    def test_area_b_name_not_a_paragraph(self):
+        # name starting in area B (column 12+) must not set the stub prefix
+        src = SAMPLE.replace(
+            "           EXEC CICS ASKTIME ABSTIME(WS-A) END-EXEC",
+            "            NOT-A-PARAGRAPH.\n"
+            "           EXEC CICS ASKTIME ABSTIME(WS-A) END-EXEC")
+        _, stubs = h.preprocess_source(src)
+        self.assertEqual([n for n, _ in stubs], ["STUB-0000-1", "STUB-2000-1"])
+
 
 if __name__ == "__main__":
     unittest.main()

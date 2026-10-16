@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Runs a {@link ParityAdapter} against the fixtures and COBOL golden CSVs in {@code
@@ -49,6 +50,10 @@ public final class ParityHarness {
       String java,
       String quirk,
       String decision) {}
+
+  private static final Pattern JIRA_DECISION =
+      Pattern.compile("^https://cog-gtm\\.atlassian\\.net/browse/AB-517([/?#].*)?$");
+  private static final Pattern DOC_DECISION = Pattern.compile("^docs/modernization/\\S+$");
 
   private ParityHarness() {}
 
@@ -259,8 +264,8 @@ public final class ParityHarness {
                   + n.path("field").asText()
                   + " has a blank quirk");
         }
-        if (!decision.startsWith("https://cog-gtm.atlassian.net/browse/AB-517")
-            && !decision.startsWith("docs/modernization/")) {
+        if (!JIRA_DECISION.matcher(decision).matches()
+            && !DOC_DECISION.matcher(decision).matches()) {
           failures.add(
               "known difference "
                   + n.path("case_id").asText()
