@@ -34,9 +34,9 @@ public class ApiTokenInterceptor extends HandlerInterceptorAdapter {
     public ApiTokenInterceptor(String apiTokens) {
         if (apiTokens != null) {
             for (String entry : apiTokens.split(",")) {
-                String token = entry.trim();
-                if (!token.isEmpty()) {
-                    tokens.add(token.getBytes(StandardCharsets.UTF_8));
+                String trimmed = entry.trim();
+                if (!trimmed.isEmpty()) {
+                    tokens.add(trimmed.getBytes(StandardCharsets.UTF_8));
                 }
             }
         }
@@ -53,8 +53,8 @@ public class ApiTokenInterceptor extends HandlerInterceptorAdapter {
         byte[] presented = presentedToken(request);
         boolean authorized = false;
         if (presented != null) {
-            for (byte[] token : tokens) {
-                if (MessageDigest.isEqual(presented, token)) {
+            for (byte[] configured : tokens) {
+                if (MessageDigest.isEqual(presented, configured)) {
                     authorized = true;
                 }
             }
@@ -76,10 +76,10 @@ public class ApiTokenInterceptor extends HandlerInterceptorAdapter {
                         BEARER_PREFIX.length())) {
             return null;
         }
-        String token = header.substring(BEARER_PREFIX.length());
-        if (token.trim().isEmpty()) {
+        String credential = header.substring(BEARER_PREFIX.length());
+        if (credential.trim().isEmpty()) {
             return null;
         }
-        return token.getBytes(StandardCharsets.UTF_8);
+        return credential.getBytes(StandardCharsets.UTF_8);
     }
 }
