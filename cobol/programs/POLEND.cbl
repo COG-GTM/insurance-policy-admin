@@ -8,6 +8,7 @@
       * Date:     1999-02-10
       * Modified: 2007-04-15 - Added mid-term cancellation
       *           2016-08-01 - Added endorsement audit trail
+      *           2026-10-16 - Added RACF authorization (branch/cancel)
       *
       * Processes policy endorsements (changes to existing policy):
       * - Coverage additions/removals
@@ -36,6 +37,15 @@
            88  END-TYPE-LMT-CHG       VALUE 'LCH'.
            88  END-TYPE-ADDR-CHG      VALUE 'ACH'.
            88  END-TYPE-CANCEL        VALUE 'CAN'.
+
+       01  WS-BRANCH-IND             PIC S9(04) COMP.
+       01  WS-SEC-RESCLASS           PIC X(08) VALUE 'FACILITY'.
+       01  WS-SEC-RESID              PIC X(44).
+       01  WS-SEC-RESID-LEN          PIC S9(08) COMP.
+       01  WS-SEC-PTR                PIC S9(04) COMP.
+       01  WS-SEC-UPDATE             PIC S9(08) COMP.
+       01  WS-SEC-ACCESS-SW          PIC X(01).
+           88  WS-SEC-ACCESS-GRANTED VALUE 'Y'.
 
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
@@ -87,10 +97,11 @@
            EXEC SQL
                SELECT POLICY_NUMBER, POLICY_STATUS,
                       EFFECTIVE_DATE, EXPIRY_DATE,
-                      TOTAL_PREMIUM
+                      TOTAL_PREMIUM, BRANCH_CODE
                INTO :POLICY-NUMBER, :POLICY-STATUS,
                     :POLICY-EFFECTIVE-DATE, :POLICY-EXPIRY-DATE,
-                    :POLICY-TOTAL-PREMIUM
+                    :POLICY-TOTAL-PREMIUM,
+                    :POLICY-BRANCH-CODE :WS-BRANCH-IND
                FROM POLICIES
                WHERE POLICY_NUMBER = :POLICY-NUMBER
                WITH RS USE AND KEEP UPDATE LOCKS
@@ -108,6 +119,56 @@
            IF WS-ENDORSEMENT-TYPE = SPACES
                MOVE 'ENDORSEMENT TYPE IS REQUIRED'
                    TO WS-ERROR-MSG
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 3100-AUTHORIZE-ENDORSEMENT
+           END-IF
+           .
+
+       3100-AUTHORIZE-ENDORSEMENT.
+      *    Signed-on user needs UPDATE to the policy's servicing branch
+      *    profile; cancellations also need the cancellation profile.
+           IF WS-BRANCH-IND < 0 OR POLICY-BRANCH-CODE = SPACES
+               MOVE 'NOT AUTHORIZED FOR THIS POLICY BRANCH'
+                   TO WS-ERROR-MSG
+           ELSE
+               MOVE SPACES TO WS-SEC-RESID
+               MOVE 1 TO WS-SEC-PTR
+               STRING 'PAS.POLEND.BRANCH.' DELIMITED BY SIZE
+                      POLICY-BRANCH-CODE DELIMITED BY SPACE
+                   INTO WS-SEC-RESID WITH POINTER WS-SEC-PTR
+               END-STRING
+               COMPUTE WS-SEC-RESID-LEN = WS-SEC-PTR - 1
+               PERFORM 3110-CHECK-UPDATE-ACCESS
+               IF NOT WS-SEC-ACCESS-GRANTED
+                   MOVE 'NOT AUTHORIZED FOR THIS POLICY BRANCH'
+                       TO WS-ERROR-MSG
+               END-IF
+           END-IF
+           IF WS-ERROR-MSG = SPACES AND END-TYPE-CANCEL
+               MOVE 'PAS.POLEND.CANCEL' TO WS-SEC-RESID
+               MOVE 17 TO WS-SEC-RESID-LEN
+               PERFORM 3110-CHECK-UPDATE-ACCESS
+               IF NOT WS-SEC-ACCESS-GRANTED
+                   MOVE 'NOT AUTHORIZED TO CANCEL POLICIES'
+                       TO WS-ERROR-MSG
+               END-IF
+           END-IF
+           .
+
+       3110-CHECK-UPDATE-ACCESS.
+           MOVE 'N' TO WS-SEC-ACCESS-SW
+           MOVE ZERO TO WS-SEC-UPDATE
+           EXEC CICS QUERY SECURITY
+               RESCLASS(WS-SEC-RESCLASS)
+               RESID(WS-SEC-RESID)
+               RESIDLENGTH(WS-SEC-RESID-LEN)
+               UPDATE(WS-SEC-UPDATE)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE = DFHRESP(NORMAL)
+              AND WS-SEC-UPDATE = DFHVALUE(UPDATABLE)
+               MOVE 'Y' TO WS-SEC-ACCESS-SW
            END-IF
            .
 
