@@ -7,6 +7,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -39,6 +40,13 @@ public class PolicyControllerTests {
     }
 
     @Test
+    @Sql("/sql/non-exposed-policy.sql")
+    public void getPolicy_notExposedViaApi_returnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000099"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     public void getCoverages_returnsCoverages() throws Exception {
         mockMvc.perform(get("/api/v1/policies/POL-00000001/coverages"))
                 .andExpect(status().isOk())
@@ -51,6 +59,13 @@ public class PolicyControllerTests {
     @Test
     public void getCoverages_policyNotFound() throws Exception {
         mockMvc.perform(get("/api/v1/policies/NONEXISTENT/coverages"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @Sql("/sql/non-exposed-policy.sql")
+    public void getCoverages_notExposedViaApi_returnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000099/coverages"))
                 .andExpect(status().isNotFound());
     }
 
