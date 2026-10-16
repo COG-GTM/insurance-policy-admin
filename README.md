@@ -6,6 +6,37 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 
 **Maturity Level:** 0 (Legacy)
 
+## Repository layout
+
+| Area | Contents |
+|---|---|
+| Legacy | `cobol/`, `jcl/`, `sql/`, `java-facade/` |
+| New Java codebase | `pas/` — `pas-observability`, `pas-policy-service`; planned `pas-domain` (AB-521), `pas-rating` (AB-522), and `pas-batch` / Spring Batch (AB-523) |
+| Compatibility | `compat/` — backward-compatibility checks for the legacy system |
+| Architecture | `docs/adr/` — ADR 0001 target architecture (AB-518); ADR 0002 scaffold |
+| Local services | `compose.yaml` |
+| GitHub workflows and templates | `.github/` |
+
+## Getting started (new codebase)
+
+Prerequisites: JDK 21 and Docker with the Compose plugin.
+
+Run `make dev` from the repository root. It verifies both Maven modules, starts PostgreSQL and the policy service, waits for readiness, and prints the service URLs.
+
+| Endpoint | URL |
+|---|---|
+| Application | http://localhost:8080 |
+| Liveness | http://localhost:8081/actuator/health/liveness |
+| Readiness | http://localhost:8081/actuator/health/readiness |
+| Prometheus metrics | http://localhost:8081/actuator/prometheus |
+| Build info | http://localhost:8081/actuator/info |
+
+Use `make fmt` to format Java sources and `make down` to stop the stack and remove its local database volume. Set `PAS_DB_PASSWORD` to override the local database password; `PAS_DB_URL` and `PAS_DB_USERNAME` configure the service connection when running outside Compose.
+
+## CI & conventions
+
+The new codebase CI runs four required jobs: build and unit/integration tests, Spotless/SpotBugs static analysis, OSV dependency vulnerability scanning, and container image build/smoke test. The existing compatibility gate protects the legacy tree. Use the [pull request template](.github/pull_request_template.md), format with `make fmt`, and have a repository admin run `.github/scripts/protect-main.sh` to enable required checks and branch protection.
+
 ## Architecture
 
 ### Core Platform
@@ -79,7 +110,7 @@ GET /manage/health                              - Health check
 
 - **COBOL/JCL:** IBM Rational Team Concert (RTC) on z/OS
 - **Java facade:** SVN (svn://svn.acme.local/pas-facade/trunk)
-- **No CI/CD pipeline** - Manual compilation and deployment
+- **Legacy tree:** hand-built with no CI/CD pipeline. The new Java codebase has CI.
 
 ## Team Contacts
 
