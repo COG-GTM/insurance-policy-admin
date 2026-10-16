@@ -17,16 +17,12 @@ RULES = [
 
 def ftp_steps(text):
     lines = (text or "").splitlines()
-    exec_re = re.compile(r"^//([A-Z0-9@$#]+)\s+EXEC\b.*?\bPGM\s*=\s*FTP\b", re.I)
     any_exec_re = re.compile(r"^//[A-Z0-9@$#]+\s+EXEC\b", re.I)
-    dd_re = re.compile(r"^//(?:([A-Z0-9@$#]+)\s+)?DD\b(.*)$", re.I)
+    dd_re = re.compile(r"^//(?:([A-Z0-9@$#]+)\s+)?\s*DD\b(.*)$", re.I)
     exec_starts = [i for i, line in enumerate(lines) if any_exec_re.match(line)]
     steps = []
 
     for start in exec_starts:
-        match = exec_re.match(lines[start])
-        if not match:
-            continue
         end = next((i for i in exec_starts if i > start), len(lines))
         exec_lines = [lines[start]]
         for line in lines[start + 1:end]:
@@ -37,8 +33,13 @@ def ftp_steps(text):
             else:
                 break
 
+        exec_text = "\n".join(exec_lines)
+        if not re.search(r"\bPGM\s*=\s*FTP\b", exec_text, re.I):
+            continue
+
         dds = {}
         i = start + 1
+        previous_ddname = None
         while i < end:
             dd_match = dd_re.match(lines[i])
             if not dd_match:
@@ -46,6 +47,12 @@ def ftp_steps(text):
                 continue
 
             ddname = (dd_match.group(1) or "").upper()
+            if not ddname:
+                if previous_ddname in dds:
+                    dds[previous_ddname]["concat"] = True
+                i += 1
+                continue
+
             tail = dd_match.group(2)
             statement = [tail]
             j = i + 1
@@ -53,8 +60,8 @@ def ftp_steps(text):
                 statement.append(lines[j][2:])
                 j += 1
 
-            dsn_match = re.search(r"\bDSN\s*=\s*(['\"]?)([^,'\"\s]+)\1", " ".join(statement), re.I)
-            dsn = dsn_match.group(2) if dsn_match else None
+            dsn_match = re.search(r"\bDSN\s*=\s*['\"]?([^,'\"\s]+)", " ".join(statement), re.I)
+            dsn = dsn_match.group(1) if dsn_match else None
             is_instream = bool(re.search(r"(?:^|[,\s])(?:\*|DATA)(?:[,\s]|$)", tail, re.I))
             data = None
             if is_instream:
@@ -66,11 +73,12 @@ def ftp_steps(text):
                         break
                     data.append(line)
                     data_index += 1
-            if ddname:
-                dds[ddname] = {"dsn": dsn, "data": data}
+            dds[ddname] = {"dsn": dsn, "data": data, "concat": False}
+            previous_ddname = ddname
             i += 1
 
-        steps.append((match.group(1), "\n".join(exec_lines), dds))
+        stepname = re.match(r"^//([A-Z0-9@$#]+)\s+EXEC\b", lines[start], re.I).group(1)
+        steps.append((stepname, exec_text, dds))
     return steps
 
 
@@ -97,29 +105,49 @@ def ftp_step_issues(text):
         if not sysftpd or sysftpd["data"] is None or sysftpd["dsn"] is not None:
             issues.append((stepname, "no in-stream SYSFTPD with TLS policy"))
         else:
-            policy = "\n".join(sysftpd["data"])
+            directives = {}
+            for line in sysftpd["data"]:
+                directive = line.split(";", 1)[0].split()
+                if directive:
+                    value = directive[1].upper() if len(directive) > 1 else ""
+                    directives.setdefault(directive[0].upper(), []).append(value)
             for name, value in required_sysftpd:
-                if not re.search(rf"\b{re.escape(name)}\s+{re.escape(value)}\b", policy, re.I):
+                values = directives.get(name, [])
+                if not values:
                     issues.append((stepname, f"SYSFTPD lacks {name} {value}"))
+                if any(item != value for item in values):
+                    issues.append((stepname, f"SYSFTPD overrides {name} with a non-{value} value"))
+
+        if sysftpd and sysftpd["concat"]:
+            issues.append((stepname, "SYSFTPD has a concatenated dataset; TLS policy/commands must be fully in-stream"))
 
         if not dds.get("NETRC") or not dds["NETRC"]["dsn"]:
             issues.append((stepname, "no NETRC DD; login would come from the INPUT stream"))
 
-        input_dd = dds.get("INPUT")
-        if input_dd and input_dd["data"] is not None:
-            first = next((i for i, line in enumerate(input_dd["data"]) if line.strip()), None)
-            if first is not None:
-                for line_number, line in enumerate(input_dd["data"][first + 1:], start=first + 2):
-                    if not line.strip():
-                        continue
-                    tokens = line.split()
-                    command = tokens[0].upper()
-                    if command not in allowlist:
-                        issues.append((stepname, f"INPUT line {line_number} is not an FTP subcommand (inline login/credential?)"))
-                    if command in {"CCC", "CLEAR", "SAFE"} or (
-                        command == "PROT" and (len(tokens) < 2 or tokens[1].upper() != "P")
-                    ):
-                        issues.append((stepname, f"INPUT line {line_number} downgrades TLS protection"))
+        for ddname in ("INPUT", "SYSIN"):
+            if dds.get(ddname, {}).get("concat"):
+                issues.append((stepname, f"{ddname} has a concatenated dataset; TLS policy/commands must be fully in-stream"))
+
+        command_ddname = "INPUT" if "INPUT" in dds else "SYSIN"
+        command_dd = dds.get(command_ddname)
+        if not command_dd or command_dd["data"] is None or command_dd["dsn"] is not None:
+            issues.append((stepname, "FTP commands must come from an in-stream INPUT DD so they can be reviewed"))
+        else:
+            host_seen = False
+            for line_number, line in enumerate(command_dd["data"], start=1):
+                if not line.strip():
+                    continue
+                if not host_seen:
+                    host_seen = True
+                    continue
+                tokens = line.split()
+                command = tokens[0].upper()
+                if command not in allowlist:
+                    issues.append((stepname, f"{command_ddname} line {line_number} is not an FTP subcommand (inline login/credential?)"))
+                if command in {"CCC", "CLEAR", "SAFE"} or (
+                    command == "PROT" and (len(tokens) < 2 or tokens[1].upper() != "P")
+                ):
+                    issues.append((stepname, f"{command_ddname} line {line_number} downgrades TLS protection"))
 
     return issues
 
