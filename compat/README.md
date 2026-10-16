@@ -10,7 +10,7 @@ business contract unless the change is explicitly approved.
 | REST API contract | `api/run_facade.sh` → `api/check_api.py` | Changed status codes, removed fields, changed JSON types/values for `GET /api/v1/policies/{n}` and `/coverages` vs `api/snapshots/` (additive fields are fine) |
 | DB schema | `check_schema.py` | Dropped tables/columns, narrowed types, new NOT NULL without default, removed constraints, `POLICY_SEQ` changes, edits to applied Flyway migrations |
 | Record & file layouts | `check_layouts.py` | Copybook record length or field offset/size changes; JCL output dataset LRECL changes (Claims/Actuarial feeds) |
-| Security non-regression | `check_security.py` | Added hardcoded secrets/keys, exposed actuator, H2 console outside local profile, plaintext FTP (PII additions are reported as notes) |
+| Security non-regression | `check_security.py` | Added hardcoded secrets/keys, exposed actuator, H2 console outside local profile, plaintext FTP, insecure FTP steps in changed JCL (TLS not required, no NETRC, inline login) (PII additions are reported as notes) |
 
 Run locally: `make compat` (needs JDK 8 for `java-facade` and Python 3).
 

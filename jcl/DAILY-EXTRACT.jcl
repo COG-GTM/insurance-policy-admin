@@ -8,7 +8,10 @@
 //* Author:   J. Henderson
 //* Date:     1998-09-01
 //* Modified: 2005-03-15 - Added Claims system extract
-//*           2012-11-01 - Added encryption step (regulatory)
+//*           2012-11-01 - (Entry corrected: the "encryption step"
+//*                        logged here was never implemented)
+//*           2026-10-16 - STEP030 requires FTPS (TLS); login moved
+//*                        from the INPUT stream to a NETRC dataset
 //*
 //* Extracts active policy data from DB2 and creates flat files
 //* for consumption by Claims Engine (VB6 batch import) and
@@ -81,13 +84,24 @@
 /*
 //*
 //*-------------------------------------------------------------------
-//* STEP030 - FTP extract files to Claims server
+//* STEP030 - FTPS (TLS required) extract files to Claims server
+//*           Login comes from the RACF-protected NETRC dataset; no
+//*           credentials are coded in this job.
 //*-------------------------------------------------------------------
-//STEP030  EXEC PGM=FTP,PARM='(EXIT',
+//STEP030  EXEC PGM=FTP,PARM='-r TLS (EXIT',
 //         COND=(4,LT)
+//NETRC    DD DSN=ACME.PAS.FTPS.NETRC,DISP=SHR
+//SYSFTPD  DD *
+SECURE_FTP        REQUIRED
+SECURE_MECHANISM  TLS
+TLSMECHANISM      FTP
+TLSRFCLEVEL       RFC4217
+SECURE_CTRLCONN   PRIVATE
+SECURE_DATACONN   PRIVATE
+KEYRING           PASFTPS
+/*
 //INPUT    DD *
  CLAIMSRV.ACME.LOCAL
- ACMEFTP
  PUT 'ACME.PAS.EXTRACT.POLICY.DAILY' /claims/import/policy_extract.dat
  PUT 'ACME.PAS.EXTRACT.COVERAGE.DAILY' /claims/import/coverage_extract.dat
  QUIT
