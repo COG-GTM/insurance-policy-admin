@@ -3,10 +3,20 @@
 -- Used when running with the "local" Spring profile.
 ------------------------------------------------------------------------
 
+-- Keep the in-memory database alive between connections. Set here rather
+-- than in the JDBC URL because only the admin account may change it.
+SET DB_CLOSE_DELAY -1;
+
 CREATE SCHEMA IF NOT EXISTS ACMEINS;
 
 ------------------------------------------------------------------------
 -- POLICY_HOLDERS
+--
+-- DATE_OF_BIRTH, SSN_LAST4 and TAX_ID hold AES-256 ciphertext only
+-- (ENCRYPT_DATAKEY on DB2 z/OS; see sql/ddl/create-tables.sql). H2 has no
+-- equivalent, so local seed data leaves them NULL. CREDIT_SCORE stays
+-- numeric for underwriting and is protected by grants below (H2) and a
+-- column mask (DB2).
 ------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ACMEINS.POLICY_HOLDERS (
     CUST_ID             CHAR(10)        NOT NULL,
@@ -23,9 +33,9 @@ CREATE TABLE IF NOT EXISTS ACMEINS.POLICY_HOLDERS (
     COUNTRY_CODE        CHAR(3)         DEFAULT 'USA',
     PHONE               VARCHAR(15),
     EMAIL               VARCHAR(60),
-    DATE_OF_BIRTH       DATE,
-    SSN_LAST4           CHAR(4),
-    TAX_ID              CHAR(10),
+    DATE_OF_BIRTH       VARBINARY(95),
+    SSN_LAST4           VARBINARY(95),
+    TAX_ID              VARBINARY(95),
     CREDIT_SCORE        SMALLINT,
     RISK_TIER           CHAR(1)         DEFAULT 'S',
     GDPR_CONSENT        CHAR(1)         DEFAULT 'N',
@@ -167,6 +177,15 @@ CREATE TABLE IF NOT EXISTS ACMEINS.TERRITORY_FACTORS (
     CONSTRAINT PK_TERR_FACTORS PRIMARY KEY
         (TERRITORY_CODE, EFFECTIVE_DATE)
 );
+
+------------------------------------------------------------------------
+-- Least-privilege account for the REST facade (mirrors the DB2 grants).
+-- The facade only reads policies and coverages; it has no access to
+-- POLICY_HOLDERS or any other table.
+------------------------------------------------------------------------
+CREATE USER IF NOT EXISTS PASFACAD PASSWORD '';
+GRANT SELECT ON ACMEINS.POLICIES TO PASFACAD;
+GRANT SELECT ON ACMEINS.COVERAGES TO PASFACAD;
 
 ------------------------------------------------------------------------
 -- Policy number sequence
