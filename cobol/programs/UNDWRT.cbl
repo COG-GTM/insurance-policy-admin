@@ -9,6 +9,8 @@
       * Modified: 2004-03-15 - Added terrorism risk scoring
       *           2011-07-01 - Added catastrophe zone check
       *           2018-12-01 - Added cyber risk assessment
+      *           2026-10-16 - Caller authorization (RACF FACILITY
+      *           ACME.PAS.UW.DECIDE.<branch>), USERID audit
       *
       * Evaluates underwriting risk for new and renewal policies.
       * Applies risk scoring rules, checks accumulation limits,
@@ -44,6 +46,14 @@
        01  WS-ZONE-RISK-FACTOR       PIC S9(01)V99 COMP-3.
        01  WS-MQ-QUEUE               PIC X(48)
            VALUE 'ACME.PAS.UNDERWRITING.DECISION'.
+       01  WS-USERID                 PIC X(08).
+       01  WS-INPUT-POLICY-NUMBER    PIC X(12).
+       01  WS-UW-RESCLASS            PIC X(08) VALUE 'FACILITY'.
+       01  WS-UW-RESID.
+           05  FILLER                PIC X(19)
+               VALUE 'ACME.PAS.UW.DECIDE.'.
+           05  WS-UW-RESID-BRANCH    PIC X(04).
+       01  WS-UW-UPDATE-CVDA         PIC S9(08) COMP.
 
        COPY POLICY-RECORD.
        COPY CUSTOMER-RECORD.
@@ -57,6 +67,9 @@
        0000-MAIN-LOGIC.
            PERFORM 1000-INITIALIZE
            PERFORM 2000-READ-POLICY-DATA
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 2500-AUTHORIZE-UNDERWRITER
+           END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 3000-CALCULATE-RISK-SCORE
                PERFORM 4000-CHECK-ACCUMULATION
@@ -93,14 +106,31 @@
                    TO WS-ERROR-MSG
                GO TO 2000-EXIT
            END-IF
+           MOVE POLICY-NUMBER TO WS-INPUT-POLICY-NUMBER
+           INITIALIZE POLICY-RECORD
+           MOVE WS-INPUT-POLICY-NUMBER TO POLICY-NUMBER
+           IF POLICY-NUMBER = SPACES
+               MOVE 'POLICY NUMBER IS REQUIRED' TO WS-ERROR-MSG
+               GO TO 2000-EXIT
+           END-IF
            EXEC SQL
-               SELECT P.POLICY_NUMBER, P.POLICY_TYPE,
-                      P.TOTAL_PREMIUM, P.COVERAGE_LIMIT,
-                      P.BRANCH_CODE,
+               SELECT P.POLICY_NUMBER, P.POLICY_TYPE, P.POLICY_STATUS,
+                      P.EFFECTIVE_DATE, P.EXPIRY_DATE,
+                      P.POLICYHOLDER_ID, P.AGENT_CODE, P.BRANCH_CODE,
+                      P.TOTAL_PREMIUM, P.DEDUCTIBLE, P.COVERAGE_LIMIT,
+                      P.INCEPTION_DATE, P.RENEWAL_COUNT,
+                      P.UW_STATUS, P.RISK_SCORE,
+                      P.WEB_INDICATOR, P.API_FLAG,
                       C.CUST_TYPE, C.CREDIT_SCORE, C.RISK_TIER
-               INTO :POLICY-NUMBER, :POLICY-TYPE,
-                    :POLICY-TOTAL-PREMIUM, :POLICY-LIMIT,
+               INTO :POLICY-NUMBER, :POLICY-TYPE, :POLICY-STATUS,
+                    :POLICY-EFFECTIVE-DATE, :POLICY-EXPIRY-DATE,
+                    :POLICY-HOLDER-ID, :POLICY-AGENT-CODE,
                     :POLICY-BRANCH-CODE,
+                    :POLICY-TOTAL-PREMIUM, :POLICY-DEDUCTIBLE,
+                    :POLICY-LIMIT,
+                    :POLICY-INCEPTION-DATE, :POLICY-RENEWAL-COUNT,
+                    :POLICY-UW-STATUS, :POLICY-RISK-SCORE,
+                    :POLICY-WEB-IND, :POLICY-API-FLAG,
                     :CUST-TYPE, :CUST-CREDIT-SCORE,
                     :CUST-RISK-TIER
                FROM POLICIES P
@@ -114,6 +144,36 @@
            END-IF
            .
        2000-EXIT.
+           EXIT.
+
+       2500-AUTHORIZE-UNDERWRITER.
+      *    Caller must hold UPDATE on ACME.PAS.UW.DECIDE.<branch>
+           EXEC CICS ASSIGN
+               USERID(WS-USERID)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+              OR WS-USERID = SPACES
+              OR POLICY-BRANCH-CODE = SPACES
+               MOVE 'NOT AUTHORIZED FOR UNDERWRITING DECISION'
+                   TO WS-ERROR-MSG
+               GO TO 2500-EXIT
+           END-IF
+           MOVE POLICY-BRANCH-CODE TO WS-UW-RESID-BRANCH
+           EXEC CICS QUERY SECURITY
+               RESCLASS(WS-UW-RESCLASS)
+               RESID(WS-UW-RESID)
+               RESIDLENGTH(LENGTH OF WS-UW-RESID)
+               UPDATE(WS-UW-UPDATE-CVDA)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+              OR WS-UW-UPDATE-CVDA NOT = DFHVALUE(UPDATABLE)
+               MOVE 'NOT AUTHORIZED FOR UNDERWRITING DECISION'
+                   TO WS-ERROR-MSG
+           END-IF
+           .
+       2500-EXIT.
            EXIT.
 
        3000-CALCULATE-RISK-SCORE.
@@ -220,7 +280,7 @@
                (:POLICY-NUMBER, :WS-CURRENT-DATE,
                 :WS-DECISION, :WS-RISK-SCORE,
                 :WS-DECISION-REASON,
-                'SYSTEM', CURRENT TIMESTAMP)
+                :WS-USERID, CURRENT TIMESTAMP)
            END-EXEC
 
            EXEC SQL
