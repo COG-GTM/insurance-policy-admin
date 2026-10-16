@@ -8,6 +8,7 @@
       * Date:     1999-02-10
       * Modified: 2007-04-15 - Added mid-term cancellation
       *           2016-08-01 - Added endorsement audit trail
+      *           2026-10-16 - Compute pro-rata premium adjustment
       *
       * Processes policy endorsements (changes to existing policy):
       * - Coverage additions/removals
@@ -26,10 +27,9 @@
        01  WS-ERROR-MSG              PIC X(79).
        01  WS-CURRENT-DATE           PIC 9(08).
        01  WS-ENDORSEMENT-SEQ        PIC 9(05).
-       01  WS-DAYS-REMAINING         PIC 9(03).
-       01  WS-DAYS-IN-TERM           PIC 9(03).
-       01  WS-PRORATA-FACTOR         PIC S9(01)V9(06) COMP-3.
-       01  WS-PREMIUM-ADJUST         PIC S9(09)V99 COMP-3.
+       01  WS-DAYS-REMAINING         PIC S9(05) COMP-3 VALUE ZERO.
+       01  WS-DAYS-IN-TERM           PIC S9(05) COMP-3 VALUE ZERO.
+       01  WS-PREMIUM-ADJUST         PIC S9(09)V99 COMP-3 VALUE ZERO.
        01  WS-ENDORSEMENT-TYPE        PIC X(03).
            88  END-TYPE-COV-ADD       VALUE 'CAD'.
            88  END-TYPE-COV-REM       VALUE 'CRM'.
@@ -54,7 +54,11 @@
            END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 4000-CALCULATE-PRORATA
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 5000-APPLY-ENDORSEMENT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 6000-WRITE-AUDIT-TRAIL
                PERFORM 7000-SEND-CONFIRMATION
            ELSE
@@ -65,6 +69,7 @@
 
        1000-INITIALIZE.
            MOVE SPACES TO WS-ERROR-MSG
+           MOVE ZERO TO WS-PREMIUM-ADJUST
            EXEC CICS ASKTIME ABSTIME(WS-CURRENT-DATE) END-EXEC
            EXEC CICS FORMATTIME
                ABSTIME(WS-CURRENT-DATE)
@@ -112,7 +117,7 @@
            .
 
        4000-CALCULATE-PRORATA.
-      *    Calculate pro-rata factor for premium adjustment
+      *    Validate dates for pro-rata premium adjustment
       *    Days remaining / Days in term
            COMPUTE WS-DAYS-IN-TERM =
                FUNCTION INTEGER-OF-DATE(POLICY-EXPIRY-DATE)
@@ -120,11 +125,43 @@
            COMPUTE WS-DAYS-REMAINING =
                FUNCTION INTEGER-OF-DATE(POLICY-EXPIRY-DATE)
              - FUNCTION INTEGER-OF-DATE(WS-CURRENT-DATE)
-           IF WS-DAYS-IN-TERM > 0
-               COMPUTE WS-PRORATA-FACTOR =
-                   WS-DAYS-REMAINING / WS-DAYS-IN-TERM
+           IF WS-DAYS-IN-TERM NOT > 0
+               MOVE 'INVALID POLICY TERM DATES' TO WS-ERROR-MSG
            ELSE
-               MOVE 1 TO WS-PRORATA-FACTOR
+               IF WS-DAYS-REMAINING < 0
+                   OR WS-DAYS-REMAINING > WS-DAYS-IN-TERM
+                   MOVE 'ENDORSEMENT DATE OUTSIDE POLICY TERM'
+                       TO WS-ERROR-MSG
+               END-IF
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               EVALUATE TRUE
+                   WHEN END-TYPE-CANCEL
+                       COMPUTE WS-PREMIUM-ADJUST ROUNDED =
+                           0 - (POLICY-TOTAL-PREMIUM
+                               * WS-DAYS-REMAINING / WS-DAYS-IN-TERM)
+                           ON SIZE ERROR
+                               MOVE 'PREMIUM ADJUSTMENT OUT OF RANGE'
+                                   TO WS-ERROR-MSG
+                       END-COMPUTE
+                   WHEN END-TYPE-COV-ADD
+                   WHEN END-TYPE-COV-REM
+                   WHEN END-TYPE-LMT-CHG
+                   WHEN END-TYPE-ADDR-CHG
+      *               No rated premium delta is supplied to this
+      *               transaction, so no premium change is booked here.
+                       MOVE ZERO TO WS-PREMIUM-ADJUST
+                   WHEN OTHER
+                       MOVE 'INVALID ENDORSEMENT TYPE' TO WS-ERROR-MSG
+               END-EVALUATE
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               IF WS-PREMIUM-ADJUST <
+                   0 - POLICY-TOTAL-PREMIUM
+                   OR WS-PREMIUM-ADJUST > POLICY-TOTAL-PREMIUM
+                   MOVE 'PREMIUM ADJUSTMENT OUT OF RANGE'
+                       TO WS-ERROR-MSG
+               END-IF
            END-IF
            .
 
@@ -155,15 +192,32 @@
            END-IF
 
       *    Update policy premium
-           COMPUTE POLICY-TOTAL-PREMIUM =
-               POLICY-TOTAL-PREMIUM + WS-PREMIUM-ADJUST
-           EXEC SQL
-               UPDATE POLICIES
-               SET TOTAL_PREMIUM = :POLICY-TOTAL-PREMIUM,
-                   LAST_UPDATED = CURRENT TIMESTAMP,
-                   UPDATED_BY = 'POLEND'
-               WHERE POLICY_NUMBER = :POLICY-NUMBER
-           END-EXEC
+           IF WS-ERROR-MSG = SPACES
+               COMPUTE POLICY-TOTAL-PREMIUM =
+                   POLICY-TOTAL-PREMIUM + WS-PREMIUM-ADJUST
+                   ON SIZE ERROR
+                       MOVE 'PREMIUM ADJUSTMENT OUT OF RANGE'
+                           TO WS-ERROR-MSG
+               END-COMPUTE
+               IF WS-ERROR-MSG = SPACES
+                   IF END-TYPE-CANCEL
+                       SET POL-STAT-CANCELLED TO TRUE
+                   END-IF
+                   EXEC SQL
+                       UPDATE POLICIES
+                       SET TOTAL_PREMIUM = :POLICY-TOTAL-PREMIUM,
+                           POLICY_STATUS = :POLICY-STATUS,
+                           LAST_UPDATED = CURRENT TIMESTAMP,
+                           UPDATED_BY = 'POLEND'
+                       WHERE POLICY_NUMBER = :POLICY-NUMBER
+                   END-EXEC
+                   IF SQLCODE NOT = 0
+                       MOVE 'DB2 ERROR UPDATING POLICY PREMIUM'
+                           TO WS-ERROR-MSG
+                       EXEC CICS SYNCPOINT ROLLBACK END-EXEC
+                   END-IF
+               END-IF
+           END-IF
            .
 
        6000-WRITE-AUDIT-TRAIL.

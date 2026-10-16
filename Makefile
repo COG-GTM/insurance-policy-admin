@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-build
+.PHONY: compat compat-static compat-api compat-build cobol-test
 
 compat: compat-static compat-build compat-api
 
@@ -12,3 +12,6 @@ compat-build:
 
 compat-api:
 	./compat/api/run_facade.sh
+
+cobol-test:
+	python3 cobol/tests/test_polend_premium.py
