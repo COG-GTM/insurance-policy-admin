@@ -12,3 +12,52 @@ compat-build:
 
 compat-api:
 	./compat/api/run_facade.sh
+
+.PHONY: build test dev dev-images dev-up dev-down dev-logs dev-ps
+
+PAS_DIR := pas-platform
+COMPOSE := docker compose -f $(PAS_DIR)/docker-compose.yml
+MAVEN_SETTINGS ?= $(HOME)/.m2/settings.xml
+MVNW_REPOURL ?=
+comma := ,
+
+build:
+	cd $(PAS_DIR) && ./mvnw -B -DskipTests verify
+
+test:
+	cd $(PAS_DIR) && ./mvnw -B verify
+
+dev-images:
+	DOCKER_BUILDKIT=1 docker build $(if $(wildcard $(MAVEN_SETTINGS)),--secret id=maven_settings$(comma)src=$(MAVEN_SETTINGS)) -f $(PAS_DIR)/pas-policy-service/Dockerfile -t pas-policy-service:local --build-arg MVNW_REPOURL="$(MVNW_REPOURL)" $(PAS_DIR)
+	DOCKER_BUILDKIT=1 docker build $(if $(wildcard $(MAVEN_SETTINGS)),--secret id=maven_settings$(comma)src=$(MAVEN_SETTINGS)) -f $(PAS_DIR)/pas-batch/Dockerfile -t pas-batch:local --build-arg MVNW_REPOURL="$(MVNW_REPOURL)" $(PAS_DIR)
+
+dev-up:
+	@test -f $(PAS_DIR)/.env || { cp $(PAS_DIR)/.env.example $(PAS_DIR)/.env; echo "Created $(PAS_DIR)/.env from .env.example (local-only defaults)"; }
+	$(COMPOSE) up -d --wait --wait-timeout 300
+	@policy=$$($(COMPOSE) port pas-policy-service 8080); batch=$$($(COMPOSE) port pas-batch 8081); \
+	pg=$$($(COMPOSE) port postgres 5432); kafka=$$($(COMPOSE) port kafka 9092); \
+	printf '%s\n' \
+		"Policy service: http://$$policy" \
+		"  liveness:   http://$$policy/actuator/health/liveness" \
+		"  readiness:  http://$$policy/actuator/health/readiness" \
+		"  prometheus: http://$$policy/actuator/prometheus" \
+		"  ping:       http://$$policy/api/v2/ping" \
+		"Batch: http://$$batch" \
+		"  liveness:   http://$$batch/actuator/health/liveness" \
+		"  readiness:  http://$$batch/actuator/health/readiness" \
+		"  prometheus: http://$$batch/actuator/prometheus" \
+		"PostgreSQL: $$pg" \
+		"Kafka: $$kafka"
+
+dev:
+	$(MAKE) dev-images
+	$(MAKE) dev-up
+
+dev-down:
+	$(COMPOSE) down -v --remove-orphans
+
+dev-logs:
+	$(COMPOSE) logs -f --tail=200
+
+dev-ps:
+	$(COMPOSE) ps
