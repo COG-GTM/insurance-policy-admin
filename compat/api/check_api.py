@@ -17,7 +17,9 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 SNAP_DIR = os.path.join(HERE, "snapshots")
 sys.path.insert(0, os.path.dirname(HERE))
-from common import report  # noqa: E402
+from common import base_file, report  # noqa: E402
+
+SNAP_REL = "compat/api/snapshots/policies-v1.json"
 
 POLICIES = ["POL-00000001", "POL-00000002", "POL-00000003", "POL-99999999"]
 ENDPOINTS = [p for n in POLICIES for p in (f"/api/v1/policies/{n}", f"/api/v1/policies/{n}/coverages")]
@@ -79,6 +81,11 @@ def main():
     with open(snap_file) as fh:
         snaps = json.load(fh)
     findings = []
+    base_snap = base_file(SNAP_REL)
+    if base_snap is not None and json.loads(base_snap) != snaps:
+        # The contract is the base branch's snapshot; a re-recorded snapshot is itself a contract change.
+        findings.append(("FAIL", "api:snapshot-changed", f"{SNAP_REL} differs from the base branch; responses are checked against the base snapshot"))
+        snaps = json.loads(base_snap)
     for path, exp in snaps.items():
         status, body = fetch(a.base_url, path)
         if status != exp["status"]:

@@ -5,7 +5,55 @@ Checks every CREATE TABLE / CREATE SEQUENCE in sql/**/*.sql and
 **/src/main/resources/schema.sql, plus immutability of applied Flyway
 migrations (**/db/migration/V*.sql)."""
 import re
-from common import base_file, head_file, files_at_base, files_at_head, report, exit_with
+from common import base_file, head_file, files_at_base, files_at_head, git, merge_base, report, exit_with
+
+DESTRUCTIVE = [
+    ("table-dropped", re.compile(r"\bDROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([\w.]+)", re.I)),
+    ("column-dropped", re.compile(r"\bALTER\s+TABLE\s+([\w.]+)\s+DROP\s+(?:COLUMN\s+)?(?!CONSTRAINT\b|PRIMARY\b|FOREIGN\b|UNIQUE\b|CHECK\b)(\w+)", re.I)),
+    ("column-renamed", re.compile(r"\bALTER\s+TABLE\s+([\w.]+)\s+(?:RENAME\s+COLUMN|ALTER\s+COLUMN\s+\w+\s+RENAME)\s+(\w+)", re.I)),
+    ("type-changed", re.compile(r"\bALTER\s+TABLE\s+([\w.]+)\s+(?:ALTER|MODIFY)\s+(?:COLUMN\s+)?(\w+)\s+(?:SET\s+DATA\s+)?TYPE\b", re.I)),
+    ("constraint-removed", re.compile(r"\bALTER\s+TABLE\s+([\w.]+)\s+DROP\s+(CONSTRAINT\s+\w+|PRIMARY\s+KEY|FOREIGN\s+KEY\s+\w+)", re.I)),
+    ("table-renamed", re.compile(r"\b(?:RENAME\s+TABLE\s+([\w.]+)|ALTER\s+TABLE\s+([\w.]+)\s+RENAME\s+TO)", re.I)),
+    ("sequence-changed", re.compile(r"\b(?:DROP|ALTER)\s+SEQUENCE\s+([\w.]+)", re.I)),
+]
+
+
+def destructive_ops(sql):
+    ops = {}
+    for st in strip_comments(sql or "").split(";"):
+        stmt = " ".join(st.split())
+        for kind, rx in DESTRUCTIVE:
+            for m in rx.finditer(stmt):
+                target = ".".join(g.upper() for g in m.groups() if g)
+                ops.setdefault((kind, target), " ".join(m.group(0).split()))
+    return ops
+
+
+def changed_sql_files():
+    """(base_path, head_path) for SQL files added, modified or renamed by the PR."""
+    raw = git("diff", "-z", "--name-status", "--diff-filter=AMR", f"{merge_base()}...HEAD", "--", "*.sql")
+    fields, out, i = raw.split("\0"), [], 0
+    while i < len(fields) and fields[i]:
+        status = fields[i]
+        if status.startswith("R"):
+            out.append((fields[i + 1], fields[i + 2]))
+            i += 3
+        else:
+            out.append((fields[i + 1], fields[i + 1]))
+            i += 2
+    return out
+
+
+def destructive_statements():
+    """Destructive DDL present in a changed SQL file now but not in its base version."""
+    out = []
+    for base_path, path in changed_sql_files():
+        before = destructive_ops(base_file(base_path))
+        for (kind, target), text in destructive_ops(head_file(path)).items():
+            if (kind, target) not in before:
+                out.append(("FAIL", f"schema:{target}:{kind}", f"{text} ({path})"))
+    return out
+
 
 TYPE_RE = re.compile(r"^(\w+)(?:\s*\(\s*(\d+)\s*(?:,\s*(\d+))?\s*\))?", re.I)
 NUMERIC = {"DECIMAL", "NUMERIC", "DEC"}
@@ -14,6 +62,12 @@ INT_RANK = {"SMALLINT": 1, "INTEGER": 2, "INT": 2, "BIGINT": 3}
 
 def strip_comments(sql):
     return re.sub(r"--[^\n]*", "", sql)
+
+
+def normalize_sql(text):
+    """Drop whitespace and case outside quoted literals; keep literals verbatim."""
+    parts = re.split(r"('(?:[^']|'')*')", text)
+    return "".join(p if i % 2 else re.sub(r"\s+", "", p).upper() for i, p in enumerate(parts))
 
 
 def split_top(body):
@@ -45,9 +99,10 @@ def parse(sql):
         for part in split_top(sql[start:i - 1]):
             up = part.upper()
             if up.startswith(("CONSTRAINT", "PRIMARY", "FOREIGN", "UNIQUE", "CHECK")):
-                cm = re.match(r"CONSTRAINT\s+(\w+)\s+(PRIMARY KEY|FOREIGN KEY|UNIQUE|CHECK)", up)
+                cm = re.match(r"CONSTRAINT\s+(\w+)\s+(PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK)(.*)", part, re.S | re.I)
                 if cm:
-                    pks.add(f"{cm.group(2)}:{cm.group(1)}")
+                    kind = " ".join(cm.group(2).upper().split())
+                    pks.add(f"{kind}:{cm.group(1).upper()}:{normalize_sql(cm.group(3))}")
                 continue
             tok = part.split(None, 1)
             if len(tok) < 2:
@@ -123,6 +178,7 @@ def main():
     for path in files_at_base():
         if re.search(r"db/migration/V[^/]*\.sql$", path) and head_file(path) != base_file(path):
             findings.append(("FAIL", f"schema:{path}:applied-migration-modified", "applied migrations must not be edited; add a new version"))
+    findings += destructive_statements()
     return report("DB schema compatibility", findings)
 
 

@@ -22,6 +22,11 @@ def pic_size(pic, usage):
     return len([ch for ch in expanded if ch not in "SV"])
 
 
+def normalize_pic(pic):
+    """Canonical PIC: X(02), X(2) and XX all become XX."""
+    return re.sub(r"(.)\((\d+)\)", lambda m: m.group(1) * int(m.group(2)), pic.upper())
+
+
 def parse_copybook(text):
     """Return (fields, total_length). fields: name -> (offset, size, pic)."""
     stmts, buf = [], ""
@@ -53,7 +58,7 @@ def parse_copybook(text):
         if name == "FILLER":
             filler += 1
             name = f"FILLER#{filler}"
-        fields[name] = (offset, size, f"{pm.group(1)} {usage}")
+        fields[name] = (offset, size, f"{normalize_pic(pm.group(1))} {usage}")
         offset += size
     while redefine_stack:
         redefine_stack.pop()
@@ -90,6 +95,8 @@ def main():
                     continue
                 if name not in new_f:
                     findings.append(("FAIL", f"layout:{path}:{name}:removed", f"field removed/renamed (was offset {off}, {pic})"))
+                elif new_f[name][2] != pic and new_f[name][:2] == (off, size):
+                    findings.append(("FAIL", f"layout:{path}:{name}:type-changed", f"{pic} -> {new_f[name][2]} at offset {off}"))
                 elif new_f[name][:2] != (off, size):
                     n = new_f[name]
                     findings.append(("FAIL", f"layout:{path}:{name}:moved", f"offset/size {off}/{size} -> {n[0]}/{n[1]} ({pic} -> {n[2]})"))
