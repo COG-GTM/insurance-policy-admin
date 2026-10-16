@@ -3,7 +3,8 @@
 import re
 from common import git, merge_base, report, exit_with
 
-LOCAL_OR_TEST = re.compile(r"(application-local\.properties|/src/test/|^compat/)")
+LOCAL_OR_TEST = re.compile(r"(application-local\.properties|/src/test/)")
+SELF = "compat/check_security.py"
 RULES = [
     ("FAIL", "private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), None),
     ("FAIL", "hardcoded-secret", re.compile(r"(?i)(password|passwd|secret|api[_-]?key|token)\s*[=:]\s*['\"]?(?!\$\{)(?!changeme\b)[^\s'\"${}<>]{6,}"), LOCAL_OR_TEST),
@@ -20,7 +21,7 @@ def added_lines():
     for line in diff.splitlines():
         if line.startswith("+++ "):
             path = line[6:] if line.startswith("+++ b/") else None
-        elif line.startswith("+") and path:
+        elif line.startswith("+") and path and path != SELF:
             yield path, line[1:]
 
 
