@@ -144,11 +144,11 @@
                    PERFORM 2510-QUERY-SECURITY
                END-IF
            END-IF
+      * Same message as SQLCODE 100 so policy existence is not leaked
            IF NOT CALLER-AUTHORIZED
-               MOVE 'NOT AUTHORIZED TO VIEW THIS POLICY'
-                   TO WS-ERROR-MSG
+               MOVE 'POLICY NOT FOUND' TO WS-ERROR-MSG
            ELSE
-               IF (WS-STARTCODE NOT = 'TD'
+               IF ((WS-STARTCODE NOT = 'TD' AND NOT = 'TO')
                    OR (WS-BRIDGE NOT = SPACES
                        AND WS-BRIDGE NOT = LOW-VALUES))
                   AND NOT POL-API-YES

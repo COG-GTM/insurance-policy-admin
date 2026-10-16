@@ -151,16 +151,16 @@ class PolqryAuthorizationTests(unittest.TestCase):
 
     def test_caller_without_entitlement_is_denied(self):
         self.assertDenied(self.run_pqry(grant=""),
-                          "NOT AUTHORIZED TO VIEW THIS POLICY")
+                          "POLICY NOT FOUND")
 
     def test_other_agents_entitlement_is_denied(self):
         self.assertDenied(self.run_pqry(grant="PAS.PQRY.AGT.AG0002"),
-                          "NOT AUTHORIZED TO VIEW THIS POLICY")
+                          "POLICY NOT FOUND")
 
     def test_policy_without_agent_or_branch_is_denied(self):
         self.assertDenied(self.run_pqry(grant="PAS.PQRY.AGT.", agent="",
                                         branch=""),
-                          "NOT AUTHORIZED TO VIEW THIS POLICY")
+                          "POLICY NOT FOUND")
 
     def test_agent_entitlement_shows_policy(self):
         events = self.run_pqry(grant="PAS.PQRY.AGT.AG0001")
@@ -169,6 +169,10 @@ class PolqryAuthorizationTests(unittest.TestCase):
 
     def test_branch_entitlement_shows_policy(self):
         self.assertShown(self.run_pqry(grant="PAS.PQRY.BR.BR01"))
+
+    def test_terminal_operator_start_does_not_require_api_flag(self):
+        self.assertShown(self.run_pqry(grant="PAS.PQRY.BR.BR01",
+                                       startcode="TO"))
 
     def test_non_terminal_caller_requires_api_flag(self):
         self.assertDenied(
