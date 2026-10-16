@@ -43,10 +43,19 @@
 
        01  WS-AGENT-RESCLASS         PIC X(08) VALUE 'PASAGENT'.
        01  WS-AGENT-UPDATE-CVDA      PIC S9(08) COMP.
-       01  WS-ENDORSEMENT-INPUT.
-           05  WS-IN-POLICY-NUMBER    PIC X(12).
-           05  WS-IN-ENDORSEMENT-TYPE PIC X(03).
-           05  WS-IN-CANCEL-CONFIRM   PIC X(01).
+      *    Symbolic input map for POLEMAP (DFHMSD TIOAPFX=YES);
+      *    must match the assembled POLEMAPS mapset
+       01  POLEMAPI.
+           02  FILLER                 PIC X(12).
+           02  PENUML                 PIC S9(04) COMP.
+           02  PENUMF                 PIC X(01).
+           02  PENUMI                 PIC X(12).
+           02  PETYPL                 PIC S9(04) COMP.
+           02  PETYPF                 PIC X(01).
+           02  PETYPI                 PIC X(03).
+           02  PECNFL                 PIC S9(04) COMP.
+           02  PECNFF                 PIC X(01).
+           02  PECNFI                 PIC X(01).
                88  IN-CANCEL-CONFIRMED VALUE 'Y'.
 
        COPY POLICY-RECORD.
@@ -78,7 +87,7 @@
        1000-INITIALIZE.
            MOVE SPACES TO WS-ERROR-MSG
            MOVE SPACES TO WS-ENDORSEMENT-TYPE
-           MOVE SPACES TO WS-ENDORSEMENT-INPUT
+           MOVE LOW-VALUES TO POLEMAPI
            INITIALIZE POLICY-RECORD
            EXEC CICS ASKTIME ABSTIME(WS-CURRENT-DATE) END-EXEC
            EXEC CICS FORMATTIME
@@ -91,27 +100,38 @@
            EXEC CICS RECEIVE
                MAP('POLEMAP')
                MAPSET('POLEMAPS')
-               INTO(WS-ENDORSEMENT-INPUT)
+               INTO(POLEMAPI)
                RESP(WS-RESPONSE-CODE)
            END-EXEC
            IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
                MOVE 'ERROR RECEIVING ENDORSEMENT DATA'
                    TO WS-ERROR-MSG
            ELSE
-               MOVE WS-IN-POLICY-NUMBER TO POLICY-NUMBER
-               MOVE WS-IN-ENDORSEMENT-TYPE TO WS-ENDORSEMENT-TYPE
+               MOVE PENUMI TO POLICY-NUMBER
+               MOVE PETYPI TO WS-ENDORSEMENT-TYPE
            END-IF
       *    Read current policy from DB2
            IF WS-ERROR-MSG = SPACES
                EXEC SQL
-                   SELECT POLICY_NUMBER, POLICY_STATUS,
+                   SELECT POLICY_NUMBER, POLICY_TYPE, POLICY_STATUS,
                           EFFECTIVE_DATE, EXPIRY_DATE,
-                          TOTAL_PREMIUM, AGENT_CODE
-                   INTO :POLICY-NUMBER, :POLICY-STATUS,
+                          POLICYHOLDER_ID, AGENT_CODE, BRANCH_CODE,
+                          TOTAL_PREMIUM, DEDUCTIBLE, COVERAGE_LIMIT,
+                          INCEPTION_DATE, RENEWAL_COUNT,
+                          UW_STATUS, RISK_SCORE,
+                          WEB_INDICATOR, API_FLAG
+                   INTO :POLICY-NUMBER, :POLICY-TYPE,
+                        :POLICY-STATUS,
                         :POLICY-EFFECTIVE-DATE,
                         :POLICY-EXPIRY-DATE,
-                        :POLICY-TOTAL-PREMIUM,
-                        :POLICY-AGENT-CODE
+                        :POLICY-HOLDER-ID, :POLICY-AGENT-CODE,
+                        :POLICY-BRANCH-CODE,
+                        :POLICY-TOTAL-PREMIUM, :POLICY-DEDUCTIBLE,
+                        :POLICY-LIMIT,
+                        :POLICY-INCEPTION-DATE,
+                        :POLICY-RENEWAL-COUNT,
+                        :POLICY-UW-STATUS, :POLICY-RISK-SCORE,
+                        :POLICY-WEB-IND, :POLICY-API-FLAG
                    FROM POLICIES
                    WHERE POLICY_NUMBER = :POLICY-NUMBER
                    WITH RS USE AND KEEP UPDATE LOCKS

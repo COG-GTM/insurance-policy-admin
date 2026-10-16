@@ -48,15 +48,17 @@ def _split_paragraphs(lines):
 
 
 def _parse_working_storage(lines):
-    """Parse WS items: {name: {'level': n, 'parent': name|None, 'values': set}}.
+    """Parse WS items keyed by unique name (FILLERs become FILLER#n).
 
-    88-level entries record their VALUE set under their own name and are
-    linked to the field they condition.
+    Each entry: {'level', 'name', 'parent', 'pic', 'usage', 'values',
+    'children'} where 'children' is the ordered list of direct-child keys
+    and 'pic'/'usage' hold the PIC clause and usage (COMP/COMP-3/None).
     """
     items = {}
-    order = []  # (level, name) stack for parent resolution
+    stack = []  # (level, key) for parent resolution
     in_ws = False
     pending_88 = None
+    filler_n = 0
     for line in lines:
         s = line.strip()
         if s.startswith("WORKING-STORAGE SECTION"):
@@ -67,25 +69,44 @@ def _parse_working_storage(lines):
             break
         if not in_ws or not s:
             continue
-        m = re.match(r"^(01|05|88)\s+([A-Z0-9-]+)\.?(.*)$", s)
+        m = re.match(r"^(\d\d)\s+([A-Z0-9-]+)\.?(.*)$", s)
         if m:
             level, name, rest = int(m.group(1)), m.group(2), m.group(3)
             if level == 88:
-                parent = order[-1][1] if order else None
-                items[name] = {"level": 88, "parent": parent,
-                               "values": set()}
+                parent = stack[-1][1] if stack else None
+                items[name] = {"level": 88, "name": name,
+                               "parent": parent, "pic": None,
+                               "usage": None, "values": set(),
+                               "children": []}
+                if parent:
+                    items[parent]["children"].append(name)
                 pending_88 = name
-            else:
-                while order and order[-1][0] >= level:
-                    order.pop()
-                parent = order[-1][1] if order else None
-                items[name] = {"level": level, "parent": parent,
-                               "values": set()}
-                order.append((level, name))
+            elif 1 <= level <= 49:
+                while stack and stack[-1][0] >= level:
+                    stack.pop()
+                parent = stack[-1][1] if stack else None
+                key = name
+                if name == "FILLER":
+                    filler_n += 1
+                    key = f"FILLER#{filler_n}"
+                pic = re.search(r"PIC(TURE)?\s+(\S+)", rest)
+                items[key] = {"level": level, "name": name,
+                              "parent": parent,
+                              "pic": pic.group(2).rstrip(".")
+                                   if pic else None,
+                              "usage": ("COMP-3" if "COMP-3" in rest
+                                        else "COMP" if re.search(
+                                            r"\bCOMP\b", rest) else None),
+                              "values": set(), "children": []}
+                if parent:
+                    items[parent]["children"].append(key)
+                stack.append((level, key))
                 pending_88 = None
-            rest_target = name if level == 88 else None
-            if rest_target:
-                items[name]["values"] |= set(re.findall(r"'([^']*)'", rest))
+            else:
+                continue
+            if level == 88:
+                items[name]["values"] |= set(re.findall(r"'([^']*)'",
+                                                       rest))
         elif pending_88 is not None:
             # continuation line of an 88 VALUE clause
             items[pending_88]["values"] |= set(re.findall(r"'([^']*)'", s))
@@ -95,7 +116,12 @@ def _parse_working_storage(lines):
 
 
 def _children_of(items, group):
-    return {n for n, d in items.items() if d["parent"] == group}
+    return list(items.get(group, {}).get("children", []))
+
+
+def _receive_group(src):
+    m = re.search(r"MAP\('POLEMAP'\).*?INTO\(([^)]+)\)", src, re.S)
+    return m.group(1) if m else None
 
 
 class PolEndTestBase(unittest.TestCase):
@@ -199,6 +225,81 @@ class TestPolendEndorsement(PolEndTestBase):
         self.assertTrue(apply_gated,
                         "5000-APPLY-ENDORSEMENT is not gated on "
                         "WS-ERROR-MSG = SPACES in 0000-MAIN-LOGIC")
+
+    def test_receive_area_is_bms_symbolic_map(self):
+        # RECEIVE INTO target must be a BMS symbolic input map:
+        # first child a 12-byte TIOA-prefix FILLER, then per field
+        # <stem>L (S9(04) COMP), <stem>F (X(01)), <stem>I (data).
+        group = _receive_group(self.src)
+        self.assertIn(group, self.ws,
+                      "RECEIVE INTO target is not a WS group defined here")
+        children = _children_of(self.ws, group)
+        self.assertTrue(children, f"{group} has no children")
+        first = self.ws[children[0]]
+        self.assertEqual(first["name"], "FILLER",
+                         "first child must be the TIOA prefix FILLER")
+        self.assertEqual(first["pic"], "X(12)",
+                         "TIOA prefix FILLER must be PIC X(12)")
+
+        # fields 2000 moves out of the group + the field the
+        # cancel-confirm 88 conditions
+        p2000 = self.paras.get("2000-RECEIVE-ENDORSEMENT", "")
+        moved = [m for m in re.findall(r"MOVE\s+([A-Z0-9-]+)\s+TO\s+",
+                                       p2000)
+                 if m in children]
+        self.assertTrue(moved,
+                        "2000 moves no fields out of the receive group")
+        confirm_field = self.ws.get("IN-CANCEL-CONFIRMED", {}).get(
+            "parent")
+        targets = moved + ([confirm_field] if confirm_field else [])
+        for t in targets:
+            self.assertTrue(t.endswith("I"),
+                            f"{t} is not a BMS input (I-suffix) field")
+            idx = children.index(t)
+            stem = t[:-1]
+            l_item = self.ws[children[idx - 2]]
+            f_item = self.ws[children[idx - 1]]
+            self.assertEqual(l_item["name"], stem + "L",
+                             f"{t} not preceded by {stem}L")
+            self.assertEqual(l_item["pic"], "S9(04)",
+                             f"{stem}L must be PIC S9(04)")
+            self.assertEqual(l_item["usage"], "COMP",
+                             f"{stem}L must be COMP")
+            self.assertEqual(f_item["name"], stem + "F",
+                             f"{t} not preceded by {stem}F")
+            self.assertEqual(f_item["pic"], "X(01)",
+                             f"{stem}F must be PIC X(01)")
+
+    def test_policy_record_fully_loaded_from_db2(self):
+        expected = [
+            ("POLICY_NUMBER", "POLICY-NUMBER"),
+            ("POLICY_TYPE", "POLICY-TYPE"),
+            ("POLICY_STATUS", "POLICY-STATUS"),
+            ("EFFECTIVE_DATE", "POLICY-EFFECTIVE-DATE"),
+            ("EXPIRY_DATE", "POLICY-EXPIRY-DATE"),
+            ("POLICYHOLDER_ID", "POLICY-HOLDER-ID"),
+            ("AGENT_CODE", "POLICY-AGENT-CODE"),
+            ("BRANCH_CODE", "POLICY-BRANCH-CODE"),
+            ("TOTAL_PREMIUM", "POLICY-TOTAL-PREMIUM"),
+            ("DEDUCTIBLE", "POLICY-DEDUCTIBLE"),
+            ("COVERAGE_LIMIT", "POLICY-LIMIT"),
+            ("INCEPTION_DATE", "POLICY-INCEPTION-DATE"),
+            ("RENEWAL_COUNT", "POLICY-RENEWAL-COUNT"),
+            ("UW_STATUS", "POLICY-UW-STATUS"),
+            ("RISK_SCORE", "POLICY-RISK-SCORE"),
+            ("WEB_INDICATOR", "POLICY-WEB-IND"),
+            ("API_FLAG", "POLICY-API-FLAG"),
+        ]
+        p2000 = self.paras.get("2000-RECEIVE-ENDORSEMENT", "")
+        select = re.search(r"SELECT\s+(.*?)\s+INTO\s+(.*?)\s+FROM", p2000,
+                           re.S)
+        self.assertIsNotNone(select, "no SELECT in paragraph 2000")
+        cols = [c.strip() for c in select.group(1).split(",")]
+        hvs = [h.strip().lstrip(":") for h in select.group(2).split(",")]
+        self.assertEqual(cols, [c for c, _ in expected],
+                         "SELECT column list != POLQRY's full-record list")
+        self.assertEqual(hvs, [h for _, h in expected],
+                         "host variables not aligned with columns")
 
 
 if __name__ == "__main__":

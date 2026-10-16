@@ -25,11 +25,12 @@ of BMS map `POLEMAP` changes: policy number, endorsement type, cancel-confirm fl
 
 ## Decision
 
-We will receive `POLEMAP` into a dedicated input area (`WS-ENDORSEMENT-INPUT`: policy number X(12),
-endorsement type X(03), cancel confirm X(01)), hard-reject any endorsement type outside the 88-level set,
+We will receive `POLEMAP` into its BMS symbolic input map `POLEMAPI` (TIOA prefix plus L/F/I for
+`PENUM` X(12), `PETYP` X(03), `PECNF` X(01)), hard-reject any endorsement type outside the 88-level set,
 require the confirm flag = `Y` for `CAN`, and before any DB2 write call `EXEC CICS QUERY SECURITY` against
 RACF resource class `PASAGENT` with the policy's `AGENT_CODE` as the resource, allowing the endorsement only
-when the signed-on user holds UPDATE. Every failure path fails closed (error screen, no DB2 write).
+when the signed-on user holds UPDATE, and load the full policy record from DB2 so the audit trail and
+confirmation map carry authoritative policy data. Every failure path fails closed (error screen, no DB2 write).
 
 ## Alternatives considered
 
@@ -91,7 +92,7 @@ C4Container
 - **Runbook:** TBD — add PASAGENT profile administration to the PAS security runbook.
 - **Dashboards / alarms:** RACF violation reports for class PASAGENT.
 - **Rollback plan:** Redeploy previous POLEND load module and map (RTC).
-- **Migration / cut-over plan:** (1) Define RACF class `PASAGENT` and per-agent profiles, permit agents/CSRs UPDATE; (2) update `POLEMAP` symbolic/physical map to supply policy number, endorsement type and cancel confirm in that order; (3) deploy POLEND. Deploying POLEND before steps 1-2 makes PEND reject all endorsements (fail closed).
+- **Migration / cut-over plan:** (1) Define RACF class `PASAGENT` and per-agent profiles, permit agents/CSRs UPDATE; (2) assemble `POLEMAP` with TIOAPFX=YES and fields `PENUM` (12), `PETYP` (3), `PECNF` (1) in that order so the generated symbolic map matches `POLEMAPI`; (3) deploy POLEND. Deploying POLEND before steps 1-2 makes PEND reject all endorsements (fail closed).
 
 ## Policy exceptions requested
 
