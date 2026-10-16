@@ -139,6 +139,28 @@ class TestPreprocess(unittest.TestCase):
         self.assertNotEqual(text1, text2)
         self.assertIn("WHERE B = 2", text2)
 
+    def test_exec_manifest_quoted_whitespace_verbatim(self):
+        t1 = h._normalize_exec_text("EXEC SQL SELECT A FROM T WHERE CODE = 'A  B' END-EXEC")
+        t2 = h._normalize_exec_text("EXEC SQL SELECT A FROM T WHERE CODE = 'A B' END-EXEC")
+        self.assertNotEqual(t1, t2)
+        self.assertIn("'A  B'", t1)
+        # whitespace outside quotes still collapses
+        t3 = h._normalize_exec_text("EXEC SQL SELECT   A\n  FROM T WHERE CODE = 'A  B' END-EXEC")
+        self.assertEqual(t1, t3)
+
+    def test_exec_manifest_multiline_literal(self):
+        # literal split across source lines: join produces 'A B' and the
+        # inner whitespace is preserved verbatim, not re-collapsed
+        src = SAMPLE.replace(
+            "EXEC CICS ASKTIME ABSTIME(WS-A) END-EXEC",
+            "EXEC SQL SELECT A INTO :WS-A FROM T WHERE C = 'A\n"
+            "               B' AND D = 'X  Y' END-EXEC")
+        _, stubs = h.preprocess_source(src)
+        joined = "".join(f"{n} {t}\n" for n, t in stubs)
+        self.assertIn("'X  Y'", joined)
+        t = h._normalize_exec_text("EXEC SQL WHERE C = 'A B' E END-EXEC")
+        self.assertIn("'A B'", t)
+
     def test_area_b_name_not_a_paragraph(self):
         # name starting in area B (column 12+) must not set the stub prefix
         src = SAMPLE.replace(

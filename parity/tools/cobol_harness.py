@@ -133,6 +133,39 @@ _DFH_RE = re.compile(r"DFHRESP\(([^)]+)\)")
 _COMMENT_CHARS = "*/"
 
 
+def _normalize_exec_text(text):
+    """Collapse whitespace runs outside quoted literals; quoted content is
+    kept verbatim ('' is an escaped quote inside a '...' literal)."""
+    out = []
+    quote = None
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if quote:
+            out.append(ch)
+            if ch == quote:
+                # '' or "" inside the literal is an escaped quote
+                if i + 1 < n and text[i + 1] == quote:
+                    out.append(quote)
+                    i += 1
+                else:
+                    quote = None
+            i += 1
+            continue
+        if ch in "'\"":
+            quote = ch
+            out.append(ch)
+        elif ch.isspace():
+            while i + 1 < n and text[i + 1].isspace():
+                i += 1
+            out.append(" ")
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out).strip()
+
+
 def _stub_prefix(paragraph):
     pfx = paragraph.split("-", 1)[0]
     return pfx if pfx[:1].isdigit() else paragraph
@@ -178,7 +211,8 @@ def preprocess_source(source):
             while not _END_EXEC_RE.search(block[-1]):
                 i += 1
                 block.append(lines[i])
-            text = re.sub(r"\s+", " ", " ".join(b.strip() for b in block)).strip()
+            # join lines first, then normalize whitespace outside quotes only
+            text = _normalize_exec_text(" ".join(b.strip() for b in block))
             if in_data:
                 if "INCLUDE SQLCA" in text:
                     out.append(f"{AREA_A}COPY HXSQLCA.")
