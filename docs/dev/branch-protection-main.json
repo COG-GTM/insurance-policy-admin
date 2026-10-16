@@ -1,0 +1,23 @@
+{
+  "required_status_checks": {
+    "strict": false,
+    "checks": [
+      {"context": "pas-platform / build-test"},
+      {"context": "pas-platform / static-analysis"},
+      {"context": "pas-platform / dependency-scan"},
+      {"context": "pas-platform / container-image"},
+      {"context": "Schema, layouts & security"},
+      {"context": "Build & tests"},
+      {"context": "REST API contract"}
+    ]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 1,
+    "dismiss_stale_reviews": true
+  },
+  "restrictions": null,
+  "required_linear_history": false,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}

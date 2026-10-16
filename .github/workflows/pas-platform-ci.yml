@@ -1,0 +1,227 @@
+name: PAS platform CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: pas-platform-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  build-test:
+    name: pas-platform / build-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: pas-platform/**/pom.xml
+      - name: Verify
+        working-directory: pas-platform
+        run: ./mvnw -B -ntp verify
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: |
+            pas-platform/**/target/surefire-reports/
+            pas-platform/**/target/failsafe-reports/
+          if-no-files-found: ignore
+      - name: Test summary
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
+          from collections import defaultdict
+
+          reports = []
+          totals = defaultdict(lambda: [0, 0, 0, 0])
+          failures = []
+          for plugin in ("surefire", "failsafe"):
+              for path in glob.glob(f"pas-platform/**/target/{plugin}-reports/TEST-*.xml", recursive=True):
+                  module = path.split("/target/")[0]
+                  try:
+                      root = ET.parse(path).getroot()
+                  except ET.ParseError:
+                      continue
+                  values = totals[(module, plugin)]
+                  values[0] += int(root.attrib.get("tests", 0))
+                  values[1] += int(root.attrib.get("failures", 0))
+                  values[2] += int(root.attrib.get("errors", 0))
+                  values[3] += int(root.attrib.get("skipped", 0))
+                  for case in root.iter("testcase"):
+                      if case.find("failure") is not None or case.find("error") is not None:
+                          failures.append(f"{module} ({plugin}): {case.attrib.get('classname', '')}::{case.attrib.get('name', '')}")
+                  reports.append(path)
+
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if not reports:
+              print("No test reports found")
+              if summary:
+                  with open(summary, "a", encoding="utf-8") as output:
+                      output.write("No test reports found\n")
+          else:
+              lines = [
+                  "| Module | Plugin | Tests | Failures | Errors | Skipped |",
+                  "| --- | --- | ---: | ---: | ---: | ---: |",
+              ]
+              for (module, plugin), (tests, failed, errors, skipped) in sorted(totals.items()):
+                  lines.append(f"| {module} | {plugin} | {tests} | {failed} | {errors} | {skipped} |")
+              if failures:
+                  lines.extend(["", "Failed test cases:"])
+                  lines.extend(f"- {name}" for name in failures)
+              markdown = "\n".join(lines) + "\n"
+              print(markdown, end="")
+              if summary:
+                  with open(summary, "a", encoding="utf-8") as output:
+                      output.write(markdown)
+          EOF
+
+  static-analysis:
+    name: pas-platform / static-analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: pas-platform/**/pom.xml
+      - name: Spotless check
+        working-directory: pas-platform
+        run: ./mvnw -B -ntp spotless:check
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java-kotlin
+          build-mode: manual
+      - name: Compile + SpotBugs
+        working-directory: pas-platform
+        run: ./mvnw -B -ntp -DskipTests -Dspotless.check.skip=true verify
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:java-kotlin
+
+  dependency-scan:
+    name: pas-platform / dependency-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Dependency review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+      - name: Trivy filesystem SARIF scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          trivyignores: .github/trivy/trivyignore.yaml
+          scan-type: fs
+          scan-ref: pas-platform
+          scanners: vuln
+          format: sarif
+          output: trivy-fs.sarif
+          exit-code: '0'
+          ignore-unfixed: true
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+      - name: Gate on critical filesystem vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          skip-setup-trivy: true
+          trivyignores: .github/trivy/trivyignore.yaml
+          scan-type: fs
+          scan-ref: pas-platform
+          scanners: vuln
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+  container-image:
+    name: pas-platform / container-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build pas-policy-service
+        uses: docker/build-push-action@v7
+        with:
+          context: pas-platform
+          file: pas-platform/pas-policy-service/Dockerfile
+          push: false
+          load: true
+          tags: pas-policy-service:${{ github.sha }}
+          cache-from: type=gha,scope=pas-policy-service
+          cache-to: type=gha,mode=max,scope=pas-policy-service
+      - name: Scan pas-policy-service
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          trivyignores: .github/trivy/trivyignore.yaml
+          scan-type: image
+          image-ref: pas-policy-service:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Build pas-batch
+        if: success() || failure()
+        uses: docker/build-push-action@v7
+        with:
+          context: pas-platform
+          file: pas-platform/pas-batch/Dockerfile
+          push: false
+          load: true
+          tags: pas-batch:${{ github.sha }}
+          cache-from: type=gha,scope=pas-batch
+          cache-to: type=gha,mode=max,scope=pas-batch
+      - name: Scan pas-batch
+        if: success() || failure()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          skip-setup-trivy: true
+          trivyignores: .github/trivy/trivyignore.yaml
+          scan-type: image
+          image-ref: pas-batch:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
