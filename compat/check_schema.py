@@ -18,31 +18,35 @@ DESTRUCTIVE = [
 ]
 
 
-def destructive_statements():
-    """Scan SQL added by the PR (new migrations included) for destructive DDL."""
-    diff = git("diff", "-U0", "--no-color", f"{merge_base()}...HEAD", "--", "*.sql")
-    path, added = None, {}
-    for line in diff.splitlines():
-        if line.startswith("+++ "):
-            path = line[6:] if line.startswith("+++ b/") else None
-        elif line.startswith("+") and path:
-            added.setdefault(path, []).append(line[1:])
-    out = []
-    for path, lines in added.items():
-        sql = strip_comments("\n".join(lines))
-        for kind, rx in DESTRUCTIVE:
-            for m in rx.finditer(sql):
-                target = ".".join(g.upper() for g in m.groups() if g)
-                out.append(("FAIL", f"schema:{target}:{kind}", f"{' '.join(m.group(0).split())} ({path})"))
-    return out
+def statements(sql):
+    return {normalize_sql(st): " ".join(st.split()) for st in strip_comments(sql or "").split(";") if st.strip()}
 
-TYPE_RE = re.compile(r"^(\w+)(?:\s*\(\s*(\d+)\s*(?:,\s*(\d+))?\s*\))?", re.I)
-NUMERIC = {"DECIMAL", "NUMERIC", "DEC"}
-INT_RANK = {"SMALLINT": 1, "INTEGER": 2, "INT": 2, "BIGINT": 3}
+
+def destructive_statements():
+    """Scan SQL statements that are new or changed in this PR (whole statements,
+    so a clause edited under an existing ALTER TABLE is still caught)."""
+    changed = git("diff", "--name-only", "--diff-filter=AM", f"{merge_base()}...HEAD", "--", "*.sql").split()
+    out = []
+    for path in changed:
+        old = statements(base_file(path))
+        for key, stmt in statements(head_file(path)).items():
+            if key in old:
+                continue
+            for kind, rx in DESTRUCTIVE:
+                for m in rx.finditer(stmt):
+                    target = ".".join(g.upper() for g in m.groups() if g)
+                    out.append(("FAIL", f"schema:{target}:{kind}", f"{' '.join(m.group(0).split())} ({path})"))
+    return out
 
 
 def strip_comments(sql):
     return re.sub(r"--[^\n]*", "", sql)
+
+
+def normalize_sql(text):
+    """Drop whitespace and case outside quoted literals; keep literals verbatim."""
+    parts = re.split(r"('(?:[^']|'')*')", text)
+    return "".join(p if i % 2 else re.sub(r"\s+", "", p).upper() for i, p in enumerate(parts))
 
 
 def split_top(body):
@@ -74,10 +78,10 @@ def parse(sql):
         for part in split_top(sql[start:i - 1]):
             up = part.upper()
             if up.startswith(("CONSTRAINT", "PRIMARY", "FOREIGN", "UNIQUE", "CHECK")):
-                cm = re.match(r"CONSTRAINT\s+(\w+)\s+(PRIMARY KEY|FOREIGN KEY|UNIQUE|CHECK)(.*)", up, re.S)
+                cm = re.match(r"CONSTRAINT\s+(\w+)\s+(PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK)(.*)", part, re.S | re.I)
                 if cm:
-                    body = re.sub(r"\s+", "", cm.group(3))
-                    pks.add(f"{cm.group(2)}:{cm.group(1)}:{body}")
+                    kind = " ".join(cm.group(2).upper().split())
+                    pks.add(f"{kind}:{cm.group(1).upper()}:{normalize_sql(cm.group(3))}")
                 continue
             tok = part.split(None, 1)
             if len(tok) < 2:
