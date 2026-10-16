@@ -23,8 +23,6 @@ import java.util.List;
 
 /**
  * HTTP Basic authentication for the policy API.
- *
- * @author T. Nguyen (2022)
  */
 @Configuration
 @EnableWebSecurity

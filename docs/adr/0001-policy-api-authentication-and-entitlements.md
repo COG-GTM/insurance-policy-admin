@@ -19,7 +19,7 @@ so actuator, H2-console, Swagger, and other non-API paths retain their existing
 behavior.
 
 ARB trigger: **T6 — authentication/authorization boundary change** on `/api/**`.
-The heuristic detector reported `NO_ARB`; manual review overrides that result
+Manual diff review and the heuristic detector both report `ARB_REQUIRED`
 because T6 explicitly covers this change.
 
 ## Decision

@@ -12,8 +12,6 @@ import java.util.Map;
 
 /**
  * Checks whether an API client is entitled to read a policy.
- *
- * @author T. Nguyen (2022)
  */
 @Service
 public class PolicyAuthorizationService {

@@ -8,8 +8,6 @@ import java.util.List;
 
 /**
  * API client credentials and policy entitlements.
- *
- * @author T. Nguyen (2022)
  */
 @Component
 @ConfigurationProperties(prefix = "pas.security")
