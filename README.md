@@ -58,6 +58,19 @@ GET /manage/health                              - Health check
 
 > **WARNING:** The REST facade is **read-only**. All policy mutations must go through CICS transactions on the mainframe.
 
+## Authentication and entitlements
+
+The policy API requires HTTP Basic authentication. Configure clients with
+`pas.security.clients[n].username`, `password-hash` (a BCrypt `$2a` hash),
+`unrestricted`, `agent-codes` and/or `branch-codes`. A client can read a policy
+only when unrestricted or when its agent or branch code matches; policies
+outside its scope return 404. The facade refuses to start unless at least one
+client with a username and BCrypt password hash is configured.
+Basic credentials must only be sent over TLS: terminate HTTPS at the load
+balancer/gateway in front of the facade or configure Boot's `server.ssl.*`;
+request rate limiting and brute-force throttling for `/api/**` are expected at
+the gateway.
+
 ## Integration Points
 
 - **Claims Engine:** Nightly flat-file extract (FTP) via DAILY-EXTRACT.jcl
@@ -71,9 +84,8 @@ GET /manage/health                              - Health check
 2. **Hardcoded rating factors** - Base rates and territory factors are hardcoded in PREMBAT; should be table-driven
 3. **Leap year bug** - POLRNW renewal date calculation does not handle leap years correctly
 4. **No state-specific rate caps** - Using flat 15% rate increase cap instead of state-specific regulatory limits
-5. **Java facade has no authentication** - Relies on network segmentation (internal VPN only)
-6. **Single-threaded batch** - PREMBAT processes policies sequentially; takes ~4 hours for full book
-7. **FTP file transfer** - No encryption on daily extract files (regulatory risk)
+5. **Single-threaded batch** - PREMBAT processes policies sequentially; takes ~4 hours for full book
+6. **FTP file transfer** - No encryption on daily extract files (regulatory risk)
 
 ## Source Control
 
