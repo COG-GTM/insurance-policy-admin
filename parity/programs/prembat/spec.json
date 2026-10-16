@@ -1,0 +1,26 @@
+{
+  "program": "PREMBAT",
+  "source": "cobol/programs/PREMBAT.cbl",
+  "mode": "batch",
+  "description": "Batch premium recalculation. The stubbed DB2 cursor is fed by fixture rows until the *EOF* sentinel; one PARITY line is emitted per inserted PREMIUMS row.",
+  "input": [
+    {"name": "policy_type", "pic": "X(3)"},
+    {"name": "total_premium", "pic": "S9(9)V99"},
+    {"name": "deductible", "pic": "S9(7)V99"},
+    {"name": "coverage_limit", "pic": "S9(11)V99"},
+    {"name": "effective_date", "pic": "9(8)"},
+    {"name": "expiry_date", "pic": "9(8)"}
+  ],
+  "output": [
+    "coverage_seq",
+    "term_eff_date",
+    "term_exp_date",
+    "base_rate",
+    "territory_premium",
+    "class_premium",
+    "mod_premium",
+    "tax_amt",
+    "surcharge_amt",
+    "total_premium"
+  ]
+}

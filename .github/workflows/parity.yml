@@ -1,0 +1,58 @@
+name: PAS parity
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: parity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cobol-golden:
+    name: parity / COBOL golden files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GnuCOBOL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnucobol
+          cobc --version
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Regenerate goldens and diff
+        env:
+          PARITY_REQUIRE_COBC: "1"
+        run: make parity-cobol
+      - name: Upload harness build output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-build
+          path: parity/build
+
+  java-parity:
+    name: parity / Java vs COBOL
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Run parity tests
+        run: make parity-java
+      - name: Upload parity reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-reports
+          path: pas-platform/**/target/parity

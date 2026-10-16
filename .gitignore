@@ -1,3 +1,4 @@
 compat-api.log
 __pycache__/
 target/
+parity/build/

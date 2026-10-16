@@ -1,0 +1,30 @@
+{
+  "program": "POLRNW",
+  "source": "cobol/programs/POLRNW.cbl",
+  "mode": "per-case",
+  "description": "Policy renewal CICS transaction. One process per fixture row; stubs feed the RECEIVE map, the policy SELECT, the open-claims COUNT and the UPDATE.",
+  "input": [
+    {"name": "as_of_date", "pic": "9(8)"},
+    {"name": "select_sqlcode", "pic": "S9(4)"},
+    {"name": "policy_type", "pic": "X(3)"},
+    {"name": "policy_status", "pic": "X(2)"},
+    {"name": "total_premium", "pic": "S9(9)V99"},
+    {"name": "expiry_date", "pic": "9(8)"},
+    {"name": "renewal_count", "pic": "9(3)"},
+    {"name": "uw_status", "pic": "X(2)"},
+    {"name": "open_claims", "pic": "9(5)"},
+    {"name": "update_sqlcode", "pic": "S9(4)"}
+  ],
+  "output": [
+    "error_msg",
+    "screens_sent",
+    "new_premium",
+    "rate_change_pct",
+    "policy_total_premium",
+    "policy_effective_date",
+    "policy_expiry_date",
+    "renewal_count",
+    "policy_status",
+    "uw_status"
+  ]
+}
