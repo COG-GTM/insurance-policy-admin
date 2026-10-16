@@ -124,8 +124,8 @@
                MOVE PETYPI TO WS-ENDORSEMENT-TYPE
            END-IF
       *    Read current policy from DB2; null indicators keep a
-      *    NULL column from tripping -305, and the initialized
-      *    host variable stays spaces/zeros (fails closed below)
+      *    NULL column from tripping -305; a NULL TOTAL_PREMIUM
+      *    is still rejected below since it cannot be endorsed
            IF WS-ERROR-MSG = SPACES
                EXEC SQL
                    SELECT POLICY_NUMBER, POLICY_TYPE, POLICY_STATUS,
@@ -161,6 +161,11 @@
                    IF SQLCODE NOT = 0
                        MOVE 'DB2 ERROR READING POLICY'
                            TO WS-ERROR-MSG
+                   ELSE
+                       IF WS-PREM-IND < 0
+                           MOVE 'POLICY PREMIUM NOT AVAILABLE'
+                               TO WS-ERROR-MSG
+                       END-IF
                    END-IF
                END-IF
            END-IF

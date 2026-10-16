@@ -339,6 +339,18 @@ class TestPolendEndorsement(PolEndTestBase):
             self.assertEqual(item.get("usage"), "COMP",
                              f"indicator {ind} for {col} not COMP")
 
+    def test_null_premium_rejected_before_apply(self):
+        # a NULL TOTAL_PREMIUM must fail closed, not flow the
+        # initialized zero through to 5000-APPLY-ENDORSEMENT
+        p2000 = self.paras.get("2000-RECEIVE-ENDORSEMENT", "")
+        m = re.search(
+            r"IF\s+WS-PREM-IND\s*<\s*0(.*?END-IF)", p2000, re.S)
+        self.assertIsNotNone(m,
+                             "2000 does not test WS-PREM-IND < 0")
+        self.assertRegex(
+            m.group(1), r"MOVE\s+'[^']+'\s+TO\s+WS-ERROR-MSG",
+            "WS-PREM-IND < 0 branch does not set WS-ERROR-MSG")
+
 
 if __name__ == "__main__":
     unittest.main()
