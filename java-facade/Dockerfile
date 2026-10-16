@@ -36,7 +36,6 @@ WORKDIR /app
 
 # DB2 connection credentials passed via environment
 ENV DB2_USERNAME=PASFACAD
-ENV DB2_PASSWORD=changeme
 ENV JAVA_OPTS="-Xmx512m -Xms256m"
 
 EXPOSE 8080
