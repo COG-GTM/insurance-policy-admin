@@ -6,8 +6,7 @@ services:
     environment:
       POSTGRES_DB: pas
       POSTGRES_USER: ${PAS_DB_USERNAME:-pas}
-      # Local-only default; use a different value outside a disposable dev environment.
-      POSTGRES_PASSWORD: ${PAS_DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${PAS_DB_PASSWORD:-}
     volumes:
       - pas-pgdata:/var/lib/postgresql/data
     ports:
@@ -51,7 +50,7 @@ services:
     environment:
       PAS_DB_URL: jdbc:postgresql://postgres:5432/pas
       PAS_DB_USERNAME: ${PAS_DB_USERNAME:-pas}
-      PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:-changeme}
+      PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:-}
       PAS_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
     ports:
@@ -78,7 +77,7 @@ services:
     environment:
       PAS_DB_URL: jdbc:postgresql://postgres:5432/pas
       PAS_DB_USERNAME: ${PAS_DB_USERNAME:-pas}
-      PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:-changeme}
+      PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:-}
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
     ports:
       - "8081:8081"

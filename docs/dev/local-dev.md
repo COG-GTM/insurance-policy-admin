@@ -14,7 +14,7 @@ Copy the Compose environment template before starting:
 cp pas-platform/.env.example pas-platform/.env
 ```
 
-Compose loads `pas-platform/.env` automatically. Its database password default is intended only for a local, disposable environment.
+Compose loads `pas-platform/.env` automatically. Its database password default is intended only for a local, disposable environment. If that file is absent, `make dev-up` supplies the same local-only password default; direct Compose use should start after copying the example file.
 
 ## Services and ports
 
