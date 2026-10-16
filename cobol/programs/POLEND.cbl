@@ -42,7 +42,8 @@
        01  WS-SEC-RESCLASS           PIC X(08) VALUE 'FACILITY'.
        01  WS-SEC-RESID              PIC X(44).
        01  WS-SEC-RESID-LEN          PIC S9(08) COMP.
-       01  WS-SEC-PTR                PIC S9(04) COMP.
+       01  WS-SEC-BRANCH-REV         PIC X(04).
+       01  WS-SEC-TRAIL              PIC S9(04) COMP.
        01  WS-SEC-UPDATE             PIC S9(08) COMP.
        01  WS-SEC-ACCESS-SW          PIC X(01).
            88  WS-SEC-ACCESS-GRANTED VALUE 'Y'.
@@ -132,13 +133,19 @@
                MOVE 'NOT AUTHORIZED FOR THIS POLICY BRANCH'
                    TO WS-ERROR-MSG
            ELSE
+      *        Whole branch code; only trailing blanks are trimmed.
                MOVE SPACES TO WS-SEC-RESID
-               MOVE 1 TO WS-SEC-PTR
                STRING 'PAS.POLEND.BRANCH.' DELIMITED BY SIZE
-                      POLICY-BRANCH-CODE DELIMITED BY SPACE
-                   INTO WS-SEC-RESID WITH POINTER WS-SEC-PTR
+                      POLICY-BRANCH-CODE DELIMITED BY SIZE
+                   INTO WS-SEC-RESID
                END-STRING
-               COMPUTE WS-SEC-RESID-LEN = WS-SEC-PTR - 1
+               MOVE FUNCTION REVERSE(POLICY-BRANCH-CODE)
+                   TO WS-SEC-BRANCH-REV
+               MOVE ZERO TO WS-SEC-TRAIL
+               INSPECT WS-SEC-BRANCH-REV
+                   TALLYING WS-SEC-TRAIL FOR LEADING SPACES
+               COMPUTE WS-SEC-RESID-LEN =
+                   18 + LENGTH OF POLICY-BRANCH-CODE - WS-SEC-TRAIL
                PERFORM 3110-CHECK-UPDATE-ACCESS
                IF NOT WS-SEC-ACCESS-GRANTED
                    MOVE 'NOT AUTHORIZED FOR THIS POLICY BRANCH'

@@ -80,6 +80,15 @@ class PolendAuthzTest(unittest.TestCase):
         text = self.para("3100-AUTHORIZE-ENDORSEMENT")
         self.assertIn("'PAS.POLEND.BRANCH.'", text)
         self.assertIn("POLICY-BRANCH-CODE", text)
+        # full branch code, not the prefix before an embedded blank
+        self.assertRegex(text, r"POLICY-BRANCH-CODE DELIMITED BY SIZE")
+        self.assertNotIn("DELIMITED BY SPACE", text)
+        # only trailing blanks are trimmed from the RESID length
+        self.assertRegex(
+            text,
+            r"INSPECT WS-SEC-BRANCH-REV\s+"
+            r"TALLYING WS-SEC-TRAIL FOR LEADING SPACES",
+        )
         self.assertRegex(text, r"WS-BRANCH-IND\s*<\s*0")
         self.assertIn("IF NOT WS-SEC-ACCESS-GRANTED", text)
         self.assertRegex(
