@@ -18,24 +18,40 @@ DESTRUCTIVE = [
 ]
 
 
-def statements(sql):
-    return {normalize_sql(st): " ".join(st.split()) for st in strip_comments(sql or "").split(";") if st.strip()}
+def destructive_ops(sql):
+    ops = {}
+    for st in strip_comments(sql or "").split(";"):
+        stmt = " ".join(st.split())
+        for kind, rx in DESTRUCTIVE:
+            for m in rx.finditer(stmt):
+                target = ".".join(g.upper() for g in m.groups() if g)
+                ops.setdefault((kind, target), " ".join(m.group(0).split()))
+    return ops
+
+
+def changed_sql_files():
+    """(base_path, head_path) for SQL files added, modified or renamed by the PR."""
+    raw = git("diff", "-z", "--name-status", "--diff-filter=AMR", f"{merge_base()}...HEAD", "--", "*.sql")
+    fields, out, i = raw.split("\0"), [], 0
+    while i < len(fields) and fields[i]:
+        status = fields[i]
+        if status.startswith("R"):
+            out.append((fields[i + 1], fields[i + 2]))
+            i += 3
+        else:
+            out.append((fields[i + 1], fields[i + 1]))
+            i += 2
+    return out
 
 
 def destructive_statements():
-    """Scan SQL statements that are new or changed in this PR (whole statements,
-    so a clause edited under an existing ALTER TABLE is still caught)."""
-    changed = git("diff", "--name-only", "--diff-filter=AM", f"{merge_base()}...HEAD", "--", "*.sql").split()
+    """Destructive DDL present in a changed SQL file now but not in its base version."""
     out = []
-    for path in changed:
-        old = statements(base_file(path))
-        for key, stmt in statements(head_file(path)).items():
-            if key in old:
-                continue
-            for kind, rx in DESTRUCTIVE:
-                for m in rx.finditer(stmt):
-                    target = ".".join(g.upper() for g in m.groups() if g)
-                    out.append(("FAIL", f"schema:{target}:{kind}", f"{' '.join(m.group(0).split())} ({path})"))
+    for base_path, path in changed_sql_files():
+        before = destructive_ops(base_file(base_path))
+        for (kind, target), text in destructive_ops(head_file(path)).items():
+            if (kind, target) not in before:
+                out.append(("FAIL", f"schema:{target}:{kind}", f"{text} ({path})"))
     return out
 
 
