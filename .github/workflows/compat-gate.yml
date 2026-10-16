@@ -16,6 +16,16 @@ env:
   COMPAT_BASE_REF: origin/${{ github.base_ref || 'main' }}
 
 jobs:
+  cobol-tests:
+    name: COBOL program tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GnuCOBOL
+        run: sudo apt-get update && sudo apt-get install -y gnucobol
+      - name: Run COBOL program tests
+        run: make cobol-test
+
   static-compat:
     name: Schema, layouts & security
     runs-on: ubuntu-latest

@@ -23,6 +23,19 @@
        01  WS-COMMAREA-LENGTH        PIC S9(04) COMP VALUE 256.
        01  WS-RESPONSE-CODE          PIC S9(08) COMP.
        01  WS-SQLCODE                PIC S9(09) COMP-5.
+       01  WS-USER-ID                PIC X(08).
+      * Policy-level authority: RACF profiles in class PASPOLCY named
+      * PAS.AGENT.<agent>, PAS.BRANCH.<branch> or PAS.UNASSIGNED;
+      * UPDATE access to one of them is required to renew.
+       01  WS-AUTH-CLASS             PIC X(08) VALUE 'PASPOLCY'.
+       01  WS-AUTH-RESID             PIC X(44).
+       01  WS-AUTH-RESID-LEN         PIC S9(08) COMP.
+       01  WS-AUTH-PTR               PIC S9(04) COMP.
+       01  WS-AUTH-UPDATE            PIC S9(08) COMP.
+       01  WS-AUTH-SW                PIC X(01).
+           88  AUTH-GRANTED          VALUE 'Y'.
+       01  WS-OPEN-CLAIM-COUNT       PIC S9(09) COMP-5.
+       01  WS-OPEN-CLAIM-LIMIT       PIC S9(04) COMP VALUE 3.
        01  WS-CURRENT-DATE           PIC 9(08).
        01  WS-NEW-EXPIRY-DATE        PIC 9(08).
        01  WS-ERROR-MSG              PIC X(79).
@@ -48,7 +61,12 @@
        PROCEDURE DIVISION.
        0000-MAIN-LOGIC.
            PERFORM 1000-INITIALIZE
-           PERFORM 2000-READ-EXISTING-POLICY
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 2000-READ-EXISTING-POLICY THRU 2000-EXIT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 2500-CHECK-POLICY-AUTHORITY
+           END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 3000-CHECK-RENEWAL-ELIGIBILITY
            END-IF
@@ -56,8 +74,14 @@
                PERFORM 4000-CALCULATE-NEW-PREMIUM
                PERFORM 5000-APPLY-RATE-CAP
                PERFORM 6000-CREATE-RENEWAL-TERM
-               PERFORM 7000-UPDATE-COVERAGES
-               PERFORM 8000-SEND-CONFIRMATION
+               IF WS-ERROR-MSG = SPACES
+                   PERFORM 7000-UPDATE-COVERAGES
+               END-IF
+               IF WS-ERROR-MSG = SPACES
+                   PERFORM 8000-SEND-CONFIRMATION
+               ELSE
+                   PERFORM 9000-SEND-ERROR
+               END-IF
            ELSE
                PERFORM 9000-SEND-ERROR
            END-IF
@@ -66,6 +90,15 @@
 
        1000-INITIALIZE.
            MOVE SPACES TO WS-ERROR-MSG
+           MOVE SPACES TO WS-USER-ID
+           EXEC CICS ASSIGN
+               USERID(WS-USER-ID)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               OR WS-USER-ID = SPACES
+               MOVE 'UNABLE TO DETERMINE SIGNED-ON USER' TO WS-ERROR-MSG
+           END-IF
            EXEC CICS ASKTIME
                ABSTIME(WS-CURRENT-DATE)
            END-EXEC
@@ -89,10 +122,12 @@
            EXEC SQL
                SELECT POLICY_NUMBER, POLICY_TYPE, POLICY_STATUS,
                       TOTAL_PREMIUM, EXPIRY_DATE, RENEWAL_COUNT,
-                      UW_STATUS
+                      UW_STATUS, COALESCE(AGENT_CODE, ' '),
+                      COALESCE(BRANCH_CODE, ' ')
                INTO :POLICY-NUMBER, :POLICY-TYPE, :POLICY-STATUS,
                     :POLICY-TOTAL-PREMIUM, :POLICY-EXPIRY-DATE,
-                    :POLICY-RENEWAL-COUNT, :POLICY-UW-STATUS
+                    :POLICY-RENEWAL-COUNT, :POLICY-UW-STATUS,
+                    :POLICY-AGENT-CODE, :POLICY-BRANCH-CODE
                FROM POLICIES
                WHERE POLICY_NUMBER = :POLICY-NUMBER
            END-EXEC
@@ -103,20 +138,84 @@
        2000-EXIT.
            EXIT.
 
+       2500-CHECK-POLICY-AUTHORITY.
+      *    RACF transaction security only gates who may run PRWL; the
+      *    signed-on user must also hold UPDATE on the profile for the
+      *    agent or branch that owns this policy.
+           MOVE 'N' TO WS-AUTH-SW
+           IF POLICY-AGENT-CODE = SPACES
+               AND POLICY-BRANCH-CODE = SPACES
+               MOVE SPACES TO WS-AUTH-RESID
+               MOVE 1 TO WS-AUTH-PTR
+               STRING 'PAS.UNASSIGNED' DELIMITED BY SIZE
+                   INTO WS-AUTH-RESID WITH POINTER WS-AUTH-PTR
+               END-STRING
+               PERFORM 2510-QUERY-POLICY-RESOURCE
+           ELSE
+               IF POLICY-AGENT-CODE NOT = SPACES
+                   MOVE SPACES TO WS-AUTH-RESID
+                   MOVE 1 TO WS-AUTH-PTR
+                   STRING 'PAS.AGENT.' DELIMITED BY SIZE
+                          POLICY-AGENT-CODE DELIMITED BY SPACE
+                       INTO WS-AUTH-RESID WITH POINTER WS-AUTH-PTR
+                   END-STRING
+                   PERFORM 2510-QUERY-POLICY-RESOURCE
+               END-IF
+               IF NOT AUTH-GRANTED
+                   AND POLICY-BRANCH-CODE NOT = SPACES
+                   MOVE SPACES TO WS-AUTH-RESID
+                   MOVE 1 TO WS-AUTH-PTR
+                   STRING 'PAS.BRANCH.' DELIMITED BY SIZE
+                          POLICY-BRANCH-CODE DELIMITED BY SPACE
+                       INTO WS-AUTH-RESID WITH POINTER WS-AUTH-PTR
+                   END-STRING
+                   PERFORM 2510-QUERY-POLICY-RESOURCE
+               END-IF
+           END-IF
+           IF NOT AUTH-GRANTED
+      *        Same text as a missing policy so PRWL cannot be used
+      *        to probe for policies outside the user's book
+               MOVE 'POLICY NOT FOUND FOR RENEWAL' TO WS-ERROR-MSG
+           END-IF
+           .
+
+       2510-QUERY-POLICY-RESOURCE.
+           COMPUTE WS-AUTH-RESID-LEN = WS-AUTH-PTR - 1
+           EXEC CICS QUERY SECURITY
+               RESCLASS(WS-AUTH-CLASS)
+               RESID(WS-AUTH-RESID)
+               RESIDLENGTH(WS-AUTH-RESID-LEN)
+               UPDATE(WS-AUTH-UPDATE)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE = DFHRESP(NORMAL)
+               AND WS-AUTH-UPDATE = DFHVALUE(UPDATABLE)
+               MOVE 'Y' TO WS-AUTH-SW
+           END-IF
+           .
+
        3000-CHECK-RENEWAL-ELIGIBILITY.
            IF NOT POL-STAT-ACTIVE AND NOT POL-STAT-EXPIRED
                MOVE 'POLICY NOT ELIGIBLE FOR RENEWAL' TO WS-ERROR-MSG
+           ELSE
+      *        Block renewal while more than 3 claims are open
+               MOVE ZERO TO WS-OPEN-CLAIM-COUNT
+               EXEC SQL
+                   SELECT COUNT(*)
+                   INTO :WS-OPEN-CLAIM-COUNT
+                   FROM ACMEINS.CLAIMS
+                   WHERE POLICY_NUMBER = :POLICY-NUMBER
+                     AND CLAIM_STATUS = 'OPEN'
+               END-EXEC
+               IF SQLCODE NOT = 0
+                   MOVE 'ERROR CHECKING OPEN CLAIMS' TO WS-ERROR-MSG
+               ELSE
+                   IF WS-OPEN-CLAIM-COUNT > WS-OPEN-CLAIM-LIMIT
+                       MOVE 'RENEWAL BLOCKED - TOO MANY OPEN CLAIMS'
+                           TO WS-ERROR-MSG
+                   END-IF
+               END-IF
            END-IF
-      *    Check for outstanding claims
-           EXEC SQL
-               SELECT COUNT(*)
-               INTO :WS-SQLCODE
-               FROM ACMEINS.CLAIMS
-               WHERE POLICY_NUMBER = :POLICY-NUMBER
-                 AND CLAIM_STATUS = 'OPEN'
-           END-EXEC
-      *    TODO: Business wants to block renewal if >3 open claims
-      *    but this was never fully implemented - JH 2005
            .
 
        4000-CALCULATE-NEW-PREMIUM.
@@ -162,10 +261,17 @@
                    LAST_UPDATED = CURRENT TIMESTAMP,
                    UPDATED_BY = 'POLRNW'
                WHERE POLICY_NUMBER = :POLICY-NUMBER
+                 AND COALESCE(AGENT_CODE, ' ') = :POLICY-AGENT-CODE
+                 AND COALESCE(BRANCH_CODE, ' ') = :POLICY-BRANCH-CODE
            END-EXEC
            IF SQLCODE NOT = 0
                MOVE 'DB2 ERROR UPDATING RENEWAL' TO WS-ERROR-MSG
-               PERFORM 9000-SEND-ERROR
+           ELSE
+               IF SQLERRD(3) = ZERO
+      *            Ownership changed after the authority check
+                   MOVE 'RENEWAL NOT APPLIED - POLICY CHANGED'
+                       TO WS-ERROR-MSG
+               END-IF
            END-IF
            .
 
@@ -178,6 +284,9 @@
                WHERE POLICY_NUMBER = :POLICY-NUMBER
                  AND STATUS = 'AC'
            END-EXEC
+           IF SQLCODE NOT = 0 AND SQLCODE NOT = 100
+               MOVE 'DB2 ERROR UPDATING COVERAGES' TO WS-ERROR-MSG
+           END-IF
            .
 
        8000-SEND-CONFIRMATION.

@@ -1,6 +1,9 @@
-.PHONY: compat compat-static compat-api compat-build
+.PHONY: compat compat-static compat-api compat-build cobol-test
 
 compat: compat-static compat-build compat-api
+
+cobol-test:
+	python3 cobol/tests/test_polrnw.py
 
 compat-static:
 	python3 compat/check_schema.py
