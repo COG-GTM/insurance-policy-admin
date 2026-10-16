@@ -6,6 +6,41 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 
 **Maturity Level:** 0 (Legacy)
 
+## Modernization (AB-516)
+
+The modernization program is introducing Java 21 / Spring Boot 3 containerized services under epic AB-516. The legacy COBOL/CICS/DB2 platform and REST facade remain the system of record until cutover. Architecture choices for the modernization remain provisional pending ADR AB-518.
+
+## Repository layout
+
+```text
+cobol/
+  programs/       COBOL programs
+  copybooks/      Shared COBOL record layouts
+jcl/              Mainframe batch job definitions
+sql/              DB2 DDL
+java-facade/      Legacy Java REST facade
+compat/           Backward-compatibility gate (make compat)
+pas-platform/
+  pas-common/         Shared Java platform code
+  pas-policy-service/ Policy REST service
+  pas-batch/          Spring Batch service
+  docker-compose.yml  Local PostgreSQL, Kafka, and service stack
+  .env.example        Local Compose configuration template
+```
+
+## Local development
+
+Prerequisites: Docker with Compose v2 and JDK 21.
+
+```sh
+cp pas-platform/.env.example pas-platform/.env
+make dev
+make test
+make dev-down
+```
+
+The policy service is available at http://localhost:8080, and the batch service at http://localhost:8081. See the [local development guide](docs/dev/local-dev.md) for endpoints, configuration, and troubleshooting.
+
 ## Architecture
 
 ### Core Platform
