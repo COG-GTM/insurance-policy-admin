@@ -80,6 +80,8 @@
                IF WS-ERROR-MSG = SPACES
                    PERFORM 8000-SEND-CONFIRMATION
                ELSE
+                   EXEC CICS SYNCPOINT ROLLBACK
+                   END-EXEC
                    PERFORM 9000-SEND-ERROR
                END-IF
            ELSE
@@ -263,12 +265,17 @@
                WHERE POLICY_NUMBER = :POLICY-NUMBER
                  AND COALESCE(AGENT_CODE, ' ') = :POLICY-AGENT-CODE
                  AND COALESCE(BRANCH_CODE, ' ') = :POLICY-BRANCH-CODE
+                 AND (SELECT COUNT(*)
+                      FROM ACMEINS.CLAIMS
+                      WHERE POLICY_NUMBER = :POLICY-NUMBER
+                        AND CLAIM_STATUS = 'OPEN')
+                     <= :WS-OPEN-CLAIM-LIMIT
            END-EXEC
            IF SQLCODE NOT = 0
                MOVE 'DB2 ERROR UPDATING RENEWAL' TO WS-ERROR-MSG
            ELSE
                IF SQLERRD(3) = ZERO
-      *            Ownership changed after the authority check
+      *            Ownership or open claims changed since the checks
                    MOVE 'RENEWAL NOT APPLIED - POLICY CHANGED'
                        TO WS-ERROR-MSG
                END-IF

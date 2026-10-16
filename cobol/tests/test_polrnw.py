@@ -25,6 +25,7 @@ DEFAULT_FIXTURE = {
     "user": "AGT1001",
     "open_claims": 0,
     "update_rows": 1,
+    "coverage_sqlcode": 0,
     "select_sqlcode": 0,
     "grants": [],
     "map": {"agent": "ATTACK", "branch": "ATK1"},
@@ -152,7 +153,7 @@ def replace_exec_block(match, fixture):
         else:
             statements.append(f"MOVE 2 TO {update_var}")
         statements.append(f"MOVE 0 TO {response.group(1).strip()}")
-    elif kind == "SQL" and re.search(r"\bSELECT\s+COUNT\s*\(\s*\*\s*\)", normalized, re.I):
+    elif kind == "SQL" and re.match(r"\s*SELECT\s+COUNT\s*\(\s*\*\s*\)", normalized, re.I):
         host = re.search(r"\bINTO\s*:\s*([A-Z0-9-]+)", normalized, re.I)
         if not host:
             raise ValueError(f"Unrecognized SQL COUNT block: {normalized}")
@@ -160,7 +161,7 @@ def replace_exec_block(match, fixture):
             f"MOVE {fixture['open_claims']} TO {host.group(1)}",
             "MOVE 0 TO SQLCODE",
         ]
-    elif kind == "SQL" and re.search(r"\bSELECT\b", normalized, re.I):
+    elif kind == "SQL" and re.match(r"\s*SELECT\b", normalized, re.I):
         select = re.search(
             r"\bSELECT\s+(.*?)\s+INTO\s+(.*?)\s+FROM\s+POLICIES\b",
             block,
@@ -198,8 +199,10 @@ def replace_exec_block(match, fixture):
     elif kind == "SQL" and re.search(r"\bUPDATE\s+COVERAGES\b", normalized, re.I):
         statements = [
             "DISPLAY 'SQL UPDATE COVERAGES'",
-            "MOVE 0 TO SQLCODE",
+            f"MOVE {fixture['coverage_sqlcode']} TO SQLCODE",
         ]
+    elif kind == "CICS" and re.fullmatch(r"\s*SYNCPOINT\s+ROLLBACK\s*", normalized, re.I):
+        statements = ["DISPLAY 'SYNCPOINT ROLLBACK'"]
     elif kind == "CICS" and re.search(r"\bSEND\s+TEXT\b", normalized, re.I):
         source = re.search(r"\bFROM\s*\(\s*([^)]+)\)", normalized, re.I)
         if not source:
@@ -312,11 +315,13 @@ class PolrnwHarnessTest(unittest.TestCase):
         self.assertIn("SQL UPDATE COVERAGES", output)
         self.assertIn("SEND CONFIRMATION", output)
         self.assertNotIn("SEND ERROR", output)
+        self.assertNotIn("SYNCPOINT ROLLBACK", output)
 
     def assert_denied(self, output):
         self.assertNotIn("SQL UPDATE", output)
         self.assertIn("SEND ERROR POLICY NOT FOUND FOR RENEWAL", output)
         self.assertNotIn("SEND CONFIRMATION", output)
+        self.assertNotIn("SYNCPOINT ROLLBACK", output)
 
     def test_agent_grant_renews(self):
         self.assert_renewed(self.run_program(make_fixture(grants=["PAS.AGENT.AG1001"])))
@@ -375,6 +380,20 @@ class PolrnwHarnessTest(unittest.TestCase):
         self.assertNotIn("SQL UPDATE COVERAGES", output)
         self.assertNotIn("SEND CONFIRMATION", output)
         self.assertIn("SEND ERROR RENEWAL NOT APPLIED - POLICY CHANGED", output)
+        self.assertIn("SYNCPOINT ROLLBACK", output)
+
+    def test_coverage_update_failure_rolls_back_renewal(self):
+        output = self.run_program(
+            make_fixture(
+                grants=["PAS.AGENT.AG1001"],
+                coverage_sqlcode=-911,
+            )
+        )
+        self.assertIn("SQL UPDATE POLICIES", output)
+        self.assertIn("SQL UPDATE COVERAGES", output)
+        self.assertIn("SYNCPOINT ROLLBACK", output)
+        self.assertIn("SEND ERROR DB2 ERROR UPDATING COVERAGES", output)
+        self.assertNotIn("SEND CONFIRMATION", output)
 
     def test_missing_policy_skips_authorization(self):
         output = self.run_program(
