@@ -133,8 +133,8 @@ _DFH_RE = re.compile(r"DFHRESP\(([^)]+)\)")
 
 
 def _stub_prefix(paragraph):
-    token = paragraph.split("-", 1)[0]
-    return token if token[:1].isdigit() else paragraph
+    pfx = paragraph.split("-", 1)[0]
+    return pfx if pfx[:1].isdigit() else paragraph
 
 
 def preprocess_source(source):
