@@ -79,21 +79,41 @@ class PolendAuthzTest(unittest.TestCase):
     def test_branch_authorization_fails_closed(self):
         text = self.para("3100-AUTHORIZE-ENDORSEMENT")
         self.assertIn("'PAS.POLEND.BRANCH.'", text)
-        self.assertIn("POLICY-BRANCH-CODE", text)
-        # full branch code, not the prefix before an embedded blank
-        self.assertRegex(text, r"POLICY-BRANCH-CODE DELIMITED BY SIZE")
+        # only the non-blank prefix is stringed into the profile name
+        self.assertRegex(
+            text,
+            r"STRING 'PAS\.POLEND\.BRANCH\.' DELIMITED BY SIZE "
+            r"POLICY-BRANCH-CODE\(1:WS-SEC-BRANCH-LEN\) DELIMITED BY SIZE",
+        )
         self.assertNotIn("DELIMITED BY SPACE", text)
-        # only trailing blanks are trimmed from the RESID length
+        # reject: NULL branch, all-blank branch, non-allowlist characters
+        self.assertRegex(text, r"WHEN WS-BRANCH-IND\s*<\s*0")
+        self.assertRegex(text, r"WHEN WS-SEC-BRANCH-LEN = 0")
+        self.assertRegex(
+            text,
+            r"WHEN POLICY-BRANCH-CODE\(1:WS-SEC-BRANCH-LEN\) "
+            r"IS NOT PAS-BRANCH-CHAR\s+"
+            r"MOVE 'NOT AUTHORIZED FOR THIS POLICY BRANCH'",
+        )
+        # trailing blanks trimmed via reversed INSPECT
         self.assertRegex(
             text,
             r"INSPECT WS-SEC-BRANCH-REV\s+"
             r"TALLYING WS-SEC-TRAIL FOR LEADING SPACES",
         )
-        self.assertRegex(text, r"WS-BRANCH-IND\s*<\s*0")
+        # QUERY SECURITY failure still fails closed
         self.assertIn("IF NOT WS-SEC-ACCESS-GRANTED", text)
         self.assertRegex(
             text,
             r"NOT WS-SEC-ACCESS-GRANTED\s+MOVE 'NOT AUTHORIZED FOR THIS POLICY BRANCH'",
+        )
+
+    def test_branch_char_class_is_alphanumeric_allowlist(self):
+        text = self.para("SPECIAL-NAMES")
+        self.assertIn(
+            "CLASS PAS-BRANCH-CHAR IS 'A' THRU 'I' 'J' THRU 'R' "
+            "'S' THRU 'Z' '0' THRU '9'",
+            text,
         )
 
     def test_cancel_requires_cancel_profile(self):
