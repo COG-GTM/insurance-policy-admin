@@ -8,6 +8,8 @@
       * Date:     1998-04-15
       * Modified: 2008-01-10 - Added coverage detail display
       *           2022-04-01 - Added API flag check for facade
+      *           2026-10-16 - Added per-policy RACF authorization and
+      *                        API_FLAG check for non-terminal callers
       *
       * Read-only policy inquiry. Displays policy header, coverages,
       * premium details, and underwriting status on BMS maps.
@@ -23,6 +25,19 @@
        01  WS-ERROR-MSG              PIC X(79).
        01  WS-COV-COUNT              PIC 9(03).
        01  WS-DISPLAY-LINE           PIC X(80).
+
+      * Resource-level security: caller must have READ to
+      * PAS.PQRY.AGT.<agent> or PAS.PQRY.BR.<branch> in RACF.
+       01  WS-SEC-CLASS              PIC X(08) VALUE 'FACILITY'.
+       01  WS-SEC-RESID              PIC X(44).
+       01  WS-SEC-RESID-REV          PIC X(44).
+       01  WS-SEC-RESID-LEN          PIC S9(08) COMP.
+       01  WS-SEC-TRAILING           PIC S9(08) COMP.
+       01  WS-SEC-READ               PIC S9(08) COMP.
+       01  WS-STARTCODE              PIC X(02).
+       01  WS-BRIDGE                 PIC X(04).
+       01  WS-AUTHORIZED             PIC X(01).
+           88  CALLER-AUTHORIZED     VALUE 'Y'.
 
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
@@ -47,6 +62,9 @@
            PERFORM 1000-RECEIVE-INPUT
            IF WS-ERROR-MSG = SPACES
                PERFORM 2000-READ-POLICY
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 2500-CHECK-AUTHORIZATION
            END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 3000-READ-CUSTOMER
@@ -101,6 +119,62 @@
            END-IF
            IF SQLCODE < 0
                MOVE 'DB2 ERROR READING POLICY' TO WS-ERROR-MSG
+           END-IF
+           .
+
+       2500-CHECK-AUTHORIZATION.
+           MOVE 'N' TO WS-AUTHORIZED
+           EXEC CICS ASSIGN
+               STARTCODE(WS-STARTCODE)
+               BRIDGE(WS-BRIDGE)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE = DFHRESP(NORMAL)
+               IF POLICY-AGENT-CODE NOT = SPACES
+                   MOVE SPACES TO WS-SEC-RESID
+                   STRING 'PAS.PQRY.AGT.' POLICY-AGENT-CODE
+                       DELIMITED BY SIZE INTO WS-SEC-RESID
+                   PERFORM 2510-QUERY-SECURITY
+               END-IF
+               IF NOT CALLER-AUTHORIZED
+                  AND POLICY-BRANCH-CODE NOT = SPACES
+                   MOVE SPACES TO WS-SEC-RESID
+                   STRING 'PAS.PQRY.BR.' POLICY-BRANCH-CODE
+                       DELIMITED BY SIZE INTO WS-SEC-RESID
+                   PERFORM 2510-QUERY-SECURITY
+               END-IF
+           END-IF
+           IF NOT CALLER-AUTHORIZED
+               MOVE 'NOT AUTHORIZED TO VIEW THIS POLICY'
+                   TO WS-ERROR-MSG
+           ELSE
+               IF (WS-STARTCODE NOT = 'TD'
+                   OR (WS-BRIDGE NOT = SPACES
+                       AND WS-BRIDGE NOT = LOW-VALUES))
+                  AND NOT POL-API-YES
+                   MOVE 'POLICY NOT AVAILABLE THROUGH THIS CHANNEL'
+                       TO WS-ERROR-MSG
+               END-IF
+           END-IF
+           .
+
+       2510-QUERY-SECURITY.
+           MOVE FUNCTION REVERSE(WS-SEC-RESID) TO WS-SEC-RESID-REV
+           MOVE 0 TO WS-SEC-TRAILING
+           INSPECT WS-SEC-RESID-REV
+               TALLYING WS-SEC-TRAILING FOR LEADING SPACES
+           COMPUTE WS-SEC-RESID-LEN =
+               LENGTH OF WS-SEC-RESID - WS-SEC-TRAILING
+           EXEC CICS QUERY SECURITY
+               RESCLASS(WS-SEC-CLASS)
+               RESID(WS-SEC-RESID)
+               RESIDLENGTH(WS-SEC-RESID-LEN)
+               READ(WS-SEC-READ)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE = DFHRESP(NORMAL)
+              AND WS-SEC-READ = DFHVALUE(READABLE)
+               MOVE 'Y' TO WS-AUTHORIZED
            END-IF
            .
 
