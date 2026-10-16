@@ -45,11 +45,11 @@ Run targets from the repository root:
 | `make dev-images` | Build both service images with BuildKit. If `MAVEN_SETTINGS` points to an existing file, pass it as an optional build secret. |
 | `make dev-up` | Start the Compose stack, wait for health checks, then print service URLs. |
 | `make dev` | Build service images, then start the stack. |
-| `make dev-down` | Stop and remove the stack, named PostgreSQL volume, and orphaned Compose containers. |
+| `make dev-down` | Runs `docker compose down -v`, removing the `pas-pgdata` volume and wiping all local PostgreSQL data and orphaned Compose containers. |
 | `make dev-logs` | Follow the most recent 200 lines of Compose logs. |
 | `make dev-ps` | Show Compose service status. |
 
-`make dev-down` removes the `pas-pgdata` volume and its local data. Use it when you intentionally want to reset the database.
+Use `make dev-down` when you intentionally want to reset the database.
 
 ## Configuration
 
