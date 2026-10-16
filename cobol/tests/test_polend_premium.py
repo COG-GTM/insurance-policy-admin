@@ -52,6 +52,7 @@ def stub_exec_block(match):
     if "UPDATE POLICIES" in block:
         return """           MOVE POLICY-TOTAL-PREMIUM TO WS-DISPLAY-PREMIUM
            DISPLAY 'UPDATE PREM=' WS-DISPLAY-PREMIUM
+               ' STATUS=' POLICY-STATUS
            MOVE 0 TO SQLCODE"""
     if "SYNCPOINT ROLLBACK" in block:
         return "           DISPLAY 'ROLLBACK'"
@@ -124,17 +125,23 @@ class PolendPremiumTests(unittest.TestCase):
         if hasattr(cls, "temp_dir"):
             cls.temp_dir.cleanup()
 
-    def run_polend(self, endorsement_type, endorsement_date):
+    def run_polend(
+        self,
+        endorsement_type,
+        endorsement_date,
+        premium="1000.00",
+        status="AC",
+    ):
         environment = os.environ.copy()
         environment.update(
             {
                 "T_DATE": endorsement_date,
                 "T_TYPE": endorsement_type,
                 "T_POLICY_NUMBER": "POLICY000001",
-                "T_STATUS": "AC",
+                "T_STATUS": status,
                 "T_EFFECTIVE_DATE": "20260101",
                 "T_EXPIRY_DATE": "20270101",
-                "T_PREMIUM": "1000.00",
+                "T_PREMIUM": premium,
             }
         )
         result = subprocess.run(
@@ -160,15 +167,42 @@ class PolendPremiumTests(unittest.TestCase):
             raise AssertionError(f"{label} amount not found in output:\n{output}")
         return Decimal(match.group(1))
 
+    @staticmethod
+    def status_from(output):
+        match = re.search(r"UPDATE PREM=[^\n]*\bSTATUS=([A-Z]{2})", output)
+        if match is None:
+            raise AssertionError(f"UPDATE status not found in output:\n{output}")
+        return match.group(1)
+
     def test_cancel_books_pro_rata_return_premium(self):
         output = self.run_polend("CAN", "20260702")
         self.assertEqual(self.amount_from(output, "INSERT ADJ="), Decimal("-501.37"))
         self.assertEqual(self.amount_from(output, "UPDATE PREM="), Decimal("498.63"))
+        self.assertEqual(self.status_from(output), "CN")
 
     def test_address_change_does_not_change_premium(self):
         output = self.run_polend("ACH", "20260702")
         self.assertEqual(self.amount_from(output, "INSERT ADJ="), Decimal("0.00"))
         self.assertEqual(self.amount_from(output, "UPDATE PREM="), Decimal("1000.00"))
+        self.assertEqual(self.status_from(output), "AC")
+
+    def test_cancel_large_premium_near_expiry(self):
+        output = self.run_polend("CAN", "20261231", premium="1000000.00")
+        self.assertEqual(self.amount_from(output, "INSERT ADJ="), Decimal("-2739.73"))
+        self.assertEqual(self.amount_from(output, "UPDATE PREM="), Decimal("997260.27"))
+
+    def test_repeat_cancellation_is_rejected(self):
+        first_output = self.run_polend("CAN", "20260702")
+        status = self.status_from(first_output)
+        second_output = self.run_polend(
+            "CAN",
+            "20260702",
+            premium="498.63",
+            status=status,
+        )
+        self.assertIn("ONLY ACTIVE POLICIES CAN BE ENDORSED", second_output)
+        self.assertNotIn("INSERT ADJ=", second_output)
+        self.assertNotIn("UPDATE PREM=", second_output)
 
     def test_date_after_expiry_does_not_write(self):
         output = self.run_polend("CAN", "20270301")

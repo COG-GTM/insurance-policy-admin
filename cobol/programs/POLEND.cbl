@@ -29,7 +29,6 @@
        01  WS-ENDORSEMENT-SEQ        PIC 9(05).
        01  WS-DAYS-REMAINING         PIC S9(05) COMP-3 VALUE ZERO.
        01  WS-DAYS-IN-TERM           PIC S9(05) COMP-3 VALUE ZERO.
-       01  WS-PRORATA-FACTOR         PIC S9(01)V9(06) COMP-3 VALUE ZERO.
        01  WS-PREMIUM-ADJUST         PIC S9(09)V99 COMP-3 VALUE ZERO.
        01  WS-ENDORSEMENT-TYPE        PIC X(03).
            88  END-TYPE-COV-ADD       VALUE 'CAD'.
@@ -71,7 +70,6 @@
        1000-INITIALIZE.
            MOVE SPACES TO WS-ERROR-MSG
            MOVE ZERO TO WS-PREMIUM-ADJUST
-           MOVE ZERO TO WS-PRORATA-FACTOR
            EXEC CICS ASKTIME ABSTIME(WS-CURRENT-DATE) END-EXEC
            EXEC CICS FORMATTIME
                ABSTIME(WS-CURRENT-DATE)
@@ -119,7 +117,7 @@
            .
 
        4000-CALCULATE-PRORATA.
-      *    Calculate pro-rata factor for premium adjustment
+      *    Validate dates for pro-rata premium adjustment
       *    Days remaining / Days in term
            COMPUTE WS-DAYS-IN-TERM =
                FUNCTION INTEGER-OF-DATE(POLICY-EXPIRY-DATE)
@@ -134,9 +132,6 @@
                    OR WS-DAYS-REMAINING > WS-DAYS-IN-TERM
                    MOVE 'ENDORSEMENT DATE OUTSIDE POLICY TERM'
                        TO WS-ERROR-MSG
-               ELSE
-                   COMPUTE WS-PRORATA-FACTOR ROUNDED =
-                       WS-DAYS-REMAINING / WS-DAYS-IN-TERM
                END-IF
            END-IF
            IF WS-ERROR-MSG = SPACES
@@ -144,7 +139,7 @@
                    WHEN END-TYPE-CANCEL
                        COMPUTE WS-PREMIUM-ADJUST ROUNDED =
                            0 - (POLICY-TOTAL-PREMIUM
-                               * WS-PRORATA-FACTOR)
+                               * WS-DAYS-REMAINING / WS-DAYS-IN-TERM)
                            ON SIZE ERROR
                                MOVE 'PREMIUM ADJUSTMENT OUT OF RANGE'
                                    TO WS-ERROR-MSG
@@ -205,9 +200,13 @@
                            TO WS-ERROR-MSG
                END-COMPUTE
                IF WS-ERROR-MSG = SPACES
+                   IF END-TYPE-CANCEL
+                       SET POL-STAT-CANCELLED TO TRUE
+                   END-IF
                    EXEC SQL
                        UPDATE POLICIES
                        SET TOTAL_PREMIUM = :POLICY-TOTAL-PREMIUM,
+                           POLICY_STATUS = :POLICY-STATUS,
                            LAST_UPDATED = CURRENT TIMESTAMP,
                            UPDATED_BY = 'POLEND'
                        WHERE POLICY_NUMBER = :POLICY-NUMBER
