@@ -104,7 +104,8 @@ def main():
                 if nc is None:
                     findings.append(("FAIL", f"schema:{t}.{c}:column-dropped", f"column dropped/renamed ({path})"))
                 elif narrowed(cd, nc):
-                    findings.append(("FAIL", f"schema:{t}.{c}:type-narrowed", f"{cd['raw']} -> {nc['raw']} ({path})"))
+                    kind = "type-narrowed" if cd["type"] == nc["type"] or {cd["type"], nc["type"]} <= set(INT_RANK) | {"CHAR", "VARCHAR"} else "type-changed"
+                    findings.append(("FAIL", f"schema:{t}.{c}:{kind}", f"{cd['raw']} -> {nc['raw']} ({path})"))
                 elif nc["notnull"] and not cd["notnull"] and not nc["default"]:
                     findings.append(("FAIL", f"schema:{t}.{c}:made-not-null", f"now NOT NULL without default ({path})"))
             for c, nc in new_t[t]["cols"].items():
