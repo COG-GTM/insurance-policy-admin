@@ -40,6 +40,10 @@ FTP_CONTINUATION_STEP = """//STEP030  EXEC REGION=0M,
  CLAIMSRV.ACME.LOCAL
  QUIT
 /*"""
+QUOTED_FTP_TEXT = """//STEP010  EXEC PGM=IKJEFT01,PARM='PGM=FTP'
+//SYSTSIN  DD *
+  DSN SYSTEM(DBPD)
+/*"""
 
 
 def read_daily_extract():
@@ -71,6 +75,10 @@ class FtpTransferTests(unittest.TestCase):
             ftp_step_issues(FTP_CONTINUATION_STEP),
         )
 
+    def test_ftp_text_inside_quoted_exec_parameter_is_not_detected(self):
+        self.assertEqual(ftp_steps(QUOTED_FTP_TEXT), [])
+        self.assertEqual(ftp_step_issues(QUOTED_FTP_TEXT), [])
+
     def test_tls_downgrade_and_missing_data_protection_are_reported(self):
         ccc_fixture = SECURE_STEP.replace(" QUIT", " CCC\n QUIT")
         issues = ftp_step_issues(ccc_fixture)
@@ -88,6 +96,15 @@ class FtpTransferTests(unittest.TestCase):
         self.assertIn(
             ("STEP030", "SYSFTPD overrides SECURE_DATACONN with a non-PRIVATE value"),
             ftp_step_issues(later_override),
+        )
+
+        trailing_tokens = SECURE_STEP.replace(
+            "SECURE_DATACONN   PRIVATE\n",
+            "SECURE_DATACONN   PRIVATE CLEAR\n",
+        )
+        self.assertIn(
+            ("STEP030", "SYSFTPD overrides SECURE_DATACONN with a non-PRIVATE value"),
+            ftp_step_issues(trailing_tokens),
         )
 
         inline_override = SECURE_STEP.replace(
@@ -117,6 +134,24 @@ class FtpTransferTests(unittest.TestCase):
 
         sysin_fixture = SECURE_STEP.replace("//INPUT    DD *", "//SYSIN    DD *")
         self.assertEqual(ftp_step_issues(sysin_fixture), [])
+
+        sysin_commands = SECURE_STEP.replace(
+            " QUIT\n/*",
+            " QUIT\n/*\n//SYSIN    DD *\n CLAIMSRV.ACME.LOCAL\n CCC\n/*",
+        )
+        self.assertIn(
+            ("STEP030", "SYSIN line 2 downgrades TLS protection"),
+            ftp_step_issues(sysin_commands),
+        )
+
+        sysin_dataset = SECURE_STEP.replace(
+            " QUIT\n/*",
+            " QUIT\n/*\n//SYSIN    DD DSN=X.Y,DISP=SHR",
+        )
+        self.assertIn(
+            ("STEP030", "SYSIN must be in-stream so FTP commands can be reviewed"),
+            ftp_step_issues(sysin_dataset),
+        )
 
     def test_inline_password_is_reported_without_echoing_content(self):
         fixture = SECURE_STEP.replace(" PUT 'ACME.PAS", " HUNTER2PW\n PUT 'ACME.PAS")
