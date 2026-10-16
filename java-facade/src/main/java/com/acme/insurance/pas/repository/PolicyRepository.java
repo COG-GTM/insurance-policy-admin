@@ -17,6 +17,7 @@ import java.util.List;
  * Uses JdbcTemplate (no JPA/Hibernate - DB2 z/OS driver has
  * compatibility issues with Hibernate dialect). Queries are
  * read-only; all writes go through CICS programs.
+ * Only policies with API_FLAG = 'Y' are exposed through the facade.
  *
  * NOTE: Column names match the DB2 DDL exactly. The mainframe
  * DBA team uses uppercase column names (COBOL convention).
@@ -37,16 +38,18 @@ public class PolicyRepository {
             "UW_STATUS, RISK_SCORE, WEB_INDICATOR, API_FLAG, " +
             "LAST_UPDATED, UPDATED_BY " +
             "FROM ACMEINS.POLICIES " +
-            "WHERE POLICY_NUMBER = ?";
+            "WHERE POLICY_NUMBER = ? AND API_FLAG = 'Y'";
 
     private static final String FIND_COVERAGES_SQL =
             "SELECT POLICY_NUMBER, SEQUENCE_NUM, COVERAGE_TYPE, " +
             "DESCRIPTION, COVERAGE_LIMIT, DEDUCTIBLE, PREMIUM, " +
             "EFFECTIVE_DATE, EXPIRY_DATE, STATUS, " +
             "COINSURANCE_PCT, RATING_TERRITORY, CLASS_CODE " +
-            "FROM ACMEINS.COVERAGES " +
-            "WHERE POLICY_NUMBER = ? " +
-            "ORDER BY SEQUENCE_NUM";
+            "FROM ACMEINS.COVERAGES C " +
+            "WHERE C.POLICY_NUMBER = ? " +
+            "AND EXISTS (SELECT 1 FROM ACMEINS.POLICIES P " +
+            "WHERE P.POLICY_NUMBER = C.POLICY_NUMBER AND P.API_FLAG = 'Y') " +
+            "ORDER BY C.SEQUENCE_NUM";
 
     public Policy findByPolicyNumber(String policyNumber) {
         List<Policy> results = jdbcTemplate.query(
