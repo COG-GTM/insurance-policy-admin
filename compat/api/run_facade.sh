@@ -5,6 +5,8 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 MODULE="${COMPAT_API_MODULE:-java-facade}"
 PORT="${COMPAT_PORT:-18080}"
+# Local H2 profile credentials for the REST contract gate.
+export COMPAT_AUTH_HEADER="${COMPAT_AUTH_HEADER:-Authorization: Basic $(printf 'local-admin:local-dev-password' | base64)}"
 (cd "$MODULE" && mvn -B -ntp -q -DskipTests package)
 JAR=$(ls "$MODULE"/target/*.jar | grep -v original | head -1)
 START="${COMPAT_API_START:-java -jar $JAR --spring.profiles.active=local --server.port=$PORT}"

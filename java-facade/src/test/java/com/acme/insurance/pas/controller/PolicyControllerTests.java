@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.hamcrest.Matchers.*;
@@ -18,12 +19,15 @@ import static org.hamcrest.Matchers.*;
 @AutoConfigureMockMvc
 public class PolicyControllerTests {
 
+    private static final String PASSWORD = "test-password";
+
     @Autowired
     private MockMvc mockMvc;
 
     @Test
     public void getPolicy_returnsPolicy() throws Exception {
-        mockMvc.perform(get("/api/v1/policies/POL-00000001"))
+        mockMvc.perform(get("/api/v1/policies/POL-00000001")
+                        .with(httpBasic("test-admin", PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
                 .andExpect(jsonPath("$.policyNumber", is("POL-00000001")))
@@ -34,13 +38,58 @@ public class PolicyControllerTests {
 
     @Test
     public void getPolicy_notFound() throws Exception {
-        mockMvc.perform(get("/api/v1/policies/NONEXISTENT"))
+        mockMvc.perform(get("/api/v1/policies/NONEXISTENT")
+                        .with(httpBasic("test-admin", PASSWORD)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    public void getPolicy_anonymousIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000001"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    public void getPolicy_wrongPasswordIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000001")
+                        .with(httpBasic("test-admin", "wrong-password")))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    public void getPolicy_agentCanReadEntitledPolicy() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000001")
+                        .with(httpBasic("test-agent", PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.agentCode", is("AG1001")));
+    }
+
+    @Test
+    public void getPolicy_agentCannotReadOtherAgentPolicy() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000002")
+                        .with(httpBasic("test-agent", PASSWORD)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    public void getPolicy_branchCanReadEntitledPolicy() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000003")
+                        .with(httpBasic("test-branch", PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.branchCode", is("DET1")));
+    }
+
+    @Test
+    public void getPolicy_branchCannotReadOtherBranchPolicy() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000001")
+                        .with(httpBasic("test-branch", PASSWORD)))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     public void getCoverages_returnsCoverages() throws Exception {
-        mockMvc.perform(get("/api/v1/policies/POL-00000001/coverages"))
+        mockMvc.perform(get("/api/v1/policies/POL-00000001/coverages")
+                        .with(httpBasic("test-admin", PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
                 .andExpect(jsonPath("$", hasSize(2)))
@@ -50,7 +99,21 @@ public class PolicyControllerTests {
 
     @Test
     public void getCoverages_policyNotFound() throws Exception {
-        mockMvc.perform(get("/api/v1/policies/NONEXISTENT/coverages"))
+        mockMvc.perform(get("/api/v1/policies/NONEXISTENT/coverages")
+                        .with(httpBasic("test-admin", PASSWORD)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    public void getCoverages_anonymousIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000001/coverages"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    public void getCoverages_agentCannotReadOtherAgentPolicy() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000002/coverages")
+                        .with(httpBasic("test-agent", PASSWORD)))
                 .andExpect(status().isNotFound());
     }
 
