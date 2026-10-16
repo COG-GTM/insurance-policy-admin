@@ -192,9 +192,6 @@ class TestPolendEndorsement(PolEndTestBase):
                         "POLICY-AGENT-CODE with UPDATE/DFHVALUE(UPDATABLE)")
         # 0000-MAIN-LOGIC gates 5000-APPLY-ENDORSEMENT on WS-ERROR-MSG
         p0000 = self.paras.get("0000-MAIN-LOGIC", "")
-        m = re.search(
-            r"IF\s+WS-ERROR-MSG\s*=\s*SPACES(.*?)(?:ELSE|END-IF)",
-            p0000, re.S)
         gated = [g for g in re.finditer(
             r"IF\s+WS-ERROR-MSG\s*=\s*SPACES(.*?)END-IF", p0000, re.S)]
         apply_gated = any("PERFORM 5000-APPLY-ENDORSEMENT" in g.group(1)
