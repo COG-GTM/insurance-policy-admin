@@ -60,7 +60,7 @@ GET /manage/health                              - Health check
 
 ## Integration Points
 
-- **Claims Engine:** Nightly flat-file extract (FTP) via DAILY-EXTRACT.jcl
+- **Claims Engine:** Nightly flat-file extract (FTPS, TLS required) via DAILY-EXTRACT.jcl
 - **Actuarial Models:** Monthly exposure CSV via MONTHLY-EXPOSURE.jcl
 - **Broker Portal:** SQL Server linked server to DB2 (read-only ODBC)
 - **Document Management:** IBM MQ events trigger document creation in FileNet
@@ -73,7 +73,7 @@ GET /manage/health                              - Health check
 4. **No state-specific rate caps** - Using flat 15% rate increase cap instead of state-specific regulatory limits
 5. **Java facade has no authentication** - Relies on network segmentation (internal VPN only)
 6. **Single-threaded batch** - PREMBAT processes policies sequentially; takes ~4 hours for full book
-7. **FTP file transfer** - No encryption on daily extract files (regulatory risk)
+7. **FTP file transfer** - MONTHLY-EXPOSURE.jcl still sends the actuarial feed over plaintext FTP (regulatory risk); DAILY-EXTRACT.jcl uses FTPS
 
 ## Source Control
 
