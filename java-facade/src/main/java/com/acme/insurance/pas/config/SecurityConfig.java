@@ -19,7 +19,11 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * HTTP Basic authentication for the policy API.
@@ -27,6 +31,9 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
+
+    private static final Pattern BCRYPT_PATTERN = Pattern.compile(
+            "\\A\\$2a?\\$\\d\\d\\$[./0-9A-Za-z]{53}");
 
     private final ApiClientProperties apiClientProperties;
 
@@ -51,12 +58,24 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         }
 
         List<UserDetails> users = new ArrayList<UserDetails>();
+        Set<String> usernames = new HashSet<String>();
         for (ApiClient client : clients) {
             if (client == null || !StringUtils.hasText(client.getUsername())
                     || !StringUtils.hasText(client.getPasswordHash())) {
                 throw new IllegalStateException(
                         "Each pas.security.clients entry requires a username "
                                 + "and a BCrypt passwordHash.");
+            }
+            if (!BCRYPT_PATTERN.matcher(client.getPasswordHash()).matches()) {
+                throw new IllegalStateException(
+                        "API client '" + client.getUsername()
+                                + "' must have a valid BCrypt passwordHash.");
+            }
+            if (!usernames.add(client.getUsername().toLowerCase(Locale.ROOT))) {
+                throw new IllegalStateException(
+                        "Duplicate API client username '"
+                                + client.getUsername()
+                                + "' (usernames are case-insensitive).");
             }
             users.add(new User(client.getUsername(), client.getPasswordHash(),
                     AuthorityUtils.createAuthorityList("ROLE_API_CLIENT")));

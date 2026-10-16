@@ -66,6 +66,10 @@ The policy API requires HTTP Basic authentication. Configure clients with
 only when unrestricted or when its agent or branch code matches; policies
 outside its scope return 404. The facade refuses to start unless at least one
 client with a username and BCrypt password hash is configured.
+Basic credentials must only be sent over TLS: terminate HTTPS at the load
+balancer/gateway in front of the facade or configure Boot's `server.ssl.*`;
+request rate limiting and brute-force throttling for `/api/**` are expected at
+the gateway.
 
 ## Integration Points
 
