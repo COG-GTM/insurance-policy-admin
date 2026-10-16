@@ -34,6 +34,9 @@ jobs:
       - name: Security non-regression
         if: always()
         run: python3 compat/check_security.py
+      - name: POLEND endorsement controls
+        if: always()
+        run: python3 -m unittest discover -s cobol/tests -v
 
   build-test:
     name: Build & tests
