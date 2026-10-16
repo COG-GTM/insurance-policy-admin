@@ -6,6 +6,10 @@
 #     -f pas-platform/pas-policy-service/Dockerfile -t pas-policy-service:0.1.0-SNAPSHOT pas-platform
 
 FROM eclipse-temurin:21-jdk AS build
+# unzip is required so mvnw downloads the .zip distribution that matches the pinned checksum
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends unzip \
+    && rm -rf /var/lib/apt/lists/*
 # Optional: point the Maven wrapper at an alternate repo base (defaults to Maven Central)
 ARG MVNW_REPOURL=
 WORKDIR /workspace
