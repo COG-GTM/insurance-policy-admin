@@ -13,7 +13,7 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 | Legacy | `cobol/`, `jcl/`, `sql/`, `java-facade/` |
 | New Java codebase | `pas/` — `pas-observability`, `pas-policy-service`; planned `pas-domain` (AB-521), `pas-rating` (AB-522), and `pas-batch` / Spring Batch (AB-523) |
 | Compatibility | `compat/` — backward-compatibility checks for the legacy system |
-| Architecture | `docs/adr/` — ADR 0001 target architecture (AB-518); ADR 0002 scaffold |
+| Architecture | `docs/adr/` — ADR 0001 target architecture (AB-518); [ADR 0002 scaffold](docs/adr/0002-pas-service-scaffold-ci-and-local-dev.md) |
 | Local services | `compose.yaml` |
 | GitHub workflows and templates | `.github/` |
 
@@ -31,7 +31,7 @@ Run `make dev` from the repository root. It verifies both Maven modules, starts 
 | Prometheus metrics | http://localhost:8081/actuator/prometheus |
 | Build info | http://localhost:8081/actuator/info |
 
-Use `make fmt` to format Java sources and `make down` to stop the stack and remove its local database volume. Set `PAS_DB_PASSWORD` to override the local database password; `PAS_DB_URL` and `PAS_DB_USERNAME` configure the service connection when running outside Compose.
+Use `make fmt` to format Java sources and `make down` to stop the stack and remove its local database volume. Set `PAS_DB_PASSWORD` to override the local database password; `PAS_DB_URL` and `PAS_DB_USERNAME` configure the service connection when running outside Compose. Host ports can be overridden with `PAS_HTTP_PORT` (default `8080`), `PAS_MANAGEMENT_PORT` (default `8081`), and `PAS_DB_PORT` (default `5432`).
 
 ## CI & conventions
 
