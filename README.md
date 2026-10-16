@@ -17,7 +17,7 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 
 ### REST Facade (Added 2022)
 - **Language:** Java 8
-- **Framework:** Spring Boot 1.5.22
+- **Framework:** Spring Boot 2.7.18 (last line supporting Java 8)
 - **Purpose:** Read-only REST API for modern system integration
 - **Deployment:** Docker container on Linux VM (not on z/OS)
 

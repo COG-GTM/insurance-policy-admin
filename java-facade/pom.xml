@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>1.5.22.RELEASE</version>
+        <version>2.7.18</version>
         <relativePath/>
     </parent>
 
@@ -20,13 +20,15 @@
     <description>
         Read-only REST API facade for the COBOL Policy Administration System.
         Added in 2022 to allow modern systems to query policy data without
-        direct DB2/CICS integration. Spring Boot 1.5 chosen for Java 8
-        compatibility with existing z/OS Java runtime.
+        direct DB2/CICS integration. Runs on Spring Boot 2.7, the most recent
+        line that still supports the Java 8 runtime used on z/OS.
     </description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>1.8</java.version>
+        <springdoc.version>1.7.0</springdoc.version>
+        <dependency-check.version>8.4.3</dependency-check.version>
     </properties>
 
     <dependencies>
@@ -50,16 +52,11 @@
             <version>11.5.8.0</version>
         </dependency>
 
-        <!-- Swagger for API docs -->
+        <!-- OpenAPI / Swagger UI for API docs -->
         <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-swagger2</artifactId>
-            <version>2.9.2</version>
-        </dependency>
-        <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-swagger-ui</artifactId>
-            <version>2.9.2</version>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-ui</artifactId>
+            <version>${springdoc.version}</version>
         </dependency>
 
         <dependency>
@@ -84,4 +81,34 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+            Dependency vulnerability scan. Not bound to the default build
+            because it downloads the NVD data feed:
+                mvn -Pdependency-check verify
+        -->
+        <profile>
+            <id>dependency-check</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.owasp</groupId>
+                        <artifactId>dependency-check-maven</artifactId>
+                        <version>${dependency-check.version}</version>
+                        <configuration>
+                            <failBuildOnCVSS>7</failBuildOnCVSS>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
