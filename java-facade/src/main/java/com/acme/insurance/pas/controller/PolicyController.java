@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.controller;
 
+import com.acme.insurance.pas.dto.PolicyResponse;
 import com.acme.insurance.pas.model.Coverage;
 import com.acme.insurance.pas.model.Policy;
 import com.acme.insurance.pas.repository.PolicyRepository;
@@ -24,8 +25,11 @@ import java.util.List;
  *   GET /api/v1/policies/{policyNumber}           - Policy details
  *   GET /api/v1/policies/{policyNumber}/coverages  - Coverage details
  *
- * NOTE: No authentication on these endpoints - relies on network
- * segmentation (internal VPN only). TODO: Add OAuth2 in Phase 2.
+ * NOTE: /api/** requires `Authorization: Bearer <token>`; valid
+ * tokens come from the `pas.security.api-tokens` property (env
+ * `PAS_API_TOKENS`, comma-separated for rotation). Internal
+ * underwriting/audit fields are intentionally not exposed on the
+ * policy response; policy numbers are not authorization.
  *
  * @author T. Nguyen (2022)
  */
@@ -37,12 +41,14 @@ public class PolicyController {
     private PolicyRepository policyRepository;
 
     @GetMapping("/{policyNumber}")
-    public ResponseEntity<Policy> getPolicy(@PathVariable String policyNumber) {
+    public ResponseEntity<PolicyResponse> getPolicy(
+            @PathVariable String policyNumber) {
         Policy policy = policyRepository.findByPolicyNumber(policyNumber);
         if (policy == null) {
-            return new ResponseEntity<Policy>(HttpStatus.NOT_FOUND);
+            return new ResponseEntity<PolicyResponse>(HttpStatus.NOT_FOUND);
         }
-        return new ResponseEntity<Policy>(policy, HttpStatus.OK);
+        return new ResponseEntity<PolicyResponse>(
+                PolicyResponse.from(policy), HttpStatus.OK);
     }
 
     @GetMapping("/{policyNumber}/coverages")
