@@ -19,7 +19,6 @@ PAS_DIR := pas-platform
 COMPOSE := docker compose -f $(PAS_DIR)/docker-compose.yml
 MAVEN_SETTINGS ?= $(HOME)/.m2/settings.xml
 MVNW_REPOURL ?=
-PAS_DB_PASSWORD_DEFAULT := changeme
 comma := ,
 
 build:
@@ -33,11 +32,8 @@ dev-images:
 	DOCKER_BUILDKIT=1 docker build $(if $(wildcard $(MAVEN_SETTINGS)),--secret id=maven_settings$(comma)src=$(MAVEN_SETTINGS)) -f $(PAS_DIR)/pas-batch/Dockerfile -t pas-batch:local --build-arg MVNW_REPOURL="$(MVNW_REPOURL)" $(PAS_DIR)
 
 dev-up:
-	@if [ -f "$(PAS_DIR)/.env" ]; then \
-		$(COMPOSE) up -d --wait --wait-timeout 300; \
-	else \
-		PAS_DB_PASSWORD=$${PAS_DB_PASSWORD:-$(PAS_DB_PASSWORD_DEFAULT)} $(COMPOSE) up -d --wait --wait-timeout 300; \
-	fi
+	@test -f $(PAS_DIR)/.env || { cp $(PAS_DIR)/.env.example $(PAS_DIR)/.env; echo "Created $(PAS_DIR)/.env from .env.example (local-only defaults)"; }
+	$(COMPOSE) up -d --wait --wait-timeout 300
 	@printf '%s\n' \
 		'Policy service: http://localhost:8080' \
 		'  liveness:   http://localhost:8080/actuator/health/liveness' \

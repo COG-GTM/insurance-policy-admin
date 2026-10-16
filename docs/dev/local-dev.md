@@ -8,13 +8,13 @@ The `pas-platform` services run locally in Docker Compose with PostgreSQL and Ka
 - JDK 21 for Maven commands and IDE runs
 - GNU Make
 
-Copy the Compose environment template before starting:
+`make dev` and `make dev-up` create `pas-platform/.env` from the example on first run. To customize the local settings, copy and edit the template:
 
 ```sh
 cp pas-platform/.env.example pas-platform/.env
 ```
 
-Compose loads `pas-platform/.env` automatically. Its database password default is intended only for a local, disposable environment. If that file is absent, `make dev-up` supplies the same local-only password default; direct Compose use should start after copying the example file.
+Compose loads `pas-platform/.env` automatically. Its database password default is intended only for a local, disposable environment. Direct `docker compose` use errors until `PAS_DB_PASSWORD` is set in the environment or a `.env` file exists with it set.
 
 ## Services and ports
 
@@ -107,6 +107,7 @@ SPRING_PROFILES_ACTIVE=local \
 - **A port is already in use:** stop the process or container using 5432, 9092, 8080, or 8081, or change the relevant port mapping in `pas-platform/docker-compose.yml`.
 - **Image registry requests are rate-limited:** authenticate or use an approved registry mirror. Maven downloads can use `MAVEN_SETTINGS` and `MVNW_REPOURL`; Docker base images can be pre-pulled and tagged locally with the expected image name.
 - **Maven cannot download the wrapper distribution:** configure `MVNW_REPOURL` in the shell or Make invocation to use an available Maven repository base. Do not commit environment-specific mirror URLs.
+- **The image build fails Maven Wrapper checksum validation:** the build stage needs `unzip` so the wrapper uses the pinned ZIP distribution and checksum.
 - **A service is unhealthy:** inspect `make dev-ps` and `make dev-logs`. The readiness endpoint includes the database check; the policy service also waits for Kafka health before starting.
 - **Logs are JSON instead of plain text:** set `PAS_SPRING_PROFILES_ACTIVE=local` in `pas-platform/.env` and recreate the application containers.
 - **The database needs a clean reset:** `make dev-down` removes all Compose services and the `pas-pgdata` volume. Starting again recreates the Flyway-owned `pas` and `pas_batch` schemas.
