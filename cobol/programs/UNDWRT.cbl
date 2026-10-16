@@ -54,6 +54,15 @@
                VALUE 'ACME.PAS.UW.DECIDE.'.
            05  WS-UW-RESID-BRANCH    PIC X(04).
        01  WS-UW-UPDATE-CVDA         PIC S9(08) COMP.
+       01  WS-NULL-INDICATORS.
+           05  WS-IND-AGENT-CODE     PIC S9(04) COMP.
+           05  WS-IND-DEDUCTIBLE     PIC S9(04) COMP.
+           05  WS-IND-INCEPTION-DATE PIC S9(04) COMP.
+           05  WS-IND-RENEWAL-COUNT  PIC S9(04) COMP.
+           05  WS-IND-UW-STATUS      PIC S9(04) COMP.
+           05  WS-IND-RISK-SCORE     PIC S9(04) COMP.
+           05  WS-IND-WEB-IND        PIC S9(04) COMP.
+           05  WS-IND-API-FLAG       PIC S9(04) COMP.
 
        COPY POLICY-RECORD.
        COPY CUSTOMER-RECORD.
@@ -124,13 +133,18 @@
                       C.CUST_TYPE, C.CREDIT_SCORE, C.RISK_TIER
                INTO :POLICY-NUMBER, :POLICY-TYPE, :POLICY-STATUS,
                     :POLICY-EFFECTIVE-DATE, :POLICY-EXPIRY-DATE,
-                    :POLICY-HOLDER-ID, :POLICY-AGENT-CODE,
+                    :POLICY-HOLDER-ID,
+                    :POLICY-AGENT-CODE :WS-IND-AGENT-CODE,
                     :POLICY-BRANCH-CODE,
-                    :POLICY-TOTAL-PREMIUM, :POLICY-DEDUCTIBLE,
+                    :POLICY-TOTAL-PREMIUM,
+                    :POLICY-DEDUCTIBLE :WS-IND-DEDUCTIBLE,
                     :POLICY-LIMIT,
-                    :POLICY-INCEPTION-DATE, :POLICY-RENEWAL-COUNT,
-                    :POLICY-UW-STATUS, :POLICY-RISK-SCORE,
-                    :POLICY-WEB-IND, :POLICY-API-FLAG,
+                    :POLICY-INCEPTION-DATE :WS-IND-INCEPTION-DATE,
+                    :POLICY-RENEWAL-COUNT :WS-IND-RENEWAL-COUNT,
+                    :POLICY-UW-STATUS :WS-IND-UW-STATUS,
+                    :POLICY-RISK-SCORE :WS-IND-RISK-SCORE,
+                    :POLICY-WEB-IND :WS-IND-WEB-IND,
+                    :POLICY-API-FLAG :WS-IND-API-FLAG,
                     :CUST-TYPE, :CUST-CREDIT-SCORE,
                     :CUST-RISK-TIER
                FROM POLICIES P
@@ -268,6 +282,8 @@
            END-EVALUATE
            MOVE WS-RISK-SCORE TO POLICY-RISK-SCORE
            MOVE WS-DECISION TO POLICY-UW-STATUS
+           MOVE WS-CURRENT-DATE TO POLICY-LAST-UPDATED
+           MOVE WS-PROGRAM-ID TO POLICY-UPDATED-BY
            .
 
        6000-WRITE-DECISION.

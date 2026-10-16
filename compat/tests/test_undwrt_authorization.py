@@ -124,6 +124,46 @@ class UnderwritingAuthorizationTests(unittest.TestCase):
         self.assertIn("POLICYHOLDER_ID", select_statement)
         self.assertIn("POLICY_STATUS", select_statement)
 
+    def test_nullable_policy_columns_use_indicators(self):
+        read_logic = " ".join(self.paragraphs["2000-READ-POLICY-DATA"].split())
+        select_position = read_logic.upper().find("EXEC SQL SELECT")
+        select_end = read_logic.upper().find("END-EXEC", select_position)
+        select_statement = read_logic[select_position:select_end].upper()
+        indicators = {
+            ":POLICY-AGENT-CODE": ":WS-IND-AGENT-CODE",
+            ":POLICY-DEDUCTIBLE": ":WS-IND-DEDUCTIBLE",
+            ":POLICY-INCEPTION-DATE": ":WS-IND-INCEPTION-DATE",
+            ":POLICY-RENEWAL-COUNT": ":WS-IND-RENEWAL-COUNT",
+            ":POLICY-UW-STATUS": ":WS-IND-UW-STATUS",
+            ":POLICY-RISK-SCORE": ":WS-IND-RISK-SCORE",
+            ":POLICY-WEB-IND": ":WS-IND-WEB-IND",
+            ":POLICY-API-FLAG": ":WS-IND-API-FLAG",
+        }
+
+        for host_variable, indicator in indicators.items():
+            with self.subTest(host_variable=host_variable):
+                self.assertRegex(
+                    select_statement,
+                    re.escape(host_variable)
+                    + r"\s+(?:INDICATOR\s+)?"
+                    + re.escape(indicator)
+                    + r"\b",
+                )
+
+    def test_decision_record_carries_update_metadata(self):
+        render_logic = " ".join(
+            self.paragraphs["5000-RENDER-DECISION"].upper().split()
+        )
+
+        self.assertIn(
+            "MOVE WS-CURRENT-DATE TO POLICY-LAST-UPDATED",
+            render_logic,
+        )
+        self.assertIn(
+            "MOVE WS-PROGRAM-ID TO POLICY-UPDATED-BY",
+            render_logic,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
