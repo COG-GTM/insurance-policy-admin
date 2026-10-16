@@ -61,6 +61,7 @@ Override environment variables in `pas-platform/.env`, or override Make variable
 | `PAS_DB_PASSWORD` | `changeme` | Compose/apps | Local-only PostgreSQL and application password. |
 | `PAS_SPRING_PROFILES_ACTIVE` | `local` | Compose/apps | Spring profile; `local` enables plain-text logs. Other profiles use JSON logs. |
 | `PAS_BIND_ADDRESS` | `127.0.0.1` | Compose | Host address for published ports; loopback-only by default. |
+| `PAS_KAFKA_ADVERTISED_HOST` | `localhost` | Compose | Host name/IP Kafka advertises to remote clients; set when `PAS_BIND_ADDRESS` is not loopback. |
 | `PAS_POLICY_HTTP_PORT` | `8080` | Compose | Host port for the policy service. |
 | `PAS_BATCH_HTTP_PORT` | `8081` | Compose | Host port for the batch service. |
 | `PAS_POSTGRES_PORT` | `5432` | Compose | Host port for PostgreSQL. |
@@ -111,7 +112,7 @@ SPRING_PROFILES_ACTIVE=local \
 
 ## Troubleshooting
 
-- **A port is already in use:** set `PAS_POLICY_HTTP_PORT`, `PAS_BATCH_HTTP_PORT`, `PAS_POSTGRES_PORT`, or `PAS_KAFKA_PORT` in `pas-platform/.env` or the environment. `make dev-up` prints the actual published addresses. Set `PAS_BIND_ADDRESS` only if you intentionally need to change the host interface; `0.0.0.0` exposes unauthenticated local services and the local-only database password on the network.
+- **A port is already in use:** set `PAS_POLICY_HTTP_PORT`, `PAS_BATCH_HTTP_PORT`, `PAS_POSTGRES_PORT`, or `PAS_KAFKA_PORT` in `pas-platform/.env` or the environment. `make dev-up` prints the actual published addresses. Set `PAS_BIND_ADDRESS` only if you intentionally need to change the host interface; `0.0.0.0` exposes unauthenticated local services and the local-only database password on the network. When binding to a non-loopback address, set `PAS_KAFKA_ADVERTISED_HOST` to a hostname or IP reachable by remote Kafka clients.
 - **Image registry requests are rate-limited:** authenticate or use an approved registry mirror. Maven downloads can use `MAVEN_SETTINGS` and `MVNW_REPOURL`; Docker base images can be pre-pulled and tagged locally with the expected image name.
 - **Maven cannot download the wrapper distribution:** configure `MVNW_REPOURL` in the shell or Make invocation to use an available Maven repository base. Do not commit environment-specific mirror URLs.
 - **The image build fails Maven Wrapper checksum validation:** the build stage needs `unzip` so the wrapper uses the pinned ZIP distribution and checksum.
