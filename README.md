@@ -31,11 +31,11 @@ Run `make dev` from the repository root. It verifies both Maven modules, starts 
 | Prometheus metrics | http://localhost:8081/actuator/prometheus |
 | Build info | http://localhost:8081/actuator/info |
 
-Use `make fmt` to format Java sources and `make down` to stop the stack and remove its local database volume. Set `PAS_DB_PASSWORD` to override the local database password; `PAS_DB_URL` and `PAS_DB_USERNAME` configure the service connection when running outside Compose. Host ports can be overridden with `PAS_HTTP_PORT` (default `8080`), `PAS_MANAGEMENT_PORT` (default `8081`), and `PAS_DB_PORT` (default `5432`).
+Use `make fmt` to format Java sources and `make down` to stop the stack and remove its local database volume. Set `PAS_DB_PASSWORD` to override the local database password; `PAS_DB_URL` and `PAS_DB_USERNAME` configure the service connection when running outside Compose. Host ports can be overridden with `PAS_HTTP_PORT` (default `8080`), `PAS_MANAGEMENT_PORT` (default `8081`), and `PAS_DB_PORT` (default `5432`). Compose binds these ports to localhost only, and the default database password is for local development only.
 
 ## CI & conventions
 
-The new codebase CI runs four required jobs: build and unit/integration tests, Spotless/SpotBugs static analysis, OSV dependency vulnerability scanning, and container image build/smoke test. The existing compatibility gate protects the legacy tree. Use the [pull request template](.github/pull_request_template.md), format with `make fmt`, and have a repository admin run `.github/scripts/protect-main.sh` to enable required checks and branch protection.
+The new codebase CI runs four jobs: build and unit/integration tests, Spotless/SpotBugs static analysis, OSV dependency vulnerability scanning, and container image build/smoke test. The three compatibility-gate jobs (`Schema, layouts & security`, `Build & tests`, and `REST API contract`) also run on every PR to `main`; all seven job contexts are required checks. Use the [pull request template](.github/pull_request_template.md), format with `make fmt`, and have a repository admin run `.github/scripts/protect-main.sh` to enable required checks and branch protection.
 
 ## Architecture
 

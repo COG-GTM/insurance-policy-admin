@@ -11,7 +11,10 @@ gh api -X PUT "repos/${repo}/branches/main/protection" --input - <<'JSON'
       "Build & unit/integration tests",
       "Static analysis (Spotless, SpotBugs)",
       "Dependency vulnerability scan",
-      "Container image build & smoke test"
+      "Container image build & smoke test",
+      "Schema, layouts & security",
+      "Build & tests",
+      "REST API contract"
     ]
   },
   "enforce_admins": false,

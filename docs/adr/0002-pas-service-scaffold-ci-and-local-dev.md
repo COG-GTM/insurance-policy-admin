@@ -32,8 +32,8 @@ application that has no business endpoints yet; later tickets add `pas-domain`, 
 `pas-batch` as sibling modules. Locally and in CI the service runs against PostgreSQL 16 via
 `compose.yaml` and Testcontainers. Every PR runs a GitHub Actions `CI` workflow (build + unit and
 integration tests, Spotless/SpotBugs, OSV-Scanner dependency scan, container image build and compose
-smoke test), and `main` is protected with those four checks required. No message broker is added
-until ADR 0001 picks one.
+smoke test), and `main` is protected with those four CI checks and the three compatibility-gate
+checks required. No message broker is added until ADR 0001 picks one.
 
 ## Alternatives considered
 
