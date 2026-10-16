@@ -1,0 +1,73 @@
+name: PAS backward-compatibility gate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: compat-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  COMPAT_BASE_REF: origin/${{ github.base_ref || 'main' }}
+
+jobs:
+  static-compat:
+    name: Schema, layouts & security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: DB schema compatibility
+        run: python3 compat/check_schema.py
+      - name: Record & file layout compatibility
+        if: always()
+        run: python3 compat/check_layouts.py
+      - name: Security non-regression
+        if: always()
+        run: python3 compat/check_security.py
+
+  build-test:
+    name: Build & tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            8
+            17
+            21
+          cache: maven
+      - name: Build and test all Maven modules
+        run: ./compat/build_modules.sh
+
+  api-contract:
+    name: REST API contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "8"
+          cache: maven
+      - name: Compare GET /api/v1/policies responses with recorded snapshots
+        env:
+          COMPAT_AUTH_HEADER: ${{ secrets.COMPAT_AUTH_HEADER }}
+        run: ./compat/api/run_facade.sh
+      - name: Upload API log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compat-api-log
+          path: compat-api.log
