@@ -7,7 +7,14 @@ MODULE="${COMPAT_API_MODULE:-java-facade}"
 PORT="${COMPAT_PORT:-18080}"
 (cd "$MODULE" && mvn -B -ntp -q -DskipTests package)
 JAR=$(ls "$MODULE"/target/*.jar | grep -v original | head -1)
-START="${COMPAT_API_START:-java -jar $JAR --spring.profiles.active=local --server.port=$PORT}"
+if [ -z "${COMPAT_API_START:-}" ]; then
+  TOKEN=$(python3 -c 'import secrets;print(secrets.token_hex(32))')
+  export PAS_API_TOKENS="$TOKEN"
+  export COMPAT_AUTH_HEADER="Authorization: Bearer $TOKEN"
+  START="java -jar $JAR --spring.profiles.active=local --server.port=$PORT"
+else
+  START="$COMPAT_API_START"
+fi
 $START > compat-api.log 2>&1 &
 PID=$!
 trap 'kill $PID 2>/dev/null || true' EXIT

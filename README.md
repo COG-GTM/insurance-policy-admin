@@ -56,6 +56,8 @@ GET /api/v1/policies/{policyNumber}/coverages   - Coverage list (JSON)
 GET /manage/health                              - Health check
 ```
 
+> All `/api/**` endpoints require `Authorization: Bearer <token>`; valid tokens are configured via the `PAS_API_TOKENS` environment variable (comma-separated, for rotation). Missing or invalid credentials return `401`. `/manage/health` remains open.
+
 > **WARNING:** The REST facade is **read-only**. All policy mutations must go through CICS transactions on the mainframe.
 
 ## Integration Points
@@ -71,7 +73,7 @@ GET /manage/health                              - Health check
 2. **Hardcoded rating factors** - Base rates and territory factors are hardcoded in PREMBAT; should be table-driven
 3. **Leap year bug** - POLRNW renewal date calculation does not handle leap years correctly
 4. **No state-specific rate caps** - Using flat 15% rate increase cap instead of state-specific regulatory limits
-5. **Java facade has no authentication** - Relies on network segmentation (internal VPN only)
+5. **Facade auth is a shared service bearer token** (`PAS_API_TOKENS`); OAuth2/mTLS at the gateway still planned
 6. **Single-threaded batch** - PREMBAT processes policies sequentially; takes ~4 hours for full book
 7. **FTP file transfer** - No encryption on daily extract files (regulatory risk)
 
