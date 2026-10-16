@@ -90,6 +90,8 @@ def main():
                     continue
                 if name not in new_f:
                     findings.append(("FAIL", f"layout:{path}:{name}:removed", f"field removed/renamed (was offset {off}, {pic})"))
+                elif new_f[name][2] != pic and new_f[name][:2] == (off, size):
+                    findings.append(("FAIL", f"layout:{path}:{name}:type-changed", f"{pic} -> {new_f[name][2]} at offset {off}"))
                 elif new_f[name][:2] != (off, size):
                     n = new_f[name]
                     findings.append(("FAIL", f"layout:{path}:{name}:moved", f"offset/size {off}/{size} -> {n[0]}/{n[1]} ({pic} -> {n[2]})"))
