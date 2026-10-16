@@ -1,0 +1,27 @@
+{
+  "program": "POLEND",
+  "source": "cobol/programs/POLEND.cbl",
+  "mode": "per-case",
+  "description": "Policy endorsement CICS transaction. WS-ENDORSEMENT-TYPE is never populated by the program (RECEIVE fills only POLICY-RECORD), so the ws_endorsement_type input simulates the initial storage content: the ASKTIME stub moves it into WS-ENDORSEMENT-TYPE (blank = GnuCOBOL default spaces, which fails validation).",
+  "input": [
+    {"name": "as_of_date", "pic": "9(8)"},
+    {"name": "ws_endorsement_type", "pic": "X(3)"},
+    {"name": "select_sqlcode", "pic": "S9(4)"},
+    {"name": "policy_status", "pic": "X(2)"},
+    {"name": "effective_date", "pic": "9(8)"},
+    {"name": "expiry_date", "pic": "9(8)"},
+    {"name": "total_premium", "pic": "S9(9)V99"},
+    {"name": "max_endorsement_seq", "pic": "9(5)"},
+    {"name": "insert_sqlcode", "pic": "S9(4)"}
+  ],
+  "output": [
+    "error_msg",
+    "screens_sent",
+    "days_in_term",
+    "days_remaining",
+    "prorata_factor",
+    "premium_adjust",
+    "endorsement_seq",
+    "total_premium"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "program": "UNDWRT",
+  "source": "cobol/programs/UNDWRT.cbl",
+  "mode": "per-case",
+  "description": "Underwriting decision CICS transaction. Stubs feed the RECEIVE map, the policy/customer JOIN, the 5-year claims COUNT/SUM, and the branch accumulation SUM.",
+  "input": [
+    {"name": "as_of_date", "pic": "9(8)"},
+    {"name": "select_sqlcode", "pic": "S9(4)"},
+    {"name": "policy_type", "pic": "X(3)"},
+    {"name": "total_premium", "pic": "S9(9)V99"},
+    {"name": "policy_limit", "pic": "S9(11)V99"},
+    {"name": "branch_code", "pic": "X(4)"},
+    {"name": "cust_type", "pic": "X(1)"},
+    {"name": "credit_score", "pic": "9(3)"},
+    {"name": "risk_tier", "pic": "X(1)"},
+    {"name": "claim_count_5y", "pic": "9(5)"},
+    {"name": "total_incurred_5y", "pic": "S9(11)V99"},
+    {"name": "branch_accum_limit", "pic": "S9(13)V99"}
+  ],
+  "output": [
+    "error_msg",
+    "screens_sent",
+    "risk_score",
+    "decision",
+    "decision_reason",
+    "loss_ratio",
+    "policy_risk_score",
+    "policy_uw_status"
+  ]
+}

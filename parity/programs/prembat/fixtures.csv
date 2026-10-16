@@ -1,0 +1,15 @@
+case_id,note,policy_type,total_premium,deductible,coverage_limit,effective_date,expiry_date
+POL-AUT-1,auto base rate 850,AUT,1200.00,500.00,250000.00,20240101,20250101
+POL-HOM-1,home base rate 1200,HOM,900.00,1000.00,400000.00,20240301,20250301
+POL-COM-1,commercial base rate 5000,COM,2000.00,5000.00,2000000.00,20240601,20250601
+POL-LIF-1,life base rate 400,LIF,300.00,0.00,100000.00,20240101,20250101
+POL-HLT-1,health base rate 3500,HLT,800.00,250.00,500000.00,20240115,20250115
+POL-CGL-1,unknown type falls to OTHER branch,CGL,150.00,100.00,75000.00,20240101,20250101
+POL-BLANK-1,blank type falls to OTHER branch,,150.00,100.00,75000.00,20240101,20250101
+POL-LOWER-1,lowercase aut falls to OTHER branch,aut,150.00,100.00,75000.00,20240101,20250101
+POL-TRUNC-1,two-char AU padded falls to OTHER branch,AU ,150.00,100.00,75000.00,20240101,20250101
+POL-ZERO-1,zero existing premium is ignored by the calc,AUT,0.00,500.00,250000.00,20240101,20250101
+POL-NEG-1,negative existing premium is ignored by the calc,AUT,-500.00,500.00,250000.00,20240101,20250101
+POL-LEAP-1,leap day effective date passes through,AUT,1200.00,500.00,250000.00,20240229,20250228
+POL-LEAPY-1,leap-year term passes through,HOM,900.00,1000.00,400000.00,20240101,20241231
+POL-BIG-1,large coverage limit is ignored by the calc,COM,2000.00,5000.00,99999999999.99,20240101,20250101
