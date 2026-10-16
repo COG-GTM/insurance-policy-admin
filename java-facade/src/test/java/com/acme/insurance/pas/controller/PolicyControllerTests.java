@@ -60,4 +60,27 @@ public class PolicyControllerTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is("UP")));
     }
+
+    @Test
+    public void sensitiveActuatorEndpoints_areNotExposed() throws Exception {
+        String[] endpoints = {
+                "/manage/env", "/manage/heapdump", "/manage/trace",
+                "/manage/dump", "/manage/beans", "/manage/configprops",
+                "/manage/autoconfig", "/manage/metrics", "/manage/mappings",
+                "/manage/info"
+        };
+        for (String endpoint : endpoints) {
+            mockMvc.perform(get(endpoint))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
+    public void healthCheck_hidesDetails() throws Exception {
+        mockMvc.perform(get("/manage/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("UP")))
+                .andExpect(jsonPath("$.db").doesNotExist())
+                .andExpect(jsonPath("$.diskSpace").doesNotExist());
+    }
 }
