@@ -31,6 +31,8 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 | PQRY | POLQRY | Policy inquiry (read-only) |
 | PUWR | UNDWRT | Underwriting decision |
 
+> **PEND authorization:** the signed-on CICS user must have UPDATE access to the RACF FACILITY profile `PAS.POLEND.BRANCH.<branch-code>` for the policy's `BRANCH_CODE`, and additionally to `PAS.POLEND.CANCEL` for 'CAN' endorsements. Requests are rejected otherwise, including policies with no servicing branch.
+
 ## Batch Jobs
 
 | JCL Job | Schedule | Description |
