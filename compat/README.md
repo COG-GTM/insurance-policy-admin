@@ -11,6 +11,7 @@ business contract unless the change is explicitly approved.
 | DB schema | `check_schema.py` | Dropped tables/columns, narrowed types, new NOT NULL without default, removed constraints, `POLICY_SEQ` changes, edits to applied Flyway migrations |
 | Record & file layouts | `check_layouts.py` | Copybook record length or field offset/size changes; JCL output dataset LRECL changes (Claims/Actuarial feeds) |
 | Security non-regression | `check_security.py` | Added hardcoded secrets/keys, exposed actuator, H2 console outside local profile, plaintext FTP (PII additions are reported as notes) |
+| POLEND endorsement controls | `cobol/tests/test_polend_endorsement.py` | Endorsement type not populated from received map, missing/expanded type allowlist, `CAN` without confirmation check, missing agent authorization before apply |
 
 Run locally: `make compat` (needs JDK 8 for `java-facade` and Python 3).
 

@@ -6,6 +6,7 @@ compat-static:
 	python3 compat/check_schema.py
 	python3 compat/check_layouts.py
 	python3 compat/check_security.py
+	python3 -m unittest discover -s cobol/tests -v
 
 compat-build:
 	./compat/build_modules.sh
