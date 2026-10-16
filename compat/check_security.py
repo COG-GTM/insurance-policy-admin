@@ -34,7 +34,9 @@ def ftp_steps(text):
                 break
 
         exec_text = "\n".join(exec_lines)
-        if not re.search(r"\bPGM\s*=\s*FTP\b", exec_text, re.I):
+        exec_for_match = "\n".join(line[2:] if line.startswith("//") else line for line in exec_lines)
+        exec_for_match = re.sub(r"'(?:[^']|'')*'", "''", exec_for_match)
+        if not re.search(r"(?:^|[\s,])PGM\s*=\s*FTP(?=[\s,]|$)", exec_for_match, re.I):
             continue
 
         dds = {}
@@ -109,7 +111,7 @@ def ftp_step_issues(text):
             for line in sysftpd["data"]:
                 directive = line.split(";", 1)[0].split()
                 if directive:
-                    value = directive[1].upper() if len(directive) > 1 else ""
+                    value = " ".join(directive[1:]).upper()
                     directives.setdefault(directive[0].upper(), []).append(value)
             for name, value in required_sysftpd:
                 values = directives.get(name, [])
@@ -124,15 +126,23 @@ def ftp_step_issues(text):
         if not dds.get("NETRC") or not dds["NETRC"]["dsn"]:
             issues.append((stepname, "no NETRC DD; login would come from the INPUT stream"))
 
-        for ddname in ("INPUT", "SYSIN"):
+        command_ddnames = [name for name in ("INPUT", "SYSIN") if name in dds]
+        for ddname in command_ddnames:
             if dds.get(ddname, {}).get("concat"):
                 issues.append((stepname, f"{ddname} has a concatenated dataset; TLS policy/commands must be fully in-stream"))
 
-        command_ddname = "INPUT" if "INPUT" in dds else "SYSIN"
-        command_dd = dds.get(command_ddname)
-        if not command_dd or command_dd["data"] is None or command_dd["dsn"] is not None:
+        if not command_ddnames:
             issues.append((stepname, "FTP commands must come from an in-stream INPUT DD so they can be reviewed"))
-        else:
+        for command_ddname in command_ddnames:
+            command_dd = dds[command_ddname]
+            if command_dd["data"] is None or command_dd["dsn"] is not None or command_dd["concat"]:
+                if command_ddname == "INPUT":
+                    message = "FTP commands must come from an in-stream INPUT DD so they can be reviewed"
+                else:
+                    message = "SYSIN must be in-stream so FTP commands can be reviewed"
+                issues.append((stepname, message))
+                continue
+
             host_seen = False
             for line_number, line in enumerate(command_dd["data"], start=1):
                 if not line.strip():
