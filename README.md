@@ -40,7 +40,7 @@ make dev-down
 
 `make dev` creates `pas-platform/.env` from the example on first run.
 
-The policy service is available at http://localhost:8080, and the batch service at http://localhost:8081. See the [local development guide](docs/dev/local-dev.md) for endpoints, configuration, and troubleshooting.
+By default, the policy service is available at http://localhost:8080, and the batch service at http://localhost:8081. See the [local development guide](docs/dev/local-dev.md) for endpoints, port overrides, configuration, and troubleshooting.
 
 ## Architecture
 

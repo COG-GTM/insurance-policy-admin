@@ -19,6 +19,11 @@ PAS_DIR := pas-platform
 COMPOSE := docker compose -f $(PAS_DIR)/docker-compose.yml
 MAVEN_SETTINGS ?= $(HOME)/.m2/settings.xml
 MVNW_REPOURL ?=
+PAS_POLICY_HTTP_PORT ?= 8080
+PAS_BATCH_HTTP_PORT ?= 8081
+PAS_POSTGRES_PORT ?= 5432
+PAS_KAFKA_PORT ?= 9092
+export PAS_POLICY_HTTP_PORT PAS_BATCH_HTTP_PORT PAS_POSTGRES_PORT PAS_KAFKA_PORT
 comma := ,
 
 build:
@@ -35,17 +40,17 @@ dev-up:
 	@test -f $(PAS_DIR)/.env || { cp $(PAS_DIR)/.env.example $(PAS_DIR)/.env; echo "Created $(PAS_DIR)/.env from .env.example (local-only defaults)"; }
 	$(COMPOSE) up -d --wait --wait-timeout 300
 	@printf '%s\n' \
-		'Policy service: http://localhost:8080' \
-		'  liveness:   http://localhost:8080/actuator/health/liveness' \
-		'  readiness:  http://localhost:8080/actuator/health/readiness' \
-		'  prometheus: http://localhost:8080/actuator/prometheus' \
-		'  ping:       http://localhost:8080/api/v2/ping' \
-		'Batch: http://localhost:8081' \
-		'  liveness:   http://localhost:8081/actuator/health/liveness' \
-		'  readiness:  http://localhost:8081/actuator/health/readiness' \
-		'  prometheus: http://localhost:8081/actuator/prometheus' \
-		'PostgreSQL: localhost:5432' \
-		'Kafka: localhost:9092'
+		'Policy service: http://localhost:$(PAS_POLICY_HTTP_PORT)' \
+		'  liveness:   http://localhost:$(PAS_POLICY_HTTP_PORT)/actuator/health/liveness' \
+		'  readiness:  http://localhost:$(PAS_POLICY_HTTP_PORT)/actuator/health/readiness' \
+		'  prometheus: http://localhost:$(PAS_POLICY_HTTP_PORT)/actuator/prometheus' \
+		'  ping:       http://localhost:$(PAS_POLICY_HTTP_PORT)/api/v2/ping' \
+		'Batch: http://localhost:$(PAS_BATCH_HTTP_PORT)' \
+		'  liveness:   http://localhost:$(PAS_BATCH_HTTP_PORT)/actuator/health/liveness' \
+		'  readiness:  http://localhost:$(PAS_BATCH_HTTP_PORT)/actuator/health/readiness' \
+		'  prometheus: http://localhost:$(PAS_BATCH_HTTP_PORT)/actuator/prometheus' \
+		'PostgreSQL: localhost:$(PAS_POSTGRES_PORT)' \
+		'Kafka: localhost:$(PAS_KAFKA_PORT)'
 
 dev:
 	$(MAKE) dev-images

@@ -60,11 +60,17 @@ Override environment variables in `pas-platform/.env`, or override Make variable
 | `PAS_DB_USERNAME` | `pas` | Compose/apps | PostgreSQL and application database user. |
 | `PAS_DB_PASSWORD` | `changeme` | Compose/apps | Local-only PostgreSQL and application password. |
 | `PAS_SPRING_PROFILES_ACTIVE` | `local` | Compose/apps | Spring profile; `local` enables plain-text logs. Other profiles use JSON logs. |
+| `PAS_POLICY_HTTP_PORT` | `8080` | Compose, Make | Host port for the policy service. |
+| `PAS_BATCH_HTTP_PORT` | `8081` | Compose, Make | Host port for the batch service. |
+| `PAS_POSTGRES_PORT` | `5432` | Compose, Make | Host port for PostgreSQL. |
+| `PAS_KAFKA_PORT` | `9092` | Compose, Make | Host port for Kafka's advertised host listener. |
 | `PAS_POSTGRES_IMAGE` | `postgres:16` | Compose | PostgreSQL image override. |
 | `PAS_KAFKA_IMAGE` | `apache/kafka:3.9.1` | Compose | Kafka image override. |
 | `MVNW_REPOURL` | Empty (Maven Central) | Make, Docker builds | Alternate Maven Wrapper distribution repository base. Supply it through the environment or as a Make variable when Maven Central is unavailable. |
 | `MAVEN_SETTINGS` | `$(HOME)/.m2/settings.xml` | `make dev-images` | Maven settings file passed to Docker BuildKit only when the file exists. It is not copied into an image. |
 | `TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX` | Unset | `make test` | Optional registry prefix for Docker images pulled by Testcontainers. |
+
+Compose reads port overrides from `pas-platform/.env`. Make does not load `.env`, so pass the same overrides through the shell when invoking `make` to update the printed URLs, for example `PAS_POLICY_HTTP_PORT=18080 make dev`.
 
 Example for a customized local environment:
 
@@ -104,7 +110,7 @@ SPRING_PROFILES_ACTIVE=local \
 
 ## Troubleshooting
 
-- **A port is already in use:** stop the process or container using 5432, 9092, 8080, or 8081, or change the relevant port mapping in `pas-platform/docker-compose.yml`.
+- **A port is already in use:** set `PAS_POLICY_HTTP_PORT`, `PAS_BATCH_HTTP_PORT`, `PAS_POSTGRES_PORT`, or `PAS_KAFKA_PORT` in `pas-platform/.env` or the environment. If invoking Make, pass the override in the shell as well so its printed URLs match.
 - **Image registry requests are rate-limited:** authenticate or use an approved registry mirror. Maven downloads can use `MAVEN_SETTINGS` and `MVNW_REPOURL`; Docker base images can be pre-pulled and tagged locally with the expected image name.
 - **Maven cannot download the wrapper distribution:** configure `MVNW_REPOURL` in the shell or Make invocation to use an available Maven repository base. Do not commit environment-specific mirror URLs.
 - **The image build fails Maven Wrapper checksum validation:** the build stage needs `unzip` so the wrapper uses the pinned ZIP distribution and checksum.
