@@ -9,6 +9,8 @@
 //* Date:     1998-09-01
 //* Modified: 2005-03-15 - Added Claims system extract
 //*           2012-11-01 - Added encryption step (regulatory)
+//*           2026-09-25 - Replaced cleartext FTP with SFTP and
+//*                        removed the shared ACMEFTP logon
 //*
 //* Extracts active policy data from DB2 and creates flat files
 //* for consumption by Claims Engine (VB6 batch import) and
@@ -81,17 +83,29 @@
 /*
 //*
 //*-------------------------------------------------------------------
-//* STEP030 - FTP extract files to Claims server
+//* STEP030 - Transfer extract files to Claims server over SFTP
+//*           (z/OS OpenSSH). Transport is encrypted end to end and
+//*           no logon credentials appear in this member:
+//*           - /u/pasxfrd/.ssh/config supplies User PASXFRD, a
+//*             least-privilege id permitted only to write to
+//*             /claims/import on the Claims server
+//*           - its private key lives in the RACF key ring named on
+//*             the config IdentityKeyRingLabel keyword; the batch
+//*             id must be PERMITted to that ring
+//*           - the same config pins the Claims server host key
+//*             (StrictHostKeyChecking yes) to block MITM
 //*-------------------------------------------------------------------
-//STEP030  EXEC PGM=FTP,PARM='(EXIT',
+//STEP030  EXEC PGM=BPXBATCH,REGION=0M,
 //         COND=(4,LT)
-//INPUT    DD *
- CLAIMSRV.ACME.LOCAL
- ACMEFTP
- PUT 'ACME.PAS.EXTRACT.POLICY.DAILY' /claims/import/policy_extract.dat
- PUT 'ACME.PAS.EXTRACT.COVERAGE.DAILY' /claims/import/coverage_extract.dat
- QUIT
+//STDPARM  DD *
+SH sftp -b - -F /u/pasxfrd/.ssh/config claimsrv.acme.local
 /*
-//OUTPUT   DD SYSOUT=*
+//STDIN    DD *
+put //'ACME.PAS.EXTRACT.POLICY.DAILY' /claims/import/policy_extract.dat
+put //'ACME.PAS.EXTRACT.COVERAGE.DAILY' /claims/import/coverage_extract.dat
+quit
+/*
+//STDOUT   DD SYSOUT=*
+//STDERR   DD SYSOUT=*
 //SYSPRINT DD SYSOUT=*
 //*
