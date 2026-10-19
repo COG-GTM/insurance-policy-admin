@@ -46,7 +46,8 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 - `PREMIUMS` - Premium calculations
 - `ENDORSEMENTS` - Policy changes
 - `UNDERWRITING_DECISIONS` - UW decision audit trail
-- `POLICY_HOLDERS` - Customer master
+- `POLICY_HOLDERS` - Customer master (regulated columns masked; see `sql/ddl/pii-protection.sql`)
+- `POLICY_HOLDERS_EXTRACT` - Masked customer view for extracts, Broker Portal and reporting
 
 ## REST API Endpoints (Facade)
 

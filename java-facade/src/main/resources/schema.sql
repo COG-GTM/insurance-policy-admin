@@ -34,6 +34,25 @@ CREATE TABLE IF NOT EXISTS ACMEINS.POLICY_HOLDERS (
     CONSTRAINT PK_POLICY_HOLDERS PRIMARY KEY (CUST_ID)
 );
 
+-- DATE_OF_BIRTH, SSN_LAST4, TAX_ID and CREDIT_SCORE are masked on DB2 by
+-- the column access control rules in sql/ddl/pii-protection.sql. H2 has no
+-- equivalent, so local development gets the masked projection only; any
+-- consumer of customer data must read this view rather than the table.
+CREATE VIEW IF NOT EXISTS ACMEINS.POLICY_HOLDERS_EXTRACT AS
+    SELECT CUST_ID,
+           CUST_TYPE,
+           COMPANY_NAME,
+           CITY,
+           STATE_CODE,
+           SUBSTRING(ZIP_CODE, 1, 5)       AS ZIP_CODE,
+           COUNTRY_CODE,
+           YEAR(DATE_OF_BIRTH)             AS BIRTH_YEAR,
+           RISK_TIER,
+           GDPR_CONSENT,
+           CREATED_DATE,
+           LAST_UPDATED
+    FROM ACMEINS.POLICY_HOLDERS;
+
 ------------------------------------------------------------------------
 -- POLICIES
 ------------------------------------------------------------------------
