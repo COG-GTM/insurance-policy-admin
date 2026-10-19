@@ -9,6 +9,8 @@
       * Modified: 2004-03-15 - Added terrorism risk scoring
       *           2011-07-01 - Added catastrophe zone check
       *           2018-12-01 - Added cyber risk assessment
+      *           2026-09-25 - Record CICS operator (EIBUSERID) on
+      *                        decisions; reject unauthenticated users
       *
       * Evaluates underwriting risk for new and renewal policies.
       * Applies risk scoring rules, checks accumulation limits,
@@ -29,6 +31,7 @@
        01  WS-COMMAREA-LENGTH        PIC S9(04) COMP VALUE 256.
        01  WS-RESPONSE-CODE          PIC S9(08) COMP.
        01  WS-ERROR-MSG              PIC X(79).
+       01  WS-OPERATOR-ID            PIC X(08).
        01  WS-CURRENT-DATE           PIC 9(08).
        01  WS-RISK-SCORE             PIC 9(04).
        01  WS-DECISION               PIC X(02).
@@ -56,7 +59,9 @@
        PROCEDURE DIVISION.
        0000-MAIN-LOGIC.
            PERFORM 1000-INITIALIZE
-           PERFORM 2000-READ-POLICY-DATA
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 2000-READ-POLICY-DATA
+           END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 3000-CALCULATE-RISK-SCORE
                PERFORM 4000-CHECK-ACCUMULATION
@@ -74,6 +79,11 @@
            MOVE SPACES TO WS-ERROR-MSG
            MOVE SPACES TO WS-DECISION-REASON
            MOVE 0 TO WS-RISK-SCORE
+           MOVE EIBUSERID TO WS-OPERATOR-ID
+           IF WS-OPERATOR-ID = SPACES OR LOW-VALUES
+               MOVE 'NO AUTHENTICATED OPERATOR - DECISION REJECTED'
+                   TO WS-ERROR-MSG
+           END-IF
            EXEC CICS ASKTIME ABSTIME(WS-CURRENT-DATE) END-EXEC
            EXEC CICS FORMATTIME
                ABSTIME(WS-CURRENT-DATE)
@@ -220,7 +230,7 @@
                (:POLICY-NUMBER, :WS-CURRENT-DATE,
                 :WS-DECISION, :WS-RISK-SCORE,
                 :WS-DECISION-REASON,
-                'SYSTEM', CURRENT TIMESTAMP)
+                :WS-OPERATOR-ID, CURRENT TIMESTAMP)
            END-EXEC
 
            EXEC SQL
@@ -228,7 +238,7 @@
                SET UW_STATUS = :WS-DECISION,
                    RISK_SCORE = :WS-RISK-SCORE,
                    LAST_UPDATED = CURRENT TIMESTAMP,
-                   UPDATED_BY = 'UNDWRT'
+                   UPDATED_BY = :WS-OPERATOR-ID
                WHERE POLICY_NUMBER = :POLICY-NUMBER
            END-EXEC
            .
