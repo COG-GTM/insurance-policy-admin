@@ -12,6 +12,12 @@
       * Read-only policy inquiry. Displays policy header, coverages,
       * premium details, and underwriting status on BMS maps.
       * Used by CSRs and underwriters for policy lookup.
+      *
+      * Inquiry is scoped to the signed-on user's book of business:
+      * the RACF user id is resolved to a row in USER_ENTITLEMENTS and
+      * the resulting agent/branch scope is applied as a predicate on
+      * every policy read. Policyholder contact details are masked
+      * unless the entitlement grants PII access.
       ******************************************************************
        ENVIRONMENT DIVISION.
        DATA DIVISION.
@@ -23,6 +29,23 @@
        01  WS-ERROR-MSG              PIC X(79).
        01  WS-COV-COUNT              PIC 9(03).
        01  WS-DISPLAY-LINE           PIC X(80).
+       01  WS-NOT-FOUND-MSG          PIC X(79) VALUE
+           'POLICY NOT FOUND OR NOT IN YOUR BOOK OF BUSINESS'.
+
+       01  WS-USER-ID                PIC X(08).
+       01  WS-ENTITLEMENT.
+           05  WS-ENT-SCOPE          PIC X(01).
+               88  ENT-SCOPE-ALL     VALUE 'A'.
+               88  ENT-SCOPE-BRANCH  VALUE 'B'.
+               88  ENT-SCOPE-AGENT   VALUE 'G'.
+           05  WS-ENT-AGENT-CODE     PIC X(06).
+           05  WS-ENT-BRANCH-CODE    PIC X(04).
+           05  WS-ENT-PII-IND        PIC X(01).
+               88  ENT-PII-ALLOWED   VALUE 'Y'.
+       01  WS-SCOPE-IND.
+           05  WS-SCOPE-ALL-IND      PIC X(01).
+           05  WS-SCOPE-BRANCH-IND   PIC X(01).
+           05  WS-SCOPE-AGENT-IND    PIC X(01).
 
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
@@ -45,6 +68,9 @@
        PROCEDURE DIVISION.
        0000-MAIN-LOGIC.
            PERFORM 1000-RECEIVE-INPUT
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 1500-READ-ENTITLEMENT
+           END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 2000-READ-POLICY
            END-IF
@@ -73,6 +99,66 @@
            IF POLICY-NUMBER = SPACES
                MOVE 'POLICY NUMBER IS REQUIRED' TO WS-ERROR-MSG
            END-IF
+           EXEC CICS ASSIGN
+               USERID(WS-USER-ID)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               OR WS-USER-ID = SPACES
+               MOVE 'UNABLE TO IDENTIFY SIGNED-ON USER'
+                   TO WS-ERROR-MSG
+           END-IF
+           .
+
+      ****************************************************************
+      * Resolve the signed-on user to their inquiry entitlement.
+      * A user with no entitlement row may not inquire on any policy.
+      ****************************************************************
+       1500-READ-ENTITLEMENT.
+           MOVE SPACES TO WS-ENTITLEMENT
+           EXEC SQL
+               SELECT SCOPE_LEVEL, AGENT_CODE, BRANCH_CODE, PII_ACCESS
+               INTO :WS-ENT-SCOPE, :WS-ENT-AGENT-CODE,
+                    :WS-ENT-BRANCH-CODE, :WS-ENT-PII-IND
+               FROM USER_ENTITLEMENTS
+               WHERE USER_ID = :WS-USER-ID
+                 AND ACTIVE_IND = 'Y'
+           END-EXEC
+           IF SQLCODE = 100
+               MOVE 'NOT AUTHORIZED FOR POLICY INQUIRY'
+                   TO WS-ERROR-MSG
+           END-IF
+           IF SQLCODE < 0
+               MOVE 'DB2 ERROR READING ENTITLEMENT' TO WS-ERROR-MSG
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               MOVE 'N' TO WS-SCOPE-ALL-IND
+               MOVE 'N' TO WS-SCOPE-BRANCH-IND
+               MOVE 'N' TO WS-SCOPE-AGENT-IND
+               EVALUATE TRUE
+                   WHEN ENT-SCOPE-ALL
+                       MOVE 'Y' TO WS-SCOPE-ALL-IND
+                   WHEN ENT-SCOPE-BRANCH
+                       MOVE 'Y' TO WS-SCOPE-BRANCH-IND
+                   WHEN ENT-SCOPE-AGENT
+                       MOVE 'Y' TO WS-SCOPE-AGENT-IND
+                   WHEN OTHER
+                       MOVE 'NOT AUTHORIZED FOR POLICY INQUIRY'
+                           TO WS-ERROR-MSG
+               END-EVALUATE
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               IF WS-SCOPE-BRANCH-IND = 'Y'
+                   AND WS-ENT-BRANCH-CODE = SPACES
+                   MOVE 'NOT AUTHORIZED FOR POLICY INQUIRY'
+                       TO WS-ERROR-MSG
+               END-IF
+               IF WS-SCOPE-AGENT-IND = 'Y'
+                   AND WS-ENT-AGENT-CODE = SPACES
+                   MOVE 'NOT AUTHORIZED FOR POLICY INQUIRY'
+                       TO WS-ERROR-MSG
+               END-IF
+           END-IF
            .
 
        2000-READ-POLICY.
@@ -95,9 +181,14 @@
                     :POLICY-WEB-IND, :POLICY-API-FLAG
                FROM POLICIES
                WHERE POLICY_NUMBER = :POLICY-NUMBER
+                 AND ( :WS-SCOPE-ALL-IND = 'Y'
+                    OR ( :WS-SCOPE-BRANCH-IND = 'Y'
+                         AND BRANCH_CODE = :WS-ENT-BRANCH-CODE )
+                    OR ( :WS-SCOPE-AGENT-IND = 'Y'
+                         AND AGENT_CODE = :WS-ENT-AGENT-CODE ) )
            END-EXEC
            IF SQLCODE = 100
-               MOVE 'POLICY NOT FOUND' TO WS-ERROR-MSG
+               MOVE WS-NOT-FOUND-MSG TO WS-ERROR-MSG
            END-IF
            IF SQLCODE < 0
                MOVE 'DB2 ERROR READING POLICY' TO WS-ERROR-MSG
@@ -116,6 +207,10 @@
                FROM POLICY_HOLDERS
                WHERE CUST_ID = :POLICY-HOLDER-ID
            END-EXEC
+           IF NOT ENT-PII-ALLOWED
+               MOVE ALL '*' TO CUST-PHONE
+               MOVE ALL '*' TO CUST-EMAIL
+           END-IF
            .
 
        4000-READ-COVERAGES.
