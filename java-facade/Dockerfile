@@ -28,9 +28,13 @@ LABEL description="Policy Administration System REST Facade"
 LABEL version="1.0.0"
 LABEL created="2022-03-15"
 
-RUN mkdir -p /app/logs
+RUN groupadd -g 1001 pasfacade \
+    && useradd -u 1001 -g pasfacade -M -s /usr/sbin/nologin pasfacade \
+    && mkdir -p /app/logs
 
-COPY --from=build /workspace/target/pas-facade-1.0.0.jar /app/pas-facade.jar
+COPY --from=build --chown=1001:1001 /workspace/target/pas-facade-1.0.0.jar /app/pas-facade.jar
+
+RUN chown -R pasfacade:pasfacade /app
 
 WORKDIR /app
 
@@ -40,5 +44,7 @@ ENV DB2_PASSWORD=changeme
 ENV JAVA_OPTS="-Xmx512m -Xms256m"
 
 EXPOSE 8080
+
+USER pasfacade
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar pas-facade.jar"]
