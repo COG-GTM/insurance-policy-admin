@@ -190,6 +190,31 @@ CREATE SEQUENCE ACMEINS.POLICY_SEQ
     CACHE 50;
 
 ------------------------------------------------------------------------
+-- USER_POLICY_AUTHORITY - Per-user entitlement to policies
+-- Drives object-level authorization in the CICS transactions. RACF
+-- controls who may run a transaction; this table controls which
+-- policies they may act on. A user may hold several rows (one per
+-- agent/branch). ALL_POLICIES_IND = 'Y' grants the whole book and is
+-- reserved for batch/service IDs.
+------------------------------------------------------------------------
+CREATE TABLE ACMEINS.USER_POLICY_AUTHORITY (
+    USER_ID             CHAR(8)         NOT NULL,
+    AGENT_CODE          CHAR(6)         NOT NULL DEFAULT '',
+    BRANCH_CODE         CHAR(4)         NOT NULL DEFAULT '',
+    ALL_POLICIES_IND    CHAR(1)         NOT NULL DEFAULT 'N',
+    CREATED_DATE        DATE            NOT NULL DEFAULT CURRENT DATE,
+    CREATED_BY          CHAR(8)         NOT NULL DEFAULT 'SYSTEM',
+    CONSTRAINT PK_USER_POL_AUTH PRIMARY KEY
+        (USER_ID, AGENT_CODE, BRANCH_CODE)
+) IN ACMEDB.PASTS01;
+
+CREATE INDEX ACMEINS.IX_UPA_AGENT
+    ON ACMEINS.USER_POLICY_AUTHORITY (AGENT_CODE);
+
+CREATE INDEX ACMEINS.IX_UPA_BRANCH
+    ON ACMEINS.USER_POLICY_AUTHORITY (BRANCH_CODE);
+
+------------------------------------------------------------------------
 -- Territory rating factors (reference table)
 ------------------------------------------------------------------------
 CREATE TABLE ACMEINS.TERRITORY_FACTORS (
