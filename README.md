@@ -20,6 +20,7 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 - **Framework:** Spring Boot 1.5.22
 - **Purpose:** Read-only REST API for modern system integration
 - **Deployment:** Docker container on Linux VM (not on z/OS)
+- **DB2 transport:** TLS only (`sslConnection=true`). Set `DB2_PORT` to the subsystem's SECPORT and provide `DB2_SSL_TRUSTSTORE` / `DB2_SSL_TRUSTSTORE_PASSWORD`; the facade will not start without them.
 
 ## CICS Transactions
 
