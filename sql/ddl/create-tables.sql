@@ -200,4 +200,38 @@ CREATE TABLE ACMEINS.TERRITORY_FACTORS (
         (TERRITORY_CODE, EFFECTIVE_DATE)
 ) IN ACMEDB.PASTS01;
 
+------------------------------------------------------------------------
+-- AGENTS - Producer appointments, keyed to the RACF user that signs on
+------------------------------------------------------------------------
+CREATE TABLE ACMEINS.AGENTS (
+    AGENT_CODE          CHAR(6)         NOT NULL,
+    BRANCH_CODE         CHAR(4)         NOT NULL,
+    RACF_USER_ID        CHAR(8)         NOT NULL,
+    AGENT_NAME          VARCHAR(50),
+    AGENT_STATUS        CHAR(1)         NOT NULL DEFAULT 'A',
+    APPOINTED_DATE      DATE            NOT NULL DEFAULT CURRENT DATE,
+    TERMINATED_DATE     DATE,
+    LAST_UPDATED        TIMESTAMP       NOT NULL DEFAULT CURRENT TIMESTAMP,
+    CONSTRAINT PK_AGENTS PRIMARY KEY (AGENT_CODE)
+) IN ACMEDB.PASTS01;
+
+CREATE UNIQUE INDEX ACMEINS.IX_AGENT_USER
+    ON ACMEINS.AGENTS (RACF_USER_ID);
+
+------------------------------------------------------------------------
+-- PRODUCT_LIMITS - Filed premium/limit/deductible bounds by product
+------------------------------------------------------------------------
+CREATE TABLE ACMEINS.PRODUCT_LIMITS (
+    POLICY_TYPE         CHAR(3)         NOT NULL,
+    EFFECTIVE_DATE      DATE            NOT NULL,
+    EXPIRY_DATE         DATE            NOT NULL,
+    MIN_PREMIUM         DECIMAL(11,2)   NOT NULL,
+    MAX_PREMIUM         DECIMAL(11,2)   NOT NULL,
+    MIN_COVERAGE_LIMIT  DECIMAL(13,2)   NOT NULL,
+    MAX_COVERAGE_LIMIT  DECIMAL(13,2)   NOT NULL,
+    MAX_DEDUCTIBLE      DECIMAL(9,2)    NOT NULL,
+    CONSTRAINT PK_PRODUCT_LIMITS PRIMARY KEY
+        (POLICY_TYPE, EFFECTIVE_DATE)
+) IN ACMEDB.PASTS01;
+
 COMMIT;
