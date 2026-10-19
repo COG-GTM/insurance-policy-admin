@@ -1,0 +1,38 @@
+;*******************************************************************
+;* FTPSDATA - z/OS FTP client FTP.DATA statements for secure (FTPS)
+;* outbound transfers from the Policy Administration System (PAS).
+;*
+;* Install as ACME.PAS.PARMLIB(FTPSDATA) and reference from batch JCL
+;* with:  //SYSFTPD  DD DSN=ACME.PAS.PARMLIB(FTPSDATA),DISP=SHR
+;*
+;* The client certificate and the trusted CA certificates for the
+;* destination hosts live in the RACF keyring named below; no key or
+;* password material belongs in this member or in the JCL.
+;*******************************************************************
+;
+; Negotiate TLS with AUTH TLS (explicit FTPS, RFC 4217) and fail the
+; transfer rather than falling back to a cleartext session.
+SECURE_MECHANISM          TLS
+TLSMECHANISM              FTP
+TLSRFCLEVEL               RFC4217
+SECURE_FTP                REQUIRED
+;
+; Encrypt both the control connection (login, command stream) and the
+; data connection (file contents).
+SECURE_CTRLCONN           PRIVATE
+SECURE_DATACONN           PRIVATE
+;
+; TLS 1.2 only, with forward-secret AES-GCM cipher suites.
+TLSV1                     OFF
+TLSV1.1                   OFF
+TLSV1.2                   ON
+CIPHERSUITE               TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+CIPHERSUITE               TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+;
+; Client certificate and trusted CAs; SERVAUTH-protected RACF keyring
+; owned by the batch service ID, not by an individual user.
+KEYRING                   ACMEBTCH/PASFTPSRING
+;
+; Credentials are read from the RACF-protected NETRC dataset allocated
+; by the job (//NETRC DD), so no user ID or password is embedded in the
+; in-stream FTP command input.

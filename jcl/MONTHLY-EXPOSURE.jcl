@@ -9,6 +9,8 @@
 //* Date:     1999-03-01
 //* Modified: 2008-07-01 - Added catastrophe zone data
 //*           2015-01-15 - Added cyber exposure fields
+//*           2026-09-25 - Actuarial transfer moved to FTPS (TLS);
+//*                        credentials sourced from NETRC
 //*
 //* Extracts monthly exposure data for actuarial analysis.
 //* Output is consumed by SAS programs for loss reserving
@@ -58,13 +60,17 @@
 /*
 //*
 //*-------------------------------------------------------------------
-//* STEP020 - Copy to actuarial shared drive
+//* STEP020 - Copy to actuarial shared drive over FTPS (TLS)
+//*   SYSFTPD requires AUTH TLS with an encrypted control and data
+//*   connection; NETRC supplies the transfer credentials from a
+//*   RACF-protected dataset instead of the JCL stream.
 //*-------------------------------------------------------------------
 //STEP020  EXEC PGM=FTP,PARM='(EXIT',
 //         COND=(4,LT,STEP010)
+//SYSFTPD  DD DSN=ACME.PAS.PARMLIB(FTPSDATA),DISP=SHR
+//NETRC    DD DSN=ACME.PAS.SECURE.NETRC,DISP=SHR
 //INPUT    DD *
  ACTUARIAL.ACME.LOCAL
- ACMEFTP
  PUT 'ACME.PAS.EXPOSURE.MONTHLY.D&LYYMMDD' /actuarial/data/exposure_monthly.csv
  QUIT
 /*
