@@ -106,4 +106,25 @@ public final class RatingSnapshot {
     }
     return f;
   }
+
+  /**
+   * {@code rate_version} is the audit identity of a filing, so every base-rate or factor row a
+   * snapshot selects must be no newer than the selected {@code rating_parameters} row. A rate
+   * change without a new {@code rate_version} row would otherwise reuse the old version string.
+   */
+  static void requireVersioned(
+      LocalDate newestRow, LocalDate parametersEffective, String rateVersion, LocalDate asOf) {
+    if (newestRow != null && newestRow.isAfter(parametersEffective)) {
+      throw new RatingDataException(
+          "rate table rows effective "
+              + newestRow
+              + " are newer than rating_parameters rate_version "
+              + rateVersion
+              + " (effective "
+              + parametersEffective
+              + ") for rating date "
+              + asOf
+              + "; add a rating_parameters row with a new rate_version for the filing");
+    }
+  }
 }

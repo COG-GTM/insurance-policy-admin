@@ -55,28 +55,27 @@ public final class InMemoryRatingTables implements RatingTables {
     if (!factorSets.contains(factorSet)) {
       throw new RatingDataException("unknown rating factor set " + factorSet);
     }
-    RatingParameters p =
+    Row<RatingParameters> p =
         latest(parameters, asOf, "")
             .orElseThrow(
                 () -> new RatingDataException("no rating parameters effective on " + asOf));
-    return new RatingSnapshot(
-        asOf,
-        factorSet,
-        latestByKey(baseRates, asOf, ""),
-        latestByKey(territoryFactors, asOf, factorSet + "|"),
-        latestByKey(classFactors, asOf, factorSet + "|"),
-        p);
+    LocalDate[] newest = {null};
+    Map<String, BigDecimal> base = latestByKey(newest, baseRates, asOf, "");
+    Map<String, BigDecimal> territory =
+        latestByKey(newest, territoryFactors, asOf, factorSet + "|");
+    Map<String, BigDecimal> classes = latestByKey(newest, classFactors, asOf, factorSet + "|");
+    RatingSnapshot.requireVersioned(newest[0], p.effective(), p.value().rateVersion(), asOf);
+    return new RatingSnapshot(asOf, factorSet, base, territory, classes, p.value());
   }
 
-  private static <T> Optional<T> latest(List<Row<T>> rows, LocalDate asOf, String key) {
+  private static <T> Optional<Row<T>> latest(List<Row<T>> rows, LocalDate asOf, String key) {
     return rows.stream()
         .filter(r -> r.key().equals(key) && !r.effective().isAfter(asOf))
-        .max(Comparator.comparing(Row::effective))
-        .map(Row::value);
+        .max(Comparator.comparing(Row::effective));
   }
 
   private static Map<String, BigDecimal> latestByKey(
-      List<Row<BigDecimal>> rows, LocalDate asOf, String prefix) {
+      LocalDate[] newest, List<Row<BigDecimal>> rows, LocalDate asOf, String prefix) {
     Map<String, Row<BigDecimal>> best = new HashMap<>();
     for (Row<BigDecimal> r : rows) {
       if (!r.key().startsWith(prefix) || r.effective().isAfter(asOf)) {
@@ -88,7 +87,13 @@ public final class InMemoryRatingTables implements RatingTables {
           (a, b) -> a.effective().isAfter(b.effective()) ? a : b);
     }
     Map<String, BigDecimal> out = new HashMap<>();
-    best.forEach((k, r) -> out.put(k, r.value()));
+    best.forEach(
+        (k, r) -> {
+          out.put(k, r.value());
+          if (newest[0] == null || r.effective().isAfter(newest[0])) {
+            newest[0] = r.effective();
+          }
+        });
     return out;
   }
 }

@@ -90,7 +90,16 @@ class RatingTablesIT {
     jdbc.update(
         "INSERT INTO pas.class_factors VALUES ('FILED', 'C01', DATE '2024-01-01', 0.9000),"
             + " ('FILED', '*', DATE '2024-01-01', 1.0000)");
+    jdbc.update(
+        "INSERT INTO pas.rating_parameters VALUES"
+            + " (DATE '2024-01-01', 'FILED-2024-01', 0.0350, 25.00, 1.0000, 1.0000, 0.00)");
     jdbc.update("INSERT INTO pas.base_rates VALUES ('AUT', DATE '2024-07-01', 900.00)");
+    assertThatThrownBy(() -> tables.load(LocalDate.of(2024, 7, 1), "PARITY"))
+        .isInstanceOf(RatingDataException.class)
+        .hasMessageContaining("newer than rating_parameters rate_version FILED-2024-01");
+    jdbc.update(
+        "INSERT INTO pas.rating_parameters VALUES"
+            + " (DATE '2024-07-01', 'RATES-2024-07', 0.0350, 25.00, 1.0000, 1.0000, 0.00)");
 
     RatingSnapshot june = tables.load(RUN_DATE, "FILED");
     PremiumBreakdown r =
@@ -99,10 +108,12 @@ class RatingTablesIT {
     assertThat(r.classPremium()).isEqualByComparingTo("956.25");
     assertThat(r.taxAmount()).isEqualByComparingTo("33.46");
     assertThat(r.totalPremium()).isEqualByComparingTo("1014.71");
+    assertThat(r.ratingVersion()).isEqualTo("FILED-2024-01/FILED");
 
     RatingSnapshot july = tables.load(LocalDate.of(2024, 7, 1), "PARITY");
     assertThat(july.baseRate("AUT")).isEqualByComparingTo("900.00");
     assertThat(july.baseRate("HOM")).isEqualByComparingTo("1200.00");
+    assertThat(july.parameters().rateVersion()).isEqualTo("RATES-2024-07");
   }
 
   @Test

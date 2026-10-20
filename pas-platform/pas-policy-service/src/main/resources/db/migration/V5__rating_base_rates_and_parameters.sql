@@ -7,6 +7,8 @@
 --
 -- Rows are effective-dated: rating uses the latest row with effective_date <= rating date. A new
 -- filing is a new row, never an UPDATE, so every PREMIUMS row can be traced to the rates used.
+-- rating_parameters.rate_version is the filing identity: every base-rate/factor row must be
+-- accompanied by a rating_parameters row effective on or after it, or the snapshot is refused.
 
 CREATE TABLE pas.base_rates (
     policy_type    VARCHAR(3)   NOT NULL,

@@ -43,6 +43,23 @@ class InMemoryRatingTablesTest {
   }
 
   @Test
+  void rateChangeWithoutNewRateVersionIsADataError() {
+    InMemoryRatingTables t =
+        RatingFixtures.parity()
+            .baseRate("AUT", FILING, new BigDecimal("900.00"))
+            .territoryFactor("PARITY", "NY01", FILING.plusDays(1), BigDecimal.ONE);
+    assertThat(t.load(FILING.minusDays(1), "PARITY").baseRate("AUT"))
+        .isEqualByComparingTo("850.00");
+    assertThatThrownBy(() -> t.load(FILING, "PARITY"))
+        .isInstanceOf(RatingDataException.class)
+        .hasMessageContaining("newer than rating_parameters rate_version PREMBAT-3200");
+    t.parameters(FILING, RatingFixtures.params("2025-01", "0.0350", "25.00", "1.0000"));
+    assertThat(t.load(FILING, "PARITY").parameters().rateVersion()).isEqualTo("2025-01");
+    assertThatThrownBy(() -> t.load(FILING.plusDays(1), "PARITY"))
+        .hasMessageContaining("rate table rows effective " + FILING.plusDays(1));
+  }
+
+  @Test
   void nothingEffectiveYetIsADataError() {
     InMemoryRatingTables t =
         new InMemoryRatingTables()
