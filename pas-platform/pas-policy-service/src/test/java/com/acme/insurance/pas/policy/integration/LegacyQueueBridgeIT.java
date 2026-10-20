@@ -252,6 +252,32 @@ class LegacyQueueBridgeIT {
     JsonNode poisoned = awaitDeadLetter(operator, "POLDLT000002");
     assertThat(poisoned.get("errorClass").asText()).endsWith("PoisonMessageException");
     assertThat(messages(FILENET_QUEUE, "POLDLT000001")).isEmpty();
+    long poisonedId = poisoned.get("deadLetterId").asLong();
+    long firstId = Math.min(parked.get("deadLetterId").asLong(), poisonedId);
+    JsonNode page =
+        mapper.readTree(
+            send(
+                    rest,
+                    HttpMethod.GET,
+                    "/api/v1/admin/dead-letters?afterId=" + (firstId - 1) + "&limit=1",
+                    operator,
+                    null,
+                    Map.of())
+                .getBody());
+    assertThat(page).hasSize(1);
+    assertThat(page.get(0).get("deadLetterId").asLong()).isEqualTo(firstId);
+    JsonNode next =
+        mapper.readTree(
+            send(
+                    rest,
+                    HttpMethod.GET,
+                    "/api/v1/admin/dead-letters?status=parked&afterId=" + firstId,
+                    operator,
+                    null,
+                    Map.of())
+                .getBody());
+    assertThat(next).extracting(n -> n.get("deadLetterId").asLong()).doesNotContain(firstId);
+    assertThat(next).extracting(n -> n.get("deadLetterId").asLong()).isNotEmpty();
 
     long id = parked.get("deadLetterId").asLong();
     String replayPath = "/api/v1/admin/dead-letters/" + id + "/replay";

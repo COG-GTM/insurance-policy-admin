@@ -6,8 +6,11 @@ import com.acme.insurance.pas.policy.persistence.PolicyHolderRepository;
 import com.acme.insurance.pas.policy.persistence.PolicyRepository;
 import com.acme.insurance.pas.policy.persistence.PremiumRepository;
 import com.acme.insurance.pas.policy.security.CallerEntitlements;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +25,8 @@ public class PolicyInquiryService {
   private final PolicyRepository policies;
   private final CoverageRepository coverages;
   private final PolicyHolderRepository holders;
+  private static final String NO_CODE = "\u0001";
+
   private final PremiumRepository premiums;
 
   public PolicyInquiryService(
@@ -48,15 +53,28 @@ public class PolicyInquiryService {
       CallerEntitlements caller) {
     return policies
         .findBook(
-            blankToNull(agentCode),
-            blankToNull(branchCode),
+            normaliseCode(agentCode),
+            normaliseCode(branchCode),
             blankToNull(status),
+            caller.wholeBook(),
+            nonEmpty(caller.agentScope()),
+            nonEmpty(caller.branchScope()),
             size,
             (long) page * size)
         .stream()
         .filter(p -> caller.canAccess(p.getAgentCode(), p.getBranchCode()))
         .map(PolicyView::from)
         .toList();
+  }
+
+  /** {@code IN ()} is invalid SQL; an empty grant set becomes one value that matches no code. */
+  private static Collection<String> nonEmpty(Set<String> codes) {
+    return codes.isEmpty() ? List.of(NO_CODE) : codes;
+  }
+
+  private static String normaliseCode(String s) {
+    String v = blankToNull(s);
+    return v == null ? null : v.toUpperCase(Locale.ROOT);
   }
 
   /** Premium history, newest term first (Broker Portal, AB-528). */

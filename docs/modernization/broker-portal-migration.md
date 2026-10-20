@@ -39,8 +39,9 @@ every row must answer 200.
 Notes:
 
 - The book listing (`GET /api/v1/policies`) needs `agentCode` and/or `branchCode`; `page`
-  (from 0) and `size` (1–200, default 50) page through it in policy-number order. Rows the caller
-  is not entitled to are left out (never 403), so a broker sees only their own book.
+  (from 0) and `size` (1–200, default 50) page through it in policy-number order. Codes are
+  case-insensitive. Rows the caller is not entitled to are left out (never 403) before paging, so
+  a broker sees only their own book and an empty page means the end of it.
 - Everything else follows AB-524: no token → 401, missing scope → 403, not entitled → 404.
 - Dates are ISO `yyyy-MM-dd`; codes are trimmed (DB2 `CHAR` padding is not carried).
 

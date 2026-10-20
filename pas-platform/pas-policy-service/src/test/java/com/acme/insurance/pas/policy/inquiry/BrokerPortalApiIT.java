@@ -128,6 +128,32 @@ class BrokerPortalApiIT {
         .isEqualTo(401);
   }
 
+  @Test
+  void bookPagesIndexOnlyVisiblePoliciesAndCodesAreCaseInsensitive() throws Exception {
+    // CHI1 holds POL-00000001 (AG1001) then POL-00000002 (AG2005): AG2005's first page must not
+    // be consumed by AG1001's policy.
+    String agent2005 = TestJwtIssuer.bearer().scopes(PasScopes.POLICY_READ).agent("AG2005").sign();
+    JsonNode page0 =
+        mapper.readTree(get("/api/v1/policies?branchCode=CHI1&size=1&page=0", agent2005).getBody());
+    assertThat(page0)
+        .extracting(p -> p.get("policyNumber").asText())
+        .containsExactly("POL-00000002");
+    assertThat(
+            mapper.readTree(
+                get("/api/v1/policies?branchCode=CHI1&size=1&page=1", agent2005).getBody()))
+        .isEmpty();
+
+    String grants =
+        TestJwtIssuer.bearer().scopes(PasScopes.POLICY_READ).book("agent:ag3010").sign();
+    assertThat(mapper.readTree(get("/api/v1/policies?agentCode=ag3010", grants).getBody()))
+        .extracting(p -> p.get("policyNumber").asText())
+        .containsExactly("POL-00000003");
+    String reader = TestJwtIssuer.bearer().scopes(PasScopes.POLICY_READ).book("*").sign();
+    assertThat(mapper.readTree(get("/api/v1/policies?agentCode=ag1001", reader).getBody()))
+        .extracting(p -> p.get("policyNumber").asText())
+        .contains("POL-00000001");
+  }
+
   private static List<String[]> portalQueries() throws Exception {
     Matcher m = ROW.matcher(Files.readString(MIGRATION_DOC));
     List<String[]> out = new ArrayList<>();

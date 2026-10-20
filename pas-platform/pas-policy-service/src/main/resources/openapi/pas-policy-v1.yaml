@@ -22,6 +22,8 @@ tags:
 paths:
   /api/v1/admin/dead-letters:
     get:
+      description: "Keyset paging in dead-letter id order: pass the last id of the\
+        \ previous page as afterId. limit defaults to 200 and is capped at 500."
       operationId: deadLetters
       parameters:
       - in: query
@@ -29,6 +31,20 @@ paths:
         required: false
         schema:
           type: string
+      - in: query
+        name: afterId
+        required: false
+        schema:
+          type: integer
+          format: int64
+          default: 0
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 200
       responses:
         "200":
           content:

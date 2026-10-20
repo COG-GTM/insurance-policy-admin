@@ -95,7 +95,7 @@ exact `POLICY-RECORD`.
   parsed as a v1 envelope (`PoisonMessageException`) skip the retries.
 - `pas-dead-letter-recorder` parks every DLT record in `pas.dead_letters` (status `PARKED`).
 - Operators (scope `batch:operate`):
-  - `GET /api/v1/admin/dead-letters?status=PARKED` — list; `GET /api/v1/admin/dead-letters/{id}`
+  - `GET /api/v1/admin/dead-letters?status=PARKED&afterId=0&limit=200` — list in id order, keyset paged (pass the last `deadLetterId` as `afterId`; `limit` ≤ 500); `GET /api/v1/admin/dead-letters/{id}`
     — one, with the payload.
   - `POST /api/v1/admin/dead-letters/{id}/replay` — republish the original key, value and
     `eventId`/`eventType` headers to the original topic (header `pasReplayOfDeadLetter`), status

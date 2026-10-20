@@ -34,7 +34,8 @@ public class DeadLetterService {
   public static final String REPLAYED = "REPLAYED";
   public static final String REPLAY_HEADER = "pasReplayOfDeadLetter";
   private static final int MAX_ERROR_LENGTH = 1000;
-  private static final int LIST_LIMIT = 200;
+  public static final int DEFAULT_LIST_LIMIT = 200;
+  public static final int MAX_LIST_LIMIT = 500;
   private static final Duration SEND_TIMEOUT = Duration.ofSeconds(15);
   private static final String COLUMNS =
       "dead_letter_id, dlt_topic, original_topic, consumer_group, message_key, event_id,"
@@ -83,21 +84,31 @@ public class DeadLetterService {
         truncate(header(r, KafkaHeaders.DLT_EXCEPTION_MESSAGE), MAX_ERROR_LENGTH));
   }
 
-  public List<DeadLetterView> list(String status) {
+  /**
+   * Dead letters in id order after {@code afterId} (keyset cursor: pass the last id of the previous
+   * page), at most {@code limit} rows ({@link #MAX_LIST_LIMIT} cap).
+   */
+  public List<DeadLetterView> list(String status, long afterId, int limit) {
+    int bounded = Math.min(Math.max(limit, 1), MAX_LIST_LIMIT);
     if (status == null || status.isBlank()) {
       return jdbc.query(
-          "SELECT " + COLUMNS + " FROM pas.dead_letters ORDER BY dead_letter_id LIMIT ?",
+          "SELECT "
+              + COLUMNS
+              + " FROM pas.dead_letters WHERE dead_letter_id > ?"
+              + " ORDER BY dead_letter_id LIMIT ?",
           (rs, n) -> view(rs),
-          LIST_LIMIT);
+          afterId,
+          bounded);
     }
     return jdbc.query(
         "SELECT "
             + COLUMNS
-            + " FROM pas.dead_letters WHERE status = ?"
+            + " FROM pas.dead_letters WHERE status = ? AND dead_letter_id > ?"
             + " ORDER BY dead_letter_id LIMIT ?",
         (rs, n) -> view(rs),
         status.strip().toUpperCase(Locale.ROOT),
-        LIST_LIMIT);
+        afterId,
+        bounded);
   }
 
   public Optional<DeadLetterView> find(long id) {

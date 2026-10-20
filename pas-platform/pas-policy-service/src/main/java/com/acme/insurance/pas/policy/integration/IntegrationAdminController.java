@@ -28,9 +28,16 @@ public class IntegrationAdminController {
   }
 
   @GetMapping("/dead-letters")
-  @Operation(summary = "List dead letters (optionally by status PARKED or REPLAYED)")
-  public List<DeadLetterView> deadLetters(@RequestParam(required = false) String status) {
-    return deadLetters.list(status);
+  @Operation(
+      summary = "List dead letters (optionally by status PARKED or REPLAYED)",
+      description =
+          "Keyset paging in dead-letter id order: pass the last id of the previous page as"
+              + " afterId. limit defaults to 200 and is capped at 500.")
+  public List<DeadLetterView> deadLetters(
+      @RequestParam(required = false) String status,
+      @RequestParam(defaultValue = "0") long afterId,
+      @RequestParam(defaultValue = "" + DeadLetterService.DEFAULT_LIST_LIMIT) int limit) {
+    return deadLetters.list(status, afterId, limit);
   }
 
   @GetMapping("/dead-letters/{id}")
