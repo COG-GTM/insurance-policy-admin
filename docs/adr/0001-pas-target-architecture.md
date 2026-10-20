@@ -150,8 +150,14 @@ The sections below record each decision (D1–D7), the reasoning and the alterna
    - Reads and extracts can move to `new` earlier, as long as replica staleness is acceptable for that consumer. Extracts only run once the CDC watermark has passed the business cut-off time.
    - Write capabilities (POLNEW, POLRNW, POLEND, UNDWRT, premium batch) run in shadow and are compared with what CICS/PREMBAT wrote to DB2, but **their results are not authoritative**.
    - **Shadow isolation.** Before the flip, `pas` is written **only** by the CDC pipeline. Shadow writes never touch it, so reads, extracts and reconciliation always see DB2 truth.
-     - Shadow write paths read their inputs from `pas` and write their outputs to a separate schema, **`pas_shadow`**. It has the same table shapes, and only the shadow-mode datasource can write to it. Pure calculations (rating, underwriting score) can instead run without committing anything.
+     - Shadow write paths read their inputs from `pas` and write their outputs to a separate schema, **`pas_shadow`**. Only the shadow-mode datasource can write to it. Pure calculations (rating, underwriting score) can instead run without committing anything.
      - The shadow premium batch writes PREMIUMS output to `pas_shadow` as well, never to `pas`.
+     - **Shadow storage model.** `pas_shadow` is a comparison staging model, not a mirror of `pas` constraints.
+       - Each output table has the same columns as its `pas` counterpart plus `shadow_run_id` and `cdc_position`.
+       - It has **no foreign keys** to parent tables, because the parents of existing policies live in `pas` and PostgreSQL can't enforce a constraint against a CDC-managed replica.
+       - Referential integrity is checked by the comparison job instead: every shadow child must resolve to a parent in `pas` or in the same `shadow_run_id`. A child that doesn't resolve is reported as a parity failure.
+       - New business (POLNEW) writes its POLICIES/COVERAGES parent and child rows together in the same run.
+       - AB-529 validates the model against premium, endorsement and new-business shadow writes.
      - **Watermark alignment.** Each shadow run records the CDC position (log sequence or `LAST_UPDATED` watermark) of the inputs it read. Its output is compared with the DB2 result once CDC has passed the source transaction's commit, keyed by policy number + business date. An input that changed between the shadow read and the compare is reported as "input drift", not as a parity diff, and is retried.
      - `pas_shadow` is truncated per comparison window and dropped at the system-of-record flip.
 4. **Reconciliation, run daily and on demand (AB-529).**
@@ -196,6 +202,9 @@ The sections below record each decision (D1–D7), the reasoning and the alterna
   - **Hydration.** `DocumentRequested` is deliberately minimal, so the bridge cannot build FileNet's fixed-width `POLICY-RECORD` from the event alone.
     - The bridge fetches the policy at exactly `policyVersion` through an authenticated internal read: client credentials with `policy:read` and `book:*`, and no `policy:pii:read`. In-process, it reads the same committed row.
     - It then builds the `POLICY-RECORD` layout byte for byte (COMP-3 packing, blank padding, FILLER) from the copybook.
+    - `POLICY-RECORD` carries `POLICY-HOLDER-ID` but no POLICY_HOLDERS PII (no name, DOB, SSN, tax ID or contact details). So nothing it needs is masked under `policy:read`.
+      - A contract test in AB-528 asserts this field-by-field against the copybook.
+      - If a future layout needs a protected field, the bridge gets a dedicated narrowly scoped client and a Security review. It never falls back to masked values.
     - If that version is no longer readable, the bridge does not send a partial record. It retries and then dead-letters with an alert.
     - In `shadow`, the bridge output is compared byte-level with the TDQ payload CICS wrote. `document-events` only moves to `new` with FileNet consumer sign-off on that comparison.
   - The alternative is to version FileNet's MQ contract to the minimal event. That is FileNet-side work and out of scope, so it is not chosen; it can be revisited with FileNet sign-off.
