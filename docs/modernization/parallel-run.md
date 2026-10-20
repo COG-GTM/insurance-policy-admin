@@ -38,7 +38,8 @@ premiumRecalculationJob-<job instance id, 12 digits>` and `business_date` = the 
 A restart reuses the shadow run; `rerun=true` creates a new one. `PremiumJobOutputSource` compares
 the latest `COMPLETED` run for the date in `pas_batch.premium_run_summary` whose `write_target` is
 `SHADOW` (`pas_batch` V3). `COMPLETED_WITH_ERRORS` runs count too, and their skipped rows show up as
-`MISSING_IN_NEW`. A shadow run that wrote no rows (empty active book) compares as empty output. If
+`MISSING_IN_NEW`. A shadow run that wrote no rows compares as empty output (empty active book) only when it skipped
+no policies; with `policy_errors > 0` and no rows the output counts as missing. If
 there is no shadow run for the date (none at all, or only `pas` runs), `PREMIUMS` reports
 `NEW_NOT_AVAILABLE` and the day is `INCOMPLETE`. Schedule:
 enable `PAS_BATCH_PREMIUM_CRON` in shadow mode next to CA-7 PAS0050, or launch it through

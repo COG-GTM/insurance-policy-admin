@@ -18,13 +18,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * pas_batch.premium_run_summary} with {@code write_target = 'SHADOW'} (a restart shares the job
  * instance; {@code rerun=true} creates a newer one). Its rows are {@code pas_shadow.premiums WHERE
  * shadow_run_id = ShadowPremiumWriter.shadowRunId(job_instance_id)}, possibly none for an empty
- * book. No completed shadow run (only {@code pas} runs or none) means the output is not available
- * and the day is INCOMPLETE.
+ * book. No completed shadow run (only {@code pas} runs or none), or a run with no rows that skipped
+ * policies ({@code policy_errors > 0}), means the output is not available and the day is
+ * INCOMPLETE.
  */
 public final class PremiumJobOutputSource implements PremiumOutputSource {
 
   static final String LATEST_COMPLETED_RUN =
-      "SELECT job_instance_id FROM pas_batch.premium_run_summary"
+      "SELECT job_instance_id, policy_errors FROM pas_batch.premium_run_summary"
           + " WHERE run_date = ? AND batch_status = 'COMPLETED' AND write_target = 'SHADOW'"
           + " ORDER BY ended_at DESC NULLS LAST, job_execution_id DESC LIMIT 1";
 
@@ -49,13 +50,20 @@ public final class PremiumJobOutputSource implements PremiumOutputSource {
 
   @Override
   public Optional<Map<String, String>> premiums(LocalDate businessDate) {
-    List<Long> instance =
-        jdbc.queryForList(LATEST_COMPLETED_RUN, Long.class, Date.valueOf(businessDate));
-    if (instance.isEmpty()) {
+    List<long[]> run =
+        jdbc.query(
+            LATEST_COMPLETED_RUN,
+            (rs, i) -> new long[] {rs.getLong("job_instance_id"), rs.getLong("policy_errors")},
+            Date.valueOf(businessDate));
+    if (run.isEmpty()) {
       return Optional.empty();
     }
     Map<String, String> rows =
-        JdbcPremiumOutputSource.read(jdbc, ROWS, ShadowPremiumWriter.shadowRunId(instance.get(0)));
+        JdbcPremiumOutputSource.read(jdbc, ROWS, ShadowPremiumWriter.shadowRunId(run.get(0)[0]));
+    // No rows is an empty book only if no policy was skipped; otherwise the output is missing.
+    if (rows.isEmpty() && run.get(0)[1] > 0) {
+      return Optional.empty();
+    }
     return Optional.of(rows);
   }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.batch.extract.DailyExtractJobConfig;
 import com.acme.insurance.pas.batch.migration.parallelrun.ParallelRunService.OutputSummary;
+import com.acme.insurance.pas.batch.migration.parallelrun.PremiumJobOutputSource;
 import com.acme.insurance.pas.batch.migration.report.CheckReport;
 import com.acme.insurance.pas.batch.migration.triage.Classification;
 import com.acme.insurance.pas.batch.premium.PremiumJobLauncher;
@@ -236,5 +237,27 @@ class ParallelRunIT {
             d -> assertThat(d.reference()).isEqualTo("docs/modernization/quirk-register.md#q-22"));
     assertThat(Files.readString(WORK.resolve("reports/parallel-run/latest.md")))
         .contains("**Status: FAIL**", "APPROVED_FIX (PR-001)");
+  }
+
+  @Test
+  @Order(3)
+  void emptyShadowRunCountsAsOutputOnlyWithoutSkippedPolicies() throws Exception {
+    LocalDate day = DAY.plusDays(1);
+    JobExecution run = launcher.run(premiumJob, PremiumJobLauncher.parameters(day, false));
+    assertThat(run.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+    target.update(
+        "DELETE FROM pas_shadow.premiums WHERE shadow_run_id = ?",
+        ShadowPremiumWriter.shadowRunId(run.getJobInstance().getInstanceId()));
+    PremiumJobOutputSource source = new PremiumJobOutputSource(target);
+
+    target.update(
+        "UPDATE pas_batch.premium_run_summary SET policy_errors = 1 WHERE job_execution_id = ?",
+        run.getId());
+    assertThat(source.premiums(day)).isEmpty();
+
+    target.update(
+        "UPDATE pas_batch.premium_run_summary SET policy_errors = 0 WHERE job_execution_id = ?",
+        run.getId());
+    assertThat(source.premiums(day)).hasValueSatisfying(rows -> assertThat(rows).isEmpty());
   }
 }
