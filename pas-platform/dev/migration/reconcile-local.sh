@@ -9,11 +9,12 @@ set -euo pipefail
 ensure_env
 stack_up
 seed_source
+latest="$OUT_DIR/reports/reconciliation/latest.md"
+rm -f "$latest" "$OUT_DIR/reports/reconciliation/latest.json"
 set +e
 migration_cli bulk-load,delta-sync,reconcile
 rc=$?
 set -e
-latest="$OUT_DIR/reports/reconciliation/latest.md"
 if [ -f "$latest" ]; then
   cat "$latest"
   echo
