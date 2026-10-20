@@ -49,8 +49,19 @@ class PiiCipherTest {
         .isInstanceOf(PiiCryptoException.class);
     assertThatThrownBy(() -> new PiiCipher(key, "k2").decrypt(sealed))
         .isInstanceOf(PiiCryptoException.class)
-        .hasMessageContaining("different key id");
+        .hasMessageContaining("unknown key id");
     assertThatThrownBy(() -> cipher.decrypt("not base64!")).isInstanceOf(PiiCryptoException.class);
+  }
+
+  @Test
+  void retiredKeysStillDecryptAfterRotation() {
+    String underK1 = cipher.encrypt("4321");
+    PiiCipher rotated = new PiiCipher(randomKey(), "k2", java.util.Map.of("k1", key));
+    assertThat(rotated.decrypt(underK1)).isEqualTo("4321");
+    String underK2 = rotated.encrypt("4321");
+    assertThat(java.util.Base64.getDecoder().decode(underK2)[2]).isEqualTo((byte) 'k');
+    assertThat(rotated.decrypt(underK2)).isEqualTo("4321");
+    assertThatThrownBy(() -> cipher.decrypt(underK2)).isInstanceOf(PiiCryptoException.class);
   }
 
   @Test

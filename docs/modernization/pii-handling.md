@@ -48,6 +48,11 @@ they also need field encryption is an open question for security (see `open-ques
 | `pas.pii.encryption-key` | `PAS_PII_ENCRYPTION_KEY` | Base64, 256-bit. Required, no default. |
 | `pas.pii.blind-index-key` | `PAS_PII_BLIND_INDEX_KEY` | Base64, 256-bit, must differ from the encryption key. Required. |
 | `pas.pii.key-id` | `PAS_PII_KEY_ID` | Label stored with each ciphertext. Default `k1`. |
+| `pas.pii.retired-keys.<keyId>` | e.g. `PAS_PII_RETIRED_KEYS_K1` | Optional decrypt-only keys for rotation. |
+
+Rotation: set a new key and `pas.pii.key-id` (e.g. `k2`), move the old key to
+`pas.pii.retired-keys.k1`, re-encrypt rows whose ciphertext carries `k1`, then remove the retired
+key. The blind-index key cannot be rotated without recomputing every `*_bidx` column.
 
 - Spring fails to start when either key is missing, not Base64, not 32 bytes, or both keys are equal
   (`PiiConfiguration`). `docker-compose.yml` uses `${PAS_PII_…:?…}` so the local stack refuses to

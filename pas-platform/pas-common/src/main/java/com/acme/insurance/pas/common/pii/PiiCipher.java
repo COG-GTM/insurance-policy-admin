@@ -5,6 +5,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -14,7 +16,9 @@ import javax.crypto.spec.SecretKeySpec;
 /**
  * AES-256-GCM field encryption. Ciphertext format (Base64 of): {@code version(1) | keyId-length(1)
  * | keyId | iv(12) | ciphertext+tag(16)}. The key id is bound as additional authenticated data so a
- * value cannot be decrypted under a different key id, and enables key rotation.
+ * value cannot be decrypted under a different key id. New values are always written with the active
+ * key; retired keys are kept for decryption only, so keys can be rotated by adding a new active key
+ * and re-encrypting rows before a retired key is removed.
  */
 public final class PiiCipher {
 
@@ -24,15 +28,24 @@ public final class PiiCipher {
   private static final String TRANSFORMATION = "AES/GCM/NoPadding";
 
   private final SecretKey key;
+  private final Map<String, SecretKey> decryptionKeys;
   private final String keyId;
   private final byte[] keyIdBytes;
   private final SecureRandom random;
 
   public PiiCipher(byte[] key256, String keyId) {
-    this(key256, keyId, new SecureRandom());
+    this(key256, keyId, Map.of(), new SecureRandom());
   }
 
-  PiiCipher(byte[] key256, String keyId, SecureRandom random) {
+  /**
+   * @param retiredKeys decrypt-only keys by key id, for rows not yet re-encrypted under {@code
+   *     keyId}
+   */
+  public PiiCipher(byte[] key256, String keyId, Map<String, byte[]> retiredKeys) {
+    this(key256, keyId, retiredKeys, new SecureRandom());
+  }
+
+  PiiCipher(byte[] key256, String keyId, Map<String, byte[]> retiredKeys, SecureRandom random) {
     Objects.requireNonNull(key256, "key");
     if (key256.length != 32) {
       throw new IllegalArgumentException("PII encryption key must be 256 bits (32 bytes)");
@@ -43,7 +56,18 @@ public final class PiiCipher {
       throw new IllegalArgumentException("keyId must be 1-32 ASCII characters");
     }
     this.key = new SecretKeySpec(key256.clone(), "AES");
+    Map<String, SecretKey> keys = new HashMap<>();
+    retiredKeys.forEach((id, retired) -> keys.put(id, aesKey(id, retired)));
+    keys.put(keyId, key);
+    this.decryptionKeys = Map.copyOf(keys);
     this.random = random;
+  }
+
+  private static SecretKey aesKey(String keyId, byte[] key256) {
+    if (key256 == null || key256.length != 32) {
+      throw new IllegalArgumentException("PII key " + keyId + " must be 256 bits (32 bytes)");
+    }
+    return new SecretKeySpec(key256.clone(), "AES");
   }
 
   public String keyId() {
@@ -80,16 +104,18 @@ public final class PiiCipher {
       }
       byte[] storedKeyId = new byte[in.get() & 0xFF];
       in.get(storedKeyId);
-      if (!java.util.Arrays.equals(storedKeyId, keyIdBytes)) {
-        throw new PiiCryptoException("PII ciphertext was written under a different key id");
+      SecretKey decryptionKey =
+          decryptionKeys.get(new String(storedKeyId, StandardCharsets.US_ASCII));
+      if (decryptionKey == null) {
+        throw new PiiCryptoException("PII ciphertext was written under an unknown key id");
       }
       byte[] iv = new byte[IV_BYTES];
       in.get(iv);
       byte[] sealed = new byte[in.remaining()];
       in.get(sealed);
       Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-      cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_BITS, iv));
-      cipher.updateAAD(keyIdBytes);
+      cipher.init(Cipher.DECRYPT_MODE, decryptionKey, new GCMParameterSpec(TAG_BITS, iv));
+      cipher.updateAAD(storedKeyId);
       return new String(cipher.doFinal(sealed), StandardCharsets.UTF_8);
     } catch (GeneralSecurityException | RuntimeException e) {
       if (e instanceof PiiCryptoException pce) {

@@ -24,6 +24,12 @@ public class PolicyNumberGenerator {
     return value;
   }
 
+  /**
+   * POLNEW-format number for the next sequence value. At parity this repeats for ten consecutive
+   * sequence values (see {@link PolicyNumbers}), so it is not yet a safe insert key: AB-525 must
+   * settle the numbering decision in docs/modernization/open-questions.md before using it for new
+   * business.
+   */
   public String nextPolicyNumber() {
     return PolicyNumbers.fromSequence(nextSequenceValue());
   }

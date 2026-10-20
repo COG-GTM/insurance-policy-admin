@@ -10,7 +10,10 @@ import java.time.LocalDateTime;
 /**
  * Converts between copybook records (pas-common) and JPA entities. CHAR columns come back
  * blank-padded from the database, so record values are right-trimmed like the copybook decoder
- * does. Copybook YYYYMMDD "last updated" fields map to midnight timestamps and back.
+ * does. Copybook YYYYMMDD "last updated" fields map to midnight timestamps and back. Copybook
+ * numeric fields cannot hold NULL, so a NULL numeric column (e.g. credit score) is written to the
+ * record as 0, which is how the fixed-width layouts carry it today; {@code toRecord} is therefore
+ * lossy for NULL numerics and records must not be used to update existing rows field-by-field.
  */
 public final class CopybookMapping {
 

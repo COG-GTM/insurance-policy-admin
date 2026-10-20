@@ -4,6 +4,8 @@ import com.acme.insurance.pas.common.pii.BlindIndexer;
 import com.acme.insurance.pas.common.pii.PiiCipher;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,7 +22,13 @@ public class PiiConfiguration {
       throw new IllegalStateException("pas.pii.encryption-key and blind-index-key must differ");
     }
     String keyId = properties.keyId() == null ? "" : properties.keyId().strip();
-    return new PiiCipher(key, keyId.isEmpty() ? "k1" : keyId);
+    Map<String, byte[]> retired = new HashMap<>();
+    if (properties.retiredKeys() != null) {
+      properties
+          .retiredKeys()
+          .forEach((id, value) -> retired.put(id, decode("pas.pii.retired-keys." + id, value)));
+    }
+    return new PiiCipher(key, keyId.isEmpty() ? "k1" : keyId, retired);
   }
 
   @Bean

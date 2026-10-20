@@ -14,7 +14,7 @@ class PiiConvertersTest {
   private final String key = TestPiiKeys.randomKey();
   private final PiiConfiguration config = new PiiConfiguration();
   private final PiiCipher cipher =
-      config.piiCipher(new PiiProperties(key, TestPiiKeys.randomKey(), "k1"));
+      config.piiCipher(new PiiProperties(key, TestPiiKeys.randomKey(), "k1", null));
 
   @Test
   void convertersRoundTripAndHandleNull() {
@@ -33,23 +33,23 @@ class PiiConvertersTest {
 
   @Test
   void configurationRejectsMissingShortOrReusedKeys() {
-    assertThatThrownBy(() -> config.piiCipher(new PiiProperties(null, key, "k1")))
+    assertThatThrownBy(() -> config.piiCipher(new PiiProperties(null, key, "k1", null)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("pas.pii.encryption-key");
     String shortKey = Base64.getEncoder().encodeToString(new byte[16]);
-    assertThatThrownBy(() -> config.piiCipher(new PiiProperties(shortKey, key, "k1")))
+    assertThatThrownBy(() -> config.piiCipher(new PiiProperties(shortKey, key, "k1", null)))
         .isInstanceOf(IllegalStateException.class);
-    assertThatThrownBy(() -> config.piiCipher(new PiiProperties(key, key, "k1")))
+    assertThatThrownBy(() -> config.piiCipher(new PiiProperties(key, key, "k1", null)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("must differ");
-    assertThatThrownBy(() -> config.blindIndexer(new PiiProperties(key, "%%%", "k1")))
+    assertThatThrownBy(() -> config.blindIndexer(new PiiProperties(key, "%%%", "k1", null)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageNotContaining("%%%");
   }
 
   @Test
   void propertiesToStringHidesKeys() {
-    assertThat(new PiiProperties(key, TestPiiKeys.randomKey(), "k1").toString())
+    assertThat(new PiiProperties(key, TestPiiKeys.randomKey(), "k1", null).toString())
         .doesNotContain(key)
         .contains("k1");
   }

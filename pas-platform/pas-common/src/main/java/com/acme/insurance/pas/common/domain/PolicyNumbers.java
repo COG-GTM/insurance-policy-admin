@@ -1,5 +1,7 @@
 package com.acme.insurance.pas.common.domain;
 
+import java.util.Locale;
+
 /**
  * Policy-number formatting as produced by POLNEW: {@code STRING 'POL' WS-POLICY-SEQ DELIMITED BY
  * SIZE INTO POLICY-NUMBER}, where {@code WS-POLICY-SEQ} is {@code PIC 9(10)} and {@code
@@ -21,7 +23,7 @@ public final class PolicyNumbers {
     if (sequenceValue < 0 || sequenceValue > 9_999_999_999L) {
       throw new IllegalArgumentException("sequence value out of PIC 9(10) range: " + sequenceValue);
     }
-    String digits = String.format("%0" + SEQ_DIGITS + "d", sequenceValue);
+    String digits = String.format(Locale.ROOT, "%0" + SEQ_DIGITS + "d", sequenceValue);
     return (PREFIX + digits).substring(0, LENGTH);
   }
 }
