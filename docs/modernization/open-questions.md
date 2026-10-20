@@ -289,3 +289,34 @@ Mainframe team.
 - **Context:** `ExtractScheduler` assumes one scheduling replica. If `pas-batch` scales out, add a
   lock (e.g. ShedLock on `pas_batch`) or move triggering to the platform scheduler.
 - **Proposed owner:** Platform.
+
+
+## AB-523 (premium batch)
+
+### Proposed: Confirm the full-book volume and batch window
+- **Context:** no production volume data exists in the repo. AB-523 sized the load test at an
+  assumed 1,000,000 active policies (see `docs/modernization/runbooks/premium-batch.md`, "Load
+  test"). Real active-policy count, growth and the batch window are **Pending: Ops**; rerun the
+  load test generator at that size before go-live.
+- **Proposed owner:** Batch operations + DBA.
+
+### Proposed: Cut-over of CA-7 PAS0050 to the pas-batch scheduler
+- **Context:** `PAS_BATCH_PREMIUM_CRON` stays `-` (disabled) until the PREMIUMS cut-over (AB-529
+  / AB-530): before the flip only CDC writes to `pas`. At cut-over: remove PAS0050 from CA-7,
+  set the cron (`0 0 1 * * *`, zone `America/New_York`), and point downstream CA-7 successors (if
+  any — not visible in the repo, see [OQ-07](#oq-07)) at the new completion signal
+  (`pas_batch.premium_run_summary` / `pas_batch_premium_runs_total`).
+- **Proposed owner:** Batch operations + Mainframe scheduling.
+
+### Proposed: Single-launcher guarantee for multiple pas-batch replicas
+- **Context:** `runDate` is the identifying job parameter, so two replicas firing the same night
+  cannot both complete the same date (Spring Batch rejects the second launch while the first is
+  running or complete). A strict leader lock (e.g. ShedLock) is not added; run pas-batch with one
+  replica or add a lock if the platform requires several.
+- **Proposed owner:** Platform team.
+
+### Proposed: Business sign-off of the Q-22 / Q-35 fixes and report change (Q-24)
+- **Context:** reruns replace PREMIUMS rows (Q-22), a failed write no longer stops the run
+  (Q-35), and PREMRPT prints edited amounts (Q-24). Recorded as proposed decisions.
+- **Proposed owner:** PO (Pending: PO), Batch operations (Pending: Ops).
+

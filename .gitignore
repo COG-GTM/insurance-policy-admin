@@ -4,3 +4,4 @@ target/
 pas-platform/.env
 parity/build/
 pas-platform/.dev-keys/
+logs/

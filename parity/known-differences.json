@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "program": "prembat-rerun",
+    "case_id": "POL-AUT-RR",
+    "field": "premiums_sqlcode",
+    "cobol": "-803",
+    "java": "0",
+    "quirk": "Q-22",
+    "decision": "docs/modernization/quirk-register.md#q-22",
+    "rationale": "Rerun in the same term: PREMBAT's plain INSERT hits the PREMIUMS primary key (-803), counts an error, keeps the first run's row, stops fetching (Q-35) and ends RC 4. premiumRecalculationJob upserts on (policy_number, coverage_seq, term_effective_date), so the rerun replaces the row and counts it as updated (AB-523). First-run rows are unchanged: the prembat goldens still match exactly."
+  }
+]
