@@ -101,10 +101,19 @@ public class RenewalService {
     BigDecimal oldPremium = zeroIfNull(policy.getTotalPremium());
     BigDecimal capPct = rateCap.capPct(policy);
     int renewalCount = policy.getRenewalCount() == null ? 0 : policy.getRenewalCount();
-    RenewalCalculator.RenewalTerms terms =
-        RenewalCalculator.calculate(
-            oldPremium, properties.upliftPct(), capPct, YyyyMmDd.of(oldExpiry), renewalCount);
-    LocalDate newExpiry = newExpiry(terms);
+    // An expiry outside COBOL years 1601-9999, or a 9999 sentinel that wraps in PIC 9(8) (Q-07),
+    // is not a renewable term; DB2's DATE column rejects the wrapped value too.
+    RenewalCalculator.RenewalTerms terms;
+    LocalDate newExpiry;
+    try {
+      terms =
+          RenewalCalculator.calculate(
+              oldPremium, properties.upliftPct(), capPct, YyyyMmDd.of(oldExpiry), renewalCount);
+      newExpiry = YyyyMmDd.toDate(terms.newExpiryDate());
+    } catch (DateTimeException e) {
+      throw new PolicyChangeRejectedException(
+          PolicyChangeRejectedException.RENEWAL_TERM_INVALID, MSG_TERM_INVALID);
+    }
 
     policy.setTotalPremium(terms.newPremium());
     policy.setRenewalCount((short) terms.newRenewalCount());
@@ -180,19 +189,6 @@ public class RenewalService {
       return Optional.of(MSG_NOT_ELIGIBLE);
     }
     return openClaims > maxOpenClaims ? Optional.of(MSG_OPEN_CLAIMS) : Optional.empty();
-  }
-
-  /**
-   * POLRNW stores the new expiry in {@code PIC 9(8)} (Q-07); a 9999 sentinel expiry wraps to a
-   * value that is not a date, which DB2's DATE column rejects too, so the renewal is refused.
-   */
-  private static LocalDate newExpiry(RenewalCalculator.RenewalTerms terms) {
-    try {
-      return YyyyMmDd.toDate(terms.newExpiryDate());
-    } catch (DateTimeException e) {
-      throw new PolicyChangeRejectedException(
-          PolicyChangeRejectedException.RENEWAL_TERM_INVALID, MSG_TERM_INVALID);
-    }
   }
 
   private static BigDecimal zeroIfNull(BigDecimal value) {
