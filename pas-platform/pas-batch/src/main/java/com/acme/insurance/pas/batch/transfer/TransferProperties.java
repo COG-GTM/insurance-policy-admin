@@ -31,11 +31,12 @@ public record TransferProperties(
   /** Exponential backoff between whole-delivery attempts. */
   public record Retry(
       int maxAttempts, Duration initialBackoff, double multiplier, Duration maxBackoff) {
+    static final int DEFAULT_BACKOFF_MULTIPLIER = 2;
 
     public Retry {
       maxAttempts = maxAttempts <= 0 ? 4 : maxAttempts;
       initialBackoff = initialBackoff == null ? Duration.ofSeconds(30) : initialBackoff;
-      multiplier = multiplier < 1 ? 2.0 : multiplier;
+      multiplier = multiplier < 1 ? DEFAULT_BACKOFF_MULTIPLIER : multiplier;
       maxBackoff = maxBackoff == null ? Duration.ofMinutes(5) : maxBackoff;
     }
 
