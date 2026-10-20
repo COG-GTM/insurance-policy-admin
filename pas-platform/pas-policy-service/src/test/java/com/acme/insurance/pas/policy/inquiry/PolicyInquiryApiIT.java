@@ -258,7 +258,8 @@ class PolicyInquiryApiIT {
     assertThat(body.get("email").asText()).isEqualTo("j***@example.com");
     assertThat(body.get("dateOfBirth").asText()).isEqualTo("1975-**-**");
     assertThat(body.get("creditScore").asText()).isEqualTo("[REDACTED]");
-    assertThat(body.toString()).doesNotContain("Smith", "123 Main", "217-555", "1975-06-15", "720");
+    assertThat(body.toString())
+        .doesNotContain("Smith", "123 Main", "Springfield", "217-555", "1975-06-15", "720");
   }
 
   @Test

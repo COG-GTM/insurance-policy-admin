@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 /**
  * {@code GET /api/v1/policies/{policyNumber}} body, field-for-field compatible with the {@code
@@ -58,6 +58,6 @@ public record PolicyView(
   }
 
   private static Long epochMillis(LocalDateTime value) {
-    return value == null ? null : value.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+    return value == null ? null : value.atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
   }
 }

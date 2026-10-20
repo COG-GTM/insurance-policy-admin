@@ -57,8 +57,8 @@ services:
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
       PAS_OIDC_ISSUER_URI: ${PAS_OIDC_ISSUER_URI:-https://pas-dev-issuer.local}
       PAS_OIDC_AUDIENCE: ${PAS_OIDC_AUDIENCE:-pas-api}
-      # Local only: public half of the throwaway key pair from dev/dev-jwt.sh keygen (make dev-up).
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_PUBLIC_KEY_LOCATION: file:/run/pas-dev-keys/jwt-dev-public.pem
+      # Public half of the throwaway dev key pair (make dev-up). Read only by the local profile.
+      PAS_DEV_JWT_PUBLIC_KEY: file:/run/pas-dev-keys/jwt-dev-public.pem
     volumes:
       - ./.dev-keys/jwt-dev-public.pem:/run/pas-dev-keys/jwt-dev-public.pem:ro
     ports:
