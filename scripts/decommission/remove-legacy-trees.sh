@@ -30,7 +30,11 @@ HERE="scripts/decommission"
 
 # --scratch skips the sign-off only in the disposable clone created by test-remove-legacy-trees.sh,
 # which exports DECOMMISSION_SCRATCH_ROOT as that clone's path.
-if [ "$scratch" = 1 ] && [ "${DECOMMISSION_SCRATCH_ROOT:-}" != "$ROOT" ]; then
+# The clone's origin is the local source checkout, never a hosted remote, so a real checkout (origin =
+# GitHub) cannot use --scratch even if the variable is set by hand.
+origin=$(git config --get remote.origin.url || true)
+if [ "$scratch" = 1 ] && { [ "${DECOMMISSION_SCRATCH_ROOT:-}" != "$ROOT" ] || [ ! -d "$origin" ] \
+    || [ "$(cd "$origin" && pwd -P)" = "$(pwd -P)" ]; }; then
   echo "refusing: --scratch only runs inside the clone made by scripts/decommission/test-remove-legacy-trees.sh" >&2
   exit 2
 fi
