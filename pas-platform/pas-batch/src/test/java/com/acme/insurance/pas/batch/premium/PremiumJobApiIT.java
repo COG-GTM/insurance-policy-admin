@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 
 /** Operator API: scope {@code batch:operate} required; async launch, poll, conflict. */
 @AutoConfigureMockMvc
@@ -22,18 +23,31 @@ class PremiumJobApiIT extends PremiumJobTestSupport {
 
   @Autowired MockMvc mvc;
 
+  /** CVE-2026-22732 triage (trivyignore): default security headers on every API response. */
+  private static ResultMatcher securityHeaders() {
+    return ResultMatcher.matchAll(
+        header().string("X-Content-Type-Options", "nosniff"),
+        header().string("X-Frame-Options", "DENY"),
+        header().string("Cache-Control", Matchers.containsString("no-store")));
+  }
+
   private static org.springframework.test.web.servlet.request.RequestPostProcessor operator() {
     return jwt().authorities(new SimpleGrantedAuthority("SCOPE_batch:operate"));
   }
 
   @Test
   void launchRequiresBatchOperateScope() throws Exception {
-    mvc.perform(post("/api/batch/premium/runs")).andExpect(status().isUnauthorized());
+    mvc.perform(post("/api/batch/premium/runs"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(securityHeaders());
     mvc.perform(
             post("/api/batch/premium/runs")
                 .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_policy:read"))))
-        .andExpect(status().isForbidden());
-    mvc.perform(get("/api/batch/premium/runs/1")).andExpect(status().isUnauthorized());
+        .andExpect(status().isForbidden())
+        .andExpect(securityHeaders());
+    mvc.perform(get("/api/batch/premium/runs/1"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(securityHeaders());
   }
 
   @Test
@@ -43,6 +57,7 @@ class PremiumJobApiIT extends PremiumJobTestSupport {
     String body =
         mvc.perform(post("/api/batch/premium/runs?runDate=2026-10-24").with(operator()))
             .andExpect(status().isAccepted())
+            .andExpect(securityHeaders())
             .andReturn()
             .getResponse()
             .getContentAsString();
@@ -61,6 +76,7 @@ class PremiumJobApiIT extends PremiumJobTestSupport {
     }
     mvc.perform(get("/api/batch/premium/runs/" + id).with(operator()))
         .andExpect(status().isOk())
+        .andExpect(securityHeaders())
         .andExpect(jsonPath("$.batchStatus").value("COMPLETED"))
         .andExpect(jsonPath("$.outcome").value("COMPLETED"))
         .andExpect(jsonPath("$.totals.read").value(1))
@@ -69,16 +85,19 @@ class PremiumJobApiIT extends PremiumJobTestSupport {
 
     mvc.perform(post("/api/batch/premium/runs?runDate=2026-10-24").with(operator()))
         .andExpect(status().isConflict())
+        .andExpect(securityHeaders())
         .andExpect(jsonPath("$.code").value("PREMIUM_RUN_CONFLICT"));
     mvc.perform(post("/api/batch/premium/runs/" + id + "/restart").with(operator()))
-        .andExpect(status().isConflict());
+        .andExpect(status().isConflict())
+        .andExpect(securityHeaders());
     mvc.perform(post("/api/batch/premium/runs?runDate=2026-10-24&rerun=true").with(operator()))
-        .andExpect(status().isAccepted());
+        .andExpect(status().isAccepted())
+        .andExpect(securityHeaders());
     mvc.perform(get("/api/batch/premium/runs/999999").with(operator()))
-        .andExpect(status().isNotFound());
+        .andExpect(status().isNotFound())
+        .andExpect(securityHeaders());
   }
 
-  /** CVE-2026-22732 triage (trivyignore): default security headers are written on every outcome. */
   @Test
   void securityHeadersAreWrittenOnEveryResponse() throws Exception {
     var requests =
@@ -89,11 +108,7 @@ class PremiumJobApiIT extends PremiumJobTestSupport {
             get("/api/batch/premium/runs/999999").with(operator()));
     int[] expected = {401, 403, 404};
     for (int i = 0; i < expected.length; i++) {
-      mvc.perform(requests.get(i))
-          .andExpect(status().is(expected[i]))
-          .andExpect(header().string("X-Content-Type-Options", "nosniff"))
-          .andExpect(header().string("X-Frame-Options", "DENY"))
-          .andExpect(header().string("Cache-Control", Matchers.containsString("no-store")));
+      mvc.perform(requests.get(i)).andExpect(status().is(expected[i])).andExpect(securityHeaders());
     }
   }
 }
