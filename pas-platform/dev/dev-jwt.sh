@@ -8,14 +8,24 @@
 #   dev/dev-jwt.sh mint "policy:read" '"book":["*"]'
 #   dev/dev-jwt.sh mint "policy:read policy:pii:read" '"agent_code":"AG1001"'
 #
-# Issuer/audience default to the local profile values; override with PAS_OIDC_ISSUER_URI /
-# PAS_OIDC_AUDIENCE. Never use these keys outside a disposable dev environment.
+# Issuer/audience match what Compose passes the service: exported PAS_OIDC_ISSUER_URI /
+# PAS_OIDC_AUDIENCE, else pas-platform/.env, else the local profile defaults.
+# keygen prints "rotated" on stdout when it replaced an existing public key (make dev-up then
+# recreates the service). Never use these keys outside a disposable dev environment.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 keys="${PAS_DEV_KEYS_DIR:-$here/.dev-keys}"
-issuer="${PAS_OIDC_ISSUER_URI:-https://pas-dev-issuer.local}"
-audience="${PAS_OIDC_AUDIENCE:-pas-api}"
+
+from_env_file() {
+  [[ -f "$here/.env" ]] || return 0
+  sed -n "s/^[[:space:]]*$1=//p" "$here/.env" | tail -n 1 | sed -e 's/^["'\'']//' -e 's/["'\'']$//'
+}
+
+issuer="${PAS_OIDC_ISSUER_URI:-$(from_env_file PAS_OIDC_ISSUER_URI)}"
+issuer="${issuer:-https://pas-dev-issuer.local}"
+audience="${PAS_OIDC_AUDIENCE:-$(from_env_file PAS_OIDC_AUDIENCE)}"
+audience="${audience:-pas-api}"
 
 b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 
@@ -26,14 +36,22 @@ keygen() {
     openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$keys/jwt-dev-private.pem" 2>/dev/null
     chmod 600 "$keys/jwt-dev-private.pem"
   fi
-  openssl pkey -in "$keys/jwt-dev-private.pem" -pubout -out "$keys/jwt-dev-public.pem"
+  local public
+  public=$(openssl pkey -in "$keys/jwt-dev-private.pem" -pubout)
+  if [[ -f "$keys/jwt-dev-public.pem" ]] && [[ "$(cat "$keys/jwt-dev-public.pem")" != "$public" ]]; then
+    echo rotated
+  fi
+  printf '%s\n' "$public" >"$keys/jwt-dev-public.pem"
   chmod 644 "$keys/jwt-dev-public.pem"
   echo "Dev JWT keys in $keys" >&2
 }
 
 mint() {
   local scopes="${1:-policy:read}" extra="${2:-}"
-  [[ -f "$keys/jwt-dev-private.pem" ]] || keygen
+  if [[ ! -f "$keys/jwt-dev-private.pem" ]]; then
+    echo "No dev key pair in $keys: run 'make dev-up' (or dev/dev-jwt.sh keygen and restart pas-policy-service)." >&2
+    exit 1
+  fi
   local now exp header payload signing_input sig
   now=$(date +%s)
   exp=$((now + 3600))
@@ -48,5 +66,5 @@ mint() {
 case "${1:-}" in
   keygen) keygen ;;
   mint) shift; mint "$@" ;;
-  *) sed -n '2,13p' "$0"; exit 2 ;;
+  *) sed -n '2,15p' "$0"; exit 2 ;;
 esac

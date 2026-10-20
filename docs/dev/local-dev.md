@@ -40,7 +40,7 @@ The policy service uses `kafka:19092` to reach Kafka on the Compose network. Hos
 
 Every policy-service endpoint except the health probes needs an OIDC bearer JWT (ADR 0001 D5).
 Locally, `make dev-up` runs `pas-platform/dev/dev-jwt.sh keygen`, which creates a throwaway RSA
-key pair in `pas-platform/.dev-keys/` (gitignored); Compose mounts only the public key, and only the `local` profile reads it (`PAS_DEV_JWT_PUBLIC_KEY`). Other profiles use the real IdP's JWKS. Mint a
+key pair in `pas-platform/.dev-keys/` (gitignored); Compose mounts only the public key, and only the `local` profile reads it (`PAS_DEV_JWT_PUBLIC_KEY`). Other profiles use the real IdP's JWKS. If the key pair changes (for example, the private key was deleted), `make dev-up` recreates `pas-policy-service` so it trusts the new public key. `mint` takes issuer and audience from exported `PAS_OIDC_ISSUER_URI`/`PAS_OIDC_AUDIENCE`, falling back to `pas-platform/.env` and then the local defaults, the same values Compose passes the service. Mint a
 JWT with the scopes and entitlement claims you need:
 
 ```sh

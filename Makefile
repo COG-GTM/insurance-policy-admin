@@ -33,8 +33,12 @@ dev-images:
 
 dev-up:
 	@test -f $(PAS_DIR)/.env || { cp $(PAS_DIR)/.env.example $(PAS_DIR)/.env; echo "Created $(PAS_DIR)/.env from .env.example (local-only defaults)"; }
-	@test -f $(PAS_DIR)/.dev-keys/jwt-dev-public.pem || $(PAS_DIR)/dev/dev-jwt.sh keygen
-	$(COMPOSE) up -d --wait --wait-timeout 300
+	@rotated=$$($(PAS_DIR)/dev/dev-jwt.sh keygen) || exit 1; \
+	$(COMPOSE) up -d --wait --wait-timeout 300 && \
+	if [ "$$rotated" = rotated ]; then \
+		echo "Dev JWT key pair changed; recreating pas-policy-service"; \
+		$(COMPOSE) up -d --wait --wait-timeout 300 --force-recreate pas-policy-service; \
+	fi
 	@policy=$$($(COMPOSE) port pas-policy-service 8080); batch=$$($(COMPOSE) port pas-batch 8081); \
 	pg=$$($(COMPOSE) port postgres 5432); kafka=$$($(COMPOSE) port kafka 9092); \
 	printf '%s\n' \
