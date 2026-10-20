@@ -23,6 +23,11 @@ class RouteFlagsTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             return rf.main([*args, "--file", self.file])
 
+    def mark_pending(self, name, ticket="AB-999"):
+        data = json.loads(pathlib.Path(self.file).read_text())
+        data["capabilities"][name]["pendingMerge"] = ticket
+        pathlib.Path(self.file).write_text(json.dumps(data))
+
     def states(self):
         return {n: c["state"] for n, c in rf.load(self.file)["capabilities"].items()}
 
@@ -38,6 +43,7 @@ class RouteFlagsTest(unittest.TestCase):
         self.assertEqual("legacy", self.states()["new-business"])
 
     def test_all_merged_flip_then_full_rollback(self):
+        self.mark_pending("document-events")
         self.assertEqual(0, self.run_cli("set", "--all-merged", "new"))
         s = self.states()
         self.assertEqual("new", s["new-business"])
@@ -47,6 +53,7 @@ class RouteFlagsTest(unittest.TestCase):
         self.assertEqual({"legacy"}, set(self.states().values()))
 
     def test_production_rules_refuse_pending_merge_capabilities(self):
+        self.mark_pending("document-events")
         self.assertEqual(2, self.run_cli("set", "--all", "new", "--production"))
         self.assertEqual(0, self.run_cli("set", "--all-merged", "new", "--production"))
         self.assertEqual(2, self.run_cli("set", "new", "document-events", "--production"))
