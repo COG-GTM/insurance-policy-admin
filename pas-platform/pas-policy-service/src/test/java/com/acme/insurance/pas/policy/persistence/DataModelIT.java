@@ -14,6 +14,7 @@ import com.acme.insurance.pas.common.domain.PolicyRecord;
 import com.acme.insurance.pas.common.domain.PremiumRecord;
 import com.acme.insurance.pas.common.pii.BlindIndexer;
 import com.acme.insurance.pas.policy.TestPiiKeys;
+import com.acme.insurance.pas.policy.security.TestJwtIssuer;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
@@ -69,6 +70,7 @@ class DataModelIT {
   @DynamicPropertySource
   static void piiKeys(DynamicPropertyRegistry registry) {
     TestPiiKeys.register(registry);
+    TestJwtIssuer.register(registry);
   }
 
   @Autowired Flyway flyway;

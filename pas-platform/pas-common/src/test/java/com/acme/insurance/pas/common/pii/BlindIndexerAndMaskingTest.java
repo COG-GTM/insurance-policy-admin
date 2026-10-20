@@ -39,4 +39,17 @@ class BlindIndexerAndMaskingTest {
     assertThat(PiiMasking.ssnLast4(null)).isNull();
     assertThat(PiiMasking.dateOfBirth(null)).isNull();
   }
+
+  @Test
+  void masksContactFields() {
+    assertThat(PiiMasking.name("Smith")).isEqualTo("S***");
+    assertThat(PiiMasking.phone("217-555-0100")).isEqualTo("***-***-0100");
+    assertThat(PiiMasking.phone("12")).isEqualTo("[REDACTED]");
+    assertThat(PiiMasking.email("john.smith@example.com")).isEqualTo("j***@example.com");
+    assertThat(PiiMasking.email("nodomain")).isEqualTo("[REDACTED]");
+    assertThat(PiiMasking.postalCode("62701")).isEqualTo("627**");
+    assertThat(PiiMasking.redact("123 Main St")).isEqualTo("[REDACTED]");
+    assertThat(PiiMasking.name(null)).isNull();
+    assertThat(PiiMasking.redact(null)).isNull();
+  }
 }

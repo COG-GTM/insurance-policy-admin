@@ -55,6 +55,12 @@ services:
       PAS_PII_ENCRYPTION_KEY: ${PAS_PII_ENCRYPTION_KEY:?Set PAS_PII_ENCRYPTION_KEY (openssl rand -base64 32) in .env}
       PAS_PII_BLIND_INDEX_KEY: ${PAS_PII_BLIND_INDEX_KEY:?Set PAS_PII_BLIND_INDEX_KEY (openssl rand -base64 32) in .env}
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
+      PAS_OIDC_ISSUER_URI: ${PAS_OIDC_ISSUER_URI:-https://pas-dev-issuer.local}
+      PAS_OIDC_AUDIENCE: ${PAS_OIDC_AUDIENCE:-pas-api}
+      # Local only: public half of the throwaway key pair from dev/dev-jwt.sh keygen (make dev-up).
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_PUBLIC_KEY_LOCATION: file:/run/pas-dev-keys/jwt-dev-public.pem
+    volumes:
+      - ./.dev-keys/jwt-dev-public.pem:/run/pas-dev-keys/jwt-dev-public.pem:ro
     ports:
       - "${PAS_BIND_ADDRESS:-127.0.0.1}:${PAS_POLICY_HTTP_PORT:-8080}:8080"
     depends_on:

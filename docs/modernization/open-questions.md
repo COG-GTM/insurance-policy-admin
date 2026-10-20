@@ -208,3 +208,33 @@ Mainframe team.
 - **Context:** see `pii-handling.md`. Open items: KMS/secret store and rotation, whether
   name/address/phone/email also need field encryption, masking rules for extracts.
 - **Proposed owner:** Security.
+
+## AB-524 (policy inquiry API)
+
+### Proposed: Issue PAS entitlement claims from the IdP
+- **Context:** `pas-policy-service` authorises reads with the `agent_code`, `branch_code` and
+  `book` claims (ADR 0001 D5, `CallerEntitlements`). A token with none of them sees no policy.
+  The IdP must issue them per user (Broker Portal, CSRs) and per client (system integrations,
+  usually `book` = `*`), and `policy:pii:read` only to roles allowed to see unmasked
+  policyholder data. Also confirm the `book` value format (`*`, `agent:<code>`,
+  `branch:<code>`).
+- **Proposed owner:** IdP team + Security.
+
+### Proposed: Prometheus scrape credentials
+- **Context:** only the health probes are anonymous; `/actuator/prometheus` needs a valid JWT.
+  The platform scraper needs a client-credentials token, or Security accepts a separate
+  management port reachable only from the monitoring network.
+- **Proposed owner:** Platform/SRE + Security.
+
+### Proposed: Complete the facade consumer inventory and route flags
+- **Context:** `facade-retirement.md` sections 2-3; extends [OQ-15](#oq-15). Gateway route
+  flags per consumer and 30-day traffic-to-zero measurement are prerequisites for AB-530.
+- **Proposed owner:** T. Nguyen + gateway team.
+
+### Proposed: Add POLQRY to the parity harness if CICS inquiry stays in dual-run
+- **Context:** [OQ-01](#oq-01). AB-524 replaces POLQRY with an API whose contract is the
+  facade snapshot, not the BMS screen, so there is no COBOL output to diff. If the PQRY 3270
+  screen must run in parallel with the API during cutover, characterise POLQRY's map output
+  first.
+- **Proposed owner:** PAS tech lead.
+
