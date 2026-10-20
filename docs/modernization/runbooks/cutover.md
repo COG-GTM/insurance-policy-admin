@@ -9,7 +9,7 @@ is in [decommission.md](../decommission.md).
 |---|---|
 | Status | **Ready for rehearsal only.** Rehearsed locally on Compose ([rehearsal-results-local.md](rehearsal-results-local.md)). The production cutover has not happened. |
 | Cutover date / freeze window | **Pending: Business owner + Ops** (proposal below) |
-| Blocked by | AB-528 (document events / FileNet bridge, Broker Portal) is not merged yet; its steps are marked *pending AB-528 merge* |
+| Blocked by | Pending sign-offs only: Document/FileNet team (real MQ transport for `pas-filenet-document-bridge`), Underwriting team (queue consumers), Broker Portal team (API switch, [broker-portal-migration.md](../broker-portal-migration.md)) |
 | Sign-off of this runbook | Pending: Ops. Pending: Mainframe team. Pending: Business owner. |
 
 Local rehearsal of the whole runbook, including the rollback: `make cutover-rehearsal`
@@ -90,7 +90,7 @@ with each flip:
 | Capability (flag key) | Legacy | New | Service configuration at the flip | Ticket |
 |---|---|---|---|---|
 | `inquiry` | POLQRY (PQRY) + `java-facade` `/api/v1` | `pas-policy-service` `GET /api/v1/policies/**` | gateway upstream; facade routes per consumer `pas.inquiry.route.<consumer>=new` ([facade-retirement.md](../facade-retirement.md) §3); `PAS_OIDC_ISSUER_URI`, `PAS_OIDC_AUDIENCE` = production IdP | AB-524 |
-| `broker-read` | Broker Portal linked server → DB2 | `pas-policy-service` with agent/branch entitlements | Broker Portal client in the IdP (`agent_code`/`branch_code` claims). **Broker Portal integration steps: pending AB-528 merge** | AB-524 / AB-528 |
+| `broker-read` | Broker Portal linked server → DB2 | `pas-policy-service` with agent/branch entitlements | Broker Portal client in the IdP (`policy:read`, `agent_code`/`branch_code`/`book` claims). Portal switches PQ-01..PQ-06 to `GET /api/v1/policies/{n}[/coverages|/holder|/premiums]` and `GET /api/v1/policies?agentCode|branchCode` per [broker-portal-migration.md](../broker-portal-migration.md), then drops linked server `DBPD` (queue-decommission D-16..D-20) | AB-524 / AB-528 |
 | `new-business` | POLNEW (PNEW) | `POST /api/v1/policies` (`policy:write`, `Idempotency-Key`) | `PAS_OUTBOX_RELAY_ENABLED=true`; `PAS_BUSINESS_TIME_ZONE` confirmed; step 4 done | AB-525 |
 | `underwriting` | UNDWRT (PUWR) | `POST /api/v1/policies/{n}/underwriting-decisions` (`underwriting:decide`) | `PAS_CLAIMS_ADAPTER` = the real Claims adapter (never `unavailable` or `stub` in production) | AB-525 |
 | `renewal` | POLRNW (PRWL) | `POST /api/v1/policies/{n}/renewals` (`policy:write`) | `pas.renewal.uplift-pct` / `PAS_RENEWAL_UPLIFT_PCT` (5, Q-05), `pas.renewal.rate-cap-pct` / `PAS_RENEWAL_RATE_CAP_PCT` (15, Q-04), `pas.renewal.max-open-claims` / `PAS_RENEWAL_MAX_OPEN_CLAIMS` (3, Q-02 fix); event `PolicyRenewed`; audit row in `pas.policy_audit` (V8); needs the real Claims adapter (`PAS_CLAIMS_ADAPTER`) | AB-526 |
@@ -98,7 +98,7 @@ with each flip:
 | `premium-batch` | PREMIUM-BATCH / PREMBAT, CA-7 PAS0050 01:00 | `premiumRecalculationJob` | `PAS_BATCH_PREMIUM_WRITE_TARGET=pas` (was `shadow` in the parallel run); `PAS_BATCH_PREMIUM_CRON="0 0 1 * * *"`; `PAS_BATCH_PREMIUM_ZONE=America/New_York`; PAS0050 held | AB-523 |
 | `claims-extract` | DAILY-EXTRACT (POLEXT), CA-7 PAS0100 23:00 | `dailyExtractJob` + SFTP | `PAS_SCHEDULE_ENABLED=true`, `PAS_TRANSFER_ENABLED=true`, `PAS_CLAIMS_SFTP_*`, `PAS_SFTP_KNOWN_HOSTS_FILE`, `PAS_CLAIMS_SFTP_REMOTE_DIR` = production folder; PAS0100 held | AB-527 |
 | `actuarial-exposure` | MONTHLY-EXPOSURE (MONEXP), CA-7 PAS0200 02:00 on the 1st | `monthlyExposureJob` + SFTP | same as above with `PAS_ACTUARIAL_SFTP_*`; PAS0200 held | AB-527 |
-| `document-events` | CICS TDQ/TSQ → MQ → FileNet | `pas.outbox` → Kafka `pas.policy.events.v1` / `pas.underwriting.events.v1` → FileNet bridge | `PAS_OUTBOX_RELAY_ENABLED=true`; `PAS_KAFKA_BOOTSTRAP_SERVERS`; **FileNet bridge and MQ retirement: pending AB-528 merge** | AB-525 / AB-528 |
+| `document-events` | CICS TDQ/TSQ → MQ → FileNet | `pas.outbox` → Kafka `pas.document.requests.v1` (`DocumentRequested`), `pas.policy.events.v1`, `pas.underwriting.events.v1` → `LegacyQueueBridge` consumer groups `pas-filenet-document-bridge`, `pas-uw-request-bridge`, `pas-uw-decision-bridge` → FileNet trigger / `ACME.PAS.UNDERWRITING.*` | `PAS_OUTBOX_RELAY_ENABLED=true`; `PAS_KAFKA_BOOTSTRAP_SERVERS`; `PAS_INTEGRATION_BRIDGES_ENABLED=true`; `PAS_INTEGRATION_TRANSPORT` (real MQ transport Pending: Document/FileNet team); `PAS_FILENET_QUEUE`. Failures → `<topic>.dlt` → `pas.dead_letters`; replay `POST /api/v1/admin/dead-letters/{id}/replay` (`batch:operate`). MQ retirement: [queue-decommission.md](../queue-decommission.md) | AB-525 / AB-528 |
 
 Also at the flip, for the DB2 sync jobs: `pause-sync` (step 5) and `PAS_MIGRATION_SCHEDULE_ENABLED=false`.
 Keep `PAS_MIGRATION_ENABLED=true` with the source credentials for the rollback window, because the
@@ -117,7 +117,7 @@ and exits 1 on any FAIL. Production settings: `PAS_POLICY_URL`, `PAS_SMOKE_TOKEN
 | `broker-read` | same policy with an `agent_code` token for the owning agent, then for another agent | 200, then 404 (never 403) |
 | `new-business` | `POST /api/v1/policies` with an `Idempotency-Key` for the smoke policyholder, then GET it | 201, policy readable |
 | `underwriting` | `POST /api/v1/policies/{new}/underwriting-decisions` | 201 with a decision code (503 = Claims adapter unavailable) |
-| `document-events` | `pas.outbox` rows for the new policy all have `published_at`; record keyed by the policy number on `pas.policy.events.v1` | published within 60 s. FileNet document created: **pending AB-528 merge** |
+| `document-events` | `pas.outbox` rows for the new policy all have `published_at`; record keyed by the policy number on `pas.policy.events.v1` | published within 60 s, including one `DocumentRequested` on `pas.document.requests.v1`; `GET /api/v1/admin/dead-letters?status=PARKED` is empty. FileNet document created: Pending: Document/FileNet team (the bridge builds the 125-byte POLICY-RECORD; real transport not wired) |
 | `premium-batch` | one-shot `--pas.batch.premium.cli.run=true --pas.batch.premium.cli.run-date=<date>`, then `pas_batch.premium_run_summary` | CLI exit 0; latest row `write_target = PAS`, `outcome = COMPLETED` |
 | `claims-extract` | one-shot `dailyExtractJob` with `businessDate=<date>` | exit 0; `policy_extract.dat`, `coverage_extract.dat` non-empty |
 | `actuarial-exposure` | one-shot `monthlyExposureJob` for the 1st of the month | exit 0; `exposure_monthly.csv` non-empty |

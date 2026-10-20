@@ -67,6 +67,34 @@ public record CallerEntitlements(String agentCode, String branchCode, Set<String
         || (branch != null && (branch.equals(branchCode) || book.contains("branch:" + branch)));
   }
 
+  /** True when the caller holds the whole book ({@code book:*}). */
+  public boolean wholeBook() {
+    return book.contains(WHOLE_BOOK);
+  }
+
+  /** Agent codes {@link #canAccess} grants: the caller's own plus {@code agent:<code>} entries. */
+  public Set<String> agentScope() {
+    return scope(agentCode, "agent:");
+  }
+
+  /**
+   * Branch codes {@link #canAccess} grants: the caller's own plus {@code branch:<code>} entries.
+   */
+  public Set<String> branchScope() {
+    return scope(branchCode, "branch:");
+  }
+
+  private Set<String> scope(String own, String prefix) {
+    Set<String> codes = new java.util.TreeSet<>();
+    if (own != null) {
+      codes.add(own);
+    }
+    book.stream()
+        .filter(e -> e.startsWith(prefix))
+        .forEach(e -> codes.add(e.substring(prefix.length())));
+    return Set.copyOf(codes);
+  }
+
   private static Collection<String> bookClaim(Object claim) {
     if (claim instanceof Collection<?> values) {
       return values.stream().filter(Objects::nonNull).map(Object::toString).toList();

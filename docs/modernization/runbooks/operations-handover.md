@@ -26,7 +26,7 @@ section points at the detailed runbook rather than repeating it.
 | Rotation | PAS Platform team. Rotation name and paging tool entry: **Pending: Ops** (ADR 0001 "TBD: rotation name") |
 | Escalation | PAS Platform tech lead → PAS Platform engineering manager → Business owner (data issues) |
 | Mainframe standby | Mainframe ops lead until decommission D-03 (rollback needs them) |
-| Other teams | Claims (claims adapter, Claims feed), Actuarial (exposure feed), Broker Portal, FileNet/ECM (pending AB-528 merge), Platform team (gateway, Kafka, PostgreSQL), Security (keys, IdP) |
+| Other teams | Claims (claims adapter, Claims feed), Actuarial (exposure feed), Broker Portal, FileNet/ECM (`pas-filenet-document-bridge`, transport Pending: Document/FileNet team), Underwriting (`ACME.PAS.UNDERWRITING.*` bridges), Platform team (gateway, Kafka, PostgreSQL), Security (keys, IdP) |
 | Severity | Enterprise Sev 0–3 rubric. Sev1 examples: policy writes failing, premium run FAILED with no restart before 06:00, Claims feed missing on a business day, data-integrity defect |
 
 ## 3. Dashboards and metrics

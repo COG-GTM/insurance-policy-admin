@@ -57,7 +57,7 @@ Smoke tests (`scripts/cutover/smoke-tests.sh`):
 
 ```text
 SMOKE inquiry PASS GET policy + coverages 200 (book:*), no token 401
-SMOKE broker-read PASS agent AG1001 -> 200, agent AG9999 -> 404 (entitlements; Broker Portal side pending AB-528 merge)
+SMOKE broker-read PASS agent AG1001 -> 200, agent AG9999 -> 404 (entitlements; recorded before AB-528 merged — smoke now also checks the book listing)
 SMOKE new-business PASS POST /api/v1/policies 201 -> POL001000000, readable by AG1001
 SMOKE underwriting PASS POST underwriting-decisions 201 -> AP for POL001000000
 SMOKE renewal PASS POST /api/v1/policies/POL-00000001/renewals 201 -> expiry 2027-01-01
@@ -65,7 +65,7 @@ SMOKE endorsement PASS POST /api/v1/policies/POL-00000001/endorsements 201 (ACH)
 SMOKE premium-batch PASS premiumRecalculationJob 2026-10-20: PAS COMPLETED read=3 updated=3
 SMOKE claims-extract PASS dailyExtractJob 2026-10-20 COMPLETED: policy_extract.dat coverage_extract.dat
 SMOKE actuarial-exposure PASS monthlyExposureJob 2026-10-01 COMPLETED: exposure_monthly.csv
-SMOKE document-events PASS outbox 2/2 published for POL001000000; PolicyCreated on pas.policy.events.v1 (FileNet bridge pending AB-528 merge)
+SMOKE document-events PASS outbox 2/2 published for POL001000000; PolicyCreated on pas.policy.events.v1 (recorded before AB-528 merged — smoke now also checks DocumentRequested)
 ```
 
 Notes:

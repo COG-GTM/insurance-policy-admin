@@ -100,8 +100,17 @@ class NewBusinessApiIT {
 
     Map<String, Object> event =
         jdbc.queryForMap(
-            "SELECT topic, message_key, event_type, payload FROM pas.outbox WHERE message_key = ?",
+            "SELECT topic, message_key, event_type, payload FROM pas.outbox"
+                + " WHERE message_key = ? AND event_type = 'PolicyCreated'",
             number);
+    // AB-528: the same transaction also requests the new-business document.
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT topic FROM pas.outbox WHERE message_key = ? AND event_type = ?",
+                String.class,
+                number,
+                "DocumentRequested"))
+        .isEqualTo("pas.document.requests.v1");
     assertThat(event)
         .containsEntry("topic", "pas.policy.events.v1")
         .containsEntry("event_type", "PolicyCreated");

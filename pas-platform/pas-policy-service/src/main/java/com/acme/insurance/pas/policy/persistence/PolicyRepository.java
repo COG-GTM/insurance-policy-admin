@@ -2,6 +2,8 @@ package com.acme.insurance.pas.policy.persistence;
 
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -21,6 +23,37 @@ public interface PolicyRepository extends JpaRepository<PolicyEntity, String> {
               + " WHERE branch_code = CAST(:branch AS bpchar) AND policy_status = 'AC'",
       nativeQuery = true)
   BigDecimal sumActiveCoverageLimitByBranch(@Param("branch") String branchCode);
+
+  /**
+   * Broker Portal book listing (AB-528): policies of an agent and/or branch, optionally by status,
+   * in policy-number order. Null filters are ignored. Codes are compared trimmed and upper-case,
+   * like {@code CallerEntitlements}. The caller's entitlements are applied before {@code LIMIT}/
+   * {@code OFFSET} so pages index only visible policies: {@code wholeBook}, or the agent code is in
+   * {@code entitledAgents}, or the branch code is in {@code entitledBranches} (neither list may be
+   * empty; pad with a value that matches no code).
+   */
+  @Query(
+      value =
+          "SELECT * FROM pas.policies"
+              + " WHERE (CAST(:agent AS varchar) IS NULL"
+              + " OR UPPER(TRIM(agent_code)) = CAST(:agent AS varchar))"
+              + " AND (CAST(:branch AS varchar) IS NULL"
+              + " OR UPPER(TRIM(branch_code)) = CAST(:branch AS varchar))"
+              + " AND (CAST(:status AS varchar) IS NULL OR policy_status = CAST(:status AS bpchar))"
+              + " AND (:wholeBook"
+              + " OR UPPER(TRIM(agent_code)) IN (:entitledAgents)"
+              + " OR UPPER(TRIM(branch_code)) IN (:entitledBranches))"
+              + " ORDER BY policy_number LIMIT :limit OFFSET :offset",
+      nativeQuery = true)
+  List<PolicyEntity> findBook(
+      @Param("agent") String agentCode,
+      @Param("branch") String branchCode,
+      @Param("status") String status,
+      @Param("wholeBook") boolean wholeBook,
+      @Param("entitledAgents") Collection<String> entitledAgents,
+      @Param("entitledBranches") Collection<String> entitledBranches,
+      @Param("limit") int limit,
+      @Param("offset") long offset);
 
   /**
    * Reads the policy with a row lock ({@code SELECT ... FOR UPDATE}), the equivalent of POLEND's

@@ -115,7 +115,7 @@ paused=$(q "SELECT paused FROM pas.migration_sync_control WHERE sync_name = 'DB2
 [ "$paused" = t ] && step "4. pause DB2 -> pas sync (pas is system of record)" PASS "migration_sync_control.paused = true" \
   || step "4. pause DB2 -> pas sync (pas is system of record)" FAIL "paused=$paused"
 
-# 5. Route flags -> new for every merged capability (pending AB-528 ones stay legacy).
+# 5. Route flags -> new for every merged capability (any still pendingMerge stays legacy).
 if "${ROUTE_FLAGS[@]}" set --file "$FLAGS" --all-merged new >/dev/null; then
   live=$(python3 -c "import json,sys; c=json.load(open(sys.argv[1]))['capabilities']; print(' '.join(n for n,v in c.items() if v['state']=='new'))" "$FLAGS")
   step "5. route flags -> new" PASS "new: $live"

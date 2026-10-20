@@ -4,7 +4,7 @@
 #   scripts/cutover/smoke-tests.sh [capability ...]     (default: every capability)
 #
 # Prints one "SMOKE <capability> PASS|FAIL|PENDING|SKIP <evidence>" line per capability and exits 1
-# if any is FAIL. PENDING = the capability's code has not merged (AB-528); SKIP = a hook
+# if any is FAIL. PENDING = the capability's code has not merged (pendingMerge in route-flags.json); SKIP = a hook
 # below is not configured for this environment. Neither counts as a pass at go/no-go.
 #
 # Environment (local defaults target `make dev` / the cutover rehearsal):
@@ -75,10 +75,12 @@ smoke_broker_read() {
   local own other
   own=$(http GET "/api/v1/policies/$POLICY" "$(token "policy:read" "\"agent_code\":\"$AGENT\"")")
   other=$(http GET "/api/v1/policies/$POLICY" "$(token "policy:read" "\"agent_code\":\"$OTHER_AGENT\"")")
-  if [ "$own" = 200 ] && [ "$other" = 404 ]; then
-    result broker-read PASS "agent $AGENT -> 200, agent $OTHER_AGENT -> 404 (entitlements; Broker Portal side pending AB-528 merge)"
+  local book
+  book=$(http GET "/api/v1/policies?agentCode=$AGENT" "$(token "policy:read" "\"agent_code\":\"$AGENT\"")")
+  if [ "$own" = 200 ] && [ "$other" = 404 ] && [ "$book" = 200 ]; then
+    result broker-read PASS "agent $AGENT -> 200, agent $OTHER_AGENT -> 404, book listing ?agentCode=$AGENT -> 200 (broker-portal-migration.md PQ-01..PQ-06; portal switch Pending: Broker Portal team)"
   else
-    result broker-read FAIL "agent $AGENT -> $own (want 200), agent $OTHER_AGENT -> $other (want 404)"
+    result broker-read FAIL "agent $AGENT -> $own (want 200), agent $OTHER_AGENT -> $other (want 404), book -> $book (want 200)"
   fi
 }
 
@@ -128,7 +130,10 @@ smoke_document_events() {
   if [ -z "$total" ] || [ "$total" = 0 ] || [ "$published" != "$total" ]; then
     result document-events FAIL "outbox rows for $number published $counts after 60s"; return
   fi
-  local evidence="outbox $counts published for $number"
+  local evidence="outbox $counts published for $number" docs
+  docs=$(sql "SELECT COUNT(*) FROM pas.outbox WHERE message_key = '$number' AND topic = 'pas.document.requests.v1' AND event_type = 'DocumentRequested'" | tr -d '[:space:]')
+  [ "$docs" = 1 ] || { result document-events FAIL "$evidence but $docs DocumentRequested rows (want 1)"; return; }
+  evidence="$evidence; DocumentRequested on pas.document.requests.v1"
   if [ -n "${PAS_SMOKE_KAFKA_CMD:-}" ]; then
     if $PAS_SMOKE_KAFKA_CMD pas.policy.events.v1 2>/dev/null | grep -q "^$number"; then
       evidence="$evidence; PolicyCreated on pas.policy.events.v1"
@@ -136,7 +141,7 @@ smoke_document_events() {
       result document-events FAIL "$evidence but no record keyed $number on pas.policy.events.v1"; return
     fi
   fi
-  result document-events PASS "$evidence (FileNet bridge pending AB-528 merge)"
+  result document-events PASS "$evidence (bridges: PAS_INTEGRATION_BRIDGES_ENABLED; FileNet MQ transport Pending: Document/FileNet team)"
 }
 
 batch() {

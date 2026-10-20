@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.acme-insurance.example/pas/events/v1/DocumentRequested.schema.json",
+  "title": "DocumentRequested v1",
+  "description": "Ask the FileNet bridge to produce the document for policyNumber at policyVersion (AB-528).",
+  "x-topic": "pas.document.requests.v1",
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "const": "DocumentRequested"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "policyNumber": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12
+    },
+    "policyVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "documentTrigger": {
+          "type": "string",
+          "enum": [
+            "NEW_BUSINESS",
+            "RENEWAL",
+            "ENDORSEMENT"
+          ]
+        },
+        "sourceTransaction": {
+          "type": "string",
+          "enum": [
+            "POLNEW",
+            "POLRNW",
+            "POLEND"
+          ]
+        },
+        "triggeringEventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "triggeringEventType": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "documentTrigger",
+        "sourceTransaction",
+        "triggeringEventId",
+        "triggeringEventType"
+      ]
+    }
+  },
+  "required": [
+    "eventId",
+    "eventType",
+    "schemaVersion",
+    "occurredAt",
+    "policyNumber",
+    "policyVersion",
+    "correlationId",
+    "data"
+  ]
+}

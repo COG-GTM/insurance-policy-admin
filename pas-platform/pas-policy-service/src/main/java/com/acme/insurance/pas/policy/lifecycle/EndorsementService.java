@@ -1,9 +1,7 @@
 package com.acme.insurance.pas.policy.lifecycle;
 
 import com.acme.insurance.pas.policy.api.InvalidRequestException;
-import com.acme.insurance.pas.policy.events.OutboxWriter;
-import com.acme.insurance.pas.policy.events.PasEventProperties;
-import com.acme.insurance.pas.policy.events.PasEventTypes;
+import com.acme.insurance.pas.policy.events.PolicyEventPublisher;
 import com.acme.insurance.pas.policy.persistence.EndorsementEntity;
 import com.acme.insurance.pas.policy.persistence.EndorsementId;
 import com.acme.insurance.pas.policy.persistence.EndorsementRepository;
@@ -11,7 +9,6 @@ import com.acme.insurance.pas.policy.persistence.PolicyEntity;
 import com.acme.insurance.pas.policy.persistence.PolicyRepository;
 import com.acme.insurance.pas.policy.security.CallerEntitlements;
 import com.acme.insurance.pas.policy.support.BusinessCalendar;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -30,9 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
  * carried on and confirmed after a failed insert).
  */
 @Service
-@SuppressFBWarnings(
-    value = "EI_EXPOSE_REP2",
-    justification = "Spring-managed singleton collaborators are shared by design")
 public class EndorsementService {
 
   public static final String PROGRAM = "POLEND";
@@ -48,22 +42,19 @@ public class EndorsementService {
   private final PolicyRepository policies;
   private final EndorsementRepository endorsements;
   private final PolicyAuditWriter audit;
-  private final OutboxWriter outbox;
-  private final PasEventProperties topics;
+  private final PolicyEventPublisher events;
   private final BusinessCalendar calendar;
 
   public EndorsementService(
       PolicyRepository policies,
       EndorsementRepository endorsements,
       PolicyAuditWriter audit,
-      OutboxWriter outbox,
-      PasEventProperties topics,
+      PolicyEventPublisher events,
       BusinessCalendar calendar) {
     this.policies = policies;
     this.endorsements = endorsements;
     this.audit = audit;
-    this.outbox = outbox;
-    this.topics = topics;
+    this.events = events;
     this.calendar = calendar;
   }
 
@@ -134,8 +125,7 @@ public class EndorsementService {
         actor,
         correlationId,
         Map.of("change", data));
-    outbox.append(
-        topics.policyTopic(), PasEventTypes.POLICY_ENDORSED, number, version, correlationId, data);
+    events.policyEndorsed(saved, data, correlationId);
     return Optional.of(
         new EndorsementView(
             number,

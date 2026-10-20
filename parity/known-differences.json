@@ -410,6 +410,46 @@
     "rationale": "Fix (Proposed rule, pending PO sign-off): each default coverage takes the policy limit"
   },
   {
+    "program": "polrnw-msg",
+    "case_id": "POLRNW-LEAP",
+    "field": "msg_hex",
+    "cobol": "504F4C524E572D4C45415020415554414332303234303232393230323530323239202020202020202020202020202020202020202000000105000C000000000C0000000000000C3030303030303030303031504E3030302020303030303030303020202020202020202020202020202020202020202020202020202020",
+    "java": "504F4C524E572D4C45415020415554414332303234303232393230323530323238202020202020202020202020202020202020202000000105000C000000000C0000000000000C3030303030303030303031504E3030302020303030303030303020202020202020202020202020202020202020202020202020202020",
+    "quirk": "Q-01 POLRNW expiry = YYYYMMDD + 10000 renews 20240229 to 20250229",
+    "decision": "docs/modernization/quirk-register.md#q-01",
+    "rationale": "Fix (Proposed, pending PO sign-off; AB-526): the renewal uses LocalDate.plusYears(1), so the renewed POLICY-RECORD message carries expiry 20250228 instead of the invalid 20250229."
+  },
+  {
+    "program": "polrnw-msg",
+    "case_id": "POLRNW-UPD911",
+    "field": "msg_hex",
+    "cobol": "504F4C524E572D5550443931415554414332303235303633303230323630363330202020202020202020202020202020202020202000000105000C000000000C0000000000000C3030303030303030303031504E3030302020303030303030303020202020202020202020202020202020202020202020202020202020",
+    "java": "",
+    "quirk": "Q-09 POLRNW failed UPDATE still confirms",
+    "decision": "docs/modernization/quirk-register.md#q-09",
+    "rationale": "Fix (Proposed, pending PO sign-off; AB-526): the Java renewal is one transaction, so a failed update commits nothing and no PolicyRenewed/DocumentRequested event (hence no message) is published."
+  },
+  {
+    "program": "polend-msg",
+    "case_id": "POLEND-INSF",
+    "field": "msg_hex",
+    "cobol": "504F4C454E442D494E534620202020414332303235303130313230323630313031202020202020202020202020202020202020202000000100000C000000000C0000000000000C303030303030303030303020203030302020303030303030303020202020202020202020202020202020202020202020202020202020",
+    "java": "",
+    "quirk": "Q-14 POLEND continues after a failed ENDORSEMENTS INSERT",
+    "decision": "docs/modernization/quirk-register.md#q-14",
+    "rationale": "Fix (Proposed, pending PO sign-off; AB-526): the Java endorsement is atomic, so a failed insert commits nothing and no ENDORSEMENT-AUDIT equivalent (PolicyEndorsed/DocumentRequested) is published."
+  },
+  {
+    "program": "polend-msg",
+    "case_id": "POLEND-INVDT",
+    "field": "msg_hex",
+    "cobol": "504F4C454E442D494E564454202020414332303234303330313230323530323239202020202020202020202020202020202020202000000100000C000000000C0000000000000C303030303030303030303020203030302020303030303030303020202020202020202020202020202020202020202020202020202020",
+    "java": "",
+    "quirk": "Q-01 invalid expiry 20250229 produced by the POLRNW leap-year defect",
+    "decision": "docs/modernization/quirk-register.md#q-01",
+    "rationale": "A PostgreSQL DATE cannot hold 20250229 and the Q-01 fix stops the Java renewal producing it, so no Java policy version has this expiry and no message is built."
+  },
+  {
     "program": "polrnw",
     "case_id": "POLRNW-LEAP",
     "field": "policy_expiry_date",

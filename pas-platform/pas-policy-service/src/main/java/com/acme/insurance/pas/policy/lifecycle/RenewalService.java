@@ -1,16 +1,13 @@
 package com.acme.insurance.pas.policy.lifecycle;
 
 import com.acme.insurance.pas.policy.claims.ClaimsHistoryPort;
-import com.acme.insurance.pas.policy.events.OutboxWriter;
-import com.acme.insurance.pas.policy.events.PasEventProperties;
-import com.acme.insurance.pas.policy.events.PasEventTypes;
+import com.acme.insurance.pas.policy.events.PolicyEventPublisher;
 import com.acme.insurance.pas.policy.persistence.CoverageEntity;
 import com.acme.insurance.pas.policy.persistence.CoverageRepository;
 import com.acme.insurance.pas.policy.persistence.PolicyEntity;
 import com.acme.insurance.pas.policy.persistence.PolicyRepository;
 import com.acme.insurance.pas.policy.security.CallerEntitlements;
 import com.acme.insurance.pas.policy.support.BusinessCalendar;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.LocalDate;
@@ -27,9 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
  * (quirk register Q-09 fix: POLRNW sent an error and a confirmation after a failed update).
  */
 @Service
-@SuppressFBWarnings(
-    value = "EI_EXPOSE_REP2",
-    justification = "Spring-managed singleton collaborators are shared by design")
 public class RenewalService {
 
   public static final String PROGRAM = "POLRNW";
@@ -47,8 +41,7 @@ public class RenewalService {
   private final RenewalProperties properties;
   private final RenewalRateCapPolicy rateCap;
   private final PolicyAuditWriter audit;
-  private final OutboxWriter outbox;
-  private final PasEventProperties topics;
+  private final PolicyEventPublisher events;
   private final BusinessCalendar calendar;
 
   public RenewalService(
@@ -58,8 +51,7 @@ public class RenewalService {
       RenewalProperties properties,
       RenewalRateCapPolicy rateCap,
       PolicyAuditWriter audit,
-      OutboxWriter outbox,
-      PasEventProperties topics,
+      PolicyEventPublisher events,
       BusinessCalendar calendar) {
     this.policies = policies;
     this.coverages = coverages;
@@ -67,8 +59,7 @@ public class RenewalService {
     this.properties = properties;
     this.rateCap = rateCap;
     this.audit = audit;
-    this.outbox = outbox;
-    this.topics = topics;
+    this.events = events;
     this.calendar = calendar;
   }
 
@@ -158,8 +149,7 @@ public class RenewalService {
         actor,
         correlationId,
         Map.of("coveragesRedated", active.size(), "change", data));
-    outbox.append(
-        topics.policyTopic(), PasEventTypes.POLICY_RENEWED, number, version, correlationId, data);
+    events.policyRenewed(saved, data, correlationId);
     return Optional.of(
         new RenewalView(
             number,

@@ -389,6 +389,8 @@ Mainframe team.
 ### Proposed: Event schema registry / contract checks
 - **Context:** event payloads are documented in `events.md` and asserted in `EventsEndToEndIT`;
   ADR 0001 D4 asks for versioned contracts with CI backward-compatibility checks (AB-528).
+  AB-528 added committed JSON Schemas with `EventSchemaCompatibilityTest`/`EventSchemaContractTest`
+  (see `events.md`); a runtime schema registry is still open.
 - **Proposed owner:** PAS platform (AB-528).
 
 ## AB-526 (renewal and endorsement APIs)
@@ -465,3 +467,33 @@ Pending human action (recorded here, not done in this session):
   closes, because rollback re-entry uses them.
 - **Proposed owner:** PAS platform.
 ||||||| 77ecad5
+
+### Proposed: FileNet consumes `pas.document.requests.v1` directly (retire the bridge)
+- **Context:** AB-528 bridges `DocumentRequested` to a 125-byte MQ message behind
+  `LegacyQueueTransport`; the real queue name, MQ/JMS transport and MQMD conventions are unknown
+  (M-04). Provide the queue/transport for the transitional bridge, then move FileNet onto the
+  Kafka topic (or a document API) so the bridge and MQ can retire.
+- **Proposed owner:** Document/FileNet (ECM) team + PAS platform.
+
+### Proposed: Underwriting queue consumers move to Kafka
+- **Context:** `uw-request-bridge` / `uw-decision-bridge` reproduce
+  `ACME.PAS.UNDERWRITING.REQUEST`/`DECISION`; the consumers are unknown (OQ-12). Identify them,
+  confirm the bridge output, then consume `pas.policy.events.v1` / `pas.underwriting.events.v1`.
+- **Proposed owner:** Underwriting team.
+
+### Proposed: Broker Portal confirms its query list and switches to the API
+- **Context:** `broker-portal-migration.md` maps six inferred linked-server queries (PQ-01..PQ-06)
+  to the inquiry API; the real list is unknown (M-08, OQ-14). Confirm or extend it, register the
+  portal's OIDC client and `book` claims, switch per query, then drop the linked server.
+- **Proposed owner:** Broker Portal team + Security.
+
+### Proposed: Retention for `pas.policy_versions`, `pas.processed_events`, `pas.dead_letters`
+- **Context:** AB-528 tables grow with every policy change/event. Agree retention (e.g. keep
+  snapshots while referenced by unprocessed events; processed-event keys longer than the Kafka
+  retention) and add a purge job together with the outbox purge above.
+- **Proposed owner:** PAS platform + data governance.
+
+### Proposed: Alerting on parked dead letters
+- **Context:** `pas.dead_letters` rows in status `PARKED` need an alarm and a runbook owner.
+  Add a gauge (count of `PARKED`) and an alert rule in the platform monitoring stack.
+- **Proposed owner:** PAS platform (on-call).

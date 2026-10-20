@@ -135,7 +135,8 @@ class RenewalEndorsementApiIT {
   private JsonNode lastEvent(String number) throws Exception {
     return mapper.readTree(
         jdbc.queryForObject(
-            "SELECT payload FROM pas.outbox WHERE message_key = ? ORDER BY outbox_id DESC LIMIT 1",
+            "SELECT payload FROM pas.outbox WHERE message_key = ? AND topic = 'pas.policy.events.v1'"
+                + " ORDER BY outbox_id DESC LIMIT 1",
             String.class,
             number));
   }
@@ -186,7 +187,9 @@ class RenewalEndorsementApiIT {
     assertThat(event.at("/data/expiryDate").asText()).isEqualTo("2025-02-28");
     assertThat(
             jdbc.queryForObject(
-                "SELECT topic FROM pas.outbox WHERE message_key = ?", String.class, n))
+                "SELECT topic FROM pas.outbox WHERE message_key = ? AND event_type = 'PolicyRenewed'",
+                String.class,
+                n))
         .isEqualTo("pas.policy.events.v1");
     Map<String, Object> audit =
         jdbc.queryForMap(
@@ -441,7 +444,7 @@ class RenewalEndorsementApiIT {
     assertThat(
             jdbc.queryForList(
                 "SELECT (payload::jsonb->>'policyVersion')::bigint FROM pas.outbox"
-                    + " WHERE message_key = ? ORDER BY outbox_id",
+                    + " WHERE message_key = ? AND topic = 'pas.policy.events.v1' ORDER BY outbox_id",
                 Long.class,
                 n))
         .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L);

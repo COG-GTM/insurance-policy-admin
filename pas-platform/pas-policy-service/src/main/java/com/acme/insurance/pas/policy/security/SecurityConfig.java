@@ -72,6 +72,8 @@ public class SecurityConfig {
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_WRITE))
                     .requestMatchers(HttpMethod.POST, UNDERWRITING_WRITES)
                     .hasAuthority(PasScopes.authority(PasScopes.UNDERWRITING_DECIDE))
+                    .requestMatchers("/api/v1/admin/**")
+                    .hasAuthority(PasScopes.authority(PasScopes.BATCH_OPERATE))
                     .requestMatchers("/api/v1/policies/**")
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_READ))
                     .anyRequest()

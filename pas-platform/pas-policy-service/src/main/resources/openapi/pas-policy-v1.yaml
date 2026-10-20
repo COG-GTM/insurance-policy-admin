@@ -11,6 +11,8 @@ tags:
   name: New business
 - description: Read-only policy inquiry (replaces POLQRY)
   name: Policy inquiry
+- description: Dead-letter replay (AB-528)
+  name: Integration operations
 - description: Mid-term endorsements (replaces POLEND)
   name: Endorsements
 - description: Underwriting decisions (replaces UNDWRT)
@@ -18,7 +20,176 @@ tags:
 - description: Policy renewal (replaces POLRNW)
   name: Renewals
 paths:
+  /api/v1/admin/dead-letters:
+    get:
+      description: "Keyset paging in dead-letter id order: pass the last id of the\
+        \ previous page as afterId. limit defaults to 200 and is capped at 500."
+      operationId: deadLetters
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: afterId
+        required: false
+        schema:
+          type: integer
+          format: int64
+          default: 0
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 200
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeadLetterView"
+          description: OK
+      summary: List dead letters (optionally by status PARKED or REPLAYED)
+      tags:
+      - Integration operations
+  /api/v1/admin/dead-letters/{id}:
+    get:
+      operationId: deadLetter
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DeadLetterView"
+          description: OK
+      summary: "One dead letter, including the original record value"
+      tags:
+      - Integration operations
+  /api/v1/admin/dead-letters/{id}/replay:
+    post:
+      operationId: replay
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DeadLetterView"
+          description: OK
+      summary: Republish a dead letter to its original topic (consumers are idempotent)
+      tags:
+      - Integration operations
+  /api/v1/admin/legacy-messages:
+    get:
+      operationId: legacyMessages
+      parameters:
+      - in: query
+        name: policyNumber
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LegacyQueueMessage"
+          description: OK
+      summary: Messages captured by the in-memory legacy queue transport (test environments)
+      tags:
+      - Integration operations
   /api/v1/policies:
+    get:
+      description: "Policies of an agent and/or branch, optionally by status, in policy-number\
+        \ order. At least one of agentCode or branchCode is required. Policies the\
+        \ caller is not entitled to are omitted."
+      operationId: listPolicies
+      parameters:
+      - example: AG1001
+        in: query
+        name: agentCode
+        required: false
+        schema:
+          type: string
+      - example: CHI1
+        in: query
+        name: branchCode
+        required: false
+        schema:
+          type: string
+      - example: AC
+        in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyView"
+          description: Policies the caller may see
+        "400":
+          description: "Neither agentCode nor branchCode given, or bad paging"
+        "401":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyView"
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyView"
+          description: Token lacks scope policy:read
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: List policies in a book (Broker Portal)
+      tags:
+      - Policy inquiry
     post:
       description: "Validates like POLNEW (422 with the COBOL message, last failing\
         \ check wins), assigns a POL + 9-digit policy number, writes default coverages\
@@ -258,6 +429,49 @@ paths:
       - bearer-jwt:
         - policy:read
       summary: Get the policyholder
+      tags:
+      - Policy inquiry
+  /api/v1/policies/{policyNumber}/premiums:
+    get:
+      operationId: getPremiums
+      parameters:
+      - example: POL-00000001
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PremiumView"
+          description: "Premiums, newest term first"
+        "401":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PremiumView"
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PremiumView"
+          description: Token lacks scope policy:read
+        "404":
+          description: Not found or not entitled
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: List a policy's premium history
       tags:
       - Policy inquiry
   /api/v1/policies/{policyNumber}/renewals:
@@ -568,6 +782,43 @@ components:
             $ref: "#/components/schemas/CoverageView"
         policy:
           $ref: "#/components/schemas/PolicyView"
+    DeadLetterView:
+      type: object
+      properties:
+        consumerGroup:
+          type: string
+        deadLetterId:
+          type: integer
+          format: int64
+        dltTopic:
+          type: string
+        errorClass:
+          type: string
+        errorMessage:
+          type: string
+        eventId:
+          type: string
+        eventType:
+          type: string
+        messageKey:
+          type: string
+        originalTopic:
+          type: string
+        payload:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+        replayCount:
+          type: integer
+          format: int32
+        replayedAt:
+          type: string
+          format: date-time
+        replayedBy:
+          type: string
+        status:
+          type: string
     EndorsementRequest:
       type: object
       properties:
@@ -604,6 +855,34 @@ components:
           type: number
         totalPremium:
           type: number
+    LegacyQueueMessage:
+      type: object
+      properties:
+        consumer:
+          type: string
+        correlationId:
+          type: string
+        eventId:
+          type: string
+        eventType:
+          type: string
+        length:
+          type: integer
+          format: int32
+        payloadHex:
+          type: string
+        policyNumber:
+          type: string
+        policyVersion:
+          type: integer
+          format: int64
+        queue:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        sourceTransaction:
+          type: string
     OverrideRequest:
       type: object
       properties:
@@ -714,6 +993,27 @@ components:
           type: string
         webIndicator:
           type: string
+    PremiumView:
+      type: object
+      properties:
+        calcDate:
+          type: string
+          format: date
+        coverageSeq:
+          type: integer
+          format: int32
+        installmentAmt:
+          type: number
+        installmentCode:
+          type: string
+        termEffectiveDate:
+          type: string
+          format: date
+        termExpiryDate:
+          type: string
+          format: date
+        totalPremium:
+          type: number
     RenewalView:
       type: object
       properties:

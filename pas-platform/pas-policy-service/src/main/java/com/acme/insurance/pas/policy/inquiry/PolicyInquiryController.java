@@ -16,6 +16,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -34,6 +35,50 @@ public class PolicyInquiryController {
 
   public PolicyInquiryController(PolicyInquiryService service) {
     this.service = service;
+  }
+
+  static final int MAX_PAGE_SIZE = 200;
+
+  @GetMapping
+  @Operation(
+      operationId = "listPolicies",
+      summary = "List policies in a book (Broker Portal)",
+      description =
+          "Policies of an agent and/or branch, optionally by status, in policy-number order. At"
+              + " least one of agentCode or branchCode is required. Policies the caller is not"
+              + " entitled to are omitted.")
+  @ApiResponse(responseCode = "200", description = "Policies the caller may see")
+  @ApiResponse(
+      responseCode = "400",
+      description = "Neither agentCode nor branchCode given, or bad paging",
+      content = @Content(schema = @io.swagger.v3.oas.annotations.media.Schema(hidden = true)))
+  public ResponseEntity<List<PolicyView>> listPolicies(
+      @Parameter(example = "AG1001") @RequestParam(required = false) String agentCode,
+      @Parameter(example = "CHI1") @RequestParam(required = false) String branchCode,
+      @Parameter(example = "AC") @RequestParam(required = false) String status,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "50") int size,
+      @AuthenticationPrincipal Jwt jwt) {
+    boolean noFilter =
+        (agentCode == null || agentCode.isBlank()) && (branchCode == null || branchCode.isBlank());
+    if (noFilter || page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+      return ResponseEntity.badRequest().build();
+    }
+    return ResponseEntity.ok(
+        service.book(agentCode, branchCode, status, page, size, CallerEntitlements.fromJwt(jwt)));
+  }
+
+  @GetMapping("/{policyNumber}/premiums")
+  @Operation(operationId = "getPremiums", summary = "List a policy's premium history")
+  @ApiResponse(responseCode = "200", description = "Premiums, newest term first")
+  @ApiResponse(
+      responseCode = "404",
+      description = "Not found or not entitled",
+      content = @Content(schema = @io.swagger.v3.oas.annotations.media.Schema(hidden = true)))
+  public ResponseEntity<List<PremiumView>> getPremiums(
+      @Parameter(example = "POL-00000001") @PathVariable String policyNumber,
+      @AuthenticationPrincipal Jwt jwt) {
+    return ResponseEntity.of(service.premiums(policyNumber, CallerEntitlements.fromJwt(jwt)));
   }
 
   @GetMapping("/{policyNumber}")

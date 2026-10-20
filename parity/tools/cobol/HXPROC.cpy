@@ -86,3 +86,25 @@
        HX-EMIT.
            DISPLAY FUNCTION TRIM(HX-OUT)
            .
+
+       HX-APPEND-HEX.
+           MOVE SPACES TO HX-HEX-OUT
+           PERFORM VARYING HX-HEX-I FROM 1 BY 1
+                   UNTIL HX-HEX-I > HX-REC-LEN
+               COMPUTE HX-HEX-B = FUNCTION ORD(HX-REC(HX-HEX-I:1)) - 1
+               DIVIDE HX-HEX-B BY 16 GIVING HX-HEX-HI
+                   REMAINDER HX-HEX-LO
+               MOVE HX-HEX-DIGITS(HX-HEX-HI + 1:1)
+                   TO HX-HEX-OUT(HX-HEX-I * 2 - 1:1)
+               MOVE HX-HEX-DIGITS(HX-HEX-LO + 1:1)
+                   TO HX-HEX-OUT(HX-HEX-I * 2:1)
+           END-PERFORM
+           IF HX-REC-LEN = 0
+               STRING '|' DELIMITED BY SIZE
+                   INTO HX-OUT WITH POINTER HX-PTR
+           ELSE
+               STRING '|' DELIMITED BY SIZE
+                      HX-HEX-OUT(1:HX-REC-LEN * 2) DELIMITED BY SIZE
+                   INTO HX-OUT WITH POINTER HX-PTR
+           END-IF
+           .

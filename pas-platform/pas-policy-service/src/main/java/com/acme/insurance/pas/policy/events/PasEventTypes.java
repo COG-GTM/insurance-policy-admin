@@ -16,5 +16,8 @@ public final class PasEventTypes {
   public static final String POLICY_RENEWED = "PolicyRenewed";
   public static final String POLICY_ENDORSED = "PolicyEndorsed";
 
+  /** FileNet document trigger on {@code pas.document.requests.v1} (AB-528). */
+  public static final String DOCUMENT_REQUESTED = "DocumentRequested";
+
   private PasEventTypes() {}
 }
