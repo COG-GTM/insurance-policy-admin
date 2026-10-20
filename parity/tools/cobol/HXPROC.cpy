@@ -16,6 +16,7 @@
        HX-BEGIN.
            MOVE SPACES TO HX-OUT
            MOVE SPACES TO HX-SCREENS
+           MOVE SPACES TO HX-ITEMS
            MOVE 1 TO HX-PTR
            STRING 'PARITY|' DELIMITED BY SIZE
                   FUNCTION TRIM(HX-CASE-ID) DELIMITED BY SIZE
@@ -67,6 +68,19 @@
                    DELIMITED BY SIZE INTO HX-WORK
            END-IF
            MOVE HX-WORK TO HX-SCREENS
+           .
+
+       HX-APPEND-ITEM.
+           MOVE SPACES TO HX-WORK
+           IF HX-ITEMS = SPACES
+               STRING FUNCTION TRIM(HX-ITEM)
+                   DELIMITED BY SIZE INTO HX-WORK
+           ELSE
+               STRING FUNCTION TRIM(HX-ITEMS) ';'
+                      FUNCTION TRIM(HX-ITEM)
+                   DELIMITED BY SIZE INTO HX-WORK
+           END-IF
+           MOVE HX-WORK TO HX-ITEMS
            .
 
        HX-EMIT.

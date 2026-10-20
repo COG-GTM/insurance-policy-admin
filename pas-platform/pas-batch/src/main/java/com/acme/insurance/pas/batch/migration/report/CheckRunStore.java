@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** Persists check summaries to {@code pas.migration_check_runs} (Flyway V6). */
+/** Persists check summaries to {@code pas.migration_check_runs} (Flyway V7). */
 @SuppressFBWarnings(
     value = "EI_EXPOSE_REP2",
     justification = "shares Spring-managed collaborators (JDBC, services) by design")

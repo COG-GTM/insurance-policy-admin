@@ -31,7 +31,7 @@ is reachable.
   or Debezium Db2) recommended for production**, pending the mainframe team. A pause switch
   (`pas.migration_sync_control`) supports rollback.
 - Reconciliation and parallel-run diff with one triage register; results in files, `pas.migration_check_runs`,
-  `/actuator/migration` and Prometheus gauges. Flyway V6 in `pas-policy-service` owns the new tables
+  `/actuator/migration` and Prometheus gauges. Flyway V7 in `pas-policy-service` owns the new tables
   and `pas_shadow.premiums` (no FKs, `shadow_run_id`, `cdc_position`).
 
 ## Alternatives considered

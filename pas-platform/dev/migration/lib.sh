@@ -43,7 +43,7 @@ ensure_env() {
 
 stack_up() {
   "$PAS_DIR/dev/dev-jwt.sh" keygen >/dev/null
-  # pas-policy-service applies the pas Flyway migrations (V1..V6) on start.
+  # pas-policy-service applies the pas Flyway migrations (V1..V7) on start.
   "${COMPOSE[@]}" up -d --wait --wait-timeout 300 postgres pas-policy-service
 }
 

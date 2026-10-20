@@ -56,6 +56,12 @@ POLICY_SEQ at cutover (proposed follow-up below).
 Re-runs are safe: every write is `INSERT … ON CONFLICT (pk) DO UPDATE`, so the load converges on DB2.
 A failed load restarts from the last committed chunk (Spring Batch metadata in `pas_batch`).
 
+`pas.policies.version` (AB-525, Flyway V6) is not a DB2 column. Bulk load inserts it as 0 (the column
+default) and a sync update bumps it only when a mapped column actually changed, so re-runs leave it
+alone and a JPA writer holding an older version gets an optimistic-lock failure instead of
+overwriting a synced change. The migration writes through plain JDBC and never touches `pas.outbox`,
+so bulk load and delta sync publish no events. The tables for this ticket are in Flyway V7.
+
 ## Ongoing sync: timestamp deltas now, CDC recommended
 
 | Table | Change column | Delta strategy |

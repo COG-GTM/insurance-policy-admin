@@ -2,11 +2,15 @@
       * HXWS.CPY - harness working storage (AB-520)
       * Appended at the end of WORKING-STORAGE by cobol_harness.py.
       * HX-OUT accumulates one PARITY| output line; HX-SCREENS records
-      * the CICS maps/TEXT sent, joined with '+'.
+      * the CICS maps/TEXT sent, joined with '+'. HX-ITEMS (AB-525)
+      * records ordered side effects, joined with ';'.
       ******************************************************************
        01  HX-OUT                  PIC X(2000).
        01  HX-PTR                  PIC 9(05) COMP-5 VALUE 1.
        01  HX-SCREENS              PIC X(400).
+      * HX-ITEMS records side effects (DB writes, TDQ) joined with ';'
+       01  HX-ITEMS                PIC X(400).
+       01  HX-ITEM                 PIC X(80).
       * append-helper inputs
        01  HX-AMT                  PIC S9(13)V99.
        01  HX-RATE4                PIC S9(05)V9(04).

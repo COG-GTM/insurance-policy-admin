@@ -34,7 +34,7 @@ public record PolicyView(
     Long lastUpdated,
     String updatedBy) {
 
-  static PolicyView from(PolicyEntity p) {
+  public static PolicyView from(PolicyEntity p) {
     return new PolicyView(
         Trim.of(p.getPolicyNumber()),
         Trim.of(p.getPolicyType()),

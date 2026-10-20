@@ -41,15 +41,13 @@ public class UnderwritingDecisionEntity {
   @Column(name = "decision_reason", length = 100)
   private String decisionReason;
 
-  @JdbcTypeCode(SqlTypes.CHAR)
-  @Column(name = "underwriter_id", length = 8)
+  @Column(name = "underwriter_id", length = 255)
   private String underwriterId;
 
   @Column(name = "override_reason", length = 200)
   private String overrideReason;
 
-  @JdbcTypeCode(SqlTypes.CHAR)
-  @Column(name = "override_by", length = 8)
+  @Column(name = "override_by", length = 255)
   private String overrideBy;
 
   @Column(name = "created_timestamp", nullable = false)

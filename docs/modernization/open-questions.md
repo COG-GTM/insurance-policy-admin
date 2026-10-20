@@ -45,6 +45,7 @@ POLEND and UNDWRT have goldens (`parity/programs/`). POLNEW holds two significan
 findings ([Q-27](quirk-register.md#q-27), [Q-28](quirk-register.md#q-28)) and POLQRY
 ([Q-30](quirk-register.md#q-30)) has none pinned. Write spec/fixtures/stubs per
 `parity/README.md` before AB-525/AB-524 port them. Proposed owner: modernization engineering.
+**AB-525:** POLNEW is now in the harness (`parity/programs/polnew`, 17 cases); POLQRY remains.
 
 ### OQ-02
 
@@ -201,7 +202,7 @@ Mainframe team.
 
 ## AB-521 (target data model)
 
-### Proposed: Implement unique policy numbering for Q-27
+### Proposed: Implement unique policy numbering for Q-27 — done in AB-525
 - **Context:** quirk register [Q-27](quirk-register.md#q-27) (Fix, AB-525). AB-521 keeps
   `pas.policy_seq` identical to DB2 and `PolicyNumbers.fromSequence` reproduces POLNEW at parity
   (GnuCOBOL check: sequence 1000000..1000009 all give `POL000100000`), so
@@ -358,3 +359,34 @@ Mainframe team.
 - **Context:** `pas.policy_seq` must start above DB2 `ACMEINS.POLICY_SEQ` before POLNEW traffic moves
   (see also Q-27). Not part of the bulk load.
 - **Proposed owner:** AB-525 / AB-530.
+
+## AB-525 (new business and underwriting)
+
+### Proposed: Claims-owned claims history adapter
+- **Context:** underwriting reads claims only through `ClaimsHistoryPort`
+  (`claims-interface-assumptions.md`). The default adapter (`pas.claims.adapter=unavailable`)
+  refuses underwriting with 503; `stub` is an empty in-memory adapter for local/test use. A real
+  adapter (Claims API or Claims-published view) must pass `ClaimsHistoryPortContract`.
+- **Proposed owner:** Claims team (interface) + PAS platform (adapter).
+
+### Proposed: Confirm POLNEW coverage amounts and input checks
+- **Context:** Q-28 fix gives default coverages the policy limit/deductible and premium 0.00
+  (proposed). At parity POLNEW also accepts a negative limit (only zero fails), any non-blank
+  policy type (unknown types get no coverages) and lower-case codes. Decide whether the API should
+  reject these (would be a known difference).
+- **Proposed owner:** PO.
+
+### Proposed: Business time zone for "today"
+- **Context:** POLNEW's "effective date not in the past" and UNDWRT's decision date use
+  `pas.business-time-zone` (default `America/New_York`). Confirm the CICS region's zone.
+- **Proposed owner:** Mainframe team.
+
+### Proposed: Outbox retention and purge
+- **Context:** published `pas.outbox` rows and `pas.idempotency_keys` are kept indefinitely. Set
+  retention with data governance and add a purge job (ADR 0001 operability table).
+- **Proposed owner:** PAS platform + data governance.
+
+### Proposed: Event schema registry / contract checks
+- **Context:** event payloads are documented in `events.md` and asserted in `EventsEndToEndIT`;
+  ADR 0001 D4 asks for versioned contracts with CI backward-compatibility checks (AB-528).
+- **Proposed owner:** PAS platform (AB-528).

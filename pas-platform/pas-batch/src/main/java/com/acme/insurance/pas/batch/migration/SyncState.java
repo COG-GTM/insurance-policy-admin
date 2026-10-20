@@ -9,7 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Delta-sync bookkeeping in {@code pas.migration_watermarks} and the rollback pause switch in
- * {@code pas.migration_sync_control} (Flyway V6, pas-policy-service).
+ * {@code pas.migration_sync_control} (Flyway V7, pas-policy-service).
  */
 @SuppressFBWarnings(
     value = "EI_EXPOSE_REP2",

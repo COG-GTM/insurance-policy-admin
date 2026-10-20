@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AB-529 `make reconcile`: end-to-end local run against seeded data.
-#   Compose PostgreSQL + pas-policy-service (Flyway pas V1..V6) -> seed the ACMEINS stand-in
+#   Compose PostgreSQL + pas-policy-service (Flyway pas V1..V7) -> seed the ACMEINS stand-in
 #   (schema acmeins_src) -> pas-batch CLI: bulk-load, delta-sync, reconcile -> print the report.
 # Exit 0 = PASS, 3 = unexplained differences. Local stand-in only: no real DB2 is involved.
 set -euo pipefail

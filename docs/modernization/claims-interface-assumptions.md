@@ -44,7 +44,14 @@ These are inferred from the COBOL SQL only; Claims has not confirmed them.
 
 ## Proposed interface (for agreement)
 
-A `ClaimsSummaryPort` in pas-policy-service, implemented by an adapter that calls a Claims-owned
+Implemented in AB-525 as `com.acme.insurance.pas.policy.claims.ClaimsHistoryPort`
+(`summarize(policyNumber, asOf)` → `ClaimsSummary(openClaimCount, claimCount5y, incurredAmount5y)`),
+with the semantics above pinned by the `ClaimsHistoryPortContract` test. Adapters, selected with
+`pas.claims.adapter` (`PAS_CLAIMS_ADAPTER`): `unavailable` (default; every call fails, so
+underwriting returns 503 instead of scoring a clean history) and `stub` (in-memory, local/test).
+The Claims-owned adapter is **Pending: Claims team**.
+
+Originally proposed: a port in pas-policy-service, implemented by an adapter that calls a Claims-owned
 read API, e.g. `GET /claims/v1/policies/{policyNumber}/summary?asOf=YYYY-MM-DD` returning
 `{ openClaimCount, claimCount5y, incurredAmount5y }`. Until the API exists, an adapter can read a
 Claims-published DB2 view with the same three aggregates. Owner, transport and SLA: see

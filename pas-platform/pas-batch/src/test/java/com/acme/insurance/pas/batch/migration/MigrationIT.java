@@ -167,6 +167,9 @@ class MigrationIT {
     runBulkLoad();
     assertThat(targetCount("pas.underwriting_decisions"))
         .isEqualTo(sourceCount("UNDERWRITING_DECISIONS"));
+    // a re-run changes nothing, so no version bump; migration loads never write the outbox
+    assertThat(target.queryForObject("SELECT MAX(version) FROM pas.policies", Long.class)).isZero();
+    assertThat(targetCount("pas.outbox")).isZero();
 
     CheckReport report = checks.reconcile(BUSINESS_DATE, "it-reconcile-clean");
 
@@ -208,6 +211,12 @@ class MigrationIT {
                 "SELECT total_premium FROM pas.policies WHERE policy_number = 'POL-00000002'",
                 java.math.BigDecimal.class))
         .isEqualByComparingTo("999.99");
+    assertThat(
+            target.queryForObject(
+                "SELECT version FROM pas.policies WHERE policy_number = 'POL-00000002'",
+                Long.class))
+        .isEqualTo(1L);
+    assertThat(targetCount("pas.outbox")).isZero();
     assertThat(checks.reconcile(BUSINESS_DATE, "it-reconcile-after-delta").status())
         .isEqualTo("PASS");
   }

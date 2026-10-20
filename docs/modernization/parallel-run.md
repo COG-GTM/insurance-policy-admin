@@ -32,7 +32,7 @@ say so in their provenance.
 
 **AB-523 premium output.** During the parallel run, `premiumRecalculationJob` runs with
 `pas.batch.premium.write-target=shadow` (`PAS_BATCH_PREMIUM_WRITE_TARGET`). In that mode it writes the
-same PREMIUMS rows to `pas_shadow.premiums` (Flyway V6), not to `pas.premiums`, which only the DB2
+same PREMIUMS rows to `pas_shadow.premiums` (Flyway V7), not to `pas.premiums`, which only the DB2
 sync writes while DB2 is authoritative. Each row carries `shadow_run_id =
 premiumRecalculationJob-<job instance id, 12 digits>` and `business_date` = the job's `businessDate`.
 A restart reuses the shadow run; `rerun=true` creates a new one. `PremiumJobOutputSource` compares
