@@ -8,6 +8,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
@@ -26,6 +27,7 @@ public final class PiiCipher {
   private static final int IV_BYTES = 12;
   private static final int TAG_BITS = 128;
   private static final String TRANSFORMATION = "AES/GCM/NoPadding";
+  private static final Pattern KEY_ID = Pattern.compile("[\\x21-\\x7E]{1,32}");
 
   private final SecretKey key;
   private final Map<String, SecretKey> decryptionKeys;
@@ -50,17 +52,25 @@ public final class PiiCipher {
     if (key256.length != 32) {
       throw new IllegalArgumentException("PII encryption key must be 256 bits (32 bytes)");
     }
-    this.keyId = Objects.requireNonNull(keyId, "keyId");
+    this.keyId = requireValidKeyId(Objects.requireNonNull(keyId, "keyId"));
     this.keyIdBytes = keyId.getBytes(StandardCharsets.US_ASCII);
-    if (keyIdBytes.length == 0 || keyIdBytes.length > 32) {
-      throw new IllegalArgumentException("keyId must be 1-32 ASCII characters");
+    if (retiredKeys.containsKey(keyId)) {
+      throw new IllegalArgumentException(
+          "retired key id " + keyId + " equals the active key id; give the new key a fresh id");
     }
     this.key = new SecretKeySpec(key256.clone(), "AES");
     Map<String, SecretKey> keys = new HashMap<>();
-    retiredKeys.forEach((id, retired) -> keys.put(id, aesKey(id, retired)));
+    retiredKeys.forEach((id, retired) -> keys.put(requireValidKeyId(id), aesKey(id, retired)));
     keys.put(keyId, key);
     this.decryptionKeys = Map.copyOf(keys);
     this.random = random;
+  }
+
+  private static String requireValidKeyId(String keyId) {
+    if (!KEY_ID.matcher(keyId).matches()) {
+      throw new IllegalArgumentException("key id must be 1-32 printable ASCII characters");
+    }
+    return keyId;
   }
 
   private static SecretKey aesKey(String keyId, byte[] key256) {

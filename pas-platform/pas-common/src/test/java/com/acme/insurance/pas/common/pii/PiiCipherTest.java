@@ -65,6 +65,17 @@ class PiiCipherTest {
   }
 
   @Test
+  void rejectsRetiredKeyReusingActiveIdAndNonAsciiIds() {
+    assertThatThrownBy(() -> new PiiCipher(randomKey(), "k1", java.util.Map.of("k1", key)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("fresh id");
+    assertThatThrownBy(() -> new PiiCipher(randomKey(), "\u00e9"))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new PiiCipher(randomKey(), "k2", java.util.Map.of("k 1", key)))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
   void rejectsWrongKeySizes() {
     assertThatThrownBy(() -> new PiiCipher(new byte[16], "k1"))
         .isInstanceOf(IllegalArgumentException.class);
