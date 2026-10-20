@@ -60,11 +60,12 @@ always on. Add a PagerDuty/Slack/e-mail notifier as a bean, no job changes neede
 ## Manual run / rerun
 
 ```bash
-java -jar pas-batch.jar --spring.batch.job.enabled=true \
-  --spring.batch.job.name=dailyExtractJob businessDate=2026-10-16 launchedAt=$(date +%s)
+java -jar pas-batch.jar --spring.main.web-application-type=none \
+  --spring.batch.job.enabled=true --spring.batch.job.name=dailyExtractJob \
+  businessDate=2026-10-16 launchedAt=$(date +%s)
 ```
 
-Use `monthlyExposureJob` for Actuarial. With `PAS_TRANSFER_ENABLED=false` the files stay under
+The process exits when the job ends (exit code 0 on `COMPLETED`); `web-application-type=none` stops the actuator server from keeping it alive. Use `monthlyExposureJob` for Actuarial. With `PAS_TRANSFER_ENABLED=false` the files stay under
 `PAS_EXTRACT_OUTPUT_DIR` for inspection.
 
 ## Failure handling
