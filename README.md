@@ -71,7 +71,10 @@ GET /manage/health                              - Health check
 2. **Hardcoded rating factors** - Base rates and territory factors are hardcoded in PREMBAT; should be table-driven
 3. **Leap year bug** - POLRNW renewal date calculation does not handle leap years correctly
 4. **No state-specific rate caps** - Using flat 15% rate increase cap instead of state-specific regulatory limits
-5. **Java facade has no authentication** - Relies on network segmentation (internal VPN only)
+5. **Policy endpoints require HTTP Basic client credentials** - Each client is
+   limited to the branch codes configured in `pas.security.clients[n].branches`.
+   Set `PAS_CLIENT_USERNAME`, `PAS_CLIENT_PASSWORD_HASH` (BCrypt), and
+   `PAS_CLIENT_BRANCHES` to configure a production client.
 6. **Single-threaded batch** - PREMBAT processes policies sequentially; takes ~4 hours for full book
 7. **FTP file transfer** - No encryption on daily extract files (regulatory risk)
 

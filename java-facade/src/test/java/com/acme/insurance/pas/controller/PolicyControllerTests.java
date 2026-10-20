@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.hamcrest.Matchers.*;
@@ -23,7 +24,8 @@ public class PolicyControllerTests {
 
     @Test
     public void getPolicy_returnsPolicy() throws Exception {
-        mockMvc.perform(get("/api/v1/policies/POL-00000001"))
+        mockMvc.perform(get("/api/v1/policies/POL-00000001")
+                        .with(httpBasic("chi-client", "chi-client-password")))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
                 .andExpect(jsonPath("$.policyNumber", is("POL-00000001")))
@@ -34,13 +36,15 @@ public class PolicyControllerTests {
 
     @Test
     public void getPolicy_notFound() throws Exception {
-        mockMvc.perform(get("/api/v1/policies/NONEXISTENT"))
+        mockMvc.perform(get("/api/v1/policies/NONEXISTENT")
+                        .with(httpBasic("chi-client", "chi-client-password")))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     public void getCoverages_returnsCoverages() throws Exception {
-        mockMvc.perform(get("/api/v1/policies/POL-00000001/coverages"))
+        mockMvc.perform(get("/api/v1/policies/POL-00000001/coverages")
+                        .with(httpBasic("chi-client", "chi-client-password")))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
                 .andExpect(jsonPath("$", hasSize(2)))
@@ -50,8 +54,41 @@ public class PolicyControllerTests {
 
     @Test
     public void getCoverages_policyNotFound() throws Exception {
-        mockMvc.perform(get("/api/v1/policies/NONEXISTENT/coverages"))
+        mockMvc.perform(get("/api/v1/policies/NONEXISTENT/coverages")
+                        .with(httpBasic("chi-client", "chi-client-password")))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    public void policyEndpoints_requireCredentials() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000001"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/policies/POL-00000001/coverages"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    public void getPolicy_wrongPassword() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000001")
+                        .with(httpBasic("chi-client", "wrong-password")))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    public void chiClient_cannotReadDetPolicyOrCoverages() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000003")
+                        .with(httpBasic("chi-client", "chi-client-password")))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/policies/POL-00000003/coverages")
+                        .with(httpBasic("chi-client", "chi-client-password")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    public void detClient_canReadDetPolicy() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000003")
+                        .with(httpBasic("det-client", "det-client-password")))
+                .andExpect(status().isOk());
     }
 
     @Test

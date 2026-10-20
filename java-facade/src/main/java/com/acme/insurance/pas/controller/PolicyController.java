@@ -6,12 +6,16 @@ import com.acme.insurance.pas.repository.PolicyRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Policy Controller - Read-only REST endpoints for policy data.
@@ -24,8 +28,8 @@ import java.util.List;
  *   GET /api/v1/policies/{policyNumber}           - Policy details
  *   GET /api/v1/policies/{policyNumber}/coverages  - Coverage details
  *
- * NOTE: No authentication on these endpoints - relies on network
- * segmentation (internal VPN only). TODO: Add OAuth2 in Phase 2.
+ * NOTE: Requests require HTTP Basic client credentials and are scoped to
+ * the client's configured branches.
  *
  * @author T. Nguyen (2022)
  */
@@ -37,9 +41,10 @@ public class PolicyController {
     private PolicyRepository policyRepository;
 
     @GetMapping("/{policyNumber}")
-    public ResponseEntity<Policy> getPolicy(@PathVariable String policyNumber) {
+    public ResponseEntity<Policy> getPolicy(
+            @PathVariable String policyNumber, Authentication authentication) {
         Policy policy = policyRepository.findByPolicyNumber(policyNumber);
-        if (policy == null) {
+        if (!isEntitled(policy, authentication)) {
             return new ResponseEntity<Policy>(HttpStatus.NOT_FOUND);
         }
         return new ResponseEntity<Policy>(policy, HttpStatus.OK);
@@ -47,14 +52,36 @@ public class PolicyController {
 
     @GetMapping("/{policyNumber}/coverages")
     public ResponseEntity<List<Coverage>> getCoverages(
-            @PathVariable String policyNumber) {
+            @PathVariable String policyNumber, Authentication authentication) {
         // First verify the policy exists
         Policy policy = policyRepository.findByPolicyNumber(policyNumber);
-        if (policy == null) {
+        if (!isEntitled(policy, authentication)) {
             return new ResponseEntity<List<Coverage>>(HttpStatus.NOT_FOUND);
         }
         List<Coverage> coverages = policyRepository.findCoveragesByPolicyNumber(
                 policyNumber);
         return new ResponseEntity<List<Coverage>>(coverages, HttpStatus.OK);
+    }
+
+    private boolean isEntitled(Policy policy, Authentication authentication) {
+        if (policy == null || authentication == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if ("BRANCH_*".equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        if (!StringUtils.hasText(policy.getBranchCode())) {
+            return false;
+        }
+        String branchAuthority = "BRANCH_"
+                + policy.getBranchCode().trim().toUpperCase(Locale.ROOT);
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if (branchAuthority.equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
     }
 }
