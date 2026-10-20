@@ -180,3 +180,31 @@ grace logic exists elsewhere. Proposed owner: PO.
 for mass renewals", but PREMBAT only writes PREMIUMS. Is there a renewal batch outside the
 repo ([M-10](missing-artifacts.md#m-10)) that AB-526 must also replace? Proposed owner:
 Mainframe team.
+
+## AB-521 (target data model)
+
+### Proposed: Implement unique policy numbering for Q-27
+- **Context:** quirk register [Q-27](quirk-register.md#q-27) (Fix, AB-525). AB-521 keeps
+  `pas.policy_seq` identical to DB2 and `PolicyNumbers.fromSequence` reproduces POLNEW at parity
+  (GnuCOBOL check: sequence 1000000..1000009 all give `POL000100000`), so
+  `PolicyNumberGenerator.nextPolicyNumber()` must not be used for inserts until AB-525 implements
+  the `POL` + 9-digit unique scheme. `java-facade` sample data uses yet another format
+  (`POL-00000001`).
+- **Proposed owner:** PO + DBA (decision), AB-525 implementer.
+
+### Proposed: Load filed territory and class factors
+- **Context:** `pas.territory_factors` / `pas.class_factors` have a `FILED` factor set that ships
+  empty: neither the COBOL nor DB2 DDL contains real factor values. Rating stays on `PARITY` (all
+  1.0000) by default via `pas.rating.factor-set`. Someone has to provide the filed tables and the
+  effective dates, and sign off turning them on.
+- **Proposed owner:** Rating/actuarial (data), AB-522 follow-up (flag).
+
+### Proposed: Agree the Claims read interface
+- **Context:** see `claims-interface-assumptions.md`. Needed before AB-525/AB-526 port UNDWRT and
+  POLRNW claims checks.
+- **Proposed owner:** Claims team + PAS tech lead.
+
+### Proposed: Security review of PII handling
+- **Context:** see `pii-handling.md`. Open items: KMS/secret store and rotation, whether
+  name/address/phone/email also need field encryption, masking rules for extracts.
+- **Proposed owner:** Security.

@@ -11,6 +11,8 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -24,6 +26,11 @@ class PolicyServiceApplicationIT {
 
   @Container @ServiceConnection
   static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+
+  @DynamicPropertySource
+  static void piiKeys(DynamicPropertyRegistry registry) {
+    TestPiiKeys.register(registry);
+  }
 
   @Autowired private TestRestTemplate rest;
   @Autowired private JdbcTemplate jdbc;
