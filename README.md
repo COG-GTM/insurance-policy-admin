@@ -8,7 +8,7 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 
 ## Modernization (AB-516)
 
-The modernization program is introducing Java 21 / Spring Boot 3 containerized services under epic AB-516. The legacy COBOL/CICS/DB2 platform and REST facade remain the system of record until cutover. Architecture choices for the modernization remain provisional pending ADR AB-518.
+The modernization program is introducing Java 21 / Spring Boot 3 containerized services under epic AB-516. The legacy COBOL/CICS/DB2 platform and REST facade remain the system of record until cutover. The target architecture is recorded in [ADR 0001](docs/adr/0001-pas-target-architecture.md) (AB-518, status Proposed, pending ARB approval). Further decisions are indexed in [docs/adr/](docs/adr/README.md).
 
 ## Repository layout
 
