@@ -3,3 +3,4 @@ __pycache__/
 target/
 pas-platform/.env
 parity/build/
+pas-platform/.dev-keys/

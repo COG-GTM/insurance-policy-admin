@@ -31,8 +31,28 @@ The policy service uses `kafka:19092` to reach Kafka on the Compose network. Hos
 | --- | --- | --- |
 | Liveness | `/actuator/health/liveness` | `/actuator/health/liveness` |
 | Readiness (includes database) | `/actuator/health/readiness` | `/actuator/health/readiness` |
-| Prometheus metrics | `/actuator/prometheus` | `/actuator/prometheus` |
-| Ping | `/api/v2/ping` | — |
+| Prometheus metrics | `/actuator/prometheus` (bearer JWT) | `/actuator/prometheus` |
+| Ping | `/api/v2/ping` (bearer JWT) | — |
+| Policy inquiry (AB-524) | `/api/v1/policies/{policyNumber}`, `/coverages`, `/holder` (bearer JWT) | — |
+| OpenAPI | `/v3/api-docs` (bearer JWT); committed copy `pas-policy-service/src/main/resources/openapi/pas-policy-v1.yaml` | — |
+
+### Calling the policy service locally
+
+Every policy-service endpoint except the health probes needs an OIDC bearer JWT (ADR 0001 D5).
+Locally, `make dev-up` runs `pas-platform/dev/dev-jwt.sh keygen`, which creates a throwaway RSA
+key pair in `pas-platform/.dev-keys/` (gitignored); Compose mounts only the public key, and only the `local` profile reads it (`PAS_DEV_JWT_PUBLIC_KEY`). Other profiles use the real IdP's JWKS. If the key pair changes (for example, the private key was deleted), `make dev-up` recreates `pas-policy-service` so it trusts the new public key. `mint` takes issuer and audience from exported `PAS_OIDC_ISSUER_URI`/`PAS_OIDC_AUDIENCE`, falling back to `pas-platform/.env` and then the local defaults, the same values Compose passes the service. Mint a
+JWT with the scopes and entitlement claims you need:
+
+```sh
+JWT=$(pas-platform/dev/dev-jwt.sh mint "policy:read" '"book":["*"]')
+curl -H "Authorization: Bearer $JWT" http://localhost:8080/api/v1/policies/POL-00000001
+# agent-scoped caller with unmasked policyholder PII
+JWT=$(pas-platform/dev/dev-jwt.sh mint "policy:read policy:pii:read" '"agent_code":"AG1001"')
+```
+
+Entitlement claims: `agent_code`, `branch_code`, `book` (`*`, `agent:<code>`, `branch:<code>`). A
+policy outside them returns 404, the same as a missing policy; a JWT without `policy:read`
+returns 403; no or invalid JWT returns 401.
 
 ## Make targets
 
@@ -62,6 +82,8 @@ Override environment variables in `pas-platform/.env`, or override Make variable
 | `PAS_SPRING_PROFILES_ACTIVE` | `local` | Compose/apps | Spring profile; `local` enables plain-text logs. Other profiles use JSON logs. |
 | `PAS_BIND_ADDRESS` | `127.0.0.1` | Compose | Host address for published ports; loopback-only by default. |
 | `PAS_KAFKA_ADVERTISED_HOST` | `localhost` | Compose | Host name/IP Kafka advertises to remote clients; set when `PAS_BIND_ADDRESS` is not loopback. |
+| `PAS_OIDC_ISSUER_URI` | `https://pas-dev-issuer.local` | Compose/policy service | Expected JWT `iss`. Required outside the `local` profile. |
+| `PAS_OIDC_AUDIENCE` | `pas-api` | Compose/policy service | Expected JWT `aud`. Required outside the `local` profile. |
 | `PAS_POLICY_HTTP_PORT` | `8080` | Compose | Host port for the policy service. |
 | `PAS_BATCH_HTTP_PORT` | `8081` | Compose | Host port for the batch service. |
 | `PAS_POSTGRES_PORT` | `5432` | Compose | Host port for PostgreSQL. |
@@ -98,6 +120,8 @@ From `pas-platform`, build/install the shared module if it is not already in you
 
 ```sh
 ./mvnw -B -pl pas-common install -DskipTests
+dev/dev-jwt.sh keygen
+PAS_DEV_JWT_PUBLIC_KEY="file:$PWD/.dev-keys/jwt-dev-public.pem" \
 PAS_DB_URL=jdbc:postgresql://localhost:5432/pas \
 PAS_DB_USERNAME=pas \
 PAS_DB_PASSWORD=changeme \

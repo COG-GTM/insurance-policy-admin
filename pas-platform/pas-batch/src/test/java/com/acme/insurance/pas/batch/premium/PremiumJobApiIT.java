@@ -3,11 +3,13 @@ package com.acme.insurance.pas.batch.premium;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
 import java.time.LocalDate;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -74,5 +76,24 @@ class PremiumJobApiIT extends PremiumJobTestSupport {
         .andExpect(status().isAccepted());
     mvc.perform(get("/api/batch/premium/runs/999999").with(operator()))
         .andExpect(status().isNotFound());
+  }
+
+  /** CVE-2026-22732 triage (trivyignore): default security headers are written on every outcome. */
+  @Test
+  void securityHeadersAreWrittenOnEveryResponse() throws Exception {
+    var requests =
+        java.util.List.of(
+            get("/api/batch/premium/runs/1"),
+            get("/api/batch/premium/runs/1")
+                .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_policy:read"))),
+            get("/api/batch/premium/runs/999999").with(operator()));
+    int[] expected = {401, 403, 404};
+    for (int i = 0; i < expected.length; i++) {
+      mvc.perform(requests.get(i))
+          .andExpect(status().is(expected[i]))
+          .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+          .andExpect(header().string("X-Frame-Options", "DENY"))
+          .andExpect(header().string("Cache-Control", Matchers.containsString("no-store")));
+    }
   }
 }
