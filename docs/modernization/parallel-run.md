@@ -54,8 +54,10 @@ applies only if every given field matches; `legacy`/`candidate` pin exact values
 fail the job at start-up. Quirk decisions remain **Proposed — pending PO sign-off**; an
 `APPROVED_FIX` entry records the link, it does not record sign-off.
 
-Current entries: `PR-001` — `PREMIUMS` `EXTRA_IN_NEW` → `APPROVED_FIX`
-[Q-22](quirk-register.md#q-22) (new job replaces a term's row on rerun; PREMBAT keeps the first).
+Current entries: none. Proposed for triage once AB-523 shadow output exists: `PREMIUMS` `EXTRA_IN_NEW` →
+`APPROVED_FIX` [Q-22](quirk-register.md#q-22) (new job replaces a term's row on rerun; PREMBAT keeps
+the first), added per key (or `legacy`/`candidate`-pinned) after checking DB2 holds an earlier row for
+the same term, never as a `*` wildcard.
 
 ### Daily process
 

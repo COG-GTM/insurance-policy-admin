@@ -57,41 +57,69 @@ public final class DeltaSyncService {
     this.properties = properties;
   }
 
+  /** Lower bound used when a table has no watermark yet (e.g. it was empty at bulk load). */
+  static final LocalDateTime NO_WATERMARK = LocalDateTime.of(1900, 1, 1, 0, 0);
+
+  /** Raised inside a chunk transaction when the sync was paused mid-run; rolls the chunk back. */
+  static final class PausedException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
+
+    PausedException() {
+      super("DB2_TO_PAS sync paused");
+    }
+  }
+
   public Result sync(String runId) {
     if (state.paused()) {
       LOG.warn("delta sync {} skipped: DB2_TO_PAS sync is paused (rollback or maintenance)", runId);
       return new Result(runId, true, Map.of());
     }
     Map<String, Long> applied = new LinkedHashMap<>();
-    LocalDateTime policiesSince = null;
-    for (MigrationTable table : MigrationTable.values()) {
-      if (table == MigrationTable.COVERAGES) {
-        applied.put(table.sourceTable(), syncCoverages(policiesSince));
-        continue;
+    try {
+      LocalDateTime policiesSince = null;
+      LocalDateTime[] policiesNewest = {null};
+      long policyRows = 0;
+      for (MigrationTable table : MigrationTable.values()) {
+        if (table == MigrationTable.COVERAGES) {
+          applied.put(table.sourceTable(), syncCoverages(policiesSince));
+          // POLICIES advances only after its coverages are applied, so a failed coverage pass is
+          // retried from the same lower bound.
+          if (policiesNewest[0] != null) {
+            state.saveWatermark(MigrationTable.POLICIES, policiesNewest[0], policyRows, runId);
+          }
+          continue;
+        }
+        LocalDateTime watermark =
+            state
+                .watermark(table)
+                .orElseGet(
+                    () -> {
+                      LOG.warn(
+                          "no watermark for {}; delta re-reads the whole table",
+                          table.sourceTable());
+                      return NO_WATERMARK;
+                    });
+        LocalDateTime since = watermark.minus(properties.deltaOverlap());
+        LocalDateTime[] newest =
+            table == MigrationTable.POLICIES ? policiesNewest : new LocalDateTime[1];
+        long rows = syncTable(table, since, newest);
+        if (table == MigrationTable.POLICIES) {
+          policiesSince = since;
+          policyRows = rows;
+        } else if (newest[0] != null) {
+          state.saveWatermark(table, newest[0], rows, runId);
+        }
+        applied.put(table.sourceTable(), rows);
       }
-      LocalDateTime watermark =
-          state
-              .watermark(table)
-              .orElseThrow(
-                  () ->
-                      new IllegalStateException(
-                          "no watermark for "
-                              + table.sourceTable()
-                              + "; run "
-                              + BulkLoadJobConfig.JOB_NAME
-                              + " first"));
-      LocalDateTime since = watermark.minus(properties.deltaOverlap());
-      if (table == MigrationTable.POLICIES) {
-        policiesSince = since;
-      }
-      long rows = syncTable(table, since, runId);
-      applied.put(table.sourceTable(), rows);
+    } catch (PausedException e) {
+      LOG.warn("delta sync {} stopped: paused mid-run after {}", runId, applied);
+      return new Result(runId, true, applied);
     }
     LOG.info("delta sync {} applied {}", runId, applied);
     return new Result(runId, false, applied);
   }
 
-  private long syncTable(MigrationTable table, LocalDateTime since, String runId) {
+  private long syncTable(MigrationTable table, LocalDateTime since, LocalDateTime[] newest) {
     String column = table.watermarkColumn().toUpperCase(Locale.ROOT);
     Object param =
         table.dateWatermark()
@@ -99,22 +127,16 @@ public final class DeltaSyncService {
             : (Object) Timestamp.valueOf(since);
     String sql =
         SourceRows.selectAll(source, table) + " WHERE " + column + " >= ? ORDER BY " + column;
-    LocalDateTime[] newest = {null};
-    long rows =
-        stream(
-            table,
-            sql,
-            param,
-            row -> {
-              LocalDateTime value = asDateTime(row.get(table.watermarkColumn()));
-              if (value != null && (newest[0] == null || value.isAfter(newest[0]))) {
-                newest[0] = value;
-              }
-            });
-    if (newest[0] != null) {
-      state.saveWatermark(table, newest[0], rows, runId);
-    }
-    return rows;
+    return stream(
+        table,
+        sql,
+        param,
+        row -> {
+          LocalDateTime value = asDateTime(row.get(table.watermarkColumn()));
+          if (value != null && (newest[0] == null || value.isAfter(newest[0]))) {
+            newest[0] = value;
+          }
+        });
   }
 
   private long syncCoverages(LocalDateTime policiesSince) {
@@ -159,7 +181,14 @@ public final class DeltaSyncService {
     }
     List<Map<String, Object>> chunk = List.copyOf(buffer);
     buffer.clear();
-    Integer written = tx.execute(status -> writer.write(table, chunk));
+    Integer written =
+        tx.execute(
+            status -> {
+              if (state.pausedLocked()) {
+                throw new PausedException();
+              }
+              return writer.write(table, chunk);
+            });
     return written == null ? 0 : written;
   }
 

@@ -97,7 +97,7 @@ Visibility for the team:
 - `<report-dir>/reconciliation/<date>/<run>.json|.md` and `latest.json|md` (post `latest.md` to the
   team channel from the scheduler host; wiring the channel is a proposed follow-up);
 - `pas.migration_check_runs` (one row per run with classification counts);
-- `GET /actuator/migration` on `pas-batch` (latest summaries, consecutive passing days, sync pause
+- `GET /actuator/migration` on `pas-batch`, opt-in (add `migration` to the actuator exposure only behind the internal network policy; pas-batch has no auth) (latest summaries, consecutive passing days, sync pause
   state, watermarks; counts only, no record values);
 - Prometheus gauges `pas_migration_unexplained{check}`, `pas_migration_differences{check,classification}`,
   `pas_migration_check_passed{check}`, `pas_migration_last_run_seconds{check}`. Alert on

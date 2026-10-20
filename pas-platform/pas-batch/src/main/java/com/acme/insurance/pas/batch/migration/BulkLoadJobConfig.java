@@ -75,9 +75,11 @@ public class BulkLoadJobConfig {
                                 + ") FROM "
                                 + source.table(table.sourceTable()),
                             Timestamp.class);
-                if (max != null) {
-                  jobContext.put(WATERMARK_PREFIX + table.name(), max.toLocalDateTime().toString());
-                }
+                // An empty table still gets a lower bound so the delta picks up its first row.
+                jobContext.put(
+                    WATERMARK_PREFIX + table.name(),
+                    (max == null ? DeltaSyncService.NO_WATERMARK : max.toLocalDateTime())
+                        .toString());
               }
               return RepeatStatus.FINISHED;
             },

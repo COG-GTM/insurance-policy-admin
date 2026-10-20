@@ -72,6 +72,11 @@ public final class TargetWriter {
     return params.length;
   }
 
+  /** Target columns of a table, including the encrypted PII columns of POLICY_HOLDERS. */
+  public static List<String> targetColumnsOf(MigrationTable table) {
+    return List.copyOf(targetColumns(table));
+  }
+
   static List<String> targetColumns(MigrationTable table) {
     List<String> columns = new ArrayList<>(table.columns());
     if (table == MigrationTable.POLICY_HOLDERS) {

@@ -103,6 +103,7 @@ class MigrationIT {
   @Autowired MigrationStatusEndpoint endpoint;
   @Autowired SourceDatabase source;
   @Autowired JdbcTemplate target;
+  @Autowired PolicyHolderPii pii;
 
   private JobExecution runBulkLoad() throws Exception {
     JobExecution execution =
@@ -296,7 +297,7 @@ class MigrationIT {
                     Classification.DATA_ISSUE)),
             Set.of());
     CheckReport triaged =
-        new ReconciliationService(source, target, register, 50, Clock.systemUTC())
+        new ReconciliationService(source, target, register, pii, 50, Clock.systemUTC())
             .reconcile(BUSINESS_DATE, "it-reconcile-triaged");
 
     assertThat(triaged.count(Classification.BUG)).isEqualTo(1);

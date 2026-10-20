@@ -61,6 +61,20 @@ public final class SyncState {
     return !paused.isEmpty() && Boolean.TRUE.equals(paused.get(0));
   }
 
+  /**
+   * Reads the pause flag with a shared row lock inside the caller's write transaction, so a
+   * concurrent {@link #setPaused} blocks until the in-flight chunk commits and no chunk commits
+   * after a pause is acknowledged.
+   */
+  public boolean pausedLocked() {
+    List<Boolean> paused =
+        jdbc.queryForList(
+            "SELECT paused FROM pas.migration_sync_control WHERE sync_name = ? FOR SHARE",
+            Boolean.class,
+            SYNC_NAME);
+    return !paused.isEmpty() && Boolean.TRUE.equals(paused.get(0));
+  }
+
   public void setPaused(boolean paused, String reason, String by) {
     jdbc.update(
         "UPDATE pas.migration_sync_control SET paused = ?, paused_reason = ?,"

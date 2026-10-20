@@ -109,9 +109,10 @@ public class MigrationConfiguration {
       SourceDatabase source,
       JdbcTemplate jdbc,
       TriageRegister triage,
+      PolicyHolderPii pii,
       MigrationProperties properties) {
     return new ReconciliationService(
-        source, jdbc, triage, properties.sampleLimit(), Clock.systemUTC());
+        source, jdbc, triage, pii, properties.sampleLimit(), Clock.systemUTC());
   }
 
   @Bean
@@ -178,8 +179,10 @@ public class MigrationConfiguration {
   }
 
   @Bean
-  MigrationMetrics migrationMetrics(MeterRegistry registry) {
-    return new MigrationMetrics(registry);
+  MigrationMetrics migrationMetrics(MeterRegistry registry, CheckRunStore store) {
+    MigrationMetrics metrics = new MigrationMetrics(registry);
+    metrics.seed(store);
+    return metrics;
   }
 
   @Bean

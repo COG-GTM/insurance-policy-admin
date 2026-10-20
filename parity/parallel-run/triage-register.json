@@ -1,17 +1,4 @@
 {
-  "comment": "AB-529 triage register for reconciliation and parallel-run differences. Process: docs/modernization/parallel-run.md. classification is BUG (needs ticket), APPROVED_FIX (needs quirk Q-nn + decision docs/modernization/quirk-register.md#q-nn) or DATA_ISSUE (needs owner). Unmatched differences are UNCLASSIFIED. Unexplained = BUG + UNCLASSIFIED. Quirk decisions are Proposed - pending PO sign-off.",
-  "entries": [
-    {
-      "id": "PR-001",
-      "check": "PARALLEL_RUN",
-      "scope": "PREMIUMS",
-      "key": "*",
-      "kind": "EXTRA_IN_NEW",
-      "classification": "APPROVED_FIX",
-      "quirk": "Q-22",
-      "decision": "docs/modernization/quirk-register.md#q-22",
-      "rationale": "PREMBAT keeps the first PREMIUMS row of a term (rerun INSERT fails with -803); the new premium job replaces it with the day's calculation, so the new side has rows dated the business date that DB2 does not. CHANGED rows for the same key are NOT covered and stay unexplained.",
-      "status": "Proposed - pending PO sign-off"
-    }
-  ]
+  "comment": "AB-529 triage register for reconciliation and parallel-run differences. Process: docs/modernization/parallel-run.md. classification is BUG (needs ticket), APPROVED_FIX (needs quirk Q-nn + decision docs/modernization/quirk-register.md#q-nn) or DATA_ISSUE (needs owner). Unmatched differences are UNCLASSIFIED. Unexplained = BUG + UNCLASSIFIED. Quirk decisions are Proposed - pending PO sign-off. PR-001 (Q-22 extra shadow premiums) is proposed in docs/modernization/parallel-run.md and must be added scoped to concrete keys during triage, not as a wildcard.",
+  "entries": []
 }

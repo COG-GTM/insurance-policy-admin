@@ -63,6 +63,25 @@ public final class PolicyHolderPii {
         credit == null ? null : cipher.encrypt(Integer.toString(((Number) credit).intValue())));
   }
 
+  /**
+   * Replaces the encrypted target columns of a {@code pas.policy_holders} row with their plaintext
+   * source equivalents, in memory only, so reconciliation can hash both sides the same way.
+   */
+  public void decryptInPlace(Map<String, Object> row) {
+    String dob = decrypt(row.remove("date_of_birth_enc"));
+    String credit = decrypt(row.remove("credit_score_enc"));
+    row.put("date_of_birth", dob == null ? null : LocalDate.parse(dob));
+    row.put("ssn_last4", decrypt(row.remove("ssn_last4_enc")));
+    row.put("tax_id", decrypt(row.remove("tax_id_enc")));
+    row.put("credit_score", credit == null ? null : Integer.valueOf(credit));
+    row.remove("ssn_last4_bidx");
+    row.remove("tax_id_bidx");
+  }
+
+  private String decrypt(Object value) {
+    return value == null ? null : cipher.decrypt(value.toString());
+  }
+
   private static String isoDate(Object value) {
     if (value instanceof LocalDate date) {
       return date.toString();

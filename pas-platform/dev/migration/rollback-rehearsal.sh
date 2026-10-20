@@ -47,7 +47,17 @@ migration_cli delta-sync
 after=$(psql_pas -tAc "SELECT COALESCE(SUM(rows_applied),0) || '/' || COALESCE(MAX(watermark_ts)::text,'') FROM pas.migration_watermarks")
 [ "$before" = "$after" ] && step "3. DB2 takes writes; paused sync applies nothing" PASS "watermarks unchanged ($after)" || step "3. DB2 takes writes; paused sync applies nothing" FAIL "$before -> $after"
 
-reverse=$(psql_pas -tAc "SELECT (SELECT COUNT(*) FROM pas.policies p WHERE NOT EXISTS (SELECT 1 FROM ${SOURCE_SCHEMA}.policies s WHERE s.policy_number = p.policy_number)) + (SELECT COUNT(*) FROM pas.policies WHERE last_updated > TIMESTAMP '${FLIP_TS}') + (SELECT COUNT(*) FROM pas.coverages c WHERE NOT EXISTS (SELECT 1 FROM ${SOURCE_SCHEMA}.coverages s WHERE s.policy_number = c.policy_number AND s.sequence_num = c.sequence_num)) + (SELECT COUNT(*) FROM pas.premiums r WHERE NOT EXISTS (SELECT 1 FROM ${SOURCE_SCHEMA}.premiums s WHERE s.policy_number = r.policy_number AND s.coverage_seq = r.coverage_seq AND s.term_effective_date = r.term_effective_date))")
+# Reverse delta: every migrated table — target-only keys, plus rows whose canonical content differs
+# from DB2 but did not come from a DB2-side change made after the flip (DB2 ahead is fine).
+reverse_sql() {
+  local t="$1" k="$2" ts="${3:-}"
+  local on; on=$(echo "$k" | sed -E 's/([a-z_]+)/p.\1 = s.\1/g; s/,/ AND/g')
+  echo "(SELECT COUNT(*) FROM pas.$t p WHERE NOT EXISTS (SELECT 1 FROM ${SOURCE_SCHEMA}.$t s WHERE $on))"
+  if [ -n "$ts" ]; then
+    echo "+ (SELECT COUNT(*) FROM pas.$t p WHERE p.$ts > TIMESTAMP '${FLIP_TS}')"
+  fi
+}
+reverse=$(psql_pas -tAc "SELECT $(reverse_sql policy_holders cust_id last_updated) + $(reverse_sql policies policy_number last_updated) + $(reverse_sql coverages policy_number,sequence_num) + $(reverse_sql premiums policy_number,coverage_seq,term_effective_date) + $(reverse_sql endorsements policy_number,endorsement_seq processed_date) + $(reverse_sql underwriting_decisions policy_number,decision_date created_timestamp)")
 [ "$reverse" = 0 ] && step "4. reverse-delta check (pas ahead of DB2)" PASS "0 rows to replicate back to DB2" || step "4. reverse-delta check (pas ahead of DB2)" FAIL "$reverse rows need reverse replication"
 
 T1=$(date +%s)

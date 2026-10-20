@@ -33,8 +33,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public final class ReconciliationService {
 
   public static final String CHECK = CheckType.RECONCILIATION.name();
-  static final List<MigrationTable> HASHED =
-      List.of(MigrationTable.POLICIES, MigrationTable.COVERAGES, MigrationTable.PREMIUMS);
+  static final List<MigrationTable> HASHED = List.of(MigrationTable.values());
 
   /** Row count of one table on each side. */
   public record RowCount(String table, long source, long target, boolean match) {}
@@ -72,14 +71,17 @@ public final class ReconciliationService {
   private final JdbcTemplate target;
   private final TriageRegister triage;
   private final int sampleLimit;
+  private final com.acme.insurance.pas.batch.migration.PolicyHolderPii pii;
   private final Clock clock;
 
   public ReconciliationService(
       SourceDatabase source,
       JdbcTemplate target,
       TriageRegister triage,
+      com.acme.insurance.pas.batch.migration.PolicyHolderPii pii,
       int sampleLimit,
       Clock clock) {
+    this.pii = pii;
     this.source = source;
     this.target = target;
     this.triage = triage;
@@ -214,8 +216,8 @@ public final class ReconciliationService {
   }
 
   private HashSummary hashes(MigrationTable table, List<Difference> differences) {
-    TreeMap<String, String> src = hashMap(source.jdbc(), sourceSelect(table), table);
-    TreeMap<String, String> tgt = hashMap(target, targetSelect(table), table);
+    TreeMap<String, String> src = hashMap(source.jdbc(), sourceSelect(table), table, false);
+    TreeMap<String, String> tgt = hashMap(target, targetSelect(table), table, true);
     long matched = 0;
     long missing = 0;
     long extra = 0;
@@ -280,12 +282,12 @@ public final class ReconciliationService {
   }
 
   private Difference fieldDiff(MigrationTable table, String key) {
-    Map<String, Object> s = fetch(source.jdbc(), sourceSelect(table), table, key);
-    Map<String, Object> t = fetch(target, targetSelect(table), table, key);
+    Map<String, Object> s = fetch(source.jdbc(), sourceSelect(table), table, key, false);
+    Map<String, Object> t = fetch(target, targetSelect(table), table, key, true);
     List<String> fields = new ArrayList<>();
     List<String> sv = new ArrayList<>();
     List<String> tv = new ArrayList<>();
-    for (String column : table.columns()) {
+    for (String column : hashColumns(table)) {
       String a = Canonical.value(column, s.get(column));
       String b = Canonical.value(column, t.get(column));
       if (!Objects.equals(a, b)) {
@@ -304,8 +306,8 @@ public final class ReconciliationService {
         String.join("|", tv));
   }
 
-  private static Map<String, Object> fetch(
-      JdbcTemplate jdbc, String select, MigrationTable table, String key) {
+  private Map<String, Object> fetch(
+      JdbcTemplate jdbc, String select, MigrationTable table, String key, boolean isTarget) {
     String[] parts = key.split("(?<!\\\\)\\|", -1);
     StringBuilder where = new StringBuilder();
     List<Object> args = new ArrayList<>();
@@ -328,30 +330,53 @@ public final class ReconciliationService {
             select + where,
             com.acme.insurance.pas.batch.migration.SourceRows.INSTANCE,
             args.toArray());
-    return rows.isEmpty() ? Map.of() : rows.get(0);
+    return rows.isEmpty() ? Map.of() : prepare(rows.get(0), table, isTarget);
   }
 
   private String sourceSelect(MigrationTable table) {
     return "SELECT "
-        + String.join(", ", table.columns()).toUpperCase(java.util.Locale.ROOT)
+        + String.join(", ", hashColumns(table)).toUpperCase(java.util.Locale.ROOT)
         + " FROM "
         + source.table(table.sourceTable());
   }
 
-  private static String targetSelect(MigrationTable table) {
-    return "SELECT " + String.join(", ", table.columns()) + " FROM " + table.targetTable();
+  /** Holders hash their PII too (plaintext in DB2, decrypted in memory for the target). */
+  private static List<String> hashColumns(MigrationTable table) {
+    return table.sourceColumns();
   }
 
-  private static TreeMap<String, String> hashMap(
-      JdbcTemplate jdbc, String select, MigrationTable table) {
+  private static String targetSelect(MigrationTable table) {
+    List<String> columns =
+        table == MigrationTable.POLICY_HOLDERS
+            ? com.acme.insurance.pas.batch.migration.TargetWriter.targetColumnsOf(table)
+            : table.columns();
+    return "SELECT " + String.join(", ", columns) + " FROM " + table.targetTable();
+  }
+
+  private Map<String, Object> prepare(
+      Map<String, Object> row, MigrationTable table, boolean isTarget) {
+    if (isTarget && table == MigrationTable.POLICY_HOLDERS) {
+      Map<String, Object> copy = new java.util.LinkedHashMap<>(row);
+      pii.decryptInPlace(copy);
+      return copy;
+    }
+    return row;
+  }
+
+  private TreeMap<String, String> hashMap(
+      JdbcTemplate jdbc, String select, MigrationTable table, boolean isTarget) {
     TreeMap<String, String> hashes = new TreeMap<>();
     jdbc.query(
         select,
         rs -> {
           Map<String, Object> row =
-              com.acme.insurance.pas.batch.migration.SourceRows.INSTANCE.mapRow(rs, 0);
+              prepare(
+                  com.acme.insurance.pas.batch.migration.SourceRows.INSTANCE.mapRow(rs, 0),
+                  table,
+                  isTarget);
           hashes.put(
-              Canonical.key(table, row), Canonical.sha256(Canonical.record(table.columns(), row)));
+              Canonical.key(table, row),
+              Canonical.sha256(Canonical.record(hashColumns(table), row)));
         });
     return hashes;
   }

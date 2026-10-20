@@ -58,22 +58,27 @@ public final class CheckRunStore {
     return rows.isEmpty() ? Optional.empty() : Optional.of(new LinkedHashMap<>(rows.get(0)));
   }
 
-  /** Consecutive most-recent business dates that passed, used for the "full cycle" criterion. */
+  /**
+   * Consecutive most-recent business dates whose latest run passed, used for the "full cycle"
+   * criterion. A calendar day with no recorded run breaks the streak like a failed day.
+   */
   public int consecutivePassingDays(CheckType type) {
-    List<String> statuses =
+    List<Map<String, Object>> rows =
         jdbc.queryForList(
-            "SELECT status FROM (SELECT DISTINCT ON (business_date) business_date, status"
-                + " FROM pas.migration_check_runs WHERE check_type = ?"
+            "SELECT business_date, status FROM (SELECT DISTINCT ON (business_date) business_date,"
+                + " status FROM pas.migration_check_runs WHERE check_type = ?"
                 + " ORDER BY business_date DESC, finished_at DESC) latest_per_day"
                 + " ORDER BY business_date DESC",
-            String.class,
             type.name());
     int days = 0;
-    for (String status : statuses) {
-      if (!"PASS".equals(status)) {
+    java.time.LocalDate expected = null;
+    for (Map<String, Object> row : rows) {
+      java.time.LocalDate date = ((Date) row.get("business_date")).toLocalDate();
+      if (!"PASS".equals(row.get("status")) || (expected != null && !date.equals(expected))) {
         break;
       }
       days++;
+      expected = date.minusDays(1);
     }
     return days;
   }

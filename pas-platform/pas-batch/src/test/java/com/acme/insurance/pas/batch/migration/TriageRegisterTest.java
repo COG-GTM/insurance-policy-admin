@@ -46,7 +46,6 @@ class TriageRegisterTest {
     TriageRegister register =
         TriageRegister.load(
             ParityFixtures.repoRoot().resolve("parity/parallel-run/triage-register.json"), QUIRKS);
-    assertThat(register.entries()).isNotEmpty();
     assertThat(register.entries())
         .filteredOn(e -> e.classification() == Classification.APPROVED_FIX)
         .allSatisfy(
