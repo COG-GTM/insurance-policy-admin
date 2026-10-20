@@ -9,7 +9,6 @@ import com.acme.insurance.pas.policy.persistence.PolicyEntity;
 import com.acme.insurance.pas.policy.persistence.PolicyRepository;
 import com.acme.insurance.pas.policy.security.CallerEntitlements;
 import com.acme.insurance.pas.policy.support.BusinessCalendar;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,9 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
  * carried on and confirmed after a failed insert).
  */
 @Service
-@SuppressFBWarnings(
-    value = "EI_EXPOSE_REP2",
-    justification = "Spring-managed singleton collaborators are shared by design")
 public class EndorsementService {
 
   public static final String PROGRAM = "POLEND";

@@ -8,7 +8,6 @@ import com.acme.insurance.pas.policy.persistence.PolicyEntity;
 import com.acme.insurance.pas.policy.persistence.PolicyRepository;
 import com.acme.insurance.pas.policy.security.CallerEntitlements;
 import com.acme.insurance.pas.policy.support.BusinessCalendar;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.LocalDate;
@@ -25,9 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
  * (quirk register Q-09 fix: POLRNW sent an error and a confirmation after a failed update).
  */
 @Service
-@SuppressFBWarnings(
-    value = "EI_EXPOSE_REP2",
-    justification = "Spring-managed singleton collaborators are shared by design")
 public class RenewalService {
 
   public static final String PROGRAM = "POLRNW";

@@ -1,0 +1,75 @@
+{
+  "$comment": "PAS strangler route flags (ADR 0001 D7). Changed only by a reviewed PR; validate with scripts/cutover/route_flags.py validate. Production values are applied by the routing layer (Pending: Platform team to choose gateway vs pas-edge).",
+  "capabilities": {
+    "inquiry": {
+      "state": "legacy",
+      "kind": "read",
+      "legacy": "POLQRY (PQRY) + java-facade /api/v1",
+      "new": "pas-policy-service GET /api/v1/policies/**",
+      "ticket": "AB-524"
+    },
+    "broker-read": {
+      "state": "legacy",
+      "kind": "read",
+      "legacy": "Broker Portal SQL Server linked server to DB2",
+      "new": "pas-policy-service GET /api/v1/policies/{n}[/coverages|/holder|/premiums] and GET /api/v1/policies?agentCode|branchCode (agent/branch/book entitlements; docs/modernization/broker-portal-migration.md)",
+      "ticket": "AB-528"
+    },
+    "new-business": {
+      "state": "legacy",
+      "kind": "write",
+      "legacy": "POLNEW (PNEW)",
+      "new": "pas-policy-service POST /api/v1/policies",
+      "ticket": "AB-525"
+    },
+    "underwriting": {
+      "state": "legacy",
+      "kind": "write",
+      "legacy": "UNDWRT (PUWR)",
+      "new": "pas-policy-service POST /api/v1/policies/{n}/underwriting-decisions",
+      "ticket": "AB-525"
+    },
+    "renewal": {
+      "state": "legacy",
+      "kind": "write",
+      "legacy": "POLRNW (PRWL)",
+      "new": "pas-policy-service POST /api/v1/policies/{n}/renewals",
+      "ticket": "AB-526"
+    },
+    "endorsement": {
+      "state": "legacy",
+      "kind": "write",
+      "legacy": "POLEND (PEND)",
+      "new": "pas-policy-service POST /api/v1/policies/{n}/endorsements",
+      "ticket": "AB-526"
+    },
+    "premium-batch": {
+      "state": "legacy",
+      "kind": "write",
+      "legacy": "PREMIUM-BATCH / PREMBAT, CA-7 PAS0050",
+      "new": "pas-batch premiumRecalculationJob",
+      "ticket": "AB-523"
+    },
+    "claims-extract": {
+      "state": "legacy",
+      "kind": "feed",
+      "legacy": "DAILY-EXTRACT (POLEXT), CA-7 PAS0100",
+      "new": "pas-batch dailyExtractJob + SFTP",
+      "ticket": "AB-527"
+    },
+    "actuarial-exposure": {
+      "state": "legacy",
+      "kind": "feed",
+      "legacy": "MONTHLY-EXPOSURE (MONEXP), CA-7 PAS0200",
+      "new": "pas-batch monthlyExposureJob + SFTP",
+      "ticket": "AB-527"
+    },
+    "document-events": {
+      "state": "legacy",
+      "kind": "feed",
+      "legacy": "CICS TDQ/TSQ -> MQ -> FileNet",
+      "new": "PolicyEventPublisher -> pas.outbox -> Kafka pas.document.requests.v1 / pas.policy.events.v1 / pas.underwriting.events.v1 -> LegacyQueueBridge (PAS_INTEGRATION_BRIDGES_ENABLED) -> FileNet trigger / ACME.PAS.UNDERWRITING.* (LegacyQueueTransport)",
+      "ticket": "AB-528"
+    }
+  }
+}

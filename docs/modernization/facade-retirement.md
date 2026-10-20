@@ -85,9 +85,12 @@ The facade can be removed (AB-530) when **all** of the following hold:
 - `PolicyInquiryApiIT` and the compat gate pass against the release being deployed.
 - Sign-offs recorded (below).
 
-Then AB-530 deletes `java-facade/`, removes it from `compat/` (`compat/api/run_facade.sh`
-defaults, `compat/build_modules.sh`) and the CI matrix, and records the change in
-`compat/allowed-changes.json` with the ticket reference.
+Then `scripts/decommission/remove-legacy-trees.sh` (AB-530, [decommission.md](decommission.md)
+step D-10) deletes `java-facade/` together with `cobol/` and `jcl/`, removes `compat/api/run_facade.sh`,
+the `compat-api` make target and the `api-contract` CI job, and records the change in
+`compat/allowed-changes.json` with the ticket reference. `compat/build_modules.sh` needs no change
+(it builds whatever Maven roots remain). CI proves the removal on every PR
+(`decommission / legacy-removal dry run`).
 
 ## 5. Sign-offs
 
