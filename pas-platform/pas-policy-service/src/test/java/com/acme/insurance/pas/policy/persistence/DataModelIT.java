@@ -18,6 +18,7 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +79,7 @@ class DataModelIT {
   @Autowired PolicyNumberGenerator policyNumbers;
   @Autowired PolicyHolderRepository holders;
   @Autowired BlindIndexer blindIndexer;
+  @Autowired UnderwritingDecisionRepository decisions;
 
   private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
 
@@ -133,7 +135,13 @@ class DataModelIT {
         jdbc.queryForList(
             "SELECT indexname FROM pg_indexes WHERE schemaname = 'pas'", String.class);
     assertThat(indexes)
-        .contains("ix_pol_status", "ix_pol_holder", "ix_pol_agent", "ix_ph_name", "ix_ph_company");
+        .contains(
+            "ix_pol_status",
+            "ix_pol_holder",
+            "ix_pol_agent",
+            "ix_ph_name",
+            "ix_ph_company",
+            "ix_uwd_policy_date");
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'pas'"
@@ -205,6 +213,35 @@ class DataModelIT {
                         + " effective_date, expiry_date) VALUES ('POLMISSING01', 1, 'PROP',"
                         + " DATE '2024-01-01', DATE '2025-01-01')"))
         .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  /** Quirk register Q-20: DB2 loses the second same-day decision; the target keeps both. */
+  @Test
+  void sameDayUnderwritingDecisionsAreAllKept() {
+    String number = "POLQ20000001";
+    LocalDate today = LocalDate.of(2025, 3, 1);
+    tx.executeWithoutResult(
+        s -> {
+          entityManager.persist(CopybookMapping.toEntity(policy(number)));
+          entityManager.persist(decision(number, today, "RF"));
+          entityManager.persist(decision(number, today, "AP"));
+        });
+    List<UnderwritingDecisionEntity> kept =
+        decisions.findByPolicyNumberAndDecisionDateOrderByDecisionIdAsc(number, today);
+    assertThat(kept)
+        .extracting(UnderwritingDecisionEntity::getDecisionCode)
+        .containsExactly("RF", "AP");
+    assertThat(kept.get(0).getDecisionId()).isLessThan(kept.get(1).getDecisionId());
+  }
+
+  private static UnderwritingDecisionEntity decision(String number, LocalDate date, String code) {
+    UnderwritingDecisionEntity d = new UnderwritingDecisionEntity();
+    d.setPolicyNumber(number);
+    d.setDecisionDate(date);
+    d.setDecisionCode(code);
+    d.setRiskScore((short) 42);
+    d.setCreatedTimestamp(LocalDateTime.of(2025, 3, 1, 9, 30));
+    return d;
   }
 
   @Test

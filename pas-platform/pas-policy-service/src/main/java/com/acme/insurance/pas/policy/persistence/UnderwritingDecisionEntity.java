@@ -1,19 +1,35 @@
 package com.acme.insurance.pas.policy.persistence;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-/** pas.underwriting_decisions (ACMEINS.UNDERWRITING_DECISIONS). */
+/**
+ * pas.underwriting_decisions (ACMEINS.UNDERWRITING_DECISIONS). Surrogate {@code decision_id} key so
+ * same-day decisions are all kept (quirk register Q-20).
+ */
 @Entity
 @Table(name = "underwriting_decisions")
 public class UnderwritingDecisionEntity {
 
-  @EmbeddedId private UnderwritingDecisionId id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "decision_id")
+  private Long decisionId;
+
+  @JdbcTypeCode(SqlTypes.CHAR)
+  @Column(name = "policy_number", length = 12, nullable = false)
+  private String policyNumber;
+
+  @Column(name = "decision_date", nullable = false)
+  private LocalDate decisionDate;
 
   @JdbcTypeCode(SqlTypes.CHAR)
   @Column(name = "decision_code", length = 2, nullable = false)
@@ -39,12 +55,24 @@ public class UnderwritingDecisionEntity {
   @Column(name = "created_timestamp", nullable = false)
   private LocalDateTime createdTimestamp;
 
-  public UnderwritingDecisionId getId() {
-    return id;
+  public Long getDecisionId() {
+    return decisionId;
   }
 
-  public void setId(UnderwritingDecisionId id) {
-    this.id = id;
+  public String getPolicyNumber() {
+    return policyNumber;
+  }
+
+  public void setPolicyNumber(String policyNumber) {
+    this.policyNumber = policyNumber;
+  }
+
+  public LocalDate getDecisionDate() {
+    return decisionDate;
+  }
+
+  public void setDecisionDate(LocalDate decisionDate) {
+    this.decisionDate = decisionDate;
   }
 
   public String getDecisionCode() {
@@ -105,6 +133,12 @@ public class UnderwritingDecisionEntity {
 
   @Override
   public String toString() {
-    return "UnderwritingDecisionEntity[id=" + id + "]";
+    return "UnderwritingDecisionEntity[decisionId="
+        + decisionId
+        + ", policyNumber="
+        + policyNumber
+        + ", decisionDate="
+        + decisionDate
+        + "]";
   }
 }

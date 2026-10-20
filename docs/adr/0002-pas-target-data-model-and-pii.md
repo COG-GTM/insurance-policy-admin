@@ -19,6 +19,10 @@ defined by copybooks (COMP-3 packed decimals, YYYYMMDD dates, 88-level codes). T
    with the same column names, types (DECIMAL→NUMERIC, TIMESTAMP→TIMESTAMP(6)), keys, foreign keys,
    indexes and defaults, plus `pas.policy_seq` (INTEGER, start 1000000, increment 1, no max, no
    cycle, cache 50). Hibernate runs with `ddl-auto=validate`; Flyway owns all DDL.
+   One intentional key change: `underwriting_decisions` has a surrogate `decision_id` identity PK
+   and a non-unique `(policy_number, decision_date)` index, so same-day decisions are no longer
+   lost (quirk register [Q-20](../modernization/quirk-register.md#q-20), Fix; Proposed — pending
+   PO sign-off).
 2. **Reference data:** `territory_factors` and new `class_factors` keyed by
    `(factor_set, code, effective_date)`; `PARITY` set seeded with a 1.0000 catch-all, `FILED` set
    empty. `pas.rating.factor-set` (default `PARITY`) selects the set (AB-522).
