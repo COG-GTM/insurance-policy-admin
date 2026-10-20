@@ -1,8 +1,11 @@
 package com.acme.insurance.pas.policy.persistence;
 
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -38,4 +41,13 @@ public interface PolicyRepository extends JpaRepository<PolicyEntity, String> {
       @Param("status") String status,
       @Param("limit") int limit,
       @Param("offset") long offset);
+
+  /**
+   * Reads the policy with a row lock ({@code SELECT ... FOR UPDATE}), the equivalent of POLEND's
+   * {@code WITH RS USE AND KEEP UPDATE LOCKS}: concurrent renewals/endorsements of one policy are
+   * serialised and each sees the previous one's committed premium and version.
+   */
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("SELECT p FROM PolicyEntity p WHERE p.policyNumber = :policyNumber")
+  Optional<PolicyEntity> findForUpdate(@Param("policyNumber") String policyNumber);
 }

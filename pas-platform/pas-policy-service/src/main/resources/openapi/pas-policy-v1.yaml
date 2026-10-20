@@ -13,8 +13,12 @@ tags:
   name: Policy inquiry
 - description: Dead-letter replay (AB-528)
   name: Integration operations
+- description: Mid-term endorsements (replaces POLEND)
+  name: Endorsements
 - description: Underwriting decisions (replaces UNDWRT)
   name: Underwriting
+- description: Policy renewal (replaces POLRNW)
+  name: Renewals
 paths:
   /api/v1/admin/dead-letters:
     get:
@@ -309,6 +313,70 @@ paths:
       summary: List a policy's coverages
       tags:
       - Policy inquiry
+  /api/v1/policies/{policyNumber}/endorsements:
+    post:
+      description: "POLEND at parity: active policies only, type required (422 with\
+        \ the COBOL message), pro-rata factor = days remaining / days in term (1 for\
+        \ a zero-day term), next ENDORSEMENTS sequence, premium adjustment applied\
+        \ to the policy (zero at parity, Q-11), audit row and PolicyEndorsed. Concurrent\
+        \ endorsements of one policy are serialised by a row lock."
+      operationId: endorsePolicy
+      parameters:
+      - example: POL001000000
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      - description: Propagated to events as correlationId
+        in: header
+        name: X-Correlation-Id
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EndorsementRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EndorsementView"
+          description: Endorsement recorded
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Malformed request or unknown endorsement type
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks scope policy:write
+        "404":
+          description: Not found or not entitled
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Concurrent update of the policy
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: POLEND validation failed (inactive policy or blank type)
+      security:
+      - bearer-jwt:
+        - policy:write
+      summary: Record a mid-term endorsement
+      tags:
+      - Endorsements
   /api/v1/policies/{policyNumber}/holder:
     get:
       description: PII is masked unless the token also carries scope policy:pii:read.
@@ -390,6 +458,66 @@ paths:
       summary: List a policy's premium history
       tags:
       - Policy inquiry
+  /api/v1/policies/{policyNumber}/renewals:
+    post:
+      description: "POLRNW at parity except the approved fixes: AC/EX policies only,\
+        \ more open claims than pas.renewal.max-open-claims is ineligible (Q-02),\
+        \ premium x (1 + uplift) truncated and capped at pas.renewal.rate-cap-pct,\
+        \ new term starts at the old expiry and ends one calendar year later (Feb\
+        \ 29 renews to Feb 28, Q-01), renewal count + 1, status AC / underwriting\
+        \ PN, active coverages re-dated. Publishes PolicyRenewed."
+      operationId: renewPolicy
+      parameters:
+      - example: POL001000000
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      - description: Propagated to events as correlationId
+        in: header
+        name: X-Correlation-Id
+        required: false
+        schema:
+          type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenewalView"
+          description: Policy renewed
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks scope policy:write
+        "404":
+          description: Not found or not entitled
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Concurrent update of the policy
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Not eligible for renewal (status or open claims) or term cannot
+            be renewed
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Claims history unavailable
+      security:
+      - bearer-jwt:
+        - policy:write
+      summary: Renew a policy for one more year
+      tags:
+      - Renewals
   /api/v1/policies/{policyNumber}/underwriting-decisions:
     get:
       operationId: listUnderwritingDecisions
@@ -675,6 +803,42 @@ components:
           type: string
         status:
           type: string
+    EndorsementRequest:
+      type: object
+      properties:
+        endorsementType:
+          type: string
+          description: "Endorsement type: CAD, CRM, LCH, ACH or CAN (POLEND 88-levels)"
+          example: ACH
+          maxLength: 3
+    EndorsementView:
+      type: object
+      properties:
+        daysInTerm:
+          type: integer
+          format: int32
+        daysRemaining:
+          type: integer
+          format: int32
+        effectiveDate:
+          type: string
+          format: date
+        endorsementSeq:
+          type: integer
+          format: int32
+        endorsementType:
+          type: string
+        policyNumber:
+          type: string
+        policyVersion:
+          type: integer
+          format: int64
+        premiumAdjustment:
+          type: number
+        proRataFactor:
+          type: number
+        totalPremium:
+          type: number
     LegacyQueueMessage:
       type: object
       properties:
@@ -834,6 +998,40 @@ components:
           format: date
         totalPremium:
           type: number
+    RenewalView:
+      type: object
+      properties:
+        coveragesRedated:
+          type: integer
+          format: int32
+        effectiveDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        newPremium:
+          type: number
+        policyNumber:
+          type: string
+        policyStatus:
+          type: string
+        policyVersion:
+          type: integer
+          format: int64
+        previousPremium:
+          type: number
+        rateCapApplied:
+          type: boolean
+        rateCapPct:
+          type: number
+        rateChangePct:
+          type: number
+        renewalCount:
+          type: integer
+          format: int32
+        uwStatus:
+          type: string
     UnderwritingDecisionView:
       type: object
       properties:

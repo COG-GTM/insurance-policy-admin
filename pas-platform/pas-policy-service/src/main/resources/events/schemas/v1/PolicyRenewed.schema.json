@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.acme-insurance.example/pas/events/v1/PolicyRenewed.schema.json",
   "title": "PolicyRenewed v1",
-  "description": "POLRNW renewal committed (AB-526 emits it through PolicyEventPublisher).",
+  "description": "POLRNW renewal committed (AB-526, POST /api/v1/policies/{n}/renewals); POLRNW wrote no queue, only the POLRCONF map.",
   "x-topic": "pas.policy.events.v1",
   "type": "object",
   "properties": {
@@ -38,19 +38,28 @@
     "data": {
       "type": "object",
       "properties": {
-        "policyType": {
-          "type": "string"
-        },
-        "policyStatus": {
-          "type": "string"
-        },
-        "uwStatus": {
+        "previousPremium": {
           "type": [
-            "string",
+            "number",
             "null"
           ]
         },
-        "previousExpiryDate": {
+        "newPremium": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rateChangePct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rateCapApplied": {
+          "type": "boolean"
+        },
+        "previousEffectiveDate": {
           "type": "string",
           "format": "date"
         },
@@ -65,36 +74,38 @@
         "renewalCount": {
           "type": "integer"
         },
-        "previousPremium": {
+        "policyStatus": {
+          "type": "string"
+        },
+        "uwStatus": {
+          "type": "string"
+        },
+        "agentCode": {
           "type": [
-            "number",
+            "string",
             "null"
           ]
         },
-        "totalPremium": {
+        "branchCode": {
           "type": [
-            "number",
-            "null"
-          ]
-        },
-        "rateChangePct": {
-          "type": [
-            "number",
+            "string",
             "null"
           ]
         }
       },
       "required": [
-        "policyType",
-        "policyStatus",
-        "uwStatus",
-        "previousExpiryDate",
+        "previousPremium",
+        "newPremium",
+        "rateChangePct",
+        "rateCapApplied",
+        "previousEffectiveDate",
         "effectiveDate",
         "expiryDate",
         "renewalCount",
-        "previousPremium",
-        "totalPremium",
-        "rateChangePct"
+        "policyStatus",
+        "uwStatus",
+        "agentCode",
+        "branchCode"
       ]
     }
   },

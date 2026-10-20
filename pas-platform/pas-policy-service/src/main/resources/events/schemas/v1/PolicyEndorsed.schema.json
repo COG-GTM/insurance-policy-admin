@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.acme-insurance.example/pas/events/v1/PolicyEndorsed.schema.json",
   "title": "PolicyEndorsed v1",
-  "description": "POLEND endorsement committed (AB-526); replaces the ENDORSEMENT-AUDIT TS queue record.",
+  "description": "POLEND endorsement committed (AB-526, POST /api/v1/policies/{n}/endorsements); replaces the ENDORSEMENT-AUDIT TS queue record.",
   "x-topic": "pas.policy.events.v1",
   "type": "object",
   "properties": {
@@ -47,12 +47,21 @@
             "null"
           ]
         },
-        "endorsementEffectiveDate": {
-          "type": [
-            "string",
-            "null"
-          ],
+        "effectiveDate": {
+          "type": "string",
           "format": "date"
+        },
+        "daysInTerm": {
+          "type": "integer"
+        },
+        "daysRemaining": {
+          "type": "integer"
+        },
+        "proRataFactor": {
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "premiumAdjustment": {
           "type": [
@@ -66,27 +75,30 @@
             "null"
           ]
         },
-        "policyStatus": {
-          "type": "string"
+        "agentCode": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
-        "effectiveDate": {
-          "type": "string",
-          "format": "date"
-        },
-        "expiryDate": {
-          "type": "string",
-          "format": "date"
+        "branchCode": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
         "endorsementSeq",
         "endorsementType",
-        "endorsementEffectiveDate",
+        "effectiveDate",
+        "daysInTerm",
+        "daysRemaining",
+        "proRataFactor",
         "premiumAdjustment",
         "totalPremium",
-        "policyStatus",
-        "effectiveDate",
-        "expiryDate"
+        "agentCode",
+        "branchCode"
       ]
     }
   },

@@ -3,6 +3,8 @@ package com.acme.insurance.pas.policy.events;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.policy.lifecycle.PolicyCreatedData;
+import com.acme.insurance.pas.policy.lifecycle.PolicyEndorsedData;
+import com.acme.insurance.pas.policy.lifecycle.PolicyRenewedData;
 import com.acme.insurance.pas.policy.underwriting.UnderwritingDecisionData;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,16 +63,18 @@ class EventSchemaContractTest {
     assertValid(
         PasEventTypes.POLICY_RENEWED,
         new PolicyRenewedData(
-            "AUT",
-            "AC",
-            "PN",
-            EFF,
+            BigDecimal.valueOf(100000, 2),
+            BigDecimal.valueOf(115000, 2),
+            BigDecimal.valueOf(15),
+            true,
+            EFF.minusYears(1),
             EFF,
             EFF.plusYears(1),
             1,
-            BigDecimal.valueOf(100000, 2),
-            BigDecimal.valueOf(115000, 2),
-            BigDecimal.valueOf(15)));
+            "AC",
+            "PN",
+            "AG0001",
+            "B001"));
   }
 
   @Test
@@ -78,14 +82,16 @@ class EventSchemaContractTest {
     assertValid(
         PasEventTypes.POLICY_ENDORSED,
         new PolicyEndorsedData(
-            1,
+            2,
             null,
-            null,
-            BigDecimal.ZERO,
-            BigDecimal.valueOf(100000, 2),
-            "AC",
             EFF,
-            EFF.plusYears(1)));
+            365,
+            200,
+            BigDecimal.valueOf(5479, 4),
+            BigDecimal.valueOf(2740, 2),
+            BigDecimal.valueOf(102740, 2),
+            "AG0001",
+            null));
   }
 
   @Test

@@ -10,9 +10,9 @@ import com.acme.insurance.pas.common.domain.PolicyRecord;
 import com.acme.insurance.pas.policy.TestPiiKeys;
 import com.acme.insurance.pas.policy.WriteApiSupport;
 import com.acme.insurance.pas.policy.events.PasEventTypes;
-import com.acme.insurance.pas.policy.events.PolicyEndorsedData;
 import com.acme.insurance.pas.policy.events.PolicyEventPublisher;
-import com.acme.insurance.pas.policy.events.PolicyRenewedData;
+import com.acme.insurance.pas.policy.lifecycle.PolicyEndorsedData;
+import com.acme.insurance.pas.policy.lifecycle.PolicyRenewedData;
 import com.acme.insurance.pas.policy.persistence.CopybookMapping;
 import com.acme.insurance.pas.policy.persistence.PolicyEntity;
 import com.acme.insurance.pas.policy.persistence.PolicyHolderRepository;
@@ -127,13 +127,14 @@ class LegacyQueueBridgeIT {
     assertThat(decided.getStatusCode().value()).isEqualTo(201);
     PolicyRecord v1 = CopybookMapping.toRecord(policies.findById(number).orElseThrow());
 
-    // AB-526 owns the renewal/endorsement services; this drives the PolicyEventPublisher contract
-    // they call, after the same kind of committed policy mutation.
+    // Drives the PolicyEventPublisher calls RenewalService/EndorsementService (AB-526) make, after
+    // the same kind of committed mutation, so the versions are deterministic for the assertions.
     PolicyRecord v2 =
         tx.execute(
             s -> {
               PolicyEntity p = policies.findById(number).orElseThrow();
               LocalDate previousExpiry = p.getExpiryDate();
+              LocalDate previousEffective = p.getEffectiveDate();
               BigDecimal previousPremium = p.getTotalPremium();
               p.setEffectiveDate(previousExpiry);
               p.setExpiryDate(previousExpiry.plusYears(1));
@@ -146,16 +147,18 @@ class LegacyQueueBridgeIT {
               publisher.policyRenewed(
                   p,
                   new PolicyRenewedData(
-                      p.getPolicyType(),
-                      p.getPolicyStatus(),
-                      p.getUwStatus(),
-                      previousExpiry,
+                      previousPremium,
+                      p.getTotalPremium(),
+                      BigDecimal.TEN,
+                      false,
+                      previousEffective,
                       p.getEffectiveDate(),
                       p.getExpiryDate(),
                       p.getRenewalCount(),
-                      previousPremium,
-                      p.getTotalPremium(),
-                      BigDecimal.TEN),
+                      p.getPolicyStatus(),
+                      p.getUwStatus(),
+                      p.getAgentCode(),
+                      p.getBranchCode()),
                   "doc-corr-renew");
               return CopybookMapping.toRecord(p);
             });
@@ -173,11 +176,13 @@ class LegacyQueueBridgeIT {
                       1,
                       "AD",
                       p.getEffectiveDate(),
+                      365,
+                      365,
+                      BigDecimal.ONE,
                       adjustment,
                       p.getTotalPremium(),
-                      p.getPolicyStatus(),
-                      p.getEffectiveDate(),
-                      p.getExpiryDate()),
+                      p.getAgentCode(),
+                      p.getBranchCode()),
                   "doc-corr-endorse");
               return CopybookMapping.toRecord(p);
             });

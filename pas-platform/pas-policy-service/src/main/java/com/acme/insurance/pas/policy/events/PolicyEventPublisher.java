@@ -45,7 +45,7 @@ public class PolicyEventPublisher {
 
   /** {@code PolicyRenewed} plus a {@code RENEWAL} document request (POLRNW layout). */
   @Transactional(propagation = Propagation.MANDATORY)
-  public PasEvent policyRenewed(PolicyEntity policy, PolicyRenewedData data, String correlationId) {
+  public PasEvent policyRenewed(PolicyEntity policy, Object data, String correlationId) {
     return withDocument(
         policyEvent(policy, PasEventTypes.POLICY_RENEWED, data, correlationId),
         DocumentRequestedData.RENEWAL,
@@ -54,8 +54,7 @@ public class PolicyEventPublisher {
 
   /** {@code PolicyEndorsed} plus an {@code ENDORSEMENT} document request (POLEND layout). */
   @Transactional(propagation = Propagation.MANDATORY)
-  public PasEvent policyEndorsed(
-      PolicyEntity policy, PolicyEndorsedData data, String correlationId) {
+  public PasEvent policyEndorsed(PolicyEntity policy, Object data, String correlationId) {
     return withDocument(
         policyEvent(policy, PasEventTypes.POLICY_ENDORSED, data, correlationId),
         DocumentRequestedData.ENDORSEMENT,
