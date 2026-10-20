@@ -2,7 +2,6 @@ package com.acme.insurance.pas.policy.integration;
 
 import com.acme.insurance.pas.common.domain.PolicyRecord;
 import com.acme.insurance.pas.policy.events.PolicyVersionSnapshots;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.time.Clock;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,9 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
  * Delivery to the queue is at-least-once: if the send succeeds but the commit fails the event is
  * retried and the message may be sent again (the legacy queues never had exactly-once either).
  */
-@SuppressFBWarnings(
-    value = "EI_EXPOSE_REP2",
-    justification = "Spring-managed singleton collaborators are shared by design")
 public class LegacyMessageHandler {
 
   private final ProcessedEvents processed;

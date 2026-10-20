@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.policy.integration;
 
+import com.acme.insurance.pas.common.copybook.CobolArithmetic;
 import com.acme.insurance.pas.common.copybook.CopybookField;
 import com.acme.insurance.pas.common.copybook.FieldKind;
 import com.acme.insurance.pas.common.copybook.PasCopybooks;
@@ -23,7 +24,7 @@ import java.util.Map;
 public final class LegacyPolicyMessages {
 
   private static final RecordLayout LAYOUT = PasCopybooks.POLICY_RECORD;
-  private static final int ZONED_3_MODULUS = 1000;
+  private static final int ZONED_3_DIGITS = 3;
   private static final int MIN_YEAR = 1;
   private static final int MAX_YEAR = 9999;
 
@@ -102,6 +103,6 @@ public final class LegacyPolicyMessages {
   }
 
   private static BigDecimal zoned3(int value) {
-    return BigDecimal.valueOf(Math.floorMod(value, ZONED_3_MODULUS));
+    return CobolArithmetic.whole(CobolArithmetic.storeUnsigned(value, ZONED_3_DIGITS));
   }
 }

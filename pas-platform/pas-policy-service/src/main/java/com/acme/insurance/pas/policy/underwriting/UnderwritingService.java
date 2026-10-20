@@ -12,7 +12,6 @@ import com.acme.insurance.pas.policy.persistence.UnderwritingDecisionEntity;
 import com.acme.insurance.pas.policy.persistence.UnderwritingDecisionRepository;
 import com.acme.insurance.pas.policy.security.CallerEntitlements;
 import com.acme.insurance.pas.policy.support.BusinessCalendar;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -27,9 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
  * caller is not entitled to is reported like a missing one ({@link Optional#empty()} → 404).
  */
 @Service
-@SuppressFBWarnings(
-    value = "EI_EXPOSE_REP2",
-    justification = "Spring-managed singleton collaborators are shared by design")
 public class UnderwritingService {
 
   /** {@code UNDERWRITER_ID} for automated decisions (UNDWRT literal). */
