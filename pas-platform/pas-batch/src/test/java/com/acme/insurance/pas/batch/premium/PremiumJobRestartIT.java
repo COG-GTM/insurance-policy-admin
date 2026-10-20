@@ -131,6 +131,17 @@ class PremiumJobRestartIT extends PremiumJobTestSupport {
   }
 
   @Test
+  void rerunOfAnOlderDateKeepsRowsCalculatedByALaterRun() throws Exception {
+    assertThat(run(LocalDate.of(2026, 10, 27), false).getStatus()).isEqualTo(BatchStatus.COMPLETED);
+
+    JobExecution older = run(LocalDate.of(2026, 10, 26), true);
+
+    assertThat(older.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+    assertThat(count("SELECT COUNT(*) FROM pas.premiums WHERE calc_date = DATE '2026-10-27'"))
+        .isEqualTo(BOOK);
+  }
+
+  @Test
   void writeErrorsAreCountedAndTheRunCompletesWithErrors() throws Exception {
     LocalDate runDate = LocalDate.of(2026, 10, 23);
     // a CHECK violation is a data-integrity error: PREMBAT counts it and carries on (RC 4)

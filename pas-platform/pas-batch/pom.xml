@@ -16,6 +16,10 @@
 
     <properties>
         <sshd.version>2.16.0</sshd.version>
+        <!-- CVE-2026-22732 (spring-security-web 6.3.x, CRITICAL): fixed in 6.5.9+, which needs
+             Spring Framework 6.2. Drop both overrides with the Boot 3.5 upgrade (ADR 0001 D2). -->
+        <spring-security.version>6.5.11</spring-security.version>
+        <spring-framework.version>6.2.19</spring-framework.version>
     </properties>
 
     <dependencies>

@@ -11,7 +11,8 @@ import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 /**
  * Writes PREMIUMS rows in JDBC batches. PREMBAT does a plain INSERT, so a second run in the same
  * term fails with -803 for every policy (quirk Q-22); this writer upserts on the primary key so a
- * rerun replaces the row (Q-22 decision: Fix, rerun replaces).
+ * rerun replaces the row (Q-22 decision: Fix, rerun replaces). A row calculated for a later run
+ * date is kept: re-running an older date never overwrites a newer calculation.
  */
 public class PremiumUpsertWriter implements ItemWriter<PremiumRecord> {
 
@@ -42,6 +43,7 @@ public class PremiumUpsertWriter implements ItemWriter<PremiumRecord> {
           installment_amt = EXCLUDED.installment_amt,
           calc_date = EXCLUDED.calc_date,
           calc_by = EXCLUDED.calc_by
+      WHERE pas.premiums.calc_date IS NULL OR pas.premiums.calc_date <= EXCLUDED.calc_date
       """;
 
   private final NamedParameterJdbcTemplate jdbc;

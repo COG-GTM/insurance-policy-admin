@@ -89,7 +89,7 @@ services:
       # premiumRecalculationJob (AB-523): schedule off by default; operator API needs an issuer
       PAS_BATCH_PREMIUM_CRON: ${PAS_BATCH_PREMIUM_CRON:--}
       PAS_OIDC_ISSUER_URI: ${PAS_OIDC_ISSUER_URI:-}
-      PAS_OIDC_AUDIENCE: ${PAS_OIDC_AUDIENCE:-}
+      PAS_OIDC_AUDIENCE: ${PAS_OIDC_AUDIENCE:-pas-api}
     volumes:
       - pas-batch-reports:/var/lib/pas-batch/reports
     ports:

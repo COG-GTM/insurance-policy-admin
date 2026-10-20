@@ -60,16 +60,26 @@ public class PremiumJobCli implements ApplicationRunner, ExitCodeGenerator {
 
   @Override
   public void run(ApplicationArguments args) {
-    LocalDate date = runDate.isBlank() ? LocalDate.now(zone) : LocalDate.parse(runDate);
+    LocalDate date = null;
     try {
+      date = runDate.isBlank() ? LocalDate.now(zone) : LocalDate.parse(runDate);
       JobExecution execution =
           restartExecutionId != null
               ? launcher.restart(restartExecutionId, false)
               : launcher.start(date, rerun, false);
       exitCode = PremiumRunOutcome.of(execution).exitCode();
     } catch (JobInstanceAlreadyCompleteException e) {
-      log.info("Premium run for {} already completed; use rerun to recalculate", date);
-      exitCode = PremiumRunOutcome.COMPLETED.exitCode();
+      // report the outcome of the run that already completed (4 if it had write errors)
+      exitCode =
+          launcher
+              .lastExecution(date)
+              .map(PremiumRunOutcome::of)
+              .orElse(PremiumRunOutcome.COMPLETED)
+              .exitCode();
+      log.info(
+          "Premium run for {} already completed (exit {}); use rerun to recalculate",
+          date,
+          exitCode);
     } catch (Exception e) {
       PremiumAlerts.send(notifiers, PremiumAlerts.launchFailed(date, e));
       exitCode = PremiumRunOutcome.FAILED.exitCode();

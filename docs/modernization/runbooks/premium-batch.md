@@ -65,7 +65,7 @@ PREMIUMS cut-over: (1) remove PAS0050 from CA-7, (2) set
 | `spring.datasource.hikari.maximum-pool-size` | `PAS_BATCH_DB_POOL_SIZE` | 20 | keep > partitions + 2 |
 | `pas.rating.factor-set` | `PAS_RATING_FACTOR_SET` | `PARITY` | `FILED` is empty; the run fails if selected (OQ-04) |
 | `pas.security.oidc.issuer-uri` | `PAS_OIDC_ISSUER_URI` | empty | empty = operator API rejects every request |
-| `pas.security.oidc.audience` | `PAS_OIDC_AUDIENCE` | empty | checked when set |
+| `pas.security.oidc.audience` | `PAS_OIDC_AUDIENCE` | `pas-api` | required `aud` of every JWT; empty = API closed |
 
 ## Starting a run
 
@@ -106,7 +106,9 @@ curl -X POST -H "Authorization: Bearer $JWT" "https://<pas-batch>/api/batch/prem
 # or CLI: --pas.batch.premium.cli.rerun=true
 ```
 
-A rerun is a new job instance with its own report file and summary row.
+A rerun is a new job instance with its own report file and summary row. Rows already
+calculated by a **later** run date are kept (an older date never overwrites a newer
+calculation); those policies still count as updated.
 
 ## Restart after a failure
 

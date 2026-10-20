@@ -82,6 +82,14 @@ public final class PremiumJobLauncher {
     return launch(previous.getJobParameters(), async);
   }
 
+  /** Last execution of the plain (non-rerun) run for {@code runDate}, if any. */
+  public Optional<JobExecution> lastExecution(LocalDate runDate) {
+    return Optional.ofNullable(
+            explorer.getJobInstance(
+                PremiumRecalculationJobConfig.JOB_NAME, parameters(runDate, false)))
+        .map(explorer::getLastJobExecution);
+  }
+
   public Optional<JobExecution> find(long jobExecutionId) {
     return Optional.ofNullable(explorer.getJobExecution(jobExecutionId))
         .filter(

@@ -27,7 +27,8 @@ import org.springframework.util.StringUtils;
 /**
  * OIDC JWT resource server for pas-batch (ADR 0001 D5). The batch operator API needs scope {@code
  * batch:operate}; health probes and the Prometheus scrape stay open; everything else is denied.
- * Without {@code PAS_OIDC_ISSUER_URI} the API fails closed (every bearer JWT is rejected).
+ * Tokens must carry the configured audience; without {@code PAS_OIDC_ISSUER_URI} and {@code
+ * PAS_OIDC_AUDIENCE} the API fails closed (every bearer JWT is rejected).
  */
 @Configuration
 public class BatchSecurityConfig {
@@ -61,10 +62,12 @@ public class BatchSecurityConfig {
   public JwtDecoder jwtDecoder(
       @Value("${pas.security.oidc.issuer-uri:}") String issuer,
       @Value("${pas.security.oidc.audience:}") String audience) {
-    if (!StringUtils.hasText(issuer)) {
-      log.warn("PAS_OIDC_ISSUER_URI not set: the batch operator API rejects every request");
+    if (!StringUtils.hasText(issuer) || !StringUtils.hasText(audience)) {
+      log.warn(
+          "PAS_OIDC_ISSUER_URI / PAS_OIDC_AUDIENCE not set: the batch operator API rejects every"
+              + " request");
       return jwt -> {
-        throw new BadJwtException("OIDC issuer not configured");
+        throw new BadJwtException("OIDC issuer/audience not configured");
       };
     }
     return new SupplierJwtDecoder(
@@ -72,11 +75,9 @@ public class BatchSecurityConfig {
           NimbusJwtDecoder decoder = (NimbusJwtDecoder) JwtDecoders.fromIssuerLocation(issuer);
           List<OAuth2TokenValidator<Jwt>> validators = new ArrayList<>();
           validators.add(JwtValidators.createDefaultWithIssuer(issuer));
-          if (StringUtils.hasText(audience)) {
-            validators.add(
-                new JwtClaimValidator<List<String>>(
-                    JwtClaimNames.AUD, aud -> aud != null && aud.contains(audience)));
-          }
+          validators.add(
+              new JwtClaimValidator<List<String>>(
+                  JwtClaimNames.AUD, aud -> aud != null && aud.contains(audience)));
           decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(validators));
           return decoder;
         });
