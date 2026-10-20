@@ -22,7 +22,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     // @SpringBootTest disables metrics export by default; the prometheus endpoint needs it
-    properties = "management.prometheus.metrics.export.enabled=true")
+    properties = {
+      "management.prometheus.metrics.export.enabled=true",
+      "pas.transfer.enabled=false"
+    })
 @Testcontainers
 class PasBatchApplicationIT {
 
