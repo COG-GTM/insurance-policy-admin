@@ -214,6 +214,27 @@ class PolicyInquiryApiIT {
   }
 
   @Test
+  void securityHeadersAreWrittenOnEveryInquiryResponse() {
+    String entitled = TestJwtIssuer.bearer().scopes(READ).agent("AG1001").sign();
+    String noScope = TestJwtIssuer.bearer().scopes("openid").agent("AG1001").sign();
+    List<ResponseEntity<String>> responses =
+        List.of(
+            get("/api/v1/policies/POL-00000001", entitled),
+            get("/api/v1/policies/POL-00000001", null),
+            get("/api/v1/policies/POL-00000001", noScope),
+            get("/api/v1/policies/POL-00000003", entitled));
+    assertThat(responses)
+        .extracting(r -> r.getStatusCode().value())
+        .containsExactly(200, 401, 403, 404);
+    for (ResponseEntity<String> r : responses) {
+      HttpHeaders h = r.getHeaders();
+      assertThat(h.getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
+      assertThat(h.getFirst("X-Frame-Options")).isEqualTo("DENY");
+      assertThat(h.getCacheControl()).contains("no-store");
+    }
+  }
+
+  @Test
   void tokenWithoutEntitlementClaimsSeesNothing() {
     String none = TestJwtIssuer.bearer().scopes(READ).sign();
     assertThat(status("/api/v1/policies/POL-00000001", none)).isEqualTo(404);
@@ -286,7 +307,9 @@ class PolicyInquiryApiIT {
 
   private ResponseEntity<String> get(String path, String bearer) {
     HttpHeaders headers = new HttpHeaders();
-    headers.setBearerAuth(bearer);
+    if (bearer != null) {
+      headers.setBearerAuth(bearer);
+    }
     return rest.exchange(path, HttpMethod.GET, new HttpEntity<>(headers), String.class);
   }
 }
