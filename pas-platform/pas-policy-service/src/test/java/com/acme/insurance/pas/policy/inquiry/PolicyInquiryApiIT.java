@@ -235,6 +235,23 @@ class PolicyInquiryApiIT {
   }
 
   @Test
+  void unsafeMethodWithoutTokenIsUnauthorizedNotCsrfForbidden() {
+    ResponseEntity<String> post =
+        rest.exchange(
+            "/api/v1/policies/POL-00000001", HttpMethod.POST, HttpEntity.EMPTY, String.class);
+    assertThat(post.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    HttpHeaders cookie = new HttpHeaders();
+    cookie.add(HttpHeaders.COOKIE, "SESSION=forged");
+    ResponseEntity<String> cookieOnly =
+        rest.exchange(
+            "/api/v1/policies/POL-00000001",
+            HttpMethod.POST,
+            new HttpEntity<>(cookie),
+            String.class);
+    assertThat(cookieOnly.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
   void tokenWithoutEntitlementClaimsSeesNothing() {
     String none = TestJwtIssuer.bearer().scopes(READ).sign();
     assertThat(status("/api/v1/policies/POL-00000001", none)).isEqualTo(404);
