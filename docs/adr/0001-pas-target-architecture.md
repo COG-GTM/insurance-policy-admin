@@ -76,7 +76,7 @@ The sections below record each decision (D1–D7), the reasoning and the alterna
 - `pas-policy-service` (port 8080, packages `com.acme.insurance.pas.policy.{inquiry,lifecycle,rating,underwriting}`) owns all online policy behaviour and the REST API (`/api/v2/...`, plus `/api/v1/...` compatibility for facade consumers in AB-524).
 - `pas-batch` (port 8081, packages `com.acme.insurance.pas.batch.{premium,extract,exposure}`) owns all scheduled jobs. Its job metadata lives in the `pas_batch` schema.
 - **Rating is a pure library, not a network service.**
-  - `PremiumCalculator` (already matching PREMBAT goldens) has no I/O. The online path (quotes, renewals, endorsements) and the premium batch both link it in-process.
+  - `PremiumCalculator` (already matching PREMBAT goldens) has no I/O; since AB-522 it lives in the shared `pas-rating` library module (package `com.acme.insurance.pas.rating`, moved with the module so no package is split across jars) with its rates in the `pas` reference tables. Spring JDBC/auto-configuration are optional dependencies of the module; the engine itself is plain Java. The online path (quotes, renewals, endorsements) and the premium batch both link it in-process.
   - When AB-523 needs it in `pas-batch`, it moves from `pas-policy-service`'s `rating` package into a dependency-free `pas-rating` Maven module. The package name and API stay the same.
   - A remote rating call per policy would put a network hop inside the < 30 min full-book run.
 - **Module boundaries inside the service are enforced.**

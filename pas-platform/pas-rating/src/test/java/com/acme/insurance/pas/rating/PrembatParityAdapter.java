@@ -1,4 +1,4 @@
-package com.acme.insurance.pas.policy.rating;
+package com.acme.insurance.pas.rating;
 
 import com.acme.insurance.pas.parity.ParityAdapter;
 import com.acme.insurance.pas.parity.ParityCase;
@@ -6,10 +6,15 @@ import com.acme.insurance.pas.parity.ParityFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Feeds PREMBAT fixture rows through {@link PremiumCalculator}. */
-class PrembatParityAdapter implements ParityAdapter {
+/** Feeds PREMBAT fixture rows through {@link PremiumCalculator} with the given tables. */
+public class PrembatParityAdapter implements ParityAdapter {
 
+  private final RatingSnapshot tables;
   private final PremiumCalculator calculator = new PremiumCalculator();
+
+  public PrembatParityAdapter(RatingSnapshot tables) {
+    this.tables = tables;
+  }
 
   @Override
   public String program() {
@@ -18,9 +23,11 @@ class PrembatParityAdapter implements ParityAdapter {
 
   @Override
   public Map<String, String> run(ParityCase c) {
-    PremiumCalculation r =
+    PremiumBreakdown r =
         calculator.rate(
-            new PolicyTerm(c.text("policy_type"), c.date("effective_date"), c.date("expiry_date")));
+            tables,
+            RatingRequest.of(
+                c.text("policy_type"), c.date("effective_date"), c.date("expiry_date")));
     Map<String, String> out = new LinkedHashMap<>();
     out.put("coverage_seq", ParityFormat.integer(r.coverageSeq()));
     out.put("term_eff_date", ParityFormat.date(r.termEffectiveDate()));
@@ -29,9 +36,9 @@ class PrembatParityAdapter implements ParityAdapter {
     out.put("territory_premium", ParityFormat.money(r.territoryPremium()));
     out.put("class_premium", ParityFormat.money(r.classPremium()));
     out.put("mod_premium", ParityFormat.money(r.modifiedPremium()));
-    out.put("tax_amt", ParityFormat.money(r.tax()));
-    out.put("surcharge_amt", ParityFormat.money(r.surcharge()));
-    out.put("total_premium", ParityFormat.money(r.total()));
+    out.put("tax_amt", ParityFormat.money(r.taxAmount()));
+    out.put("surcharge_amt", ParityFormat.money(r.surchargeAmount()));
+    out.put("total_premium", ParityFormat.money(r.totalPremium()));
     return out;
   }
 }

@@ -45,9 +45,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * AB-521 acceptance: Flyway V1..V4 on an empty Postgres, Hibernate {@code ddl-auto=validate}
- * against the result, copybook bytes -> entity -> database -> entity -> bytes, PII at rest and in
- * logs.
+ * AB-521 acceptance: Flyway V1..V5 (V5 = AB-522 rating tables) on an empty Postgres, Hibernate
+ * {@code ddl-auto=validate} against the result, copybook bytes -> entity -> database -> entity ->
+ * bytes, PII at rest and in logs.
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
@@ -107,7 +107,7 @@ class DataModelIT {
                 .map(MigrationInfo::getVersion)
                 .filter(Objects::nonNull))
         .extracting(Object::toString)
-        .containsExactly("1", "2", "3", "4");
+        .containsExactly("1", "2", "3", "4", "5");
     flyway.validate();
     assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
   }
