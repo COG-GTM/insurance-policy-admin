@@ -1,1 +1,402 @@
-[]
+[
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-AUT",
+    "field": "policy_number",
+    "cobol": "POL000100000",
+    "java": "POL001000000",
+    "quirk": "Q-27 POLNEW STRING 'POL' + PIC 9(10) into PIC X(12) drops the last digit, so ten sequence values share a number",
+    "decision": "docs/modernization/quirk-register.md#q-27",
+    "rationale": "Fix (Proposed, pending PO sign-off): keep the POL + 9-digit format, one number per POLICY_SEQ value"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-AUT",
+    "field": "pol_eff_dt",
+    "cobol": "",
+    "java": "20250601",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-AUT",
+    "field": "pol_exp_dt",
+    "cobol": "",
+    "java": "20260601",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-AUT",
+    "field": "pol_incept_dt",
+    "cobol": "",
+    "java": "20250601",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-AUT",
+    "field": "cov_limit",
+    "cobol": "0.00",
+    "java": "100000.00",
+    "quirk": "Q-28 POLNEW never sets COV-LIMIT on the default coverages",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed rule, pending PO sign-off): each default coverage takes the policy limit"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-AUT",
+    "field": "cov_deductible",
+    "cobol": "0.00",
+    "java": "500.00",
+    "quirk": "Q-28 POLNEW never sets COV-DEDUCTIBLE on the default coverages",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed rule, pending PO sign-off): each default coverage takes the policy deductible"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-HOM",
+    "field": "policy_number",
+    "cobol": "POL000100000",
+    "java": "POL001000001",
+    "quirk": "Q-27 POLNEW STRING 'POL' + PIC 9(10) into PIC X(12) drops the last digit, so ten sequence values share a number",
+    "decision": "docs/modernization/quirk-register.md#q-27",
+    "rationale": "Fix (Proposed, pending PO sign-off): keep the POL + 9-digit format, one number per POLICY_SEQ value"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-HOM",
+    "field": "pol_eff_dt",
+    "cobol": "",
+    "java": "20250715",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-HOM",
+    "field": "pol_exp_dt",
+    "cobol": "",
+    "java": "20260715",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-HOM",
+    "field": "pol_incept_dt",
+    "cobol": "",
+    "java": "20250715",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-HOM",
+    "field": "cov_limit",
+    "cobol": "0.00",
+    "java": "350000.00",
+    "quirk": "Q-28 POLNEW never sets COV-LIMIT on the default coverages",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed rule, pending PO sign-off): each default coverage takes the policy limit"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-HOM",
+    "field": "cov_deductible",
+    "cobol": "0.00",
+    "java": "1000.00",
+    "quirk": "Q-28 POLNEW never sets COV-DEDUCTIBLE on the default coverages",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed rule, pending PO sign-off): each default coverage takes the policy deductible"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-COM",
+    "field": "policy_number",
+    "cobol": "POL000100001",
+    "java": "POL001000010",
+    "quirk": "Q-27 POLNEW STRING 'POL' + PIC 9(10) into PIC X(12) drops the last digit, so ten sequence values share a number",
+    "decision": "docs/modernization/quirk-register.md#q-27",
+    "rationale": "Fix (Proposed, pending PO sign-off): keep the POL + 9-digit format, one number per POLICY_SEQ value"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-COM",
+    "field": "pol_eff_dt",
+    "cobol": "",
+    "java": "20250901",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-COM",
+    "field": "pol_exp_dt",
+    "cobol": "",
+    "java": "20260901",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-COM",
+    "field": "pol_incept_dt",
+    "cobol": "",
+    "java": "20250901",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-COM",
+    "field": "cov_limit",
+    "cobol": "0.00",
+    "java": "5000000.00",
+    "quirk": "Q-28 POLNEW never sets COV-LIMIT on the default coverages",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed rule, pending PO sign-off): each default coverage takes the policy limit"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-COM",
+    "field": "cov_deductible",
+    "cobol": "0.00",
+    "java": "2500.00",
+    "quirk": "Q-28 POLNEW never sets COV-DEDUCTIBLE on the default coverages",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed rule, pending PO sign-off): each default coverage takes the policy deductible"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-LIF",
+    "field": "policy_number",
+    "cobol": "POL000100002",
+    "java": "POL001000020",
+    "quirk": "Q-27 POLNEW STRING 'POL' + PIC 9(10) into PIC X(12) drops the last digit, so ten sequence values share a number",
+    "decision": "docs/modernization/quirk-register.md#q-27",
+    "rationale": "Fix (Proposed, pending PO sign-off): keep the POL + 9-digit format, one number per POLICY_SEQ value"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-LIF",
+    "field": "pol_eff_dt",
+    "cobol": "",
+    "java": "20250602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-LIF",
+    "field": "pol_exp_dt",
+    "cobol": "",
+    "java": "20350602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-LIF",
+    "field": "pol_incept_dt",
+    "cobol": "",
+    "java": "20250602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-HLT",
+    "field": "policy_number",
+    "cobol": "POL000100003",
+    "java": "POL001000030",
+    "quirk": "Q-27 POLNEW STRING 'POL' + PIC 9(10) into PIC X(12) drops the last digit, so ten sequence values share a number",
+    "decision": "docs/modernization/quirk-register.md#q-27",
+    "rationale": "Fix (Proposed, pending PO sign-off): keep the POL + 9-digit format, one number per POLICY_SEQ value"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-HLT",
+    "field": "pol_eff_dt",
+    "cobol": "",
+    "java": "20250602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-HLT",
+    "field": "pol_exp_dt",
+    "cobol": "",
+    "java": "20260602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-HLT",
+    "field": "pol_incept_dt",
+    "cobol": "",
+    "java": "20250602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-XYZ",
+    "field": "policy_number",
+    "cobol": "POL000100004",
+    "java": "POL001000040",
+    "quirk": "Q-27 POLNEW STRING 'POL' + PIC 9(10) into PIC X(12) drops the last digit, so ten sequence values share a number",
+    "decision": "docs/modernization/quirk-register.md#q-27",
+    "rationale": "Fix (Proposed, pending PO sign-off): keep the POL + 9-digit format, one number per POLICY_SEQ value"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-XYZ",
+    "field": "pol_eff_dt",
+    "cobol": "",
+    "java": "20250602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-XYZ",
+    "field": "pol_exp_dt",
+    "cobol": "",
+    "java": "20260602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-XYZ",
+    "field": "pol_incept_dt",
+    "cobol": "",
+    "java": "20250602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-NEGLIM",
+    "field": "policy_number",
+    "cobol": "POL000100005",
+    "java": "POL001000050",
+    "quirk": "Q-27 POLNEW STRING 'POL' + PIC 9(10) into PIC X(12) drops the last digit, so ten sequence values share a number",
+    "decision": "docs/modernization/quirk-register.md#q-27",
+    "rationale": "Fix (Proposed, pending PO sign-off): keep the POL + 9-digit format, one number per POLICY_SEQ value"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-NEGLIM",
+    "field": "pol_eff_dt",
+    "cobol": "",
+    "java": "20250602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-NEGLIM",
+    "field": "pol_exp_dt",
+    "cobol": "",
+    "java": "20260602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-NEGLIM",
+    "field": "pol_incept_dt",
+    "cobol": "",
+    "java": "20250602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-NEGLIM",
+    "field": "cov_limit",
+    "cobol": "0.00",
+    "java": "-1.00",
+    "quirk": "Q-28 POLNEW never sets COV-LIMIT on the default coverages",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed rule, pending PO sign-off): each default coverage takes the policy limit"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-SEQ9",
+    "field": "policy_number",
+    "cobol": "POL099999999",
+    "java": "POL999999999",
+    "quirk": "Q-27 POLNEW STRING 'POL' + PIC 9(10) into PIC X(12) drops the last digit, so ten sequence values share a number",
+    "decision": "docs/modernization/quirk-register.md#q-27",
+    "rationale": "Fix (Proposed, pending PO sign-off): keep the POL + 9-digit format, one number per POLICY_SEQ value"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-SEQ9",
+    "field": "pol_eff_dt",
+    "cobol": "",
+    "java": "20250602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-SEQ9",
+    "field": "pol_exp_dt",
+    "cobol": "",
+    "java": "20260602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-SEQ9",
+    "field": "pol_incept_dt",
+    "cobol": "",
+    "java": "20250602",
+    "quirk": "Q-28 POLNEW never moves the map dates to POL-EFF-DT/POL-EXP-DT/POL-INCEPT-DT",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed, pending PO sign-off): dates from the request, inception = effective"
+  },
+  {
+    "program": "polnew",
+    "case_id": "POLNEW-SEQ9",
+    "field": "cov_limit",
+    "cobol": "0.00",
+    "java": "1000.00",
+    "quirk": "Q-28 POLNEW never sets COV-LIMIT on the default coverages",
+    "decision": "docs/modernization/quirk-register.md#q-28",
+    "rationale": "Fix (Proposed rule, pending PO sign-off): each default coverage takes the policy limit"
+  }
+]

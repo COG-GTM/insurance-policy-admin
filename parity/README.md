@@ -1,6 +1,6 @@
 # PAS COBOL parity harness (AB-520)
 
-Runs the **real** z/OS COBOL programs (PREMBAT, POLRNW, POLEND, UNDWRT) under
+Runs the **real** z/OS COBOL programs (PREMBAT, POLRNW, POLEND, UNDWRT, POLNEW) under
 GnuCOBOL 3.1.2 with every `EXEC SQL` / `EXEC CICS` block replaced by a
 fixture-fed stub, captures program outputs as committed `golden.csv` files,
 and checks the Java implementation (`pas-platform`) produces byte-identical
@@ -62,7 +62,9 @@ ASKTIME replacement) does `PERFORM HX-READ-FIXTURE` + `PERFORM HX-BEGIN`;
 FORMATTIME stubs move `HX-AS-OF-DATE` into the program's current-date field;
 SELECT stubs move fixture values into the INTO host variables when the
 fixture's `*_sqlcode` is 0 and always set SQLCODE; SEND map stubs append the
-map name to `screens_sent`, SEND TEXT appends `TEXT`; the RETURN stub appends
+map name to `screens_sent`, SEND TEXT appends `TEXT`; side effects worth pinning (DB
+inserts, TDQ writes) go into `HX-ITEMS` via `MOVE ... TO HX-ITEM` + `PERFORM HX-APPEND-ITEM`
+(joined with `;`, see POLNEW's `writes`); the RETURN stub appends
 every spec output, `PERFORM HX-EMIT`, `STOP RUN`.
 
 ## Known differences
@@ -113,3 +115,10 @@ stays honest. Currently empty.
 | UNDWRT | UNDWRT-ACCUM | The accumulation-limit reason text is unconditionally overwritten by 5000-RENDER-DECISION — the detail never reaches the operator. |
 | UNDWRT | UNDWRT-SCORE1000 | `POLICY-RISK-SCORE` PIC 9(3) truncates a real score of 1150 to **150** on the stored policy record. |
 | UNDWRT | UNDWRT-600/800 | Exact-boundary scores behave as coded: 600 → RM (not RS), 800 → DC (not RM). |
+| UNDWRT | UNDWRT-CREDIT999/CREDIT900P | (900 − 999) / 2 = −49 and 0 − 100 = −100 are stored unsigned: **49** and **100**. |
+| UNDWRT | UNDWRT-LRDIV/LRDIV2 | Loss ratio is truncated, not rounded: 80.003 → 80.00 (no penalty), 80.333 → 80.33. |
+| UNDWRT | UNDWRT-SCORE1000X | Score 1000 is DC but stores **0** on the policy record. |
+| POLNEW | POLNEW-HOM | Sequence 1000001 formats to `POL000100000`, the same number as 1000000 (Q-27). |
+| POLNEW | POLNEW-AUT.. | `POL-EFF-DT` / `POL-EXP-DT` / `POL-INCEPT-DT` are never set and coverage amounts stay 0 (Q-28). |
+| POLNEW | POLNEW-MULTI* | Every check runs and the last failure wins; holder-not-found beats all (Q-29). |
+| POLNEW | POLNEW-NEGLIM/XYZ | A negative limit and an unknown policy type are accepted (no coverages for XYZ). |

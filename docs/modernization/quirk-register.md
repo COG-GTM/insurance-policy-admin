@@ -280,6 +280,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Evidence:** no golden (the harness stubs the INSERT as success); derived from DDL + code.
 - **Decision:** **Fix.** The target audit table must keep every decision (e.g. surrogate key or timestamp in the key); Java must not drop audit rows. Data model change in AB-521, behaviour in AB-525.
 - **Owner:** UW + DBA. **Target:** AB-521, AB-525. **Status:** Proposed — pending PO sign-off.
+- **Implementation (AB-525):** every automated decision and manual override inserts a new `pas.underwriting_decisions` row; `UnderwritingApiIT.sameDayDecisionsAndOverridesAreAllKept` covers two same-day decisions plus an override.
 
 ### Q-21
 
@@ -289,6 +290,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Evidence:** goldens `UNDWRT-299/300/599/600/799/800` (600 → RM, 800 → DC), `UNDWRT-LIM*`, `UNDWRT-CLAIMS*`.
 - **Decision:** **Preserve** values and codes. Making thresholds configurable is a follow-up ([OQ-11](open-questions.md#oq-11)).
 - **Owner:** UW. **Target:** AB-525. **Status:** Proposed — pending PO sign-off.
+- **Implementation (AB-525):** `UnderwritingRiskScorer` keeps the thresholds and codes; manual overrides now write `OVERRIDE_REASON` / `OVERRIDE_BY` (JWT subject) and `UNDERWRITER_ID` = subject (V6 widens both to VARCHAR(255)).
 
 ### Q-22
 
@@ -348,6 +350,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Impact:** Policy numbers in DB2 are effectively `POL` + `floor(seq/10)` zero-padded to 9 digits; ~90% of new-business attempts fail. Must be confirmed against production data ([OQ-02](open-questions.md#oq-02)) — the deployed load module may differ from this source.
 - **Decision:** **Fix** the collisions while **preserving the format** (`POL` + 9 digits, 12 chars) so existing numbers and downstream layouts stay valid; new numbers must not collide with migrated ones.
 - **Owner:** PO + DBA. **Target:** AB-525. **Status:** Proposed — pending PO sign-off.
+- **Implementation (AB-525):** `PolicyNumbers.forNewBusiness` (`POL` + 9-digit sequence value) and `PolicyNumberGenerator.nextPolicyNumber()` (skips numbers that already exist). New numbers ≥ the migrated sequence position cannot equal a migrated `POL` + floor(seq/10) number. Golden `polnew` cases differ in `policy_number` via `parity/known-differences.json`. `PolicyNumbers.fromSequence` stays as the parity formatter.
 
 ### Q-28
 
@@ -358,6 +361,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Impact:** This source cannot have produced the policies that exist in DB2 today; either the deployed module differs or there is a conversion layer (e.g. DCLGEN/precompiler options) not in the repo ([OQ-02](open-questions.md#oq-02), [missing artifacts](missing-artifacts.md#m-07)).
 - **Decision:** **Fix**: Java new business takes effective/expiry dates from the request, sets inception = effective, and numbers coverages from 1. Coverage amounts follow whatever rule the PO confirms. Add POLNEW to the harness first to pin current behaviour.
 - **Owner:** PO + MF. **Target:** AB-525. **Status:** Proposed — pending PO sign-off.
+- **Implementation (AB-525):** golden `polnew` pins the COBOL behaviour (blank `pol_eff_dt`/`pol_exp_dt`/`pol_incept_dt`, zero coverage amounts; GnuCOBOL zero-initialises `COV-SEQUENCE-NUM`, so coverages number from 1 there too). Java takes both dates from the request (expiry must be after effective, 422 `INVALID_TERM`), sets inception = effective and gives each default coverage the policy's limit and deductible with premium 0.00 until rated — the coverage-amount rule is proposed, **Pending: PO**. LIF/HLT/unknown types still get no coverages (parity).
 
 ### Q-29
 
@@ -366,6 +370,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Where:** `POLNEW.cbl` `3000-VALIDATE-INPUT` L108-134: each failing check overwrites `WS-ERROR-MSG`, so the **last** failure is reported; the POLICY_HOLDERS lookup (L124-133) runs even when earlier checks fail. A RECEIVE failure (L103-105) does not stop validation. `6100-WRITE-COVERAGE` (L226-237) and `7000-SEND-MQ-MESSAGE` (L243-252, "Non-fatal: log error but continue" — nothing is logged) ignore errors.
 - **Decision:** **Preserve** the single-message precedence (holder-not-found > limit > past date > type > holder-id) for the screen-equivalent error; **Fix** ignored write errors (coverage insert and underwriting-request publication must succeed or the whole request fails / is retried via outbox — AB-528).
 - **Owner:** PO. **Target:** AB-525 (AB-528 for the message). **Status:** Proposed — pending PO sign-off.
+- **Implementation (AB-525):** `NewBusinessRules.validate` keeps the last-failure-wins precedence (422 `POLNEW_VALIDATION` with the COBOL text). Coverage inserts and the `PolicyCreated` outbox event are in the policy's transaction, so none can be lost silently.
 
 ### Q-30
 

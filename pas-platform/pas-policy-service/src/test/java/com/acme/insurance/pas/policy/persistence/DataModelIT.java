@@ -107,7 +107,7 @@ class DataModelIT {
                 .map(MigrationInfo::getVersion)
                 .filter(Objects::nonNull))
         .extracting(Object::toString)
-        .containsExactly("1", "2", "3", "4", "5");
+        .containsExactly("1", "2", "3", "4", "5", "6");
     flyway.validate();
     assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
   }
@@ -169,7 +169,7 @@ class DataModelIT {
     long value = policyNumbers.nextSequenceValue();
     assertThat(value).isGreaterThanOrEqualTo(1_000_000L);
     assertThat(policyNumbers.nextPolicyNumber())
-        .isEqualTo(PolicyNumbers.fromSequence(value + 1))
+        .isEqualTo(PolicyNumbers.forNewBusiness(value + 1))
         .startsWith("POL")
         .hasSize(12);
   }

@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -82,6 +83,11 @@ public class PolicyEntity {
   @JdbcTypeCode(SqlTypes.CHAR)
   @Column(name = "updated_by", length = 8, nullable = false)
   private String updatedBy;
+
+  /** Optimistic-lock version (V6); events carry it as {@code policyVersion}. */
+  @Version
+  @Column(name = "version", nullable = false)
+  private Long version;
 
   public String getPolicyNumber() {
     return policyNumber;
@@ -233,6 +239,10 @@ public class PolicyEntity {
 
   public void setUpdatedBy(String updatedBy) {
     this.updatedBy = updatedBy;
+  }
+
+  public Long getVersion() {
+    return version;
   }
 
   @Override

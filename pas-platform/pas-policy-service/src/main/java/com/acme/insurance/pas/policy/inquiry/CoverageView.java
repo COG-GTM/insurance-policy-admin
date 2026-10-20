@@ -21,7 +21,7 @@ public record CoverageView(
     String ratingTerritory,
     String classCode) {
 
-  static CoverageView from(CoverageEntity c) {
+  public static CoverageView from(CoverageEntity c) {
     return new CoverageView(
         Trim.of(c.getId().getPolicyNumber()),
         Trim.primitive(c.getId().getSequenceNum()),
