@@ -71,8 +71,9 @@ public class PremiumJobCli implements ApplicationRunner, ExitCodeGenerator {
     } catch (JobInstanceAlreadyCompleteException e) {
       // report the outcome of the run that already completed (4 if it had write errors)
       exitCode =
-          launcher
-              .lastExecution(date)
+          (restartExecutionId != null
+                  ? launcher.latestOfInstance(restartExecutionId)
+                  : launcher.lastExecution(date))
               .map(PremiumRunOutcome::of)
               .orElse(PremiumRunOutcome.COMPLETED)
               .exitCode();

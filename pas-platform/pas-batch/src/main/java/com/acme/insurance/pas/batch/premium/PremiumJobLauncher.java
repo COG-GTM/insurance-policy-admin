@@ -90,6 +90,11 @@ public final class PremiumJobLauncher {
         .map(explorer::getLastJobExecution);
   }
 
+  /** Latest execution of the job instance that {@code jobExecutionId} belongs to. */
+  public Optional<JobExecution> latestOfInstance(long jobExecutionId) {
+    return find(jobExecutionId).map(e -> explorer.getLastJobExecution(e.getJobInstance()));
+  }
+
   public Optional<JobExecution> find(long jobExecutionId) {
     return Optional.ofNullable(explorer.getJobExecution(jobExecutionId))
         .filter(
