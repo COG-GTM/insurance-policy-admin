@@ -16,4 +16,6 @@ for _ in $(seq 1 90); do
   kill -0 $PID 2>/dev/null || { cat compat-api.log; exit 1; }
   sleep 2
 done
+# Use the local profile's dev client for the contract check.
+export COMPAT_AUTH_HEADER="${COMPAT_AUTH_HEADER:-Authorization: Bearer local-dev-only-key}"
 python3 compat/api/check_api.py --base-url "http://localhost:$PORT" "$@"
