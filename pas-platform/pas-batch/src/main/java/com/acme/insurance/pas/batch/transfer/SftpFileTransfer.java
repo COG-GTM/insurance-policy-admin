@@ -168,6 +168,8 @@ public class SftpFileTransfer implements SecureFileTransfer {
       try (SftpClient sftp = SftpClientFactory.instance().createSftpClient(session)) {
         String dir =
             d.remoteDirectory().endsWith("/") ? d.remoteDirectory() : d.remoteDirectory() + "/";
+        List<String> remotes = files.stream().map(f -> dir + f.remoteName()).toList();
+        reconcileBackups(sftp, remotes);
         List<DeliveryReceipt> receipts = new ArrayList<>();
         for (LocalFile file : files) {
           String remote = dir + file.remoteName();
@@ -193,9 +195,7 @@ public class SftpFileTransfer implements SecureFileTransfer {
                   + file.sha256()
                   + "\n");
         }
-        for (LocalFile file : files) {
-          removeIfExists(sftp, dir + file.remoteName() + PREVIOUS);
-        }
+        removeBackupsBestEffort(sftp, remotes, name);
         return receipts;
       }
     } finally {
@@ -244,12 +244,11 @@ public class SftpFileTransfer implements SecureFileTransfer {
   /**
    * Moves {@code part} to {@code remote}. An existing file is first renamed to {@code .prev} (a
    * plain rename onto an existing file is not portable across SFTP servers) and restored if the
-   * rename fails. The backup is only deleted once every file and its {@code .done} marker are
-   * written, and a backup stranded by an earlier interrupted attempt is restored, never discarded.
+   * rename fails. {@code .prev} holds the last confirmed delivery until every {@code .done} marker
+   * of the new one is written; see {@link #reconcileBackups}.
    */
   static void publish(SftpClient sftp, String part, String remote) throws IOException {
     String previous = remote + PREVIOUS;
-    recoverStrandedBackup(sftp, remote, previous);
     boolean backedUp = renameIfExists(sftp, remote, previous);
     try {
       sftp.rename(part, remote);
@@ -266,19 +265,45 @@ public class SftpFileTransfer implements SecureFileTransfer {
   }
 
   /**
-   * A {@code .prev} left without its final file is the last good delivery from an interrupted
-   * attempt, so it is put back. A {@code .prev} next to a final file is superseded by that (already
-   * verified) file and can go.
+   * Runs before an attempt changes anything. {@code .prev} files exist only if an earlier attempt
+   * did not finish cleanly. If every file of the delivery has its {@code .done} marker, that
+   * delivery was confirmed and the backups are stale; otherwise the final files are unconfirmed, so
+   * each backup (the last confirmed delivery) is put back and the unconfirmed sidecar dropped.
    */
-  static void recoverStrandedBackup(SftpClient sftp, String remote, String previous)
-      throws IOException {
-    if (!exists(sftp, previous)) {
-      return;
+  static void reconcileBackups(SftpClient sftp, List<String> remotes) throws IOException {
+    boolean confirmed = true;
+    for (String remote : remotes) {
+      confirmed &= exists(sftp, remote + ".done");
     }
-    if (exists(sftp, remote)) {
-      removeIfExists(sftp, previous);
-    } else {
-      sftp.rename(previous, remote);
+    for (String remote : remotes) {
+      String previous = remote + PREVIOUS;
+      if (!exists(sftp, previous)) {
+        continue;
+      }
+      if (!confirmed) {
+        removeIfExists(sftp, remote);
+        removeIfExists(sftp, remote + ".sha256");
+        sftp.rename(previous, remote);
+      } else {
+        removeIfExists(sftp, previous);
+      }
+    }
+  }
+
+  /** The delivery is already confirmed here, so a failed cleanup is reported but not retried. */
+  private void removeBackupsBestEffort(SftpClient sftp, List<String> remotes, String destination) {
+    for (String remote : remotes) {
+      try {
+        removeIfExists(sftp, remote + PREVIOUS);
+      } catch (IOException e) {
+        meters.counter("pas.transfer.cleanup.failures", "destination", destination).increment();
+        LOG.warn(
+            "delivered to {} but could not remove {}{}; the next run removes it",
+            destination,
+            remote,
+            PREVIOUS,
+            e);
+      }
     }
   }
 

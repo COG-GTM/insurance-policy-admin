@@ -42,8 +42,10 @@ images. See `pas-platform/.env.example`.
 2. For each file: delete stale `<name>.done`, upload `<name>.part`, check remote size and
    re-read the remote bytes to compare SHA-256, move a previous `<name>` aside to `<name>.prev`,
    rename `.part` to `<name>` (restoring `.prev` if that fails), write `<name>.sha256`
-   (`sha256sum` format). A `.prev` left by an interrupted attempt with no `<name>` beside it is
-   restored before the retry; `.prev` files are deleted only after every `.done` is written.
+   (`sha256sum` format). `.prev` is the last confirmed delivery: before an attempt changes anything,
+   leftover `.prev` files are restored (and the unconfirmed `.sha256` dropped) unless every file
+   already has its `.done`. They are deleted only after every `.done` is written; a failed delete
+   there is logged and counted (`pas.transfer.cleanup.failures`), and the delivery still succeeds.
 3. When every file of the run is in place, write `<name>.done` (`file=`, `bytes=`, `sha256=`).
    **Consumers must pick up a file only after its `.done` exists** and should verify `.sha256`.
 
@@ -55,6 +57,7 @@ images. See `pas-platform/.env.example`.
 | `pas_extract_records_total{job,file}` | Records written; alert on 0 for `policy_extract.dat` on a business day |
 | `pas_transfer_deliveries_total{destination,outcome}` | Final delivery result |
 | `pas_transfer_attempt_failures_total{destination}` | Individual failed attempts (retried) |
+| `pas_transfer_cleanup_failures_total{destination}` | Delivery confirmed but a `.prev` backup could not be removed (next run removes it) |
 | `pas_transfer_duration_seconds{destination}` | Delivery time |
 | Logger `pas.batch.alert` (ERROR `BATCH ALERT …`) | Failed job, or a scheduled launch that could not start |
 

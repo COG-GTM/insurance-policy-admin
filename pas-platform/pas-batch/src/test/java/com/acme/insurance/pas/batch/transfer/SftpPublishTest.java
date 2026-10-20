@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.apache.sshd.sftp.client.SftpClient;
 import org.apache.sshd.sftp.common.SftpConstants;
@@ -62,29 +63,44 @@ class SftpPublishTest {
         .isInstanceOf(IOException.class);
     assertThat(remoteFiles).containsEntry("out.dat.prev", "old").doesNotContainKey("out.dat");
 
-    renamesBeforeFailure = 1; // retry: recovery succeeds, the next rename fails
+    renamesBeforeFailure = Integer.MAX_VALUE; // retry: the stranded backup is put back first
+    SftpFileTransfer.reconcileBackups(sftp, List.of("out.dat"));
+    assertThat(remoteFiles).containsEntry("out.dat", "old").doesNotContainKey("out.dat.prev");
+
+    renamesBeforeFailure = 1; // and a failing retry still leaves it in place
     assertThatThrownBy(() -> SftpFileTransfer.publish(sftp, "out.dat.part", "out.dat"))
         .isInstanceOf(IOException.class);
-    assertThat(
-            remoteFiles.get("out.dat").equals("old")
-                || "old".equals(remoteFiles.get("out.dat.prev")))
-        .isTrue();
-
     renamesBeforeFailure = Integer.MAX_VALUE;
-    SftpFileTransfer.publish(sftp, "out.dat.part", "out.dat");
-    assertThat(remoteFiles)
-        .containsEntry("out.dat", "new")
-        .containsEntry("out.dat.prev", "old")
-        .doesNotContainKey("out.dat.part");
+    SftpFileTransfer.reconcileBackups(sftp, List.of("out.dat"));
+    assertThat(remoteFiles).containsEntry("out.dat", "old");
   }
 
   @Test
-  void supersededBackupIsDroppedWhenFinalFileExists() throws IOException {
-    remoteFiles.put("out.dat", "verified");
-    remoteFiles.put("out.dat.prev", "stale");
+  void unconfirmedPublicationIsRolledBackToLastConfirmedDelivery() throws IOException {
+    // new bytes published, then the connection dropped before the sidecar and .done markers
+    remoteFiles.put("a.dat", "new-a");
+    remoteFiles.put("a.dat.prev", "old-a");
+    remoteFiles.put("a.dat.sha256", "sha-of-new-a");
+    remoteFiles.put("a.dat.done", "partial set");
+    remoteFiles.put("b.dat", "new-b");
+    remoteFiles.put("b.dat.prev", "old-b");
 
-    SftpFileTransfer.recoverStrandedBackup(sftp, "out.dat", "out.dat.prev");
+    SftpFileTransfer.reconcileBackups(sftp, List.of("a.dat", "b.dat"));
 
-    assertThat(remoteFiles).containsOnlyKeys("out.dat").containsEntry("out.dat", "verified");
+    assertThat(remoteFiles)
+        .containsEntry("a.dat", "old-a")
+        .containsEntry("b.dat", "old-b")
+        .doesNotContainKeys("a.dat.prev", "b.dat.prev", "a.dat.sha256");
+  }
+
+  @Test
+  void confirmedDeliveryDropsLeftoverBackups() throws IOException {
+    remoteFiles.put("a.dat", "new-a");
+    remoteFiles.put("a.dat.done", "ok");
+    remoteFiles.put("a.dat.prev", "old-a");
+
+    SftpFileTransfer.reconcileBackups(sftp, List.of("a.dat"));
+
+    assertThat(remoteFiles).containsOnlyKeys("a.dat", "a.dat.done").containsEntry("a.dat", "new-a");
   }
 }
