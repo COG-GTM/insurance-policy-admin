@@ -44,6 +44,15 @@ ensure_env() {
 stack_up() {
   "$PAS_DIR/dev/dev-jwt.sh" keygen >/dev/null
   # pas-policy-service applies the pas Flyway migrations (V1..V7) on start.
+  # Rebuild so the image always carries the current migrations, not a stale V-set. The Dockerfile
+  # reads Maven settings (mirror) from the optional maven_settings build secret.
+  if [ -f "$HOME/.m2/settings.xml" ]; then
+    docker build -q --secret id=maven_settings,src="$HOME/.m2/settings.xml" \
+      --build-arg MVNW_REPOURL="${MVNW_REPOURL:-}" \
+      -f "$PAS_DIR/pas-policy-service/Dockerfile" -t pas-policy-service:local "$PAS_DIR" >/dev/null
+  else
+    "${COMPOSE[@]}" build pas-policy-service
+  fi
   "${COMPOSE[@]}" up -d --wait --wait-timeout 300 postgres pas-policy-service
 }
 
