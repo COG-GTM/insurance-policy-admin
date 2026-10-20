@@ -22,8 +22,15 @@ final class YyyyMmDd {
     return date.getYear() * YEAR_SHIFT + date.getMonthValue() * MONTH_SHIFT + date.getDayOfMonth();
   }
 
-  /** Strict conversion; throws {@link DateTimeException} for an invalid date such as 20250229. */
+  /**
+   * Strict conversion; throws {@link DateTimeException} for an invalid date such as 20250229 or a
+   * year outside the COBOL range 1601-9999 (e.g. 1231, a wrapped 99991231 + 1 year).
+   */
   static LocalDate toDate(int yyyymmdd) {
+    int year = yyyymmdd / YEAR_SHIFT;
+    if (year < FIRST_YEAR || year > LAST_YEAR) {
+      throw new DateTimeException("year outside COBOL date range: " + yyyymmdd);
+    }
     return LocalDate.of(
         yyyymmdd / YEAR_SHIFT, (yyyymmdd / MONTH_SHIFT) % MONTH_SHIFT, yyyymmdd % MONTH_SHIFT);
   }
@@ -33,10 +40,6 @@ final class YyyyMmDd {
    * result pinned by golden POLEND-INVDT, quirk register Q-13).
    */
   static long integerOfDate(int yyyymmdd) {
-    int year = yyyymmdd / YEAR_SHIFT;
-    if (year < FIRST_YEAR || year > LAST_YEAR) {
-      return 0;
-    }
     try {
       return ChronoUnit.DAYS.between(COBOL_EPOCH, toDate(yyyymmdd));
     } catch (DateTimeException e) {

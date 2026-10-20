@@ -112,5 +112,6 @@ class RenewalEndorsementCalculatorTest {
     assertThat(YyyyMmDd.integerOfDate(20250229)).isZero();
     assertThat(YyyyMmDd.integerOfDate(1231)).isZero();
     assertThatThrownBy(() -> YyyyMmDd.toDate(20250229)).isInstanceOf(DateTimeException.class);
+    assertThatThrownBy(() -> YyyyMmDd.toDate(1231)).isInstanceOf(DateTimeException.class);
   }
 }

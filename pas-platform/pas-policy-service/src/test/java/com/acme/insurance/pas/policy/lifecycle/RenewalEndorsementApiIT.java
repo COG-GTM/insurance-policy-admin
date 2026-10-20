@@ -234,6 +234,21 @@ class RenewalEndorsementApiIT {
   }
 
   @Test
+  void sentinelExpiryThatWrapsIsRefusedAndChangesNothing() throws Exception {
+    String n = "POLLC0000005";
+    policy(n, "AC", LocalDate.of(2025, 1, 1), LocalDate.of(9999, 12, 31));
+    ResponseEntity<String> res = renew(n, writer());
+    assertThat(res.getStatusCode().value()).isEqualTo(422);
+    assertThat(mapper.readTree(res.getBody()).get("code").asText())
+        .isEqualTo("RENEWAL_TERM_INVALID");
+    Map<String, Object> p = policyRow(n);
+    assertThat(p.get("expiry_date").toString()).isEqualTo("9999-12-31");
+    assertThat(((Number) p.get("version")).longValue()).isZero();
+    assertThat(count("pas.outbox", n)).isZero();
+    assertThat(count("pas.policy_audit", n)).isZero();
+  }
+
+  @Test
   void failedCoverageUpdateRollsBackTheWholeRenewal() {
     String n = "POLLC0000004";
     policy(n, "EX", LocalDate.of(2024, 1, 1), LocalDate.of(2025, 1, 1));
