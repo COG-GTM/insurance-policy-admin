@@ -321,6 +321,45 @@ Mainframe team.
   (Q-35), and PREMRPT prints edited amounts (Q-24). Recorded as proposed decisions.
 - **Proposed owner:** PO (Pending: PO), Batch operations (Pending: Ops).
 
+## AB-529 (data migration, reconciliation, parallel run)
+
+### Proposed: Choose and provision DB2 log-based CDC
+- **Context:** AB-529 ships a timestamp/watermark delta sync as the CDC fallback
+  ([data-migration.md](data-migration.md#ongoing-sync-timestamp-deltas-now-cdc-recommended)); it cannot
+  see deletes or updates that do not move `LAST_UPDATED`. Pick IBM IIDR or Debezium Db2, provision
+  capture on ACMEINS and a read-only JDBC user for reconciliation, and feed the existing `TargetWriter`.
+- **Proposed owner:** Mainframe team + Platform.
+
+### Proposed: Run the full-billing-cycle parallel run
+- **Context:** the harness (`parallelRunDiffJob`, [parallel-run.md](parallel-run.md)) is ready, but
+  needs daily mainframe captures in `pas.migration.legacy-output-dir`, daily shadow-mode
+  `premiumRecalculationJob` runs, agreed cycle dates and a named triage owner.
+- **Proposed owner:** Ops + PAS tech lead; acceptance by Product Owner, Claims, Actuarial.
+
+### Proposed: Schedule the premium job in shadow mode for the parallel run
+- **Context:** `premiumRecalculationJob` supports `PAS_BATCH_PREMIUM_WRITE_TARGET=shadow` (writes
+  `pas_shadow.premiums` only). For the billing-cycle run, enable `PAS_BATCH_PREMIUM_CRON` in shadow
+  mode next to CA-7 PAS0050, before the parallel-run diff. Switch to `pas` only at the PREMIUMS cut-over
+  (see "Cut-over of CA-7 PAS0050" above).
+- **Proposed owner:** Batch operations.
+
+### Proposed: Production rollback rehearsal and window
+- **Context:** only a local Compose rehearsal exists ([rollback-rehearsal-local.md](rollback-rehearsal-local.md)).
+  Rehearse against the real gateway route flags and DB2, agree the cut-back window (proposed < 60 min)
+  and build PostgreSQL → DB2 reverse replication for after a capability goes `new`.
+- **Proposed owner:** Ops + Platform + Mainframe team.
+
+### Proposed: Publish daily reports to the team channel
+- **Context:** reports land in `pas.migration.report-dir`, `pas.migration_check_runs`,
+  `/actuator/migration` and Prometheus. Post `latest.md` to the team channel and add alerts on
+  `pas_migration_unexplained > 0` and a stale `pas_migration_last_run_seconds`.
+- **Proposed owner:** Platform (observability).
+
+### Proposed: Move POLICY_SEQ at cutover
+- **Context:** `pas.policy_seq` must start above DB2 `ACMEINS.POLICY_SEQ` before POLNEW traffic moves
+  (see also Q-27). Not part of the bulk load.
+- **Proposed owner:** AB-525 / AB-530.
+
 ## AB-525 (new business and underwriting)
 
 ### Proposed: Claims-owned claims history adapter
@@ -351,4 +390,3 @@ Mainframe team.
 - **Context:** event payloads are documented in `events.md` and asserted in `EventsEndToEndIT`;
   ADR 0001 D4 asks for versioned contracts with CI backward-compatibility checks (AB-528).
 - **Proposed owner:** PAS platform (AB-528).
-||||||| a7005a7

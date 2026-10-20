@@ -5,6 +5,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -28,9 +29,11 @@ import org.springframework.util.StringUtils;
  * OIDC JWT resource server for pas-batch (ADR 0001 D5). The batch operator API needs scope {@code
  * batch:operate}; health probes and the Prometheus scrape stay open; everything else is denied.
  * Tokens must carry the configured audience; without {@code PAS_OIDC_ISSUER_URI} and {@code
- * PAS_OIDC_AUDIENCE} the API fails closed (every bearer JWT is rejected).
+ * PAS_OIDC_AUDIENCE} the API fails closed (every bearer JWT is rejected). Not loaded by the
+ * one-shot CLI profiles ({@code spring.main.web-application-type=none}), which serve no HTTP.
  */
 @Configuration
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class BatchSecurityConfig {
 
   public static final String BATCH_OPERATE = "SCOPE_batch:operate";
