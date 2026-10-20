@@ -235,7 +235,7 @@ Schedules are from JCL header comments; the CA-7 definitions themselves are not 
 | Inputs | DB2 `POLICIES` with `POLICY_STATUS='AC'` ordered by number (`PREMBAT.cbl` L118-127); `TERRITORY_FACTORS` cursor opened but not read (L104-114) |
 | Outputs | DB2 `PREMIUMS` one row per policy (L202-219); report `PREMRPT` → `ACME.PAS.REPORTS.PREMIUM.D&LYYMMDD`, FB LRECL 132 (`PREMBAT.cbl` L23-33; JCL L28-31) |
 | Return code | 0 normally; 4 if any INSERT failed (L252-258); intended 16 on report open failure is lost ([Q-25](quirk-register.md#q-25)) |
-| Parity harness | `parity/programs/prembat` (batch mode, 14 cases); `pas-policy-service` `rating/PremiumCalculator` matches |
+| Parity harness | `parity/programs/prembat` (batch mode, 25 cases); `pas-rating` `PremiumCalculator` (AB-522, table-driven) matches |
 | Java target | `pas-policy-service` `rating` (AB-522) + `pas-batch` `premium` job (AB-523) |
 
 Calculation (`3200-CALCULATE-PREMIUM` L149-188): base premium by type (AUT 850.00, HOM
