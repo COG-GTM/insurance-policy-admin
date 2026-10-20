@@ -83,6 +83,19 @@
             <version>${logstash-logback-encoder.version}</version>
         </dependency>
 
+        <!-- AB-529: DB2 source for the migration (read-only JDBC). -->
+        <dependency>
+            <groupId>com.ibm.db2</groupId>
+            <artifactId>jcc</artifactId>
+            <version>11.5.9.0</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- AB-529 tests: H2 in DB2 mode stands in for ACMEINS. -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

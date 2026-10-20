@@ -61,7 +61,7 @@ exact `POLICY-RECORD`.
   allowed; anything else needs `v2` schemas on `*.v2` topics, published alongside v1 until every
   consumer moves.
 
-## Legacy queue bridges (transitional, ADR 0001 / ADR 0003)
+## Legacy queue bridges (transitional, ADR 0001 / ADR 0004)
 
 | Consumer group | Topic | Events | Legacy queue (config) | Message |
 | --- | --- | --- | --- | --- |
@@ -78,6 +78,11 @@ exact `POLICY-RECORD`.
   only) or `memory` (test environments; `GET /api/v1/admin/legacy-messages`). The IBM MQ/JMS
   transport is **Pending: Document/FileNet team** and **Pending: Underwriting team**; nothing is
   delivered to FileNet today.
+- Bridges act only on events; they never infer that a policy changed. AB-529 migration loads
+  (`TargetWriter`) and CDC sync write `pas` without outbox events, so before cut-over a migrated
+  or synced policy produces no document/queue message from the bridges (the legacy CICS path
+  still sends it). A snapshot exists only for versions published through `PolicyEventPublisher`;
+  an event whose version has no snapshot is retried, then dead-lettered for an operator.
 - Idempotency: each consumer claims `(consumer, eventId)` in `pas.processed_events` in the same
   transaction as the send; a duplicate or replayed event is skipped. Delivery to the queue is
   at least once (a crash between send and commit resends).

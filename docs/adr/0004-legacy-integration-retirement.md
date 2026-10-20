@@ -1,4 +1,4 @@
-# 0003. Retire PAS legacy messaging and Broker Portal DB2 access (AB-528)
+# 0004. Retire PAS legacy messaging and Broker Portal DB2 access (AB-528)
 
 - **Status:** Proposed
 - **Date:** 2026-10-20
@@ -6,7 +6,7 @@
 - **Authors:** PAS platform (AB-528)
 - **Owning team:** PAS platform
 - **Related ADRs:** [0001](0001-pas-target-architecture.md) (D4 events/outbox, D5 Broker Portal via
-  `pas-policy-service`, transitional Kafka→MQ bridge), [0002](0002-pas-target-data-model-and-pii.md)
+  `pas-policy-service`, transitional Kafka→MQ bridge), [0002](0002-pas-target-data-model-and-pii.md), [0003](0003-db2-migration-sync-reconciliation.md) (AB-529 migration/sync, no events)
 
 ## Context
 
@@ -18,6 +18,10 @@ before DB2 and the CICS region retire. ADR 0001 already chose Kafka + transactio
 transitional Kafka→MQ bridge rebuilding the 125-byte `POLICY-RECORD` from `policyVersion`, and the
 inquiry API for the portal. This ADR records how AB-528 implements that and asks the ARB to review
 the concrete contracts and stores.
+
+AB-529 migration loads and delta sync (ADR 0003) write `pas` without emitting events, so the
+bridges must not assume every policy change has an event before cut-over; they act only on
+published events and read the snapshot that event names.
 
 Constraints: real MQ/FileNet endpoints and the portal's query list are not available (M-04,
 M-08); downstream consumers depend on the fixed-width layout byte for byte; no new deployable

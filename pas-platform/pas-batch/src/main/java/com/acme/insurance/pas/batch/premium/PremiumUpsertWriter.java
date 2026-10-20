@@ -61,7 +61,7 @@ public class PremiumUpsertWriter implements ItemWriter<PremiumRecord> {
     jdbc.batchUpdate(UPSERT_SQL, batch);
   }
 
-  private static SqlParameterSource params(PremiumRecord r) {
+  static MapSqlParameterSource params(PremiumRecord r) {
     return new MapSqlParameterSource()
         .addValue("policyNumber", r.policyNumber())
         .addValue("coverageSeq", r.coverageSeq())

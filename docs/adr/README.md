@@ -23,4 +23,5 @@ boundaries or runtimes.
 | ADR | Title | Status | Ticket | ARB |
 | --- | --- | --- | --- | --- |
 | [0001](0001-pas-target-architecture.md) | PAS target architecture | Proposed | AB-518 | ARB-TBD (to be created), [submission](arb/0001-submission.md) |
-| [0003](0003-legacy-integration-retirement.md) | Retire PAS legacy messaging and Broker Portal DB2 access | Proposed | AB-528 | ARB-TBD (to be created), [submission](arb/0003-submission.md) |
+| [0003](0003-db2-migration-sync-reconciliation.md) | DB2 → PostgreSQL migration, delta sync, reconciliation and parallel run | Proposed | AB-529 | ARB-TBD (to be created) |
+| [0004](0004-legacy-integration-retirement.md) | Retire PAS legacy messaging and Broker Portal DB2 access | Proposed | AB-528 | ARB-TBD (to be created), [submission](arb/0004-submission.md) |

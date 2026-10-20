@@ -6,7 +6,7 @@ through `pas-policy-service` instead. Re-platforming the portal is out of scope 
 
 **Status:** engineering done; **Pending: Broker Portal team** (agreement on the approach and the
 query list below), **Pending: Security** (client registration and scopes),
-**Pending: ARB** (see `docs/adr/0003-legacy-integration-retirement.md`).
+**Pending: ARB** (see `docs/adr/0004-legacy-integration-retirement.md`).
 
 ## Decision: inquiry API, not a read replica
 
