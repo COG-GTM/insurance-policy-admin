@@ -67,6 +67,24 @@ who maintains it ([I-13](integrations.md#i-13)). Proposed owner: Mainframe team 
 rating change. Must stay behind a feature flag that is **off by default**, with its own
 parity baseline and actuarial sign-off. Proposed owner: Actuarial + PO.
 
+Proposed ticket: *[PAS] Turn on filed territory/class factors (FILED factor set)*. AB-522 built
+the switch; this ticket is the business decision to use it.
+
+- Engineering already in place (AB-522): `pas-rating` reads `pas.territory_factors` /
+  `pas.class_factors` for the factor set in `pas.rating.factor-set` (`PAS_RATING_FACTOR_SET`, both
+  `pas-policy-service` and `pas-batch`). Default `PARITY` = catch-all `1.0000` rows, reproducing
+  PREMBAT ([Q-03](quirk-register.md#q-03)). `FILED` is selectable but ships with no rows, and
+  rating refuses to load a factor set without territory and class factors, so it cannot be
+  switched on by accident.
+- To do: load the rating department's filed territory/class tables into `FILED` with a new
+  Flyway migration or a controlled data load (effective-dated rows, a `*` row per table if
+  unmatched codes should get a default factor), and source the territory and class code for each
+  policy (PREMBAT reads neither; `RatingRequest` already carries both).
+- Needs its own parity baseline (expected premiums under the filed factors), an entry in
+  `parity/known-differences.json` pointing at Q-03, and a dual-run comparison before the flag
+  changes in any environment.
+- Sign-offs: Pending: Actuarial (factor values), Pending: Product owner (go-live decision).
+
 ### OQ-05
 
 **State-specific renewal rate caps.** Context: [Q-04](quirk-register.md#q-04); README

@@ -54,6 +54,7 @@ services:
       PAS_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       PAS_PII_ENCRYPTION_KEY: ${PAS_PII_ENCRYPTION_KEY:?Set PAS_PII_ENCRYPTION_KEY (openssl rand -base64 32) in .env}
       PAS_PII_BLIND_INDEX_KEY: ${PAS_PII_BLIND_INDEX_KEY:?Set PAS_PII_BLIND_INDEX_KEY (openssl rand -base64 32) in .env}
+      PAS_RATING_FACTOR_SET: ${PAS_RATING_FACTOR_SET:-PARITY}
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
     ports:
       - "${PAS_BIND_ADDRESS:-127.0.0.1}:${PAS_POLICY_HTTP_PORT:-8080}:8080"
@@ -80,6 +81,7 @@ services:
       PAS_DB_URL: jdbc:postgresql://postgres:5432/pas
       PAS_DB_USERNAME: ${PAS_DB_USERNAME:-pas}
       PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:?Set PAS_DB_PASSWORD or copy .env.example to .env}
+      PAS_RATING_FACTOR_SET: ${PAS_RATING_FACTOR_SET:-PARITY}
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
       # Local stack has no SFTP endpoints: extracts stay in the container (see extracts-runbook.md).
       PAS_TRANSFER_ENABLED: ${PAS_TRANSFER_ENABLED:-false}
