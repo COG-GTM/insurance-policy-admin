@@ -29,6 +29,10 @@ public class SecurityConfig {
     "/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness"
   };
 
+  static final String[] POLICY_CHANGE_WRITES = {
+    "/api/v1/policies/*/renewals", "/api/v1/policies/*/endorsements"
+  };
+
   static final String[] UNDERWRITING_WRITES = {
     "/api/v1/policies/*/underwriting-decisions",
     "/api/v1/policies/*/underwriting-decisions/overrides"
@@ -63,6 +67,8 @@ public class SecurityConfig {
                     .requestMatchers(HEALTH_PROBES)
                     .permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/v1/policies")
+                    .hasAuthority(PasScopes.authority(PasScopes.POLICY_WRITE))
+                    .requestMatchers(HttpMethod.POST, POLICY_CHANGE_WRITES)
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_WRITE))
                     .requestMatchers(HttpMethod.POST, UNDERWRITING_WRITES)
                     .hasAuthority(PasScopes.authority(PasScopes.UNDERWRITING_DECIDE))

@@ -13,6 +13,8 @@ public final class PasEventTypes {
   public static final String POLICY_CREATED = "PolicyCreated";
   public static final String UNDERWRITING_DECIDED = "UnderwritingDecided";
   public static final String UNDERWRITING_REFERRED = "UnderwritingReferred";
+  public static final String POLICY_RENEWED = "PolicyRenewed";
+  public static final String POLICY_ENDORSED = "PolicyEndorsed";
 
   private PasEventTypes() {}
 }

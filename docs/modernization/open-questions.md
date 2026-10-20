@@ -351,4 +351,39 @@ Mainframe team.
 - **Context:** event payloads are documented in `events.md` and asserted in `EventsEndToEndIT`;
   ADR 0001 D4 asks for versioned contracts with CI backward-compatibility checks (AB-528).
 - **Proposed owner:** PAS platform (AB-528).
-||||||| a7005a7
+
+## AB-526 (renewal and endorsement APIs)
+
+Pending human action (recorded here, not done in this session):
+
+- **Pending: PO** sign-off on the AB-526 fixes Q-01 (leap-day expiry), Q-02 (open claims > 3
+  block renewal), Q-09 (failed renewal write rolls back, no confirmation) and Q-14 (failed
+  endorsement insert rolls back, no confirmation), and on preserving Q-10/Q-11 (endorsement
+  carries no premium change).
+- **Pending: Claims team** confirmation of the open-claims threshold (`pas.renewal.max-open-claims`,
+  default 3) and that `ClaimsHistoryPort.openClaimCount` is the right definition of "open".
+- **Pending: Security** review of the two new write routes (`policy:write`, object-level 404).
+- **Pending: ARB** acknowledgement of the new `pas.policy_audit` table (ADR 0001 audit table) and
+  the two new events.
+
+### Proposed: State-specific renewal rate caps
+- **Context:** the renewal cap is flat (`pas.renewal.rate-cap-pct`, default 15, Q-04). The
+  extension point exists: `pas.renewal.state-rate-cap-pct.<STATE>` is bound and
+  `RenewalRateCapPolicy` is a replaceable bean, but no state is configured and the default policy
+  ignores the map until product supplies filed caps per state.
+- **Proposed owner:** PO + Product/Pricing.
+
+### Proposed: Endorsement premium adjustment
+- **Context:** POLEND never sets `WS-PREMIUM-ADJUST` (Q-11), so every endorsement records 0.00 and
+  the policy premium does not change; AB-526 preserves that at parity. Rating an endorsement
+  (pro-rata factor × change in rated premium, via `pas-rating`) needs a product decision per
+  endorsement type (`CAD`, `CRM`, `LCH`, `ACH`, `CAN`) and a known-differences entry for every
+  POLEND golden that changes. `EndorsementCalculator.premiumAdjustment` is the single place to
+  change.
+- **Proposed owner:** PO + Product/Pricing.
+
+### Proposed: Endorsement audit read API and retention
+- **Context:** `pas.policy_audit` replaces the ENDORSEMENT-AUDIT temporary-storage queue (which was
+  lost on CICS restart) and also records renewals. Nothing reads it yet; agree retention with data
+  governance and decide whether servicing needs `GET /api/v1/policies/{n}/audit`.
+- **Proposed owner:** PAS platform + data governance.

@@ -78,7 +78,8 @@ either an AB-517 quirk-register link
 (`https://cog-gtm.atlassian.net/browse/AB-517...`) or a repo path under
 `docs/modernization/`. Stale entries (unknown case/field or values that no
 longer match) fail the run — they are deliberately brittle so the register
-stays honest. Current entries: `prembat-rerun` (Q-22, AB-523).
+stays honest. Current entries: `prembat-rerun` (Q-22, AB-523); `POLRNW-LEAP` (Q-01),
+`POLRNW-CLAIMS` (Q-02), `POLRNW-UPD911` (Q-09) and `POLEND-INSF` (Q-14) (AB-526).
 
 ## GnuCOBOL vs z/OS caveats
 

@@ -2,8 +2,11 @@ package com.acme.insurance.pas.policy.api;
 
 import com.acme.insurance.pas.common.error.ApiError;
 import com.acme.insurance.pas.policy.claims.ClaimsHistoryUnavailableException;
+import com.acme.insurance.pas.policy.lifecycle.EndorsementController;
 import com.acme.insurance.pas.policy.lifecycle.NewBusinessController;
 import com.acme.insurance.pas.policy.lifecycle.NewBusinessRejectedException;
+import com.acme.insurance.pas.policy.lifecycle.PolicyChangeRejectedException;
+import com.acme.insurance.pas.policy.lifecycle.RenewalController;
 import com.acme.insurance.pas.policy.security.NotEntitledException;
 import com.acme.insurance.pas.policy.support.CorrelationIds;
 import com.acme.insurance.pas.policy.underwriting.NoDecisionToOverrideException;
@@ -22,7 +25,13 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** {@link ApiError} responses for the AB-525 write APIs (the inquiry API is unaffected). */
-@RestControllerAdvice(assignableTypes = {NewBusinessController.class, UnderwritingController.class})
+@RestControllerAdvice(
+    assignableTypes = {
+      NewBusinessController.class,
+      UnderwritingController.class,
+      RenewalController.class,
+      EndorsementController.class
+    })
 public class WriteApiExceptionHandler {
 
   private static final Logger log = LoggerFactory.getLogger(WriteApiExceptionHandler.class);
@@ -62,6 +71,12 @@ public class WriteApiExceptionHandler {
     return error(HttpStatus.UNPROCESSABLE_ENTITY, e.code(), e.getMessage(), request);
   }
 
+  @ExceptionHandler(PolicyChangeRejectedException.class)
+  ResponseEntity<ApiError> changeRejected(
+      PolicyChangeRejectedException e, HttpServletRequest request) {
+    return error(HttpStatus.UNPROCESSABLE_ENTITY, e.code(), e.getMessage(), request);
+  }
+
   @ExceptionHandler(UnderwritingDataIncompleteException.class)
   ResponseEntity<ApiError> incomplete(
       UnderwritingDataIncompleteException e, HttpServletRequest request) {
@@ -91,7 +106,7 @@ public class WriteApiExceptionHandler {
     return error(
         HttpStatus.SERVICE_UNAVAILABLE,
         "CLAIMS_HISTORY_UNAVAILABLE",
-        "claims history is unavailable; underwriting was not performed",
+        "claims history is unavailable; the policy was not changed",
         request);
   }
 
