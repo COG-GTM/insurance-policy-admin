@@ -17,9 +17,20 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 keys="${PAS_DEV_KEYS_DIR:-$here/.dev-keys}"
 
+# Reads one key from .env with Compose's dotenv rules: quoted values verbatim, unquoted values
+# trimmed and cut at an inline " #" comment.
 from_env_file() {
   [[ -f "$here/.env" ]] || return 0
-  sed -n "s/^[[:space:]]*$1=//p" "$here/.env" | tail -n 1 | sed -e 's/^["'\'']//' -e 's/["'\'']$//'
+  local line val
+  line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=" "$here/.env" | tail -n 1) || return 0
+  val="${line#*=}"
+  val="${val#"${val%%[![:space:]]*}"}"
+  case "$val" in
+    \"*) val="${val#\"}"; val="${val%%\"*}" ;;
+    \'*) val="${val#\'}"; val="${val%%\'*}" ;;
+    *) val="${val%%[[:space:]]#*}"; val="${val%"${val##*[![:space:]]}"}" ;;
+  esac
+  printf '%s' "$val"
 }
 
 issuer="${PAS_OIDC_ISSUER_URI:-$(from_env_file PAS_OIDC_ISSUER_URI)}"
