@@ -92,6 +92,12 @@ services:
       # Local stack has no SFTP endpoints: extracts stay in the container (see extracts-runbook.md).
       PAS_TRANSFER_ENABLED: ${PAS_TRANSFER_ENABLED:-false}
       PAS_EXTRACT_OUTPUT_DIR: /tmp/pas-extracts
+      # premiumRecalculationJob (AB-523): schedule off by default; operator API needs an issuer
+      PAS_BATCH_PREMIUM_CRON: ${PAS_BATCH_PREMIUM_CRON:--}
+      PAS_OIDC_ISSUER_URI: ${PAS_OIDC_ISSUER_URI:-}
+      PAS_OIDC_AUDIENCE: ${PAS_OIDC_AUDIENCE:-pas-api}
+    volumes:
+      - pas-batch-reports:/var/lib/pas-batch/reports
     ports:
       - "${PAS_BIND_ADDRESS:-127.0.0.1}:${PAS_BATCH_HTTP_PORT:-8081}:8081"
     depends_on:
@@ -106,3 +112,4 @@ services:
 
 volumes:
   pas-pgdata:
+  pas-batch-reports:
