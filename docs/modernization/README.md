@@ -11,6 +11,8 @@ Discovery outputs from AB-517. Read them in this order:
 | [open-questions.md](open-questions.md) | Unanswered questions written as proposed follow-up tickets |
 | [extract-layouts.md](extract-layouts.md) | AB-527 byte layouts of the Claims/Actuarial extract files |
 | [extracts-runbook.md](extracts-runbook.md) | AB-527 jobs, schedules, SFTP delivery, alerting, rerun and cut-over |
+| [data-migration.md](data-migration.md) | AB-529 bulk load, delta sync vs CDC, reconciliation, rollback |
+| [parallel-run.md](parallel-run.md) | AB-529 daily parallel-run diff and difference triage |
 
 Review status: Pending: Mainframe team lead. Pending: Product Owner (PAS). All quirk
 decisions are **Proposed — pending PO sign-off**.

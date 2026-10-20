@@ -23,6 +23,7 @@ import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcPagingItemReader;
 import org.springframework.batch.item.database.Order;
 import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
@@ -79,8 +80,9 @@ public class PremiumRecalculationJobConfig {
   }
 
   @Bean
-  public PremiumRunSummaryRepository premiumRunSummaryRepository(DataSource dataSource) {
-    return new PremiumRunSummaryRepository(dataSource);
+  public PremiumRunSummaryRepository premiumRunSummaryRepository(
+      DataSource dataSource, PremiumJobProperties props) {
+    return new PremiumRunSummaryRepository(dataSource, props.writeTarget());
   }
 
   @Bean
@@ -165,8 +167,17 @@ public class PremiumRecalculationJobConfig {
   @Bean
   @StepScope
   public CompositeItemWriter<PremiumRecord> premiumWriter(
-      PremiumUpsertWriter upsert, FlatFileItemWriter<PremiumRecord> premiumReportPartWriter) {
-    return new CompositeItemWriter<>(List.of(upsert, premiumReportPartWriter));
+      PremiumJobProperties props,
+      DataSource dataSource,
+      PremiumUpsertWriter upsert,
+      FlatFileItemWriter<PremiumRecord> premiumReportPartWriter,
+      @Value("#{stepExecution.jobExecution.jobInstance.instanceId}") Long jobInstanceId,
+      @Value("#{jobParameters['" + RUN_DATE + "']}") LocalDate runDate) {
+    ItemWriter<PremiumRecord> premiums =
+        props.writeTarget() == PremiumWriteTarget.SHADOW
+            ? new ShadowPremiumWriter(dataSource, jobInstanceId, runDate)
+            : upsert;
+    return new CompositeItemWriter<>(List.of(premiums, premiumReportPartWriter));
   }
 
   @Bean

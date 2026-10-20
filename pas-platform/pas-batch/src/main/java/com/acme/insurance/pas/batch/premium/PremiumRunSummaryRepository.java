@@ -15,11 +15,11 @@ public class PremiumRunSummaryRepository {
       INSERT INTO pas_batch.premium_run_summary (
           job_execution_id, job_instance_id, run_date, batch_status, exit_code, outcome,
           policies_read, policies_updated, policy_errors, rating_version, report_path,
-          started_at, ended_at, failure_message)
+          started_at, ended_at, failure_message, write_target)
       VALUES (
           :jobExecutionId, :jobInstanceId, :runDate, :batchStatus, :exitCode, :outcome,
           :read, :updated, :errors, :ratingVersion, :reportPath,
-          :startedAt, :endedAt, :failureMessage)
+          :startedAt, :endedAt, :failureMessage, :writeTarget)
       ON CONFLICT (job_execution_id) DO UPDATE SET
           batch_status = EXCLUDED.batch_status,
           exit_code = EXCLUDED.exit_code,
@@ -36,9 +36,15 @@ public class PremiumRunSummaryRepository {
       """;
 
   private final NamedParameterJdbcTemplate jdbc;
+  private final PremiumWriteTarget writeTarget;
 
   public PremiumRunSummaryRepository(DataSource dataSource) {
+    this(dataSource, PremiumWriteTarget.PAS);
+  }
+
+  public PremiumRunSummaryRepository(DataSource dataSource, PremiumWriteTarget writeTarget) {
     this.jdbc = new NamedParameterJdbcTemplate(dataSource);
+    this.writeTarget = writeTarget;
   }
 
   public void save(PremiumRunSummary s) {
@@ -58,7 +64,8 @@ public class PremiumRunSummaryRepository {
             .addValue("reportPath", s.reportPath())
             .addValue("startedAt", s.startedAt())
             .addValue("endedAt", s.endedAt())
-            .addValue("failureMessage", s.failureMessage()));
+            .addValue("failureMessage", s.failureMessage())
+            .addValue("writeTarget", writeTarget.name()));
   }
 
   public Optional<PremiumRunSummary> find(long jobExecutionId) {

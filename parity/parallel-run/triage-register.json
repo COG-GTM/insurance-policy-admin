@@ -1,0 +1,4 @@
+{
+  "comment": "AB-529 triage register for reconciliation and parallel-run differences. Process: docs/modernization/parallel-run.md. classification is BUG (needs ticket), APPROVED_FIX (needs quirk Q-nn + decision docs/modernization/quirk-register.md#q-nn) or DATA_ISSUE (needs owner). Unmatched differences are UNCLASSIFIED. Unexplained = BUG + UNCLASSIFIED. Quirk decisions are Proposed - pending PO sign-off. PR-001 (Q-22 extra shadow premiums) is proposed in docs/modernization/parallel-run.md and must be added scoped to concrete keys during triage, not as a wildcard.",
+  "entries": []
+}
