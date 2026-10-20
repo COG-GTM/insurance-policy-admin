@@ -13,7 +13,7 @@ compat-build:
 compat-api:
 	./compat/api/run_facade.sh
 
-.PHONY: build test parity parity-cobol parity-golden parity-java dev dev-images dev-up dev-down dev-logs dev-ps
+.PHONY: build test dev dev-images dev-up dev-down dev-logs dev-ps
 
 PAS_DIR := pas-platform
 COMPOSE := docker compose -f $(PAS_DIR)/docker-compose.yml
