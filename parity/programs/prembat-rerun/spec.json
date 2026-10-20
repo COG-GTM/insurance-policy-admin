@@ -1,0 +1,21 @@
+{
+  "program": "PREMBAT",
+  "source": "cobol/programs/PREMBAT.cbl",
+  "mode": "batch",
+  "expected_rc": 4,
+  "description": "PREMBAT rerun in the same term (quirk Q-22). The INSERT stub answers with the fixture's premiums_sqlcode (-803: the PREMIUMS row from the first run already exists), so the COBOL program counts every policy as an error, keeps the old rows and ends RC 4. The Java job upserts and replaces the rows (known difference, decision Q-22).",
+  "input": [
+    {"name": "policy_type", "pic": "X(3)"},
+    {"name": "total_premium", "pic": "S9(9)V99"},
+    {"name": "deductible", "pic": "S9(7)V99"},
+    {"name": "coverage_limit", "pic": "S9(11)V99"},
+    {"name": "effective_date", "pic": "9(8)"},
+    {"name": "expiry_date", "pic": "9(8)"},
+    {"name": "premiums_sqlcode", "pic": "S9(4)"}
+  ],
+  "output": [
+    "term_eff_date",
+    "total_premium",
+    "premiums_sqlcode"
+  ]
+}

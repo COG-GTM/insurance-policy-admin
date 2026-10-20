@@ -1,0 +1,88 @@
+"""Unit tests for route_flags.py (run: python3 -m unittest discover -s scripts/cutover)."""
+import contextlib
+import io
+import json
+import pathlib
+import shutil
+import tempfile
+import unittest
+
+import route_flags as rf
+
+
+class RouteFlagsTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.file = str(pathlib.Path(self.dir) / "flags.json")
+        shutil.copy(rf.DEFAULT, self.file)
+
+    def tearDown(self):
+        shutil.rmtree(self.dir)
+
+    def run_cli(self, *args):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return rf.main([*args, "--file", self.file])
+
+    def mark_pending(self, name, ticket="AB-999"):
+        data = json.loads(pathlib.Path(self.file).read_text())
+        data["capabilities"][name]["pendingMerge"] = ticket
+        pathlib.Path(self.file).write_text(json.dumps(data))
+
+    def states(self):
+        return {n: c["state"] for n, c in rf.load(self.file)["capabilities"].items()}
+
+    def test_committed_file_is_valid_under_production_rules(self):
+        self.assertEqual(0, rf.main(["validate", "--file", str(rf.DEFAULT), "--production"]))
+
+    def test_committed_file_is_all_legacy_until_cutover(self):
+        caps = rf.load(rf.DEFAULT)["capabilities"]
+        self.assertEqual({"legacy"}, {c["state"] for c in caps.values()})
+
+    def test_single_write_capability_cannot_go_new_alone(self):
+        self.assertEqual(2, self.run_cli("set", "new", "new-business"))
+        self.assertEqual("legacy", self.states()["new-business"])
+
+    def test_all_merged_flip_then_full_rollback(self):
+        self.mark_pending("document-events")
+        self.assertEqual(0, self.run_cli("set", "--all-merged", "new"))
+        s = self.states()
+        self.assertEqual("new", s["new-business"])
+        self.assertEqual("new", s["renewal"])
+        self.assertEqual("legacy", s["document-events"])
+        self.assertEqual(0, self.run_cli("set", "--all", "legacy"))
+        self.assertEqual({"legacy"}, set(self.states().values()))
+
+    def test_production_rules_refuse_pending_merge_capabilities(self):
+        self.mark_pending("document-events")
+        self.assertEqual(2, self.run_cli("set", "--all", "new", "--production"))
+        self.assertEqual(0, self.run_cli("set", "--all-merged", "new", "--production"))
+        self.assertEqual(2, self.run_cli("set", "new", "document-events", "--production"))
+
+    def test_read_capability_moves_on_its_own(self):
+        self.assertEqual(0, self.run_cli("set", "new", "inquiry"))
+
+    def test_retired_requires_group_new(self):
+        self.assertEqual(2, self.run_cli("set", "retired", "inquiry"))
+
+    def test_unknown_state_and_capability_rejected(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            rf.main(["set", "live", "inquiry", "--file", self.file])
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            rf.main(["set", "new", "billing", "--file", self.file])
+
+    def test_mislabelled_write_capability_is_rejected(self):
+        doc = rf.load(self.file)
+        doc["capabilities"]["new-business"]["kind"] = "read"
+        pathlib.Path(self.file).write_text(json.dumps(doc))
+        self.assertEqual(2, self.run_cli("validate"))
+        self.assertEqual(2, self.run_cli("set", "new", "underwriting", "renewal", "endorsement", "premium-batch"))
+
+    def test_capability_set_must_match_adr(self):
+        doc = rf.load(self.file)
+        del doc["capabilities"]["document-events"]
+        pathlib.Path(self.file).write_text(json.dumps(doc))
+        self.assertEqual(2, self.run_cli("validate"))
+
+
+if __name__ == "__main__":
+    unittest.main()

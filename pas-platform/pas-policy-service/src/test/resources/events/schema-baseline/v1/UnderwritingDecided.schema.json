@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.acme-insurance.example/pas/events/v1/UnderwritingDecided.schema.json",
+  "title": "UnderwritingDecided v1",
+  "description": "UNDWRT approve/decline decision committed (replaces the WRITEQ TD to ACME.PAS.UNDERWRITING.DECISION).",
+  "x-topic": "pas.underwriting.events.v1",
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "const": "UnderwritingDecided"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "policyNumber": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12
+    },
+    "policyVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "decisionId": {
+          "type": "integer"
+        },
+        "decisionDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "decisionCode": {
+          "type": "string"
+        },
+        "riskScore": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "policyRiskScore": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "decisionReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "underwriterId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "override": {
+          "type": "boolean"
+        },
+        "overrideBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "decisionId",
+        "decisionDate",
+        "decisionCode",
+        "riskScore",
+        "policyRiskScore",
+        "decisionReason",
+        "underwriterId",
+        "override",
+        "overrideBy"
+      ]
+    }
+  },
+  "required": [
+    "eventId",
+    "eventType",
+    "schemaVersion",
+    "occurredAt",
+    "policyNumber",
+    "policyVersion",
+    "correlationId",
+    "data"
+  ]
+}

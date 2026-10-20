@@ -1,0 +1,1086 @@
+openapi: 3.0.1
+info:
+  description: Policy inquiry API replacing CICS PQRY and the legacy REST facade.
+  title: PAS Policy Service
+  version: v1
+servers:
+- description: Relative to the gateway route
+  url: /
+tags:
+- description: Policy creation (replaces POLNEW)
+  name: New business
+- description: Read-only policy inquiry (replaces POLQRY)
+  name: Policy inquiry
+- description: Dead-letter replay (AB-528)
+  name: Integration operations
+- description: Mid-term endorsements (replaces POLEND)
+  name: Endorsements
+- description: Underwriting decisions (replaces UNDWRT)
+  name: Underwriting
+- description: Policy renewal (replaces POLRNW)
+  name: Renewals
+paths:
+  /api/v1/admin/dead-letters:
+    get:
+      description: "Keyset paging in dead-letter id order: pass the last id of the\
+        \ previous page as afterId. limit defaults to 200 and is capped at 500."
+      operationId: deadLetters
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: afterId
+        required: false
+        schema:
+          type: integer
+          format: int64
+          default: 0
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 200
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeadLetterView"
+          description: OK
+      summary: List dead letters (optionally by status PARKED or REPLAYED)
+      tags:
+      - Integration operations
+  /api/v1/admin/dead-letters/{id}:
+    get:
+      operationId: deadLetter
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DeadLetterView"
+          description: OK
+      summary: "One dead letter, including the original record value"
+      tags:
+      - Integration operations
+  /api/v1/admin/dead-letters/{id}/replay:
+    post:
+      operationId: replay
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DeadLetterView"
+          description: OK
+      summary: Republish a dead letter to its original topic (consumers are idempotent)
+      tags:
+      - Integration operations
+  /api/v1/admin/legacy-messages:
+    get:
+      operationId: legacyMessages
+      parameters:
+      - in: query
+        name: policyNumber
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LegacyQueueMessage"
+          description: OK
+      summary: Messages captured by the in-memory legacy queue transport (test environments)
+      tags:
+      - Integration operations
+  /api/v1/policies:
+    get:
+      description: "Policies of an agent and/or branch, optionally by status, in policy-number\
+        \ order. At least one of agentCode or branchCode is required. Policies the\
+        \ caller is not entitled to are omitted."
+      operationId: listPolicies
+      parameters:
+      - example: AG1001
+        in: query
+        name: agentCode
+        required: false
+        schema:
+          type: string
+      - example: CHI1
+        in: query
+        name: branchCode
+        required: false
+        schema:
+          type: string
+      - example: AC
+        in: query
+        name: status
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyView"
+          description: Policies the caller may see
+        "400":
+          description: "Neither agentCode nor branchCode given, or bad paging"
+        "401":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyView"
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyView"
+          description: Token lacks scope policy:read
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: List policies in a book (Broker Portal)
+      tags:
+      - Policy inquiry
+    post:
+      description: "Validates like POLNEW (422 with the COBOL message, last failing\
+        \ check wins), assigns a POL + 9-digit policy number, writes default coverages\
+        \ for the policy type and publishes PolicyCreated. Status PN, underwriting\
+        \ status PN."
+      operationId: createPolicy
+      parameters:
+      - description: Client-chosen key; a repeat returns the first result
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+      - description: Propagated to events as correlationId
+        in: header
+        name: X-Correlation-Id
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePolicyRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedPolicyView"
+          description: Policy created (or replayed)
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Malformed request
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "Token lacks scope policy:write, or not entitled to the agent/branch"
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "POLNEW validation failed, invalid term, or Idempotency-Key\
+            \ reused"
+      security:
+      - bearer-jwt:
+        - policy:write
+      summary: Create a policy
+      tags:
+      - New business
+  /api/v1/policies/{policyNumber}:
+    get:
+      operationId: getPolicy
+      parameters:
+      - example: POL-00000001
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyView"
+          description: Policy
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyView"
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyView"
+          description: Token lacks scope policy:read
+        "404":
+          description: Not found or not entitled
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: Get a policy
+      tags:
+      - Policy inquiry
+  /api/v1/policies/{policyNumber}/coverages:
+    get:
+      operationId: getCoverages
+      parameters:
+      - example: POL-00000001
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoverageView"
+          description: Coverages ordered by sequenceNum
+        "401":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoverageView"
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoverageView"
+          description: Token lacks scope policy:read
+        "404":
+          description: Not found or not entitled
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: List a policy's coverages
+      tags:
+      - Policy inquiry
+  /api/v1/policies/{policyNumber}/endorsements:
+    post:
+      description: "POLEND at parity: active policies only, type required (422 with\
+        \ the COBOL message), pro-rata factor = days remaining / days in term (1 for\
+        \ a zero-day term), next ENDORSEMENTS sequence, premium adjustment applied\
+        \ to the policy (zero at parity, Q-11), audit row and PolicyEndorsed. Concurrent\
+        \ endorsements of one policy are serialised by a row lock."
+      operationId: endorsePolicy
+      parameters:
+      - example: POL001000000
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      - description: Propagated to events as correlationId
+        in: header
+        name: X-Correlation-Id
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EndorsementRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EndorsementView"
+          description: Endorsement recorded
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Malformed request or unknown endorsement type
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks scope policy:write
+        "404":
+          description: Not found or not entitled
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Concurrent update of the policy
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: POLEND validation failed (inactive policy or blank type)
+      security:
+      - bearer-jwt:
+        - policy:write
+      summary: Record a mid-term endorsement
+      tags:
+      - Endorsements
+  /api/v1/policies/{policyNumber}/holder:
+    get:
+      description: PII is masked unless the token also carries scope policy:pii:read.
+      operationId: getPolicyHolder
+      parameters:
+      - example: POL-00000001
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyHolderView"
+          description: Policyholder (masked unless policy:pii:read)
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyHolderView"
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyHolderView"
+          description: Token lacks scope policy:read
+        "404":
+          description: Not found or not entitled
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: Get the policyholder
+      tags:
+      - Policy inquiry
+  /api/v1/policies/{policyNumber}/premiums:
+    get:
+      operationId: getPremiums
+      parameters:
+      - example: POL-00000001
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PremiumView"
+          description: "Premiums, newest term first"
+        "401":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PremiumView"
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PremiumView"
+          description: Token lacks scope policy:read
+        "404":
+          description: Not found or not entitled
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: List a policy's premium history
+      tags:
+      - Policy inquiry
+  /api/v1/policies/{policyNumber}/renewals:
+    post:
+      description: "POLRNW at parity except the approved fixes: AC/EX policies only,\
+        \ more open claims than pas.renewal.max-open-claims is ineligible (Q-02),\
+        \ premium x (1 + uplift) truncated and capped at pas.renewal.rate-cap-pct,\
+        \ new term starts at the old expiry and ends one calendar year later (Feb\
+        \ 29 renews to Feb 28, Q-01), renewal count + 1, status AC / underwriting\
+        \ PN, active coverages re-dated. Publishes PolicyRenewed."
+      operationId: renewPolicy
+      parameters:
+      - example: POL001000000
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      - description: Propagated to events as correlationId
+        in: header
+        name: X-Correlation-Id
+        required: false
+        schema:
+          type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenewalView"
+          description: Policy renewed
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks scope policy:write
+        "404":
+          description: Not found or not entitled
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Concurrent update of the policy
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Not eligible for renewal (status or open claims) or term cannot
+            be renewed
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Claims history unavailable
+      security:
+      - bearer-jwt:
+        - policy:write
+      summary: Renew a policy for one more year
+      tags:
+      - Renewals
+  /api/v1/policies/{policyNumber}/underwriting-decisions:
+    get:
+      operationId: listUnderwritingDecisions
+      parameters:
+      - example: POL001000000
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UnderwritingDecisionView"
+          description: Decisions
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks scope policy:read
+        "404":
+          description: Not found or not entitled
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: "List a policy's underwriting decisions (audit trail), oldest first"
+      tags:
+      - Underwriting
+    post:
+      description: "UNDWRT risk score at parity: AP < 300, RS < 600, RM < 800, else\
+        \ DC. Writes an audit row, updates the policy's uwStatus/riskScore and publishes\
+        \ UnderwritingReferred (RS/RM) or UnderwritingDecided (AP/DC)."
+      operationId: decideUnderwriting
+      parameters:
+      - example: POL001000000
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: X-Correlation-Id
+        required: false
+        schema:
+          type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnderwritingDecisionView"
+          description: Decision recorded
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks scope underwriting:decide
+        "404":
+          description: Not found or not entitled
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Concurrent update of the policy
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Policy/policyholder data incomplete (POLICY/CUSTOMER DATA NOT
+            FOUND)
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Claims history unavailable
+      security:
+      - bearer-jwt:
+        - underwriting:decide
+      summary: Run the automated underwriting decision
+      tags:
+      - Underwriting
+  /api/v1/policies/{policyNumber}/underwriting-decisions/overrides:
+    post:
+      description: Records a new decision with the reason and the caller's JWT subject
+        as overrideBy; keeps the latest risk score.
+      operationId: overrideUnderwriting
+      parameters:
+      - example: POL001000000
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: X-Correlation-Id
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OverrideRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnderwritingDecisionView"
+          description: Override recorded
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Malformed request
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "Token lacks scope underwriting:decide, or its subject is missing\
+            \ or too long"
+        "404":
+          description: Not found or not entitled
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "No decision to override, or concurrent update"
+      security:
+      - bearer-jwt:
+        - underwriting:decide
+      summary: Manually override the latest underwriting decision
+      tags:
+      - Underwriting
+components:
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        traceId:
+          type: string
+    CoverageView:
+      type: object
+      properties:
+        classCode:
+          type: string
+        coinsurancePct:
+          type: integer
+          format: int32
+        coverageLimit:
+          type: number
+        coverageType:
+          type: string
+        deductible:
+          type: number
+        description:
+          type: string
+        effectiveDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        policyNumber:
+          type: string
+        premium:
+          type: number
+        ratingTerritory:
+          type: string
+        sequenceNum:
+          type: integer
+          format: int32
+        status:
+          type: string
+    CreatePolicyRequest:
+      type: object
+      properties:
+        agentCode:
+          type: string
+          example: AG0001
+          maxLength: 6
+          minLength: 0
+        branchCode:
+          type: string
+          example: B001
+          maxLength: 4
+          minLength: 0
+        coverageLimit:
+          type: number
+          example: 100000
+        deductible:
+          type: number
+          example: 500
+        effectiveDate:
+          type: string
+          format: date
+          example: 2026-11-01
+        expiryDate:
+          type: string
+          format: date
+          example: 2027-11-01
+        policyType:
+          type: string
+          description: "AUT, HOM, COM, LIF or HLT"
+          example: AUT
+          maxLength: 3
+          minLength: 0
+        policyholderId:
+          type: string
+          example: CUST000001
+          maxLength: 10
+          minLength: 0
+        totalPremium:
+          type: number
+          example: 1200
+      required:
+      - coverageLimit
+      - effectiveDate
+      - expiryDate
+    CreatedPolicyView:
+      type: object
+      properties:
+        coverages:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverageView"
+        policy:
+          $ref: "#/components/schemas/PolicyView"
+    DeadLetterView:
+      type: object
+      properties:
+        consumerGroup:
+          type: string
+        deadLetterId:
+          type: integer
+          format: int64
+        dltTopic:
+          type: string
+        errorClass:
+          type: string
+        errorMessage:
+          type: string
+        eventId:
+          type: string
+        eventType:
+          type: string
+        messageKey:
+          type: string
+        originalTopic:
+          type: string
+        payload:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+        replayCount:
+          type: integer
+          format: int32
+        replayedAt:
+          type: string
+          format: date-time
+        replayedBy:
+          type: string
+        status:
+          type: string
+    EndorsementRequest:
+      type: object
+      properties:
+        endorsementType:
+          type: string
+          description: "Endorsement type: CAD, CRM, LCH, ACH or CAN (POLEND 88-levels)"
+          example: ACH
+          maxLength: 3
+    EndorsementView:
+      type: object
+      properties:
+        daysInTerm:
+          type: integer
+          format: int32
+        daysRemaining:
+          type: integer
+          format: int32
+        effectiveDate:
+          type: string
+          format: date
+        endorsementSeq:
+          type: integer
+          format: int32
+        endorsementType:
+          type: string
+        policyNumber:
+          type: string
+        policyVersion:
+          type: integer
+          format: int64
+        premiumAdjustment:
+          type: number
+        proRataFactor:
+          type: number
+        totalPremium:
+          type: number
+    LegacyQueueMessage:
+      type: object
+      properties:
+        consumer:
+          type: string
+        correlationId:
+          type: string
+        eventId:
+          type: string
+        eventType:
+          type: string
+        length:
+          type: integer
+          format: int32
+        payloadHex:
+          type: string
+        policyNumber:
+          type: string
+        policyVersion:
+          type: integer
+          format: int64
+        queue:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        sourceTransaction:
+          type: string
+    OverrideRequest:
+      type: object
+      properties:
+        decisionCode:
+          type: string
+          enum:
+          - AP
+          - RS
+          - RM
+          - DC
+          example: AP
+          pattern: AP|RS|RM|DC
+        reason:
+          type: string
+          example: Loss history reviewed; prior claims were subrogated
+          maxLength: 200
+          minLength: 0
+      required:
+      - decisionCode
+      - reason
+    PolicyHolderView:
+      type: object
+      properties:
+        addrLine1:
+          type: string
+        addrLine2:
+          type: string
+        city:
+          type: string
+        companyName:
+          type: string
+        countryCode:
+          type: string
+        creditScore:
+          type: string
+        custId:
+          type: string
+        custType:
+          type: string
+        dateOfBirth:
+          type: string
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        masked:
+          type: boolean
+        middleInit:
+          type: string
+        phone:
+          type: string
+        riskTier:
+          type: string
+        ssnLast4:
+          type: string
+        stateCode:
+          type: string
+        taxId:
+          type: string
+        zipCode:
+          type: string
+    PolicyView:
+      type: object
+      properties:
+        agentCode:
+          type: string
+        apiFlag:
+          type: string
+        branchCode:
+          type: string
+        coverageLimit:
+          type: number
+        deductible:
+          type: number
+        effectiveDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        inceptionDate:
+          type: string
+          format: date
+        lastUpdated:
+          type: integer
+          format: int64
+        policyNumber:
+          type: string
+        policyStatus:
+          type: string
+        policyType:
+          type: string
+        policyholderId:
+          type: string
+        renewalCount:
+          type: integer
+          format: int32
+        riskScore:
+          type: integer
+          format: int32
+        totalPremium:
+          type: number
+        updatedBy:
+          type: string
+        uwStatus:
+          type: string
+        webIndicator:
+          type: string
+    PremiumView:
+      type: object
+      properties:
+        calcDate:
+          type: string
+          format: date
+        coverageSeq:
+          type: integer
+          format: int32
+        installmentAmt:
+          type: number
+        installmentCode:
+          type: string
+        termEffectiveDate:
+          type: string
+          format: date
+        termExpiryDate:
+          type: string
+          format: date
+        totalPremium:
+          type: number
+    RenewalView:
+      type: object
+      properties:
+        coveragesRedated:
+          type: integer
+          format: int32
+        effectiveDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        newPremium:
+          type: number
+        policyNumber:
+          type: string
+        policyStatus:
+          type: string
+        policyVersion:
+          type: integer
+          format: int64
+        previousPremium:
+          type: number
+        rateCapApplied:
+          type: boolean
+        rateCapPct:
+          type: number
+        rateChangePct:
+          type: number
+        renewalCount:
+          type: integer
+          format: int32
+        uwStatus:
+          type: string
+    UnderwritingDecisionView:
+      type: object
+      properties:
+        createdTimestamp:
+          type: string
+          format: date-time
+        decisionCode:
+          type: string
+        decisionDate:
+          type: string
+          format: date
+        decisionId:
+          type: integer
+          format: int64
+        decisionReason:
+          type: string
+        override:
+          type: boolean
+        overrideBy:
+          type: string
+        overrideReason:
+          type: string
+        policyNumber:
+          type: string
+        riskScore:
+          type: integer
+          format: int32
+        underwriterId:
+          type: string
+  securitySchemes:
+    bearer-jwt:
+      bearerFormat: JWT
+      description: "OIDC access token. Scopes: policy:read, policy:pii:read. Entitlement\
+        \ claims: agent_code, branch_code, book."
+      scheme: bearer
+      type: http

@@ -1,0 +1,22 @@
+vulnerabilities:
+  - id: CVE-2026-47884
+    paths:
+      - "**"
+    statement: >-
+      Spring Framework XsltView SSRF/RCE. pas-platform does not use XsltView or
+      XSLT view resolution. The only OSS fix is Spring Framework 7.0.9 (Spring Boot 4.x);
+      remove this entry when pas-platform upgrades off Spring Boot 3.3.
+    expired_at: 2026-12-31
+  - id: CVE-2026-22732
+    paths:
+      - "**"
+    statement: >-
+      Spring Security servlet response headers not written under some conditions. Added with
+      the AB-524 OAuth2 resource server (spring-security-web 6.3.10 from Spring Boot 3.3.13).
+      pas-policy-service serves JSON only, sets no custom headers and relies on the defaults;
+      PolicyInquiryApiIT.securityHeadersAreWrittenOnEveryInquiryResponse asserts they are
+      written on 200/401/403/404 responses. pas-batch (AB-523 premium job API) is the same: JSON only,
+      default headers, asserted by PremiumJobApiIT.securityHeadersAreWrittenOnEveryResponse. The only OSS fixes are 6.5.9 / 7.0.4 (Spring Boot
+      3.5.x / 4.x); remove this entry with the Boot 3.3 -> 3.5 upgrade that ADR 0001 requires
+      before go-live.
+    expired_at: 2026-12-31

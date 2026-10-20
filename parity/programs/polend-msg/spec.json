@@ -1,0 +1,48 @@
+{
+  "program": "POLEND",
+  "source": "cobol/programs/POLEND.cbl",
+  "mode": "per-case",
+  "description": "AB-528 byte golden of the 125-byte POLICY-RECORD message captured at WRITEQ TS ENDORSEMENT-AUDIT. Same source, inputs and fixtures as polend/; msg_hex is the record in hex (ASCII under GnuCOBOL, COMP-3 fields as packed bytes) and is empty when the program sends no message.",
+  "input": [
+    {
+      "name": "as_of_date",
+      "pic": "9(8)"
+    },
+    {
+      "name": "ws_endorsement_type",
+      "pic": "X(3)"
+    },
+    {
+      "name": "select_sqlcode",
+      "pic": "S9(4)"
+    },
+    {
+      "name": "policy_status",
+      "pic": "X(2)"
+    },
+    {
+      "name": "effective_date",
+      "pic": "9(8)"
+    },
+    {
+      "name": "expiry_date",
+      "pic": "9(8)"
+    },
+    {
+      "name": "total_premium",
+      "pic": "S9(9)V99"
+    },
+    {
+      "name": "max_endorsement_seq",
+      "pic": "9(5)"
+    },
+    {
+      "name": "insert_sqlcode",
+      "pic": "S9(4)"
+    }
+  ],
+  "output": [
+    "error_msg",
+    "msg_hex"
+  ]
+}

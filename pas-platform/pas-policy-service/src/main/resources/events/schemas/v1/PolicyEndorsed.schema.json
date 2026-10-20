@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.acme-insurance.example/pas/events/v1/PolicyEndorsed.schema.json",
+  "title": "PolicyEndorsed v1",
+  "description": "POLEND endorsement committed (AB-526, POST /api/v1/policies/{n}/endorsements); replaces the ENDORSEMENT-AUDIT TS queue record.",
+  "x-topic": "pas.policy.events.v1",
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "const": "PolicyEndorsed"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "policyNumber": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12
+    },
+    "policyVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "endorsementSeq": {
+          "type": "integer"
+        },
+        "endorsementType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effectiveDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "daysInTerm": {
+          "type": "integer"
+        },
+        "daysRemaining": {
+          "type": "integer"
+        },
+        "proRataFactor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "premiumAdjustment": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "totalPremium": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "agentCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "branchCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "endorsementSeq",
+        "endorsementType",
+        "effectiveDate",
+        "daysInTerm",
+        "daysRemaining",
+        "proRataFactor",
+        "premiumAdjustment",
+        "totalPremium",
+        "agentCode",
+        "branchCode"
+      ]
+    }
+  },
+  "required": [
+    "eventId",
+    "eventType",
+    "schemaVersion",
+    "occurredAt",
+    "policyNumber",
+    "policyVersion",
+    "correlationId",
+    "data"
+  ]
+}

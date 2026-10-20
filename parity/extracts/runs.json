@@ -1,0 +1,15 @@
+{
+  "comment": "AB-527 extract parity runs: 5 consecutive daily business dates (DAILY-EXTRACT, CA-7 PAS0100) and 5 consecutive monthly run dates (MONTHLY-EXPOSURE, CA-7 PAS0200). Each run has its own database snapshot under fixtures/<id>/ and expected files under golden/<id>/.",
+  "runs": [
+    {"id": "daily-2026-10-12", "job": "dailyExtractJob", "businessDate": "2026-10-12"},
+    {"id": "daily-2026-10-13", "job": "dailyExtractJob", "businessDate": "2026-10-13"},
+    {"id": "daily-2026-10-14", "job": "dailyExtractJob", "businessDate": "2026-10-14"},
+    {"id": "daily-2026-10-15", "job": "dailyExtractJob", "businessDate": "2026-10-15"},
+    {"id": "daily-2026-10-16", "job": "dailyExtractJob", "businessDate": "2026-10-16"},
+    {"id": "monthly-2026-06-01", "job": "monthlyExposureJob", "businessDate": "2026-06-01"},
+    {"id": "monthly-2026-07-01", "job": "monthlyExposureJob", "businessDate": "2026-07-01"},
+    {"id": "monthly-2026-08-01", "job": "monthlyExposureJob", "businessDate": "2026-08-01"},
+    {"id": "monthly-2026-09-01", "job": "monthlyExposureJob", "businessDate": "2026-09-01"},
+    {"id": "monthly-2026-10-01", "job": "monthlyExposureJob", "businessDate": "2026-10-01"}
+  ]
+}

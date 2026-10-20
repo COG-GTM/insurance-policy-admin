@@ -1,0 +1,64 @@
+{
+  "program": "POLNEW",
+  "source": "cobol/programs/POLNEW.cbl",
+  "mode": "per-case",
+  "description": "AB-528 byte golden of the 125-byte POLICY-RECORD message captured at WRITEQ TD ACME.PAS.UNDERWRITING.REQUEST. Same source, inputs and fixtures as polnew/; msg_hex is the record in hex (ASCII under GnuCOBOL, COMP-3 fields as packed bytes) and is empty when the program sends no message.",
+  "input": [
+    {
+      "name": "as_of_date",
+      "pic": "9(8)"
+    },
+    {
+      "name": "holder_id",
+      "pic": "X(10)"
+    },
+    {
+      "name": "policy_type",
+      "pic": "X(3)"
+    },
+    {
+      "name": "effective_date",
+      "pic": "9(8)"
+    },
+    {
+      "name": "expiry_date",
+      "pic": "9(8)"
+    },
+    {
+      "name": "policy_limit",
+      "pic": "S9(11)V99"
+    },
+    {
+      "name": "total_premium",
+      "pic": "S9(9)V99"
+    },
+    {
+      "name": "deductible",
+      "pic": "S9(7)V99"
+    },
+    {
+      "name": "agent_code",
+      "pic": "X(6)"
+    },
+    {
+      "name": "branch_code",
+      "pic": "X(4)"
+    },
+    {
+      "name": "holder_sqlcode",
+      "pic": "S9(4)"
+    },
+    {
+      "name": "policy_seq",
+      "pic": "9(10)"
+    },
+    {
+      "name": "insert_sqlcode",
+      "pic": "S9(4)"
+    }
+  ],
+  "output": [
+    "error_msg",
+    "msg_hex"
+  ]
+}
