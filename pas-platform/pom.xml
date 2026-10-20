@@ -34,6 +34,8 @@
         <!-- Boot 3.3.13 manages Testcontainers 1.19.x whose docker-java only speaks API 1.32;
              Docker Engine 29 requires >= 1.40, so override to a version with a newer docker-java. -->
         <testcontainers.version>1.21.4</testcontainers.version>
+        <!-- Boot 3.3.13 manages Tomcat 10.1.42 (CRITICAL CVE-2026-41293/43512/43515/65182/65905/68525); override until the platform moves to a supported Boot line. -->
+        <tomcat.version>10.1.61</tomcat.version>
     </properties>
 
     <build>
