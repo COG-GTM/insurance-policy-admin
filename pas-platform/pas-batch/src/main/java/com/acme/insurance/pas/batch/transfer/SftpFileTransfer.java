@@ -56,6 +56,8 @@ import org.slf4j.LoggerFactory;
         "shares Spring-managed collaborators (MeterRegistry, JDBC, properties) by design")
 public class SftpFileTransfer implements SecureFileTransfer {
 
+  static final String PREVIOUS = ".prev";
+
   private static final Logger LOG = LoggerFactory.getLogger(SftpFileTransfer.class);
 
   /** Sleeps between attempts; replaceable in tests. */
@@ -175,7 +177,7 @@ public class SftpFileTransfer implements SecureFileTransfer {
             Files.copy(file.path(), out);
           }
           verify(sftp, part, file);
-          replace(sftp, part, remote);
+          publish(sftp, part, remote);
           writeText(sftp, remote + ".sha256", file.sha256() + "  " + file.remoteName() + "\n");
           receipts.add(new DeliveryReceipt(name, remote, file.bytes(), file.sha256()));
         }
@@ -190,6 +192,9 @@ public class SftpFileTransfer implements SecureFileTransfer {
                   + "\nsha256="
                   + file.sha256()
                   + "\n");
+        }
+        for (LocalFile file : files) {
+          removeIfExists(sftp, dir + file.remoteName() + PREVIOUS);
         }
         return receipts;
       }
@@ -239,11 +244,12 @@ public class SftpFileTransfer implements SecureFileTransfer {
   /**
    * Moves {@code part} to {@code remote}. An existing file is first renamed to {@code .prev} (a
    * plain rename onto an existing file is not portable across SFTP servers) and restored if the
-   * rename fails, so a failed rerun never removes the last good delivery.
+   * rename fails. The backup is only deleted once every file and its {@code .done} marker are
+   * written, and a backup stranded by an earlier interrupted attempt is restored, never discarded.
    */
-  private static void replace(SftpClient sftp, String part, String remote) throws IOException {
-    String previous = remote + ".prev";
-    removeIfExists(sftp, previous);
+  static void publish(SftpClient sftp, String part, String remote) throws IOException {
+    String previous = remote + PREVIOUS;
+    recoverStrandedBackup(sftp, remote, previous);
     boolean backedUp = renameIfExists(sftp, remote, previous);
     try {
       sftp.rename(part, remote);
@@ -257,8 +263,34 @@ public class SftpFileTransfer implements SecureFileTransfer {
       }
       throw e;
     }
-    if (backedUp) {
+  }
+
+  /**
+   * A {@code .prev} left without its final file is the last good delivery from an interrupted
+   * attempt, so it is put back. A {@code .prev} next to a final file is superseded by that (already
+   * verified) file and can go.
+   */
+  static void recoverStrandedBackup(SftpClient sftp, String remote, String previous)
+      throws IOException {
+    if (!exists(sftp, previous)) {
+      return;
+    }
+    if (exists(sftp, remote)) {
       removeIfExists(sftp, previous);
+    } else {
+      sftp.rename(previous, remote);
+    }
+  }
+
+  private static boolean exists(SftpClient sftp, String remote) throws IOException {
+    try {
+      sftp.stat(remote);
+      return true;
+    } catch (SftpException e) {
+      if (e.getStatus() == SftpConstants.SSH_FX_NO_SUCH_FILE) {
+        return false;
+      }
+      throw e;
     }
   }
 

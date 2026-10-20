@@ -14,7 +14,8 @@ pinned host key, SHA-256), Pending: ARB.
 Job parameter `businessDate` (ISO date) drives the policy `LAST_UPDATED` window and the output
 folder. The scheduler uses today's date in `America/New_York`. Every launch is a new job instance
 (`launchedAt`), so a rerun for the same date is allowed once the previous one has finished (the first step,
-`<job>SingleRunGuard`, fails if the same job is already running for that date): local files are
+`<job>SingleRunGuard`, fails if an earlier execution of the same job is still running for that
+date; if two start together, the lower execution id proceeds): local files are
 replaced atomically (per-execution `.part` + rename) and the remote files are overwritten ([Q-32](quirk-register.md#q-32) fix; the JCL
 abended on rerun because the datasets were allocated `NEW`).
 
@@ -40,8 +41,9 @@ images. See `pas-platform/.env.example`.
 1. Connect over SSH; verify the server key against `known_hosts`; authenticate with the key.
 2. For each file: delete stale `<name>.done`, upload `<name>.part`, check remote size and
    re-read the remote bytes to compare SHA-256, move a previous `<name>` aside to `<name>.prev`,
-   rename `.part` to `<name>` (restoring `.prev` if that fails), delete `.prev`, write
-   `<name>.sha256` (`sha256sum` format).
+   rename `.part` to `<name>` (restoring `.prev` if that fails), write `<name>.sha256`
+   (`sha256sum` format). A `.prev` left by an interrupted attempt with no `<name>` beside it is
+   restored before the retry; `.prev` files are deleted only after every `.done` is written.
 3. When every file of the run is in place, write `<name>.done` (`file=`, `bytes=`, `sha256=`).
    **Consumers must pick up a file only after its `.done` exists** and should verify `.sha256`.
 

@@ -10,8 +10,10 @@ import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
 
 /**
- * First step of each extract job: fails when another execution of the same job is already running
+ * First step of each extract job: fails when an earlier execution of the same job is still running
  * for the same business date, so overlapping reruns cannot replace or deliver each other's files.
+ * Execution ids come from the job repository's sequence, so when two same-date runs start together
+ * the lower id proceeds and only the later one fails.
  */
 public class SingleRunPerDateTasklet implements Tasklet {
 
@@ -27,7 +29,8 @@ public class SingleRunPerDateTasklet implements Tasklet {
     String jobName = current.getJobInstance().getJobName();
     String businessDate = businessDate(current);
     for (JobExecution other : jobExplorer.findRunningJobExecutions(jobName)) {
-      if (!Objects.equals(other.getId(), current.getId())
+      if (other.getId() != null
+          && other.getId() < current.getId()
           && Objects.equals(businessDate(other), businessDate)) {
         throw new IllegalStateException(
             jobName

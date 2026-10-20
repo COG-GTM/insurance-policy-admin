@@ -50,6 +50,16 @@ class SingleRunPerDateTaskletTest {
   }
 
   @Test
+  void whenTwoSameDateRunsStartTogetherOnlyTheEarlierProceeds() {
+    JobExecution earlier = execution(1, LocalDate.of(2026, 10, 16));
+    JobExecution later = execution(2, LocalDate.of(2026, 10, 16));
+    when(explorer.findRunningJobExecutions("dailyExtractJob")).thenReturn(Set.of(earlier, later));
+
+    assertThat(run(earlier)).isEqualTo(RepeatStatus.FINISHED);
+    assertThatThrownBy(() -> run(later)).isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
   void allowsOtherBusinessDatesAndItself() {
     JobExecution current = execution(2, LocalDate.of(2026, 10, 16));
     JobExecution otherDate = execution(1, LocalDate.of(2026, 10, 15));
