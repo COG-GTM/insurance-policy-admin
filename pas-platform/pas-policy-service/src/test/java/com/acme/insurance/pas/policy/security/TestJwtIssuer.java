@@ -61,6 +61,11 @@ public final class TestJwtIssuer {
             .issueTime(new Date())
             .expirationTime(Date.from(Instant.now().plusSeconds(300)));
 
+    public Builder subject(String subject) {
+      claims.subject(subject);
+      return this;
+    }
+
     public Builder scopes(String... scopes) {
       claims.claim("scope", String.join(" ", scopes));
       return this;

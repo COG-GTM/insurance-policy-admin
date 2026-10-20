@@ -3,6 +3,7 @@ package com.acme.insurance.pas.policy.security;
 import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -14,8 +15,11 @@ import org.springframework.security.web.util.matcher.AndRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
- * Every endpoint needs a valid JWT except the Kubernetes health probes. {@code /api/v1/policies}
- * also needs {@code policy:read}; object-level checks run in the service layer.
+ * Every endpoint needs a valid JWT except the Kubernetes health probes. Route scopes: {@code POST
+ * /api/v1/policies} needs {@code policy:write}; {@code POST
+ * /api/v1/policies/{n}/underwriting-decisions[/overrides]} needs {@code underwriting:decide}; every
+ * other {@code /api/v1/policies} route needs {@code policy:read}. Object-level checks run in the
+ * service layer.
  */
 @Configuration
 @EnableWebSecurity
@@ -23,6 +27,11 @@ public class SecurityConfig {
 
   static final String[] HEALTH_PROBES = {
     "/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness"
+  };
+
+  static final String[] UNDERWRITING_WRITES = {
+    "/api/v1/policies/*/underwriting-decisions",
+    "/api/v1/policies/*/underwriting-decisions/overrides"
   };
 
   /**
@@ -53,6 +62,10 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers(HEALTH_PROBES)
                     .permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies")
+                    .hasAuthority(PasScopes.authority(PasScopes.POLICY_WRITE))
+                    .requestMatchers(HttpMethod.POST, UNDERWRITING_WRITES)
+                    .hasAuthority(PasScopes.authority(PasScopes.UNDERWRITING_DECIDE))
                     .requestMatchers("/api/v1/policies/**")
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_READ))
                     .anyRequest()
