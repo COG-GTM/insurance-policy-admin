@@ -1,0 +1,262 @@
+openapi: 3.0.1
+info:
+  description: Policy inquiry API replacing CICS PQRY and the legacy REST facade.
+  title: PAS Policy Service
+  version: v1
+servers:
+- description: Relative to the gateway route
+  url: /
+tags:
+- description: Read-only policy inquiry (replaces POLQRY)
+  name: Policy inquiry
+paths:
+  /api/v1/policies/{policyNumber}:
+    get:
+      operationId: getPolicy
+      parameters:
+      - example: POL-00000001
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyView"
+          description: Policy
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyView"
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyView"
+          description: Token lacks scope policy:read
+        "404":
+          description: Not found or not entitled
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: Get a policy
+      tags:
+      - Policy inquiry
+  /api/v1/policies/{policyNumber}/coverages:
+    get:
+      operationId: getCoverages
+      parameters:
+      - example: POL-00000001
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoverageView"
+          description: Coverages ordered by sequenceNum
+        "401":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoverageView"
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoverageView"
+          description: Token lacks scope policy:read
+        "404":
+          description: Not found or not entitled
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: List a policy's coverages
+      tags:
+      - Policy inquiry
+  /api/v1/policies/{policyNumber}/holder:
+    get:
+      description: PII is masked unless the token also carries scope policy:pii:read.
+      operationId: getPolicyHolder
+      parameters:
+      - example: POL-00000001
+        in: path
+        name: policyNumber
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyHolderView"
+          description: Policyholder (masked unless policy:pii:read)
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyHolderView"
+          description: Missing or invalid bearer token
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyHolderView"
+          description: Token lacks scope policy:read
+        "404":
+          description: Not found or not entitled
+      security:
+      - bearer-jwt:
+        - policy:read
+      summary: Get the policyholder
+      tags:
+      - Policy inquiry
+components:
+  schemas:
+    CoverageView:
+      type: object
+      properties:
+        classCode:
+          type: string
+        coinsurancePct:
+          type: integer
+          format: int32
+        coverageLimit:
+          type: number
+        coverageType:
+          type: string
+        deductible:
+          type: number
+        description:
+          type: string
+        effectiveDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        policyNumber:
+          type: string
+        premium:
+          type: number
+        ratingTerritory:
+          type: string
+        sequenceNum:
+          type: integer
+          format: int32
+        status:
+          type: string
+    PolicyHolderView:
+      type: object
+      properties:
+        addrLine1:
+          type: string
+        addrLine2:
+          type: string
+        city:
+          type: string
+        companyName:
+          type: string
+        countryCode:
+          type: string
+        creditScore:
+          type: string
+        custId:
+          type: string
+        custType:
+          type: string
+        dateOfBirth:
+          type: string
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        masked:
+          type: boolean
+        middleInit:
+          type: string
+        phone:
+          type: string
+        riskTier:
+          type: string
+        ssnLast4:
+          type: string
+        stateCode:
+          type: string
+        taxId:
+          type: string
+        zipCode:
+          type: string
+    PolicyView:
+      type: object
+      properties:
+        agentCode:
+          type: string
+        apiFlag:
+          type: string
+        branchCode:
+          type: string
+        coverageLimit:
+          type: number
+        deductible:
+          type: number
+        effectiveDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        inceptionDate:
+          type: string
+          format: date
+        lastUpdated:
+          type: integer
+          format: int64
+        policyNumber:
+          type: string
+        policyStatus:
+          type: string
+        policyType:
+          type: string
+        policyholderId:
+          type: string
+        renewalCount:
+          type: integer
+          format: int32
+        riskScore:
+          type: integer
+          format: int32
+        totalPremium:
+          type: number
+        updatedBy:
+          type: string
+        uwStatus:
+          type: string
+        webIndicator:
+          type: string
+  securitySchemes:
+    bearer-jwt:
+      bearerFormat: JWT
+      description: "OIDC access token. Scopes: policy:read, policy:pii:read. Entitlement\
+        \ claims: agent_code, branch_code, book."
+      scheme: bearer
+      type: http

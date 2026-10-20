@@ -56,6 +56,12 @@ services:
       PAS_PII_BLIND_INDEX_KEY: ${PAS_PII_BLIND_INDEX_KEY:?Set PAS_PII_BLIND_INDEX_KEY (openssl rand -base64 32) in .env}
       PAS_RATING_FACTOR_SET: ${PAS_RATING_FACTOR_SET:-PARITY}
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
+      PAS_OIDC_ISSUER_URI: ${PAS_OIDC_ISSUER_URI:-https://pas-dev-issuer.local}
+      PAS_OIDC_AUDIENCE: ${PAS_OIDC_AUDIENCE:-pas-api}
+      # Public half of the throwaway dev key pair (make dev-up). Read only by the local profile.
+      PAS_DEV_JWT_PUBLIC_KEY: file:/run/pas-dev-keys/jwt-dev-public.pem
+    volumes:
+      - ./.dev-keys/jwt-dev-public.pem:/run/pas-dev-keys/jwt-dev-public.pem:ro
     ports:
       - "${PAS_BIND_ADDRESS:-127.0.0.1}:${PAS_POLICY_HTTP_PORT:-8080}:8080"
     depends_on:

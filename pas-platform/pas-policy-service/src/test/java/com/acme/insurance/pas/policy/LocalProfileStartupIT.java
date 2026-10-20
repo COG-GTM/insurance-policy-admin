@@ -2,6 +2,7 @@ package com.acme.insurance.pas.policy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.acme.insurance.pas.policy.security.TestJwtIssuer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,6 +26,7 @@ class LocalProfileStartupIT {
   @DynamicPropertySource
   static void piiKeys(DynamicPropertyRegistry registry) {
     TestPiiKeys.register(registry);
+    TestJwtIssuer.register(registry);
   }
 
   @Autowired private ApplicationContext context;
