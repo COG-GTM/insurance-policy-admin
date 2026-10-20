@@ -321,7 +321,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-          description: Token lacks scope underwriting:decide or has no subject
+          description: Token lacks scope underwriting:decide, or its subject is missing or too long
         "404":
           description: Not found or not entitled
         "409":

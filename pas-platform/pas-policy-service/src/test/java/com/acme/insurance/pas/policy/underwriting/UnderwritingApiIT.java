@@ -125,6 +125,7 @@ class UnderwritingApiIT {
     assertThat(d.get("underwriterId").asText()).isEqualTo("SYSTEM");
     assertThat(d.get("decisionDate").asText()).isEqualTo(today().toString());
     assertThat(d.get("override").asBoolean()).isFalse();
+    assertThat(d.get("createdTimestamp").asText()).endsWith("Z");
 
     Map<String, Object> policy =
         jdbc.queryForMap(
@@ -219,6 +220,15 @@ class UnderwritingApiIT {
                 .getStatusCode()
                 .value())
         .isEqualTo(400);
+  }
+
+  @Test
+  void overlongSubjectCannotOverride() throws Exception {
+    String longSubject =
+        TestJwtIssuer.bearer().subject("u".repeat(256)).scopes(DECIDE).agent("AG0001").sign();
+    ResponseEntity<String> res = override("POLUW0000007", longSubject, OVERRIDE_BODY);
+    assertThat(res.getStatusCode().value()).isEqualTo(403);
+    assertThat(mapper.readTree(res.getBody()).get("code").asText()).isEqualTo("NOT_ENTITLED");
   }
 
   @Test

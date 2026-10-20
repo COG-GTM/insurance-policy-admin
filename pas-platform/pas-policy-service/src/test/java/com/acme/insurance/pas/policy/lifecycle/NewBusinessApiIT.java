@@ -44,6 +44,7 @@ class NewBusinessApiIT {
     TestPiiKeys.register(registry);
     TestJwtIssuer.register(registry);
     registry.add("pas.outbox.relay.enabled", () -> "false");
+    registry.add("pas.claims.adapter", () -> "stub");
   }
 
   @Autowired private TestRestTemplate rest;
@@ -186,9 +187,29 @@ class NewBusinessApiIT {
     assertThat(mapper.readTree(second.getBody()).at("/policy/policyNumber").asText())
         .isEqualTo(number);
     assertThat(mapper.readTree(second.getBody()).get("coverages")).hasSize(2);
+    assertThat(mapper.readTree(second.getBody()).at("/policy/uwStatus").asText()).isEqualTo("PN");
+
+    String underwriter =
+        TestJwtIssuer.bearer().scopes(PasScopes.UNDERWRITING_DECIDE).agent("AG0001").sign();
+    ResponseEntity<String> decided =
+        send(
+            rest,
+            HttpMethod.POST,
+            PATH + "/" + number + "/underwriting-decisions",
+            underwriter,
+            null,
+            Map.of());
+    assertThat(decided.getStatusCode().value()).isEqualTo(201);
+    ResponseEntity<String> afterUnderwriting = create(body, writer("AG0001"), key);
+    assertThat(afterUnderwriting.getHeaders().getFirst("Idempotent-Replayed")).isEqualTo("true");
+    assertThat(mapper.readTree(afterUnderwriting.getBody()))
+        .isEqualTo(mapper.readTree(first.getBody()));
     assertThat(
             jdbc.queryForObject(
-                "SELECT COUNT(*) FROM pas.outbox WHERE message_key = ?", Integer.class, number))
+                "SELECT COUNT(*) FROM pas.outbox WHERE message_key = ?"
+                    + " AND event_type = 'PolicyCreated'",
+                Integer.class,
+                number))
         .isEqualTo(1);
 
     String changed = body.replace("250000", "260000");

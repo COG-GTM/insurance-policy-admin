@@ -3,9 +3,13 @@ package com.acme.insurance.pas.policy.underwriting;
 import com.acme.insurance.pas.policy.persistence.UnderwritingDecisionEntity;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
-/** One {@code pas.underwriting_decisions} audit row. */
+/**
+ * One {@code pas.underwriting_decisions} audit row. {@code created_timestamp} is stored as UTC
+ * ({@code BusinessCalendar#nowUtc}) and returned with an explicit {@code Z} offset.
+ */
 public record UnderwritingDecisionView(
     long decisionId,
     String policyNumber,
@@ -17,7 +21,7 @@ public record UnderwritingDecisionView(
     boolean override,
     String overrideReason,
     String overrideBy,
-    LocalDateTime createdTimestamp) {
+    OffsetDateTime createdTimestamp) {
 
   static UnderwritingDecisionView from(UnderwritingDecisionEntity d) {
     return new UnderwritingDecisionView(
@@ -31,7 +35,7 @@ public record UnderwritingDecisionView(
         d.getOverrideBy() != null,
         d.getOverrideReason(),
         trim(d.getOverrideBy()),
-        d.getCreatedTimestamp());
+        d.getCreatedTimestamp() == null ? null : d.getCreatedTimestamp().atOffset(ZoneOffset.UTC));
   }
 
   private static String trim(String value) {

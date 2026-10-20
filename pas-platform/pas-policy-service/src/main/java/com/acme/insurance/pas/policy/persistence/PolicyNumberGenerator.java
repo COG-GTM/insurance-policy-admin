@@ -12,7 +12,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class PolicyNumberGenerator {
 
-  static final int MAX_ATTEMPTS = 100;
+  /** Guards only against concurrent writers; each collision first skips past every used number. */
+  static final int MAX_ATTEMPTS = 10;
+
+  static final String SKIP_PAST_USED =
+      "SELECT setval('pas.policy_seq', GREATEST((SELECT last_value FROM pas.policy_seq),"
+          + " (SELECT COALESCE(MAX(CAST(SUBSTRING(policy_number FROM 4 FOR 9) AS BIGINT)), 0)"
+          + " FROM pas.policies WHERE policy_number ~ '^POL[0-9]{9}$')))";
 
   private final JdbcOperations jdbc;
 
@@ -31,7 +37,10 @@ public class PolicyNumberGenerator {
   /**
    * Next unused new-business policy number. Distinct sequence values always give distinct numbers,
    * so concurrent callers never collide with each other; the existence check guards against rows
-   * that were not numbered by this generator. {@code pk_policies} remains the final guard.
+   * that were not numbered by this generator (e.g. migrated). On a collision the sequence jumps
+   * past the highest {@code POL} + 9-digit number in use, so an occupied range of any length costs
+   * one extra query rather than exhausting the attempts. Running out of 9-digit numbers fails in
+   * {@link PolicyNumbers#forNewBusiness}. {@code pk_policies} remains the final guard.
    */
   public String nextPolicyNumber() {
     for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -44,6 +53,7 @@ public class PolicyNumberGenerator {
       if (!Boolean.TRUE.equals(taken)) {
         return number;
       }
+      jdbc.queryForObject(SKIP_PAST_USED, Long.class);
     }
     throw new IllegalStateException(
         "no free policy number after " + MAX_ATTEMPTS + " pas.policy_seq values");

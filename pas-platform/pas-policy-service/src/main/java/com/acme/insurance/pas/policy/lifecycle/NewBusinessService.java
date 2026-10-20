@@ -79,7 +79,8 @@ public class NewBusinessService {
 
   /**
    * Creates a policy. With an Idempotency-Key, a repeat of the same request by the same subject
-   * returns the policy the first call created; the same key with a different body is rejected.
+   * returns the stored first response (not the policy's current state); the same key with a
+   * different body is rejected.
    *
    * @throws NotEntitledException the caller may not write business for the agent/branch
    * @throws NewBusinessRejectedException a POLNEW rule or the term check failed
@@ -129,9 +130,6 @@ public class NewBusinessService {
     }
 
     String number = numbers.nextPolicyNumber();
-    if (key != null) {
-      idempotency.insert(subject, OPERATION, key, hash, number);
-    }
     PolicyEntity policy =
         policies.saveAndFlush(NewBusinessRules.newPolicy(request, number, calendar.nowUtc()));
     List<CoverageEntity> covs =
@@ -143,7 +141,11 @@ public class NewBusinessService {
         policy.getVersion(),
         correlationId,
         PolicyCreatedData.of(policy, covs));
-    return new Outcome(view(policy, covs), false);
+    CreatedPolicyView view = view(policy, covs);
+    if (key != null) {
+      idempotency.insert(subject, OPERATION, key, hash, number, toJson(view));
+    }
+    return new Outcome(view, false);
   }
 
   private Optional<Outcome> replay(String subject, String key, String hash) {
@@ -156,26 +158,29 @@ public class NewBusinessService {
                     NewBusinessRejectedException.IDEMPOTENCY_KEY_REUSED,
                     "Idempotency-Key was already used with a different request");
               }
-              PolicyEntity policy =
-                  policies
-                      .findById(entry.policyNumber())
-                      .orElseThrow(
-                          () ->
-                              new IllegalStateException(
-                                  "idempotency key points at missing policy "
-                                      + entry.policyNumber()));
-              return new Outcome(
-                  view(
-                      policy,
-                      coverages.findByIdPolicyNumberOrderByIdSequenceNumAsc(
-                          policy.getPolicyNumber())),
-                  true);
+              return new Outcome(fromJson(entry.responseJson()), true);
             });
   }
 
   private static CreatedPolicyView view(PolicyEntity policy, List<CoverageEntity> covs) {
     return new CreatedPolicyView(
         PolicyView.from(policy), covs.stream().map(CoverageView::from).toList());
+  }
+
+  private String toJson(CreatedPolicyView view) {
+    try {
+      return mapper.writeValueAsString(view);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("cannot serialise create-policy response", e);
+    }
+  }
+
+  private CreatedPolicyView fromJson(String json) {
+    try {
+      return mapper.readValue(json, CreatedPolicyView.class);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("cannot read stored create-policy response", e);
+    }
   }
 
   private String hash(CreatePolicyRequest request) {

@@ -2,9 +2,7 @@ package com.acme.insurance.pas.policy.events;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -13,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -21,9 +18,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Publishes {@code pas.outbox} rows to Kafka in {@code outbox_id} order, at least once. A
  * transaction-scoped advisory lock makes one replica the active relay at a time, which keeps
- * per-policy order across replicas. On the first failed send the batch stops (later rows wait, so
- * order holds), the row's {@code attempts}/{@code last_error} are recorded and the next poll
- * retries.
+ * per-policy order across replicas. Rows are sent one at a time and each send is acknowledged
+ * before the next starts, so a failed send can never be overtaken by a later row. On the first
+ * failed send the batch stops (later rows wait, so order holds), the row's {@code attempts}/{@code
+ * last_error} are recorded and the next poll retries.
  */
 @SuppressFBWarnings(
     value = "EI_EXPOSE_REP2",
@@ -95,19 +93,10 @@ public class OutboxRelay {
                     rs.getString(5),
                     rs.getString(6)),
             properties.batchSize());
-    List<CompletableFuture<SendResult<String, String>>> sends = new ArrayList<>(rows.size());
+    int published = 0;
     for (Row row : rows) {
       try {
-        sends.add(kafka.send(record(row)));
-      } catch (RuntimeException e) {
-        sends.add(CompletableFuture.failedFuture(e));
-      }
-    }
-    int published = 0;
-    for (int i = 0; i < rows.size(); i++) {
-      Row row = rows.get(i);
-      try {
-        sends.get(i).get(properties.sendTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        kafka.send(record(row)).get(properties.sendTimeout().toMillis(), TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         recordFailure(row, e);

@@ -2,6 +2,7 @@ package com.acme.insurance.pas.policy.underwriting;
 
 import com.acme.insurance.pas.common.error.ApiError;
 import com.acme.insurance.pas.policy.security.CallerEntitlements;
+import com.acme.insurance.pas.policy.security.JwtSubjects;
 import com.acme.insurance.pas.policy.security.NotEntitledException;
 import com.acme.insurance.pas.policy.security.PasScopes;
 import com.acme.insurance.pas.policy.support.CorrelationIds;
@@ -101,7 +102,7 @@ public class UnderwritingController {
       content = @Content(schema = @Schema(implementation = ApiError.class)))
   @ApiResponse(
       responseCode = "403",
-      description = "Token lacks scope underwriting:decide or has no subject",
+      description = "Token lacks scope underwriting:decide, or its subject is missing or too long",
       content = @Content(schema = @Schema(implementation = ApiError.class)))
   @ApiResponse(
       responseCode = "409",
@@ -116,6 +117,7 @@ public class UnderwritingController {
     if (subject == null || subject.isBlank()) {
       throw new NotEntitledException("a manual override needs a token with a subject");
     }
+    JwtSubjects.checkLength(subject);
     String correlationId = CorrelationIds.resolve(correlationHeader);
     return created(
         service.override(

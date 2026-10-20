@@ -28,13 +28,15 @@ CREATE TABLE pas.outbox (
 
 CREATE INDEX ix_outbox_pending ON pas.outbox (outbox_id) WHERE published_at IS NULL;
 
--- Idempotency-Key replay for POST /api/v1/policies, scoped to the calling subject.
+-- Idempotency-Key replay for POST /api/v1/policies, scoped to the calling subject. response_json is
+-- the first response, returned verbatim on replay even after the policy changed (e.g. underwriting).
 CREATE TABLE pas.idempotency_keys (
     caller_subject  VARCHAR(255) NOT NULL,
     operation       VARCHAR(40)  NOT NULL,
     idempotency_key VARCHAR(255) NOT NULL,
     request_hash    CHAR(64)     NOT NULL,
     policy_number   CHAR(12)     NOT NULL,
+    response_json   TEXT         NOT NULL,
     created_at      TIMESTAMP(6) NOT NULL DEFAULT LOCALTIMESTAMP,
     CONSTRAINT pk_idempotency_keys PRIMARY KEY (caller_subject, operation, idempotency_key)
 );

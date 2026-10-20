@@ -3,6 +3,7 @@ package com.acme.insurance.pas.policy.lifecycle;
 import com.acme.insurance.pas.common.error.ApiError;
 import com.acme.insurance.pas.policy.api.InvalidRequestException;
 import com.acme.insurance.pas.policy.security.CallerEntitlements;
+import com.acme.insurance.pas.policy.security.JwtSubjects;
 import com.acme.insurance.pas.policy.security.PasScopes;
 import com.acme.insurance.pas.policy.support.CorrelationIds;
 import io.swagger.v3.oas.annotations.Operation;
@@ -87,7 +88,7 @@ public class NewBusinessController {
         service.create(
             request,
             CallerEntitlements.fromJwt(jwt),
-            Objects.requireNonNullElse(jwt.getSubject(), ""),
+            JwtSubjects.checkLength(Objects.requireNonNullElse(jwt.getSubject(), "")),
             idempotencyKey,
             correlationId);
     String number = outcome.view().policy().policyNumber();
