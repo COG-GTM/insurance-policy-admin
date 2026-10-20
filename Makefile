@@ -13,7 +13,7 @@ compat-build:
 compat-api:
 	./compat/api/run_facade.sh
 
-.PHONY: build test dev dev-images dev-up dev-down dev-logs dev-ps
+.PHONY: build test dev dev-images dev-up dev-down dev-logs dev-ps reconcile rollback-rehearsal parallel-run
 
 PAS_DIR := pas-platform
 COMPOSE := docker compose -f $(PAS_DIR)/docker-compose.yml
@@ -85,3 +85,16 @@ parity-extracts:
 
 parity-extracts-golden:
 	python3 parity/extracts/oracle.py update
+
+# AB-529 data migration (docs/modernization/data-migration.md, parallel-run.md).
+# reconcile: Compose + seeded ACMEINS stand-in -> bulk load, delta sync, reconciliation report.
+reconcile:
+	$(PAS_DIR)/dev/migration/reconcile-local.sh
+
+# Local rollback rehearsal only; the production rehearsal is Pending: Mainframe/Platform/Ops.
+rollback-rehearsal:
+	$(PAS_DIR)/dev/migration/rollback-rehearsal.sh
+
+# Migration + parallel-run diff tests (H2 DB2-mode source, Testcontainers PostgreSQL).
+parallel-run:
+	cd $(PAS_DIR) && ./mvnw -B -ntp -pl pas-batch -am -Dtest=none -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false -Dit.test='MigrationIT,ParallelRunIT' -Dspotbugs.skip verify

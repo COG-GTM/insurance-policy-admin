@@ -107,7 +107,7 @@ class DataModelIT {
                 .map(MigrationInfo::getVersion)
                 .filter(Objects::nonNull))
         .extracting(Object::toString)
-        .containsExactly("1", "2", "3", "4", "5");
+        .containsExactly("1", "2", "3", "4", "5", "6");
     flyway.validate();
     assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
   }

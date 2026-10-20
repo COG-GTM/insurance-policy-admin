@@ -289,3 +289,40 @@ Mainframe team.
 - **Context:** `ExtractScheduler` assumes one scheduling replica. If `pas-batch` scales out, add a
   lock (e.g. ShedLock on `pas_batch`) or move triggering to the platform scheduler.
 - **Proposed owner:** Platform.
+
+## AB-529 (data migration, reconciliation, parallel run)
+
+### Proposed: Choose and provision DB2 log-based CDC
+- **Context:** AB-529 ships a timestamp/watermark delta sync as the CDC fallback
+  ([data-migration.md](data-migration.md#ongoing-sync-timestamp-deltas-now-cdc-recommended)); it cannot
+  see deletes or updates that do not move `LAST_UPDATED`. Pick IBM IIDR or Debezium Db2, provision
+  capture on ACMEINS and a read-only JDBC user for reconciliation, and feed the existing `TargetWriter`.
+- **Proposed owner:** Mainframe team + Platform.
+
+### Proposed: Run the full-billing-cycle parallel run
+- **Context:** the harness (`parallelRunDiffJob`, [parallel-run.md](parallel-run.md)) is ready, but
+  needs daily mainframe captures in `pas.migration.legacy-output-dir`, AB-523 shadow output in
+  `pas_shadow.premiums`, agreed cycle dates and a named triage owner.
+- **Proposed owner:** Ops + PAS tech lead; acceptance by Product Owner, Claims, Actuarial.
+
+### Proposed: AB-523 shadow mode for the premium job
+- **Context:** `premiumRecalculationJob` writes `pas.premiums`. In parallel run it must write to
+  `pas_shadow.premiums` (`shadow_run_id`, `business_date`) instead, so DB2 stays authoritative.
+- **Proposed owner:** AB-523 owner.
+
+### Proposed: Production rollback rehearsal and window
+- **Context:** only a local Compose rehearsal exists ([rollback-rehearsal-local.md](rollback-rehearsal-local.md)).
+  Rehearse against the real gateway route flags and DB2, agree the cut-back window (proposed < 60 min)
+  and build PostgreSQL → DB2 reverse replication for after a capability goes `new`.
+- **Proposed owner:** Ops + Platform + Mainframe team.
+
+### Proposed: Publish daily reports to the team channel
+- **Context:** reports land in `pas.migration.report-dir`, `pas.migration_check_runs`,
+  `/actuator/migration` and Prometheus. Post `latest.md` to the team channel and add alerts on
+  `pas_migration_unexplained > 0` and a stale `pas_migration_last_run_seconds`.
+- **Proposed owner:** Platform (observability).
+
+### Proposed: Move POLICY_SEQ at cutover
+- **Context:** `pas.policy_seq` must start above DB2 `ACMEINS.POLICY_SEQ` before POLNEW traffic moves
+  (see also Q-27). Not part of the bulk load.
+- **Proposed owner:** AB-525 / AB-530.
