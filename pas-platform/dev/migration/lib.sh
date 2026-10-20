@@ -22,11 +22,21 @@ ensure_env() {
       echo "Generated local ${key} in $PAS_DIR/.env"
     fi
   done
-  # Like Compose: variables already set in the shell win over .env.
-  while IFS='=' read -r name value; do
-    case "$name" in '' | \#*) continue ;; esac
+  # Like Compose: shell variables win over .env; quoted values verbatim, unquoted values trimmed
+  # and cut at an inline " #" comment (same rules as dev/dev-jwt.sh).
+  local line name val
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=(.*)$ ]] || continue
+    name="${BASH_REMATCH[2]}"
+    val="${BASH_REMATCH[3]}"
+    val="${val#"${val%%[![:space:]]*}"}"
+    case "$val" in
+      \"*) val="${val#\"}"; val="${val%%\"*}" ;;
+      \'*) val="${val#\'}"; val="${val%%\'*}" ;;
+      *) val="${val%%[[:space:]]#*}"; val="${val%"${val##*[![:space:]]}"}" ;;
+    esac
     if [ -z "${!name+x}" ]; then
-      export "$name=$value"
+      export "$name=$val"
     fi
   done < "$PAS_DIR/.env"
 }
