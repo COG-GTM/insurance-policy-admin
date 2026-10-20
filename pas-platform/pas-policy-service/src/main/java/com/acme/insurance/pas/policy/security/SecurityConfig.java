@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
  * Every endpoint needs a valid JWT except the Kubernetes health probes. {@code /api/v1/policies}
@@ -22,9 +23,19 @@ public class SecurityConfig {
     "/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness"
   };
 
+  /**
+   * Browsers never attach an {@code Authorization} header on their own, so bearer-token requests
+   * cannot be forged cross-site. CSRF stays on for anything else.
+   */
+  static final RequestMatcher BEARER_TOKEN_REQUEST =
+      request -> {
+        String authorization = request.getHeader("Authorization");
+        return authorization != null && authorization.regionMatches(true, 0, "Bearer ", 0, 7);
+      };
+
   @Bean
   SecurityFilterChain pasSecurityFilterChain(HttpSecurity http) throws Exception {
-    http.csrf(AbstractHttpConfigurer::disable)
+    http.csrf(c -> c.ignoringRequestMatchers(BEARER_TOKEN_REQUEST))
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .httpBasic(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)
