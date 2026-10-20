@@ -44,7 +44,7 @@ public class PolicyController {
     @GetMapping("/{policyNumber}")
     public ResponseEntity<Policy> getPolicy(
             @PathVariable String policyNumber,
-            @RequestAttribute("com.acme.insurance.pas.security.ApiClient") ApiClient client) {
+            @RequestAttribute(ApiClient.REQUEST_ATTRIBUTE) ApiClient client) {
         if (!POLICY_NUMBER_FORMAT.matcher(policyNumber).matches()) {
             return new ResponseEntity<Policy>(HttpStatus.BAD_REQUEST);
         }
@@ -58,7 +58,7 @@ public class PolicyController {
     @GetMapping("/{policyNumber}/coverages")
     public ResponseEntity<List<Coverage>> getCoverages(
             @PathVariable String policyNumber,
-            @RequestAttribute("com.acme.insurance.pas.security.ApiClient") ApiClient client) {
+            @RequestAttribute(ApiClient.REQUEST_ATTRIBUTE) ApiClient client) {
         if (!POLICY_NUMBER_FORMAT.matcher(policyNumber).matches()) {
             return new ResponseEntity<List<Coverage>>(HttpStatus.BAD_REQUEST);
         }

@@ -8,7 +8,8 @@ import java.util.Set;
 
 public final class ApiClient {
 
-    public static final String REQUEST_ATTRIBUTE = ApiClient.class.getName();
+    public static final String REQUEST_ATTRIBUTE =
+            "com.acme.insurance.pas.security.ApiClient";
 
     private final String id;
     private final Set<String> branchCodes;
