@@ -24,8 +24,8 @@ Merge policy: ADR PR may merge to the epic integration branch; merge to main wai
 | --- | --- | --- |
 | D1 | One `pas-policy-service` (inquiry, lifecycle, rating, underwriting) + one `pas-batch`, not one service per CICS transaction. Rating is an in-process library | Ratifies |
 | D2 | Java 21, Spring Boot 3, Spring Batch 5, OCI containers on the standard platform | Ratifies, **amended**: Boot 3.3 is past OSS support, so upgrade to a supported 3.5.x before any capability goes live |
-| D3 | PostgreSQL 16 + Flyway (`pas`, `pas_batch`). Bulk load + one-way CDC from DB2. DB2 stays the system of record until AB-529, with reverse replication during the rollback window | Ratifies PostgreSQL 16 + Flyway; adds the coexistence model |
-| D4 | Kafka with versioned schemas, transactional outbox and no PII in events. Transitional Kafka→MQ bridge for FileNet | Ratifies Kafka; adds outbox and bridge |
+| D3 | PostgreSQL 16 + Flyway (`pas`, `pas_batch`, transitional `pas_shadow`). Bulk load + one-way CDC from DB2. DB2 stays the system of record until AB-529, with reverse replication during the rollback window | Ratifies PostgreSQL 16 + Flyway; adds the coexistence model |
+| D4 | Kafka with versioned schemas, transactional outbox and no PII in events. Transitional Kafka→MQ bridge for FileNet that hydrates POLICY-RECORD by `policyVersion` | Ratifies Kafka; adds outbox and bridge |
 | D5 | OAuth2/OIDC JWT resource server; one scope per capability; object-level entitlement on agent/branch/book claims; actuator internal only | New |
 | D6 | SFTP (key auth, pinned host key) + SHA-256 manifest + delivery receipt, replacing plain FTP | New |
 | D7 | Gateway with per-capability route flags (`legacy`/`shadow`/`new`/`retired`) and a six-point "moved" rule | New |
@@ -37,7 +37,7 @@ The automated `arb-triage` detector wasn't run: the session's guardrails block e
 | Trigger | Hit? | Evidence |
 | --- | --- | --- |
 | T1 New deployable / scheduled job | **Yes** | `pas-policy-service`, `pas-batch` (scheduled jobs replacing CA-7/JCL), CDC pipeline, Kafka→MQ bridge |
-| T2 New data store / classification change | **Yes** | PostgreSQL `pas` (Restricted PII from POLICY_HOLDERS), `pas_batch`, outbox and audit tables, Kafka topics |
+| T2 New data store / classification change | **Yes** | PostgreSQL `pas` (Restricted PII from POLICY_HOLDERS), `pas_batch`, transitional `pas_shadow`, outbox and audit tables, Kafka topics |
 | T3 New external vendor | **To confirm** | CDC product for DB2 z/OS; managed Kafka / schema registry / gateway if not already approved |
 | T4 New cross-domain contract | **Yes** | Kafka events replacing TDQ/MQ (FileNet), REST APIs for Broker Portal, SFTP delivery contract for Claims/Actuarial, Claims open-claims interface |
 | T5 Infra outside approved policy | **To confirm** | `policy/approved-infra.yaml` isn't in the repo. No IaC in this change |
@@ -59,12 +59,16 @@ Short version:
   - gateway routes;
   - IdP clients and scopes;
   - SFTP keys.
-- **Transitional:** the DB2↔PostgreSQL CDC pipeline (including reverse replication for rollback) and the Kafka→MQ bridge.
+- **Transitional:** the DB2↔PostgreSQL CDC pipeline (including reverse replication for rollback), the `pas_shadow` schema for isolated shadow-mode outputs, and the Kafka→MQ bridge.
 
 ## Known gaps the ARB should see
 
 Numeric NFRs (SLO, latency, RPO/RTO, peak load), cost, data residency and retention are
 **TBD** and listed under *Open questions* in the ADR. They have not been invented.
+
+Until `inquiry` is retired, the legacy `java-facade` stays unauthenticated (open finding AB-365). The ADR
+contains it with gateway-only network ingress and internal `book:*` callers only, and routes the Broker Portal to
+`pas-policy-service`. Residual risk remains if AB-524 slips (ADR D5).
 Write-capability cutover also depends on an unowned replacement for the CICS 3270 channel (ADR D7).
 
 ## Sign-offs

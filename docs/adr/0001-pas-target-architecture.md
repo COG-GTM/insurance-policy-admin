@@ -148,7 +148,12 @@ The sections below record each decision (D1–D7), the reasoning and the alterna
    - The CDC pipeline is a **transitional** component. It holds full PII and gets least-privilege, read-only DB2 access.
 3. **Before the system-of-record flip.** Java capabilities run against `pas` in `shadow` mode (D7).
    - Reads and extracts can move to `new` earlier, as long as replica staleness is acceptable for that consumer. Extracts only run once the CDC watermark has passed the business cut-off time.
-   - Write capabilities (POLNEW, POLRNW, POLEND, UNDWRT, premium batch) compute against `pas` and are compared with what CICS/PREMBAT wrote to DB2, but **their results are not authoritative**.
+   - Write capabilities (POLNEW, POLRNW, POLEND, UNDWRT, premium batch) run in shadow and are compared with what CICS/PREMBAT wrote to DB2, but **their results are not authoritative**.
+   - **Shadow isolation.** Before the flip, `pas` is written **only** by the CDC pipeline. Shadow writes never touch it, so reads, extracts and reconciliation always see DB2 truth.
+     - Shadow write paths read their inputs from `pas` and write their outputs to a separate schema, **`pas_shadow`**. It has the same table shapes, and only the shadow-mode datasource can write to it. Pure calculations (rating, underwriting score) can instead run without committing anything.
+     - The shadow premium batch writes PREMIUMS output to `pas_shadow` as well, never to `pas`.
+     - **Watermark alignment.** Each shadow run records the CDC position (log sequence or `LAST_UPDATED` watermark) of the inputs it read. Its output is compared with the DB2 result once CDC has passed the source transaction's commit, keyed by policy number + business date. An input that changed between the shadow read and the compare is reported as "input drift", not as a parity diff, and is retried.
+     - `pas_shadow` is truncated per comparison window and dropped at the system-of-record flip.
 4. **Reconciliation, run daily and on demand (AB-529).**
    - Per-table row counts and per-row key + column hashes.
    - Financial control totals (`SUM(TOTAL_PREMIUM)`, premiums by run date, coverage limits).
@@ -179,7 +184,7 @@ The sections below record each decision (D1–D7), the reasoning and the alterna
 - **Schemas.**
   - Event contracts are versioned in the repo and checked in CI for **backward compatibility**. A breaking change means a new `.v2` topic, never an in-place edit.
   - We use JSON Schema, and a schema registry if the platform provides one. Otherwise schemas are a contract module.
-  - Every event carries `eventId` (UUID), `eventType`, `schemaVersion`, `occurredAt`, `policyNumber` and `correlationId`.
+  - Every event carries `eventId` (UUID), `eventType`, `schemaVersion`, `occurredAt`, `policyNumber`, `policyVersion` (the optimistic-lock version of the committed state) and `correlationId`.
 - **PII minimisation.** Today the TDQ payload is the entire `POLICY-RECORD`. Events carry identifiers and business facts only, with no policyholder PII. Consumers that need PII call the authorised API.
 - **Transactional outbox.**
   - `pas-policy-service` writes events to a `pas.outbox` table in the same transaction as the state change. A relay publishes them to Kafka.
@@ -187,7 +192,13 @@ The sections below record each decision (D1–D7), the reasoning and the alterna
   - This fixes the legacy behaviour where POLNEW silently drops the message when `WRITEQ TD` fails.
 - **Audit.** The POLEND `ENDORSEMENT-AUDIT` TS queue is replaced by a durable audit table in `pas` (AB-526/AB-528). It also emits a `PolicyEndorsed` event. Audit is not left to a broker's retention policy.
 - **FileNet (transitional).** FileNet keeps consuming IBM MQ until it can consume Kafka (FileNet re-platforming is out of scope).
-  - A **Kafka → MQ bridge** maps `pas.document.requests.v1` onto the existing queue and message format. The bridge is a Kafka Connect IBM MQ sink, or a small bridge in `pas-policy-service`; AB-528 decides.
+  - A **Kafka → MQ bridge** feeds the existing FileNet queue from `pas.document.requests.v1`. The bridge is a Kafka Connect IBM MQ sink with a hydration transform, or a small bridge in `pas-policy-service`; AB-528 decides.
+  - **Hydration.** `DocumentRequested` is deliberately minimal, so the bridge cannot build FileNet's fixed-width `POLICY-RECORD` from the event alone.
+    - The bridge fetches the policy at exactly `policyVersion` through an authenticated internal read: client credentials with `policy:read` and `book:*`, and no `policy:pii:read`. In-process, it reads the same committed row.
+    - It then builds the `POLICY-RECORD` layout byte for byte (COMP-3 packing, blank padding, FILLER) from the copybook.
+    - If that version is no longer readable, the bridge does not send a partial record. It retries and then dead-letters with an alert.
+    - In `shadow`, the bridge output is compared byte-level with the TDQ payload CICS wrote. `document-events` only moves to `new` with FileNet consumer sign-off on that comparison.
+  - The alternative is to version FileNet's MQ contract to the minimal event. That is FileNet-side work and out of scope, so it is not chosen; it can be revisited with FileNet sign-off.
   - The bridge is retired when FileNet consumes Kafka directly, or when MQ is decommissioned.
 - **Access control.** Kafka ACLs are per topic and per principal: only `pas-policy-service` and `pas-batch` produce, and each consumer group gets read access only to the topics it needs. Connections use TLS and SASL/mTLS (D5).
 
@@ -223,6 +234,10 @@ The sections below record each decision (D1–D7), the reasoning and the alterna
   - The check runs in the service layer, not only at the gateway.
   - A denied object returns **404**, the same as not-found, so policy numbers can't be enumerated.
 - **Gateway.** The gateway also validates tokens (defence in depth), but **the service's own checks are the authoritative ones**.
+- **Legacy facade during transition.** `java-facade` has no auth, and the gateway cannot do object-level checks for it. So until `inquiry` reaches `retired`:
+  - **Network-locked.** The facade only accepts traffic from the gateway (Kubernetes NetworkPolicy / security group, plus mTLS if the mesh provides it). Every other path to it is closed, including direct Broker Portal and staff access.
+  - **Internal callers only.** Legacy facade routes accept only internal staff and service tokens that carry `policy:read` and `book:*`. Callers that need object-level filtering (Broker Portal, agents) are **not** routed to the facade. They go through `broker-read` → `pas-policy-service` (AB-524), which enforces entitlements.
+  - **Residual risk.** If AB-524 slips and a restricted caller has to use the facade, an entitlement filter is added to the facade under AB-365 first. That is a `java-facade` change, so it is scoped and approved separately. Until then the facade remains the open finding AB-365, and it is listed under risks.
 - **Actuator.**
   - Only `health` (liveness/readiness) and `prometheus` are exposed, as already scaffolded.
   - In deployed environments they move to a separate management port, reachable only from the platform network (probes and metrics scraper), never through the gateway.
@@ -272,7 +287,7 @@ The sections below record each decision (D1–D7), the reasoning and the alterna
   | Flag | Behaviour |
   | --- | --- |
   | `legacy` (default) | Legacy serves. New path not called. |
-  | `shadow` | Legacy serves and is authoritative. Reads are mirrored to the new path and the responses compared. Writes and batch run the new path against `pas` without publishing externally (no SFTP delivery, no Kafka publish to external consumers, not the system of record), and the outputs are compared. |
+  | `shadow` | Legacy serves and is authoritative. Reads are mirrored to the new path and the responses compared. Writes and batch run the new path with inputs from `pas` and outputs to the isolated `pas_shadow` schema (D3 step 3), without publishing externally (no SFTP delivery, no Kafka publish to external consumers, not the system of record). The outputs are compared. |
   | `new` | New path serves and is authoritative. Legacy stays warm for the rollback window. |
   | `retired` | Legacy path removed (AB-530). |
 
@@ -365,7 +380,7 @@ C4Container
     Rel(staff, gw, "HTTPS", "OIDC bearer JWT")
     Rel(broker, gw, "HTTPS", "client-credentials JWT")
     Rel(gw, svc, "HTTPS (mTLS if mesh)", "JWT forwarded")
-    Rel(gw, facade, "HTTP(S), legacy routes", "JWT validated at gateway")
+    Rel(gw, facade, "HTTP(S), legacy routes", "Only allowed ingress, internal book:* callers only")
     Rel(svc, idp, "JWKS", "HTTPS")
     Rel(svc, pg, "JDBC/TLS", "per-service DB credential from secrets store")
     Rel(batch, pg, "JDBC/TLS", "per-service DB credential from secrets store")
@@ -409,7 +424,8 @@ stateDiagram-v2
 | 7 | Kafka topics `pas.policy.events.v1`, `pas.underwriting.events.v1`, `pas.document.requests.v1` | Data store (log) + async contract | Permanent | Confidential (no PII by design) | PAS Platform | Topic ACLs; retention TBD |
 | 8 | Event schemas (contract module / registry) | Shared contract | Permanent | Internal | PAS Platform | Backward-compat checked in CI |
 | 9 | CDC pipeline DB2 → PostgreSQL (and reverse for rollback) | Deployable / vendor tool | **Transitional** (until DB2 decommission) | Restricted (full row images) | Mainframe team + PAS Platform | Tool TBD. Possible T3/T5 |
-| 10 | Kafka → MQ bridge | Deployable / connector | **Transitional** | Confidential | PAS Platform | Until FileNet consumes Kafka |
+| 10 | Kafka → MQ bridge | Deployable / connector | **Transitional** | Confidential (hydrated POLICY-RECORD: holder id, agent, premiums; no policyholder PII) | PAS Platform | Until FileNet consumes Kafka. Reads policy via `policy:read` client credentials |
+| 15 | PostgreSQL 16, schema `pas_shadow` | Data store | **Transitional** (dropped at system-of-record flip) | Restricted (shadow copies of policy and premium rows) | PAS Platform | Shadow-mode outputs only; never read by consumers; truncated per comparison window |
 | 11 | API gateway routes + route-flag config | Infra config | Permanent (flags transitional) | N/A | PAS Platform / platform team | Platform gateway preferred |
 | 12 | IdP client registrations and scopes (`pas-api` audience) | Identity config | Permanent | N/A | Security / IAM | One client per consumer system |
 | 13 | SFTP credentials (SSH keypairs) and host-key pins | Secrets | Permanent | Secret | PAS Platform | Stored in secrets store, rotated |
@@ -521,6 +537,8 @@ Also tracked: the Spring Boot 3.3 / CVE-2026-47884 time-boxed Trivy ignore (`.gi
 - **Channel replacement is unowned.** CICS 3270 users have no replacement client in scope yet. This blocks write cutover.
 - **Transitional components to remove.** The CDC pipeline, reverse replication and the MQ bridge add operational load until they are decommissioned.
 - **Runtime currency.** Boot 3.3 is unsupported, so an upgrade must land before go-live.
+- **Unauthenticated legacy facade (AB-365).** Until `inquiry` is retired, the facade has no object-level authZ. Mitigation: gateway-only network ingress, internal `book:*` callers only, and Broker Portal routed to `pas-policy-service` (D5).
+- **Shadow input drift.** Shadow comparisons depend on CDC watermark alignment, and high-churn policies may produce noise. Mitigation: `pas_shadow` isolation plus watermark-keyed comparison (D3 step 3).
 
 **Follow-ups (proposed tickets).** Not created in Jira from this session. The coordinator may fold them into `docs/modernization/open-questions.md`.
 
