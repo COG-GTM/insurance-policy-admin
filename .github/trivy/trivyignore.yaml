@@ -7,3 +7,12 @@ vulnerabilities:
       XSLT view resolution. The only OSS fix is Spring Framework 7.0.9 (Spring Boot 4.x);
       remove this entry when pas-platform upgrades off Spring Boot 3.3.
     expired_at: 2026-12-31
+  - id: CVE-2026-47890
+    paths:
+      - "**"
+    statement: >-
+      Spring Framework SSE stream corruption with view rendering (spring-webmvc 6.2.x, pulled into
+      pas-batch by the AB-523 Spring Security 6.5 override for CVE-2026-22732). pas-platform has no
+      SseEmitter / Server-Sent Events endpoints. The only OSS fix is Spring Framework 7.0.9 (Spring
+      Boot 4.x); remove this entry with the Spring Boot upgrade.
+    expired_at: 2026-12-31
