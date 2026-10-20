@@ -178,7 +178,7 @@ Testcontainers container with default settings, same host, 8 partitions, chunk 1
 | Active policies | Run time (job only) | Throughput | Target |
 |---|---|---|---|
 | 20,000 | 0.7 s | ~27,000 policies/s | — |
-| 1,000,000 | 11.6 s | ~86,000 policies/s | < 30 min: **met** |
+| 1,000,000 | 11.6 s and 10.0 s (two runs) | ~86,000–100,000 policies/s | < 30 min: **met** |
 
 Caveats: database and job on the same host (no network latency), empty `pas.premiums` (first
 run; a rerun also updates indexes), default PostgreSQL config. Re-measure on the target
