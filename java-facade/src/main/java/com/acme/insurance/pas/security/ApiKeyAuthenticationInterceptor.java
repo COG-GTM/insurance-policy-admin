@@ -3,6 +3,7 @@ package com.acme.insurance.pas.security;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.handler.HandlerInterceptorAdapter;
 
+import javax.annotation.PostConstruct;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +22,38 @@ public class ApiKeyAuthenticationInterceptor extends HandlerInterceptorAdapter {
         this.clientProperties = clientProperties;
     }
 
+    @PostConstruct
+    void validateClients() {
+        List<ApiClientProperties.Client> clients = clientProperties.getClients();
+        if (clients == null) {
+            return;
+        }
+
+        for (int i = 0; i < clients.size(); i++) {
+            ApiClientProperties.Client client = clients.get(i);
+            if (client == null) {
+                continue;
+            }
+            byte[] keyHash = decodeSha256(client.getKeySha256());
+            if (keyHash == null) {
+                continue;
+            }
+            for (int previousIndex = 0; previousIndex < i; previousIndex++) {
+                ApiClientProperties.Client previous = clients.get(previousIndex);
+                if (previous == null) {
+                    continue;
+                }
+                byte[] previousHash = decodeSha256(previous.getKeySha256());
+                if (previousHash != null
+                        && MessageDigest.isEqual(keyHash, previousHash)) {
+                    throw new IllegalStateException(
+                            "Duplicate API key hash configured for clients: "
+                                    + previous.getId() + ", " + client.getId());
+                }
+            }
+        }
+    }
+
     @Override
     public boolean preHandle(HttpServletRequest request,
                              HttpServletResponse response,
@@ -32,18 +65,23 @@ public class ApiKeyAuthenticationInterceptor extends HandlerInterceptorAdapter {
 
         byte[] suppliedHash = sha256(key);
         ApiClientProperties.Client matchedClient = null;
+        int matches = 0;
         List<ApiClientProperties.Client> clients = clientProperties.getClients();
         if (clients != null) {
             for (ApiClientProperties.Client client : clients) {
+                if (client == null) {
+                    continue;
+                }
                 byte[] configuredHash = decodeSha256(client.getKeySha256());
                 if (configuredHash != null
                         && MessageDigest.isEqual(suppliedHash, configuredHash)) {
                     matchedClient = client;
+                    matches++;
                 }
             }
         }
 
-        if (matchedClient == null) {
+        if (matches != 1 || matchedClient == null) {
             return unauthorized(response);
         }
 
