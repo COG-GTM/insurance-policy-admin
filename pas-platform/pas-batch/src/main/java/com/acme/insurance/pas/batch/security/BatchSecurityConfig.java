@@ -54,7 +54,7 @@ public class BatchSecurityConfig {
         .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         // bearer-JWT API without cookies or sessions: no CSRF exposure
-        .csrf(csrf -> csrf.disable());
+        .csrf(csrf -> csrf.ignoringRequestMatchers("/api/batch/**"));
     return http.build();
   }
 
