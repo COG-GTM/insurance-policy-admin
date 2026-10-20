@@ -1,5 +1,9 @@
 package com.acme.insurance.pas.batch.premium;
 
+import com.acme.insurance.pas.batch.alert.BatchAlertNotifier;
+import com.acme.insurance.pas.batch.alert.JobFailureAlertListener;
+import com.acme.insurance.pas.batch.extract.ExtractOutputs;
+import com.acme.insurance.pas.batch.extract.SingleRunPerDateTasklet;
 import com.acme.insurance.pas.common.domain.PremiumRecord;
 import com.acme.insurance.pas.rating.PremiumRatingService;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -42,6 +46,7 @@ import org.springframework.transaction.PlatformTransactionManager;
  * (PREMBAT, CA-7 PAS0050).
  *
  * <pre>
+ * premiumSingleRunGuard   fail if an earlier run for the same business date is still running
  * premiumReportInitStep   create the report directory; fail the run if it cannot (Q-25)
  * premiumRecalculationStep partition the active book by policy-number range, then per partition:
  *   premiumWorkerStep      JDBC paging read (status 'AC', policy-number order) -> rate with the
@@ -49,17 +54,20 @@ import org.springframework.transaction.PlatformTransactionManager;
  * premiumReportStep       assemble PREMRPT with READ / UPDATED / ERRORS totals
  * </pre>
  *
- * Job parameters: {@code runDate} (identifying; one job instance per business date, rating as-of
- * date and CALC_DATE) and optionally {@code rerun} (identifying; a new instance that recalculates a
- * date that already completed). Relaunching a failed instance restarts it from the last committed
- * chunk of each unfinished partition.
+ * Job parameters: {@code businessDate} (identifying; one job instance per business date, rating
+ * as-of date and CALC_DATE) and optionally {@code rerun} (identifying; a new instance that
+ * recalculates a date that already completed). Relaunching a failed instance restarts it from the
+ * last committed chunk of each unfinished partition.
  */
 @Configuration
 @EnableConfigurationProperties(PremiumJobProperties.class)
 public class PremiumRecalculationJobConfig {
 
   public static final String JOB_NAME = "premiumRecalculationJob";
-  public static final String RUN_DATE = "runDate";
+
+  /** Same parameter name as the AB-527 extract jobs, so {@link SingleRunPerDateTasklet} applies. */
+  public static final String RUN_DATE = ExtractOutputs.BUSINESS_DATE;
+
   public static final String RERUN = "rerun";
   static final String WORKER_STEP = "premiumWorkerStep";
 
@@ -76,16 +84,11 @@ public class PremiumRecalculationJobConfig {
   }
 
   @Bean
-  public LogAndMetricPremiumRunNotifier logAndMetricPremiumRunNotifier(MeterRegistry meters) {
-    return new LogAndMetricPremiumRunNotifier(meters);
-  }
-
-  @Bean
   public PremiumJobExecutionListener premiumJobExecutionListener(
       RatingSnapshotRegistry snapshots,
       JobExplorer explorer,
       PremiumRunSummaryRepository summaries,
-      ObjectProvider<PremiumRunNotifier> notifiers,
+      ObjectProvider<BatchAlertNotifier> notifiers,
       MeterRegistry meters) {
     return new PremiumJobExecutionListener(
         snapshots, explorer, summaries, notifiers.orderedStream().toList(), meters);
@@ -274,12 +277,21 @@ public class PremiumRecalculationJobConfig {
   public Job premiumRecalculationJob(
       JobRepository jobRepository,
       PremiumJobExecutionListener premiumJobExecutionListener,
+      JobFailureAlertListener alertListener,
+      JobExplorer jobExplorer,
+      PlatformTransactionManager transactionManager,
       Step premiumReportInitStep,
       Step premiumRecalculationStep,
       Step premiumReportStep) {
     return new JobBuilder(JOB_NAME, jobRepository)
         .listener(premiumJobExecutionListener)
-        .start(premiumReportInitStep)
+        .listener(alertListener)
+        .start(
+            new StepBuilder("premiumSingleRunGuard", jobRepository)
+                .tasklet(new SingleRunPerDateTasklet(jobExplorer), transactionManager)
+                .allowStartIfComplete(true)
+                .build())
+        .next(premiumReportInitStep)
         .next(premiumRecalculationStep)
         .next(premiumReportStep)
         .build();

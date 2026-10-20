@@ -4,8 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * One premium run as recorded in {@code pas_batch.premium_run_summary}, logged, and passed to
- * {@link PremiumRunNotifier}s.
+ * One premium run as recorded in {@code pas_batch.premium_run_summary} and logged.
  *
  * @param reportPath PREMRPT report file, null when the run failed before writing it
  * @param ratingVersion rate version / factor set used, null if the tables could not be loaded

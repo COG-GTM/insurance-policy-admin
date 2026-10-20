@@ -9,6 +9,8 @@ Discovery outputs from AB-517. Read them in this order:
 | [quirk-register.md](quirk-register.md) | Each quirk or defect with an owner and a preserve/fix decision (stable `#q-nn` anchors used by `parity/known-differences.json`) |
 | [missing-artifacts.md](missing-artifacts.md) | Things referenced by the code that are not in this repo |
 | [open-questions.md](open-questions.md) | Unanswered questions written as proposed follow-up tickets |
+| [extract-layouts.md](extract-layouts.md) | AB-527 byte layouts of the Claims/Actuarial extract files |
+| [extracts-runbook.md](extracts-runbook.md) | AB-527 jobs, schedules, SFTP delivery, alerting, rerun and cut-over |
 
 Review status: Pending: Mainframe team lead. Pending: Product Owner (PAS). All quirk
 decisions are **Proposed — pending PO sign-off**.

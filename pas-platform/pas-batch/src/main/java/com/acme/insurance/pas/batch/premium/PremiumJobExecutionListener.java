@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.batch.premium;
 
+import com.acme.insurance.pas.batch.alert.BatchAlertNotifier;
 import com.acme.insurance.pas.rating.RatingSnapshot;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -19,7 +20,8 @@ import org.springframework.batch.core.explore.JobExplorer;
 
 /**
  * Loads the rating tables once per run and, when the run ends, records the run summary (table + log
- * + metrics) and alerts the {@link PremiumRunNotifier}s on failure or partial failure.
+ * + metrics) and alerts the shared batch.alert notifiers when the run completed with PREMIUMS write
+ * errors (FAILED runs are alerted by JobFailureAlertListener).
  */
 public class PremiumJobExecutionListener implements JobExecutionListener {
 
@@ -31,7 +33,7 @@ public class PremiumJobExecutionListener implements JobExecutionListener {
   private final RatingSnapshotRegistry snapshots;
   private final JobExplorer explorer;
   private final PremiumRunSummaryRepository summaries;
-  private final List<PremiumRunNotifier> notifiers;
+  private final List<BatchAlertNotifier> notifiers;
   private final Map<PremiumRunOutcome, Counter> runs = new EnumMap<>(PremiumRunOutcome.class);
   private final Map<PremiumRunOutcome, Timer> durations = new EnumMap<>(PremiumRunOutcome.class);
   private final AtomicLong lastRead = new AtomicLong();
@@ -42,7 +44,7 @@ public class PremiumJobExecutionListener implements JobExecutionListener {
       RatingSnapshotRegistry snapshots,
       JobExplorer explorer,
       PremiumRunSummaryRepository summaries,
-      List<PremiumRunNotifier> notifiers,
+      List<BatchAlertNotifier> notifiers,
       MeterRegistry meters) {
     this.snapshots = snapshots;
     this.explorer = explorer;
@@ -116,14 +118,8 @@ public class PremiumJobExecutionListener implements JobExecutionListener {
         totals.updated(),
         totals.errors(),
         summary.reportPath());
-    if (outcome != PremiumRunOutcome.COMPLETED) {
-      for (PremiumRunNotifier notifier : notifiers) {
-        try {
-          notifier.runNeedsAttention(summary);
-        } catch (RuntimeException e) {
-          log.error("Premium run notifier {} failed", notifier.getClass().getName(), e);
-        }
-      }
+    if (outcome == PremiumRunOutcome.COMPLETED_WITH_ERRORS) {
+      PremiumAlerts.send(notifiers, PremiumAlerts.completedWithErrors(summary));
     }
   }
 

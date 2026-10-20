@@ -1,0 +1,2 @@
+# AB-527: byte-exact extract goldens (CRLF, ISO-8859-1). Never normalise or text-diff them.
+parity/extracts/golden/** binary

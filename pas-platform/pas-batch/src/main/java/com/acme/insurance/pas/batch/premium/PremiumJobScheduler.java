@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.batch.premium;
 
+import com.acme.insurance.pas.batch.alert.BatchAlertNotifier;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -24,12 +25,12 @@ public class PremiumJobScheduler {
   private static final Logger log = LoggerFactory.getLogger(PremiumJobScheduler.class);
 
   private final PremiumJobLauncher launcher;
-  private final List<PremiumRunNotifier> notifiers;
+  private final List<BatchAlertNotifier> notifiers;
   private final ZoneId zone;
 
   public PremiumJobScheduler(
       PremiumJobLauncher launcher,
-      ObjectProvider<PremiumRunNotifier> notifiers,
+      ObjectProvider<BatchAlertNotifier> notifiers,
       PremiumJobProperties props) {
     this.launcher = launcher;
     this.notifiers = notifiers.orderedStream().toList();
@@ -46,7 +47,7 @@ public class PremiumJobScheduler {
     } catch (JobInstanceAlreadyCompleteException e) {
       log.info("Premium run for {} already completed; nothing to do", runDate);
     } catch (Exception e) {
-      notifiers.forEach(n -> n.launchFailed(runDate, e));
+      PremiumAlerts.send(notifiers, PremiumAlerts.launchFailed(runDate, e));
     }
   }
 }

@@ -83,6 +83,9 @@ services:
       PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:?Set PAS_DB_PASSWORD or copy .env.example to .env}
       PAS_RATING_FACTOR_SET: ${PAS_RATING_FACTOR_SET:-PARITY}
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
+      # Local stack has no SFTP endpoints: extracts stay in the container (see extracts-runbook.md).
+      PAS_TRANSFER_ENABLED: ${PAS_TRANSFER_ENABLED:-false}
+      PAS_EXTRACT_OUTPUT_DIR: /tmp/pas-extracts
       # premiumRecalculationJob (AB-523): schedule off by default; operator API needs an issuer
       PAS_BATCH_PREMIUM_CRON: ${PAS_BATCH_PREMIUM_CRON:--}
       PAS_OIDC_ISSUER_URI: ${PAS_OIDC_ISSUER_URI:-}

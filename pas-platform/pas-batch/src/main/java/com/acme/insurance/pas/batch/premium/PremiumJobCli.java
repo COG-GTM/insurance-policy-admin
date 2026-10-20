@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.batch.premium;
 
+import com.acme.insurance.pas.batch.alert.BatchAlertNotifier;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -35,7 +36,7 @@ public class PremiumJobCli implements ApplicationRunner, ExitCodeGenerator {
   private static final Logger log = LoggerFactory.getLogger(PremiumJobCli.class);
 
   private final PremiumJobLauncher launcher;
-  private final List<PremiumRunNotifier> notifiers;
+  private final List<BatchAlertNotifier> notifiers;
   private final ZoneId zone;
   private final String runDate;
   private final boolean rerun;
@@ -44,7 +45,7 @@ public class PremiumJobCli implements ApplicationRunner, ExitCodeGenerator {
 
   public PremiumJobCli(
       PremiumJobLauncher launcher,
-      ObjectProvider<PremiumRunNotifier> notifiers,
+      ObjectProvider<BatchAlertNotifier> notifiers,
       PremiumJobProperties props,
       @Value("${pas.batch.premium.cli.run-date:}") String runDate,
       @Value("${pas.batch.premium.cli.rerun:false}") boolean rerun,
@@ -70,7 +71,7 @@ public class PremiumJobCli implements ApplicationRunner, ExitCodeGenerator {
       log.info("Premium run for {} already completed; use rerun to recalculate", date);
       exitCode = PremiumRunOutcome.COMPLETED.exitCode();
     } catch (Exception e) {
-      notifiers.forEach(n -> n.launchFailed(date, e));
+      PremiumAlerts.send(notifiers, PremiumAlerts.launchFailed(date, e));
       exitCode = PremiumRunOutcome.FAILED.exitCode();
     }
   }

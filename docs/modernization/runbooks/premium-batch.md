@@ -12,12 +12,13 @@ acceptance of this runbook: **Pending: Ops**.
 
 | Step | What | Legacy equivalent |
 |---|---|---|
+| `premiumSingleRunGuard` | Fails the run if an earlier run for the same business date is still running (AB-527 `SingleRunPerDateTasklet`) | — |
 | `premiumReportInitStep` | Creates the report directory; if it cannot, the run **FAILS** (exit 16) | PREMBAT `1000-INITIALIZE` (lost RC 16, Q-25) |
 | `premiumRecalculationStep` | Splits active policies (`policy_status = 'AC'`) into `pas.batch.premium.partitions` policy-number ranges and processes them in parallel. Each partition: JDBC paging read in policy-number order → rate with the shared `PremiumRatingService` (tables loaded **once per run**, as of the run date) → upsert `pas.premiums` + report lines, committed every `chunk-size` policies | PREMBAT `2000`/`3000`/`3100`/`3200`/`3300` (single thread, cursor) |
 | `premiumReportStep` | Writes `PREMRPT-<yyyymmdd>-<instance>.txt` with header, one `<policy> PREMIUM: <amount>` line per policy (policy-number order) and the totals `TOTAL POLICIES READ / UPDATED / ERRORS` | PREMBAT `4000-WRITE-SUMMARY` (amounts now edited, Q-24) |
 
 Afterwards the job records one row in `pas_batch.premium_run_summary`, logs
-`Premium run finished ... outcome=...`, updates metrics and alerts if needed.
+`Premium run finished ... outcome=...`, updates metrics and alerts if needed (see Alert response).
 
 PREMIUMS rows are identical to PREMBAT's for the same input (parity tests
 `PremiumJobParityTest` against `parity/programs/prembat/golden.csv`), including
@@ -43,7 +44,7 @@ warnings" is no longer sent for a clean run and a failure now alerts (Q-26).
 | STEP010 `IKJEFT01` → PREMBAT, plan PREMPLAN, DB2 DBPD | pas-batch container, datasource `PAS_DB_URL` (PostgreSQL `pas` schema) |
 | `PREMRPT` DD `PAS.PREMIUM.REPORT.D&LYYMMDD` | `PAS_BATCH_REPORT_DIR/PREMRPT-<yyyymmdd>-<instance>.txt` (mount a persistent volume) |
 | STEP020 `IEFBR14` "send email" (no-op) | — |
-| STEP030 `COND=(4,LT,STEP010)` TSO `SEND ... USER(PASADMIN)` | `PremiumRunNotifier` beans: default ERROR log + metric `pas_batch_premium_alerts_total{outcome}` |
+| STEP030 `COND=(4,LT,STEP010)` TSO `SEND ... USER(PASADMIN)` | Shared `batch.alert` notifiers (AB-527 `BatchAlertNotifier`; default `BATCH ALERT` ERROR line on logger `pas.batch.alert`) + metrics `pas_batch_job_runs_total`, `pas_batch_premium_runs_total` |
 | Predecessors / successors | None are visible in the repo (no CA-7 definitions are checked in, see [missing-artifacts.md](../missing-artifacts.md) and [OQ-07](../open-questions.md#oq-07)). **Pending: Ops / Mainframe scheduling** to confirm before PAS0050 is removed |
 
 **Cut-over** (proposed in [open-questions.md](../open-questions.md), "AB-523"): keep the cron
@@ -68,7 +69,7 @@ PREMIUMS cut-over: (1) remove PAS0050 from CA-7, (2) set
 
 ## Starting a run
 
-One job instance per **run date** (`runDate` parameter). Starting a date that already completed
+One job instance per **run date** (job parameter `businessDate`, same name as the AB-527 extract jobs). Starting a date that already completed
 is refused unless `rerun` is requested; starting a date whose last run failed **restarts** it.
 
 **HTTP** (port 8081, bearer JWT with scope `batch:operate`):
@@ -127,27 +128,28 @@ recalculate from scratch use a rerun.
 
 ## Alert response
 
-Alerts: ERROR log `PREMIUM RUN NEEDS ATTENTION` / `PREMIUM RUN COULD NOT BE LAUNCHED`, and
-`pas_batch_premium_alerts_total{outcome="FAILED"|"COMPLETED_WITH_ERRORS"|"LAUNCH_FAILED"}`.
-Suggested Prometheus rules (**Pending: Ops** to wire into Alertmanager):
+Alerts go to every `BatchAlertNotifier` bean (shared with the AB-527 extract jobs; the default
+logs `BATCH ALERT job=premiumRecalculationJob ...` at ERROR on logger `pas.batch.alert`; add a
+bean to page or post to chat):
+
+| `BatchAlert` | Raised by | Action |
+|---|---|---|
+| status `FAILED` | `JobFailureAlertListener` | Restart procedure above. If the cause is the rating tables (`RatingDataException`, empty factor set), escalate to rating/actuarial — do not change `PAS_RATING_FACTOR_SET` without sign-off |
+| status `COMPLETED`, exitCode `COMPLETED_WITH_ERRORS` | premium job listener | PREMIUMS rows for the policies listed in the `PREMIUMS write failed policy=...` WARN lines were not written. Fix the data, then **rerun** the date |
+| status `NOT_LAUNCHED`, exitCode `LAUNCH_FAILED` | scheduler / CLI | The run never started (DB down, bad parameters). Fix and start the run manually |
+
+Metrics: `pas_batch_job_runs_total{job="premiumRecalculationJob",status}` (AB-527),
+`pas_batch_premium_runs_total{outcome="COMPLETED"|"COMPLETED_WITH_ERRORS"|"FAILED"}`,
+`pas_batch_premium_last_run_policies{result="read"|"updated"|"errors"}`,
+`pas_batch_premium_run_duration_seconds{outcome}`. Suggested Prometheus rules (**Pending: Ops**
+to wire into Alertmanager):
 
 ```yaml
 - alert: PasPremiumRunNeedsAttention
-  expr: increase(pas_batch_premium_alerts_total[1h]) > 0
+  expr: increase(pas_batch_premium_runs_total{outcome!="COMPLETED"}[1h]) > 0
 - alert: PasPremiumRunMissing   # once the cron is enabled
-  expr: time() - max(pas_batch_premium_run_duration_seconds_max) > 26 * 3600
+  expr: increase(pas_batch_premium_runs_total{outcome="COMPLETED"}[26h]) == 0
 ```
-
-| Alert | Action |
-|---|---|
-| `FAILED` | Restart procedure above. If the cause is the rating tables (`RatingDataException`, empty factor set), escalate to rating/actuarial — do not change `PAS_RATING_FACTOR_SET` without sign-off |
-| `COMPLETED_WITH_ERRORS` | PREMIUMS rows for the policies listed in the `PREMIUMS write failed policy=...` WARN lines were not written. Fix the data, then **rerun** the date |
-| `LAUNCH_FAILED` | The scheduler/CLI could not start a run (DB down, bad parameters). Fix and start the run manually |
-
-Other metrics: `pas_batch_premium_runs_total{outcome}`,
-`pas_batch_premium_last_run_policies{result="read"|"updated"|"errors"}`,
-`pas_batch_premium_run_duration_seconds`. Add another `PremiumRunNotifier` bean to page or post
-to chat directly.
 
 ## Load test
 

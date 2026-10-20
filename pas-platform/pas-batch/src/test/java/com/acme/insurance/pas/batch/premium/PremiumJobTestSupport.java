@@ -28,7 +28,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * pas-policy-service's Flyway scripts (pas-batch owns no {@code pas} migrations) and the {@code
  * pas_batch} schema migrated by the application itself.
  */
-@SpringBootTest(properties = "pas.batch.premium.partitions=4")
+@SpringBootTest(properties = {"pas.batch.premium.partitions=4", "pas.transfer.enabled=false"})
 abstract class PremiumJobTestSupport {
 
   static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
