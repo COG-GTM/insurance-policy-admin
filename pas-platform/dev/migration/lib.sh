@@ -100,3 +100,20 @@ migration_cli() {
     --pas.migration.cli="$1" \
     --pas.migration.business-date="${BUSINESS_DATE:-$(date +%F)}" >"$OUT_DIR/cli-$(echo "$1" | tr ',' '_').log" 2>&1
 }
+
+# batch_cli <args...> : one-shot pas-batch CLI (premium run, extract jobs) on the host against the
+# Compose DB, as the cutover runbook runs them after the flip (write target pas, no SFTP delivery).
+batch_cli() {
+  local pg_port java
+  pg_port=$("${COMPOSE[@]}" port postgres 5432 | awk -F: '{print $NF}')
+  java="${JAVA_HOME_21_X64:-${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}}/bin/java"
+  mkdir -p "$OUT_DIR"
+  PAS_DB_URL="jdbc:postgresql://127.0.0.1:${pg_port}/pas" \
+  PAS_MIGRATION_ENABLED=false \
+  PAS_TRANSFER_ENABLED=false \
+  PAS_SCHEDULE_ENABLED=false \
+  PAS_BATCH_PREMIUM_WRITE_TARGET="${PAS_BATCH_PREMIUM_WRITE_TARGET:-pas}" \
+  PAS_BATCH_REPORT_DIR="$OUT_DIR/premium-reports" \
+  PAS_EXTRACT_OUTPUT_DIR="${PAS_EXTRACT_OUTPUT_DIR:-$OUT_DIR/extracts}" \
+    "$java" -jar "$(batch_jar)" --spring.main.web-application-type=none "$@"
+}

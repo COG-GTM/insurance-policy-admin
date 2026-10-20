@@ -13,7 +13,7 @@ compat-build:
 compat-api:
 	./compat/api/run_facade.sh
 
-.PHONY: build test dev dev-images dev-up dev-down dev-logs dev-ps reconcile rollback-rehearsal parallel-run
+.PHONY: build test dev dev-images dev-up dev-down dev-logs dev-ps reconcile rollback-rehearsal parallel-run cutover-rehearsal smoke route-flags decommission-dry-run
 
 PAS_DIR := pas-platform
 COMPOSE := docker compose -f $(PAS_DIR)/docker-compose.yml
@@ -98,3 +98,23 @@ rollback-rehearsal:
 # Migration + parallel-run diff tests (H2 DB2-mode source, Testcontainers PostgreSQL).
 parallel-run:
 	cd $(PAS_DIR) && ./mvnw -B -ntp -pl pas-batch -am -Dtest=none -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false -Dit.test='MigrationIT,ParallelRunIT' -Dspotbugs.skip verify
+
+# AB-530 cutover (docs/modernization/runbooks/cutover.md, rollback.md). LOCAL REHEARSAL ONLY:
+# final sync -> reconcile -> route flags new -> smoke -> rollback -> reconcile; non-zero on any failure.
+cutover-rehearsal:
+	$(PAS_DIR)/dev/migration/cutover-rehearsal.sh
+
+# Per-capability smoke tests against a running stack (PAS_POLICY_URL etc., see the script header).
+smoke:
+	scripts/cutover/smoke-tests.sh $(CAPABILITIES)
+
+# Route-flag file checks (ADR 0001 D7) and the route-flag tool's unit tests.
+route-flags:
+	python3 -m unittest discover -s scripts/cutover -p 'test_*.py'
+	python3 scripts/cutover/route_flags.py validate --production
+
+# Removes cobol/, jcl/, java-facade/ in a scratch copy and runs the remaining checks there.
+# Never removes anything from this checkout (scripts/decommission/remove-legacy-trees.sh does that,
+# only after cutover sign-off).
+decommission-dry-run:
+	scripts/decommission/test-remove-legacy-trees.sh

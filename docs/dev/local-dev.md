@@ -68,6 +68,10 @@ Run targets from the repository root:
 | `make dev-down` | Runs `docker compose down -v`, removing the `pas-pgdata` volume and wiping all local PostgreSQL data and orphaned Compose containers. |
 | `make dev-logs` | Follow the most recent 200 lines of Compose logs. |
 | `make dev-ps` | Show Compose service status. |
+| `make cutover-rehearsal` | AB-530 local cutover + rollback rehearsal (resets the local stack; see `docs/modernization/runbooks/cutover.md`). |
+| `make smoke` | Per-capability smoke tests against a running stack (`CAPABILITIES="inquiry new-business"` to limit). |
+| `make route-flags` | Validate `pas-platform/routing/route-flags.json` and test the route-flag tool. |
+| `make decommission-dry-run` | Remove the legacy trees in a scratch copy and run compat/parity/build there. |
 
 Use `make dev-down` when you intentionally want to reset the database.
 

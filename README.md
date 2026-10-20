@@ -10,6 +10,23 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 
 The modernization program is introducing Java 21 / Spring Boot 3 containerized services under epic AB-516. The legacy COBOL/CICS/DB2 platform and REST facade remain the system of record until cutover. The target architecture is recorded in [ADR 0001](docs/adr/0001-pas-target-architecture.md) (AB-518, status Proposed, pending ARB approval). Further decisions are indexed in [docs/adr/](docs/adr/README.md).
 
+### Target state (after cutover, AB-530)
+
+| Today (legacy) | Target (`pas-platform`) |
+|---|---|
+| CICS PQRY / PNEW / PUWR / PRWL / PEND (POLQRY, POLNEW, UNDWRT, POLRNW, POLEND) | `pas-policy-service`: authenticated REST API (OIDC JWT, scopes and entitlements) |
+| `java-facade` (Java 8, Spring Boot 1.5, no auth) | `pas-policy-service` `/api/v1/policies/**`, same JSON contract |
+| PREMIUM-BATCH (PREMBAT), DAILY-EXTRACT, MONTHLY-EXPOSURE on CA-7, FTP | `pas-batch` Spring Batch jobs on its own scheduler, SFTP delivery |
+| DB2 ACMEINS | PostgreSQL 16, schema `pas` (Flyway) |
+| CICS TDQ/TSQ → MQ → FileNet | transactional outbox → Kafka (`pas.*.events.v1`) → FileNet bridge (AB-528) |
+
+How the switch happens and how to undo it: [cutover runbook](docs/modernization/runbooks/cutover.md),
+[rollback runbook](docs/modernization/runbooks/rollback.md), rehearsed locally with
+`make cutover-rehearsal`. What is switched off afterwards: [decommission plan](docs/modernization/decommission.md)
+(the `cobol/`, `jcl/` and `java-facade/` trees stay until cutover sign-off). Running it:
+[operations handover](docs/modernization/runbooks/operations-handover.md). The production cutover
+has **not** happened; sign-offs are pending.
+
 ## Repository layout
 
 ```text
@@ -24,6 +41,10 @@ pas-platform/
   pas-common/         Shared Java platform code
   pas-policy-service/ Policy REST service
   pas-batch/          Spring Batch service
+  routing/            Per-capability route flags (ADR 0001 D7)
+scripts/
+  cutover/            Route-flag tool and smoke tests (AB-530)
+  decommission/       Legacy-tree removal, run only after cutover sign-off
   docker-compose.yml  Local PostgreSQL, Kafka, and service stack
   .env.example        Local Compose configuration template
 ```
@@ -43,6 +64,8 @@ make dev-down
 By default, the policy service is available at http://localhost:8080, and the batch service at http://localhost:8081. See the [local development guide](docs/dev/local-dev.md) for endpoints, port overrides, configuration, and troubleshooting.
 
 ## Architecture
+
+The sections below describe the legacy platform, which stays in service until the cutover above.
 
 ### Core Platform
 - **Language:** COBOL 85
