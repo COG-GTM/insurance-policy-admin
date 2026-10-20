@@ -172,6 +172,12 @@ class ParallelRunIT {
             ShadowPremiumWriter.shadowRunId(premiumRun.getJobInstance().getInstanceId()),
             java.sql.Date.valueOf(DAY));
     assertThat(shadow).hasSizeGreaterThanOrEqualTo(3);
+    assertThat(
+            target.queryForObject(
+                "SELECT write_target FROM pas_batch.premium_run_summary WHERE job_execution_id = ?",
+                String.class,
+                premiumRun.getId()))
+        .isEqualTo("SHADOW");
 
     // Mainframe PREMBAT output for the same day: the same rows, except that the first policy's row
     // is not written (DB2 kept the earlier row of the term, Q-22) and the second has another total.

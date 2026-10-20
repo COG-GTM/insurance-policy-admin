@@ -36,9 +36,11 @@ same PREMIUMS rows to `pas_shadow.premiums` (Flyway V6), not to `pas.premiums`, 
 sync writes while DB2 is authoritative. Each row carries `shadow_run_id =
 premiumRecalculationJob-<job instance id, 12 digits>` and `business_date` = the job's `businessDate`.
 A restart reuses the shadow run; `rerun=true` creates a new one. `PremiumJobOutputSource` compares
-the latest `COMPLETED` run for the date in `pas_batch.premium_run_summary` (this includes
-`COMPLETED_WITH_ERRORS`, whose skipped rows show up as `MISSING_IN_NEW`). If no such run exists, or
-the run wrote to `pas`, `PREMIUMS` reports `NEW_NOT_AVAILABLE` and the day is `INCOMPLETE`. Schedule:
+the latest `COMPLETED` run for the date in `pas_batch.premium_run_summary` whose `write_target` is
+`SHADOW` (`pas_batch` V3). `COMPLETED_WITH_ERRORS` runs count too, and their skipped rows show up as
+`MISSING_IN_NEW`. A shadow run that wrote no rows (empty active book) compares as empty output. If
+there is no shadow run for the date (none at all, or only `pas` runs), `PREMIUMS` reports
+`NEW_NOT_AVAILABLE` and the day is `INCOMPLETE`. Schedule:
 enable `PAS_BATCH_PREMIUM_CRON` in shadow mode next to CA-7 PAS0050, or launch it through
 `POST /api/batch/premium/runs?runDate=`, before `parallel-run-cron`. Another output plugs in by adding
 an `OutputAdapter` bean (or a `PremiumOutputSource`).

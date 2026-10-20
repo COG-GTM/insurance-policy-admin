@@ -15,17 +15,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * for the business date in shadow mode ({@code pas.batch.premium.write-target=shadow}).
  *
  * <p>The run is the latest {@code COMPLETED} execution for that date in {@code
- * pas_batch.premium_run_summary} (a restart shares the job instance; {@code rerun=true} creates a
- * newer one). Its rows are {@code pas_shadow.premiums WHERE shadow_run_id =
- * ShadowPremiumWriter.shadowRunId(job_instance_id)}. No completed run, or a run that wrote {@code
- * pas.premiums} instead of the shadow table, means the output is not available and the day is
- * INCOMPLETE.
+ * pas_batch.premium_run_summary} with {@code write_target = 'SHADOW'} (a restart shares the job
+ * instance; {@code rerun=true} creates a newer one). Its rows are {@code pas_shadow.premiums WHERE
+ * shadow_run_id = ShadowPremiumWriter.shadowRunId(job_instance_id)}, possibly none for an empty
+ * book. No completed shadow run (only {@code pas} runs or none) means the output is not available
+ * and the day is INCOMPLETE.
  */
 public final class PremiumJobOutputSource implements PremiumOutputSource {
 
   static final String LATEST_COMPLETED_RUN =
       "SELECT job_instance_id FROM pas_batch.premium_run_summary"
-          + " WHERE run_date = ? AND batch_status = 'COMPLETED'"
+          + " WHERE run_date = ? AND batch_status = 'COMPLETED' AND write_target = 'SHADOW'"
           + " ORDER BY ended_at DESC NULLS LAST, job_execution_id DESC LIMIT 1";
 
   private static final String ROWS =
@@ -56,6 +56,6 @@ public final class PremiumJobOutputSource implements PremiumOutputSource {
     }
     Map<String, String> rows =
         JdbcPremiumOutputSource.read(jdbc, ROWS, ShadowPremiumWriter.shadowRunId(instance.get(0)));
-    return rows.isEmpty() ? Optional.empty() : Optional.of(rows);
+    return Optional.of(rows);
   }
 }

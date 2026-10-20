@@ -80,8 +80,9 @@ public class PremiumRecalculationJobConfig {
   }
 
   @Bean
-  public PremiumRunSummaryRepository premiumRunSummaryRepository(DataSource dataSource) {
-    return new PremiumRunSummaryRepository(dataSource);
+  public PremiumRunSummaryRepository premiumRunSummaryRepository(
+      DataSource dataSource, PremiumJobProperties props) {
+    return new PremiumRunSummaryRepository(dataSource, props.writeTarget());
   }
 
   @Bean
