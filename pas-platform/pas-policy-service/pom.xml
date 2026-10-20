@@ -104,6 +104,13 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <!-- AB-528: validates event payloads against the committed JSON Schemas. -->
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>1.5.6</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>com.acme.insurance.pas</groupId>
             <artifactId>pas-parity</artifactId>
             <version>${project.version}</version>

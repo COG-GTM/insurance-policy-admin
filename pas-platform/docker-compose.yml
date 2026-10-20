@@ -60,6 +60,10 @@ services:
       PAS_OIDC_AUDIENCE: ${PAS_OIDC_AUDIENCE:-pas-api}
       # Public half of the throwaway dev key pair (make dev-up). Read only by the local profile.
       PAS_DEV_JWT_PUBLIC_KEY: file:/run/pas-dev-keys/jwt-dev-public.pem
+      # AB-528 legacy queue bridges: off by default; "memory" transport captures messages for tests.
+      PAS_INTEGRATION_BRIDGES_ENABLED: ${PAS_INTEGRATION_BRIDGES_ENABLED:-false}
+      PAS_INTEGRATION_TRANSPORT: ${PAS_INTEGRATION_TRANSPORT:-logging}
+      PAS_FILENET_QUEUE: ${PAS_FILENET_QUEUE:-PENDING.FILENET.DOCUMENT.TRIGGER}
     volumes:
       - ./.dev-keys/jwt-dev-public.pem:/run/pas-dev-keys/jwt-dev-public.pem:ro
     ports:

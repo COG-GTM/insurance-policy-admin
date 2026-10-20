@@ -4,6 +4,7 @@ import com.acme.insurance.pas.policy.persistence.CoverageRepository;
 import com.acme.insurance.pas.policy.persistence.PolicyEntity;
 import com.acme.insurance.pas.policy.persistence.PolicyHolderRepository;
 import com.acme.insurance.pas.policy.persistence.PolicyRepository;
+import com.acme.insurance.pas.policy.persistence.PremiumRepository;
 import com.acme.insurance.pas.policy.security.CallerEntitlements;
 import java.util.List;
 import java.util.Optional;
@@ -21,12 +22,58 @@ public class PolicyInquiryService {
   private final PolicyRepository policies;
   private final CoverageRepository coverages;
   private final PolicyHolderRepository holders;
+  private final PremiumRepository premiums;
 
   public PolicyInquiryService(
-      PolicyRepository policies, CoverageRepository coverages, PolicyHolderRepository holders) {
+      PolicyRepository policies,
+      CoverageRepository coverages,
+      PolicyHolderRepository holders,
+      PremiumRepository premiums) {
     this.policies = policies;
     this.coverages = coverages;
     this.holders = holders;
+    this.premiums = premiums;
+  }
+
+  /**
+   * Broker Portal book listing (AB-528): policies of {@code agentCode} and/or {@code branchCode},
+   * keeping only those the caller may see (others are silently omitted, never 403).
+   */
+  public List<PolicyView> book(
+      String agentCode,
+      String branchCode,
+      String status,
+      int page,
+      int size,
+      CallerEntitlements caller) {
+    return policies
+        .findBook(
+            blankToNull(agentCode),
+            blankToNull(branchCode),
+            blankToNull(status),
+            size,
+            (long) page * size)
+        .stream()
+        .filter(p -> caller.canAccess(p.getAgentCode(), p.getBranchCode()))
+        .map(PolicyView::from)
+        .toList();
+  }
+
+  /** Premium history, newest term first (Broker Portal, AB-528). */
+  public Optional<List<PremiumView>> premiums(String policyNumber, CallerEntitlements caller) {
+    return entitledPolicy(policyNumber, caller)
+        .map(
+            p ->
+                premiums
+                    .findByIdPolicyNumberOrderByIdTermEffectiveDateDescIdCoverageSeqAsc(
+                        p.getPolicyNumber())
+                    .stream()
+                    .map(PremiumView::from)
+                    .toList());
+  }
+
+  private static String blankToNull(String s) {
+    return s == null || s.isBlank() ? null : s.strip();
   }
 
   public Optional<PolicyView> policy(String policyNumber, CallerEntitlements caller) {

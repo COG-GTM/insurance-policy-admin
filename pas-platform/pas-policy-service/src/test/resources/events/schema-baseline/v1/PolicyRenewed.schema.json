@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.acme-insurance.example/pas/events/v1/PolicyRenewed.schema.json",
+  "title": "PolicyRenewed v1",
+  "description": "POLRNW renewal committed (AB-526 emits it through PolicyEventPublisher).",
+  "x-topic": "pas.policy.events.v1",
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "const": "PolicyRenewed"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "policyNumber": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12
+    },
+    "policyVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "policyType": {
+          "type": "string"
+        },
+        "policyStatus": {
+          "type": "string"
+        },
+        "uwStatus": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "previousExpiryDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "effectiveDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "expiryDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "renewalCount": {
+          "type": "integer"
+        },
+        "previousPremium": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "totalPremium": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rateChangePct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "policyType",
+        "policyStatus",
+        "uwStatus",
+        "previousExpiryDate",
+        "effectiveDate",
+        "expiryDate",
+        "renewalCount",
+        "previousPremium",
+        "totalPremium",
+        "rateChangePct"
+      ]
+    }
+  },
+  "required": [
+    "eventId",
+    "eventType",
+    "schemaVersion",
+    "occurredAt",
+    "policyNumber",
+    "policyVersion",
+    "correlationId",
+    "data"
+  ]
+}

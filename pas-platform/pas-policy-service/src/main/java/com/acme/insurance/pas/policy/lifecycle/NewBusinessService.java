@@ -1,8 +1,6 @@
 package com.acme.insurance.pas.policy.lifecycle;
 
-import com.acme.insurance.pas.policy.events.OutboxWriter;
-import com.acme.insurance.pas.policy.events.PasEventProperties;
-import com.acme.insurance.pas.policy.events.PasEventTypes;
+import com.acme.insurance.pas.policy.events.PolicyEventPublisher;
 import com.acme.insurance.pas.policy.inquiry.CoverageView;
 import com.acme.insurance.pas.policy.inquiry.PolicyView;
 import com.acme.insurance.pas.policy.persistence.CoverageEntity;
@@ -48,8 +46,7 @@ public class NewBusinessService {
   private final PolicyHolderRepository holders;
   private final PolicyNumberGenerator numbers;
   private final IdempotencyStore idempotency;
-  private final OutboxWriter outbox;
-  private final PasEventProperties topics;
+  private final PolicyEventPublisher events;
   private final BusinessCalendar calendar;
   private final ObjectMapper mapper;
   private final TransactionTemplate tx;
@@ -60,8 +57,7 @@ public class NewBusinessService {
       PolicyHolderRepository holders,
       PolicyNumberGenerator numbers,
       IdempotencyStore idempotency,
-      OutboxWriter outbox,
-      PasEventProperties topics,
+      PolicyEventPublisher events,
       BusinessCalendar calendar,
       ObjectMapper mapper,
       PlatformTransactionManager transactionManager) {
@@ -70,8 +66,7 @@ public class NewBusinessService {
     this.holders = holders;
     this.numbers = numbers;
     this.idempotency = idempotency;
-    this.outbox = outbox;
-    this.topics = topics;
+    this.events = events;
     this.calendar = calendar;
     this.mapper = mapper;
     this.tx = new TransactionTemplate(transactionManager);
@@ -134,13 +129,7 @@ public class NewBusinessService {
         policies.saveAndFlush(NewBusinessRules.newPolicy(request, number, calendar.nowUtc()));
     List<CoverageEntity> covs =
         coverages.saveAllAndFlush(NewBusinessRules.defaultCoverages(policy));
-    outbox.append(
-        topics.policyTopic(),
-        PasEventTypes.POLICY_CREATED,
-        number,
-        policy.getVersion(),
-        correlationId,
-        PolicyCreatedData.of(policy, covs));
+    events.policyCreated(policy, PolicyCreatedData.of(policy, covs), correlationId);
     CreatedPolicyView view = view(policy, covs);
     if (key != null) {
       idempotency.insert(subject, OPERATION, key, hash, number, toJson(view));

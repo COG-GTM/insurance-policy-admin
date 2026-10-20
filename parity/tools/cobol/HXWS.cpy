@@ -24,3 +24,13 @@
        01  HX-ED-R4                PIC -(5)9.9(4).
        01  HX-ED-R6                PIC -(3)9.9(6).
        01  HX-ED-INT               PIC -(12)9.
+      * AB-528: HX-APPEND-HEX dumps HX-REC(1:HX-REC-LEN) as hex so the
+      * queue message bytes (e.g. POLICY-RECORD) can be golden-tested.
+       01  HX-REC                  PIC X(256).
+       01  HX-REC-LEN              PIC 9(04) COMP-5 VALUE 0.
+       01  HX-HEX-I                PIC 9(04) COMP-5.
+       01  HX-HEX-B                PIC 9(04) COMP-5.
+       01  HX-HEX-HI               PIC 9(04) COMP-5.
+       01  HX-HEX-LO               PIC 9(04) COMP-5.
+       01  HX-HEX-DIGITS           PIC X(16) VALUE '0123456789ABCDEF'.
+       01  HX-HEX-OUT              PIC X(512).

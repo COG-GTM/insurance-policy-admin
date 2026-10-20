@@ -2,9 +2,8 @@ package com.acme.insurance.pas.policy.underwriting;
 
 import com.acme.insurance.pas.policy.claims.ClaimsHistoryPort;
 import com.acme.insurance.pas.policy.claims.ClaimsSummary;
-import com.acme.insurance.pas.policy.events.OutboxWriter;
-import com.acme.insurance.pas.policy.events.PasEventProperties;
 import com.acme.insurance.pas.policy.events.PasEventTypes;
+import com.acme.insurance.pas.policy.events.PolicyEventPublisher;
 import com.acme.insurance.pas.policy.persistence.PolicyEntity;
 import com.acme.insurance.pas.policy.persistence.PolicyHolderEntity;
 import com.acme.insurance.pas.policy.persistence.PolicyHolderRepository;
@@ -48,8 +47,7 @@ public class UnderwritingService {
   private final PolicyHolderRepository holders;
   private final UnderwritingDecisionRepository decisions;
   private final ClaimsHistoryPort claims;
-  private final OutboxWriter outbox;
-  private final PasEventProperties topics;
+  private final PolicyEventPublisher events;
   private final BusinessCalendar calendar;
 
   public UnderwritingService(
@@ -57,15 +55,13 @@ public class UnderwritingService {
       PolicyHolderRepository holders,
       UnderwritingDecisionRepository decisions,
       ClaimsHistoryPort claims,
-      OutboxWriter outbox,
-      PasEventProperties topics,
+      PolicyEventPublisher events,
       BusinessCalendar calendar) {
     this.policies = policies;
     this.holders = holders;
     this.decisions = decisions;
     this.claims = claims;
-    this.outbox = outbox;
-    this.topics = topics;
+    this.events = events;
     this.calendar = calendar;
   }
 
@@ -192,15 +188,11 @@ public class UnderwritingService {
       UnderwritingDecisionCode code,
       Integer policyRiskScore,
       String correlationId) {
-    String number = policy.getPolicyNumber().strip();
-    outbox.append(
-        topics.underwritingTopic(),
+    events.underwritingDecision(
+        policy,
         code.isReferral()
             ? PasEventTypes.UNDERWRITING_REFERRED
             : PasEventTypes.UNDERWRITING_DECIDED,
-        number,
-        policy.getVersion(),
-        correlationId,
         new UnderwritingDecisionData(
             decision.getDecisionId(),
             decision.getDecisionDate(),
@@ -210,7 +202,8 @@ public class UnderwritingService {
             decision.getDecisionReason(),
             decision.getUnderwriterId(),
             decision.getOverrideBy() != null,
-            decision.getOverrideBy()));
+            decision.getOverrideBy()),
+        correlationId);
   }
 
   private Optional<PolicyEntity> entitledPolicy(String policyNumber, CallerEntitlements caller) {

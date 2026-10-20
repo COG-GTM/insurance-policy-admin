@@ -14,5 +14,14 @@ public final class PasEventTypes {
   public static final String UNDERWRITING_DECIDED = "UnderwritingDecided";
   public static final String UNDERWRITING_REFERRED = "UnderwritingReferred";
 
+  /** POLRNW renewal committed (AB-526 emits it through {@link PolicyEventPublisher}). */
+  public static final String POLICY_RENEWED = "PolicyRenewed";
+
+  /** POLEND endorsement committed (AB-526 emits it through {@link PolicyEventPublisher}). */
+  public static final String POLICY_ENDORSED = "PolicyEndorsed";
+
+  /** FileNet document trigger on {@code pas.document.requests.v1} (AB-528). */
+  public static final String DOCUMENT_REQUESTED = "DocumentRequested";
+
   private PasEventTypes() {}
 }

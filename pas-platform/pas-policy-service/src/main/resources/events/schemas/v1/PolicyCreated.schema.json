@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.acme-insurance.example/pas/events/v1/PolicyCreated.schema.json",
+  "title": "PolicyCreated v1",
+  "description": "POLNEW new business committed (replaces the POLNEW WRITEQ TD to ACME.PAS.UNDERWRITING.REQUEST). No policyholder PII.",
+  "x-topic": "pas.policy.events.v1",
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "const": "PolicyCreated"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "policyNumber": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12
+    },
+    "policyVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "policyType": {
+          "type": "string"
+        },
+        "policyStatus": {
+          "type": "string"
+        },
+        "uwStatus": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "policyholderId": {
+          "type": "string"
+        },
+        "agentCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "branchCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effectiveDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "expiryDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "inceptionDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "coverageLimit": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "deductible": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "totalPremium": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "coverages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sequenceNum": {
+                "type": "integer"
+              },
+              "coverageType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "sequenceNum",
+              "coverageType"
+            ]
+          }
+        }
+      },
+      "required": [
+        "policyType",
+        "policyStatus",
+        "uwStatus",
+        "policyholderId",
+        "agentCode",
+        "branchCode",
+        "effectiveDate",
+        "expiryDate",
+        "inceptionDate",
+        "coverageLimit",
+        "deductible",
+        "totalPremium",
+        "coverages"
+      ]
+    }
+  },
+  "required": [
+    "eventId",
+    "eventType",
+    "schemaVersion",
+    "occurredAt",
+    "policyNumber",
+    "policyVersion",
+    "correlationId",
+    "data"
+  ]
+}

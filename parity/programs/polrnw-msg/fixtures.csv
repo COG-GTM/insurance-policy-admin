@@ -1,0 +1,17 @@
+case_id,note,as_of_date,select_sqlcode,policy_type,policy_status,total_premium,expiry_date,renewal_count,uw_status,open_claims,update_sqlcode
+POLRNW-AC,normal AC renewal 1000.00,20250601,0,AUT,AC,1000.00,20250630,2,AP,0,0
+POLRNW-EX,expired policies are eligible too,20250601,0,HOM,EX,800.00,20250515,0,AP,0,0
+POLRNW-CN,cancelled is not eligible,20250601,0,AUT,CN,1000.00,20250630,0,AP,0,0
+POLRNW-PN,pending is not eligible,20250601,0,AUT,PN,1000.00,20250630,0,AP,0,0
+POLRNW-LP,lapsed is not eligible,20250601,0,AUT,LP,1000.00,20250630,0,AP,0,0
+POLRNW-NF,select returns not found,20250601,100,AUT,AC,1000.00,20250630,0,AP,0,0
+POLRNW-LEAP,leap expiry +10000 gives invalid 20250229,20240101,0,AUT,AC,1000.00,20240229,0,AP,0,0
+POLRNW-L228,non-leap expiry +10000 stays valid,20230101,0,AUT,AC,1000.00,20230228,0,AP,0,0
+POLRNW-L231,year-end expiry +10000,20230101,0,AUT,AC,1000.00,20231231,0,AP,0,0
+POLRNW-ZEROP,zero premium divides by zero in rate pct,20250601,0,AUT,AC,0.00,20250630,0,AP,0,0
+POLRNW-TRUNC,1234.57 x 1.05 truncates to 1296.29,20250601,0,AUT,AC,1234.57,20250630,0,AP,0,0
+POLRNW-CENT,0.01 premium,20250601,0,AUT,AC,0.01,20250630,0,AP,0,0
+POLRNW-CLAIMS,5 open claims fetched but never enforced,20250601,0,AUT,AC,1000.00,20250630,0,AP,5,0
+POLRNW-UPD911,update -911 sends error AND confirmation,20250601,0,AUT,AC,1000.00,20250630,0,AP,0,-911
+POLRNW-RC999,renewal_count 999 + 1 wraps to 000,20250601,0,AUT,AC,1000.00,20250630,999,AP,0,0
+POLRNW-D9999,expiry 99991231 + 10000 wraps PIC 9(8),20250601,0,AUT,AC,1000.00,99991231,0,AP,0,0

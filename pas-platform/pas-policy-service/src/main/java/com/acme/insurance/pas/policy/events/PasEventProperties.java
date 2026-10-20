@@ -4,7 +4,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /** Kafka topic names from ADR 0001 D4 ({@code pas.events.*}). */
 @ConfigurationProperties("pas.events")
-public record PasEventProperties(String policyTopic, String underwritingTopic) {
+public record PasEventProperties(
+    String policyTopic, String underwritingTopic, String documentTopic) {
 
   public PasEventProperties {
     if (policyTopic == null || policyTopic.isBlank()) {
@@ -12,6 +13,9 @@ public record PasEventProperties(String policyTopic, String underwritingTopic) {
     }
     if (underwritingTopic == null || underwritingTopic.isBlank()) {
       underwritingTopic = "pas.underwriting.events.v1";
+    }
+    if (documentTopic == null || documentTopic.isBlank()) {
+      documentTopic = "pas.document.requests.v1";
     }
   }
 }
