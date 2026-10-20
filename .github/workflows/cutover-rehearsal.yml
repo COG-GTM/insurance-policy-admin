@@ -1,0 +1,79 @@
+name: PAS cutover rehearsal
+
+# AB-530. LOCAL REHEARSAL ONLY: Compose stack with a PostgreSQL stand-in for DB2.
+#  - rehearsal: final sync -> reconcile -> route flags new -> smoke -> rollback -> reconcile
+#  - decommission-dry-run: runs scripts/decommission/remove-legacy-trees.sh in a scratch copy and
+#    proves pas-platform builds and compat/parity pass once the legacy trees are gone.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: cutover-rehearsal-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rehearsal:
+    name: cutover / rehearsal (local)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Route-flag file and tool
+        run: make route-flags
+      - name: Cutover + rollback rehearsal
+        run: make cutover-rehearsal
+      - name: Rehearsal result
+        if: always()
+        run: |
+          f=pas-platform/target/migration-local/cutover-rehearsal/latest.md
+          if [ -f "$f" ]; then cat "$f" >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Upload rehearsal output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-rehearsal
+          path: |
+            pas-platform/target/migration-local/cutover-rehearsal/
+            pas-platform/target/migration-local/reports/
+            pas-platform/target/migration-local/cli-*.log
+          if-no-files-found: ignore
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose -f pas-platform/docker-compose.yml logs --tail=300
+
+  decommission-dry-run:
+    name: decommission / legacy-removal dry run
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML and GnuCOBOL-free checks
+        run: python3 -m pip install --quiet pyyaml
+      - name: Remove legacy trees in a scratch copy, then build and check
+        env:
+          JAVA_HOME_21_X64: ${{ env.JAVA_HOME }}
+        run: make decommission-dry-run

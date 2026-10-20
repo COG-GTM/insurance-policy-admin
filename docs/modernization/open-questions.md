@@ -390,3 +390,40 @@ Mainframe team.
 - **Context:** event payloads are documented in `events.md` and asserted in `EventsEndToEndIT`;
   ADR 0001 D4 asks for versioned contracts with CI backward-compatibility checks (AB-528).
 - **Proposed owner:** PAS platform (AB-528).
+
+## AB-530 (cutover, rollback, decommission)
+
+### Proposed: Routing layer reads `pas-platform/routing/route-flags.json`
+- **Context:** the route flags now live in version control and are validated by
+  `scripts/cutover/route_flags.py` (write capabilities flip together, nothing pending goes live).
+  The gateway / `pas-edge` that applies them is still unchosen (ADR 0001 follow-up), so the
+  rehearsal flips a local copy only.
+- **Proposed owner:** Platform team.
+
+### Proposed: Build PostgreSQL → DB2 reverse replication for the rollback window
+- **Context:** rollback after the flip needs every new-platform write carried back to DB2
+  (ADR 0001 D3 step 5). The cutover rehearsal uses a SQL upsert stand-in; production needs the CDC
+  product (or equivalent) in reverse, tested in pre-prod.
+- **Proposed owner:** Mainframe team + PAS platform.
+
+### Proposed: Agree freeze window, cutover date, rollback window and smoke-test identities
+- **Context:** cutover.md proposes Saturday 06:00–14:00 ET; the rollback window (one billing cycle)
+  and time-to-cut-back (60 min) are proposals. Smoke tests need an IdP client and a designated
+  agent/branch/policyholder, plus a way to cancel the smoke policy.
+- **Proposed owner:** Business owner + Ops + Security.
+
+### Proposed: Outbox backlog gauge
+- **Context:** operations-handover.md alerts on the oldest unpublished `pas.outbox` row via SQL;
+  a Micrometer gauge (count, age) would let Prometheus alert directly.
+- **Proposed owner:** PAS platform.
+
+### Proposed: MIPS baseline and saving report
+- **Context:** the acceptance criterion "MIPS saving confirmed" needs a before/after MSU and licence
+  comparison for the PAS CICS region, DB2 share and batch (decommission.md D-13). No baseline exists.
+- **Proposed owner:** FinOps + Mainframe team.
+
+### Proposed: Drop transitional schema and jobs after the rollback window
+- **Context:** Flyway V10 drops `pas_shadow` and the migration control tables; the `batch.migration`
+  jobs and shadow premium writer are deleted (decommission.md D-11). Must not run before the window
+  closes, because rollback re-entry uses them.
+- **Proposed owner:** PAS platform.

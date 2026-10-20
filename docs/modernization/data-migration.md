@@ -129,7 +129,9 @@ cut-back itself in under 60 min — **Pending: Ops** to agree the numbers).
    passes.
 4. **Re-entry**: fix, `resume-sync`, run delta + reconciliation until PASS, then move flags forward again.
 
-`make rollback-rehearsal` runs these steps against local Compose and writes a result file.
+`make rollback-rehearsal` runs these steps against local Compose and writes a result file. The
+production procedure after the flip (with reverse replication) is the AB-530
+[rollback runbook](runbooks/rollback.md), rehearsed with `make cutover-rehearsal`.
 Last local result: [rollback-rehearsal-local.md](rollback-rehearsal-local.md) — **local rehearsal
 only**. The gateway is a local file there, DB2 is a PostgreSQL schema, and reverse replication
 tooling does not exist yet. Production rehearsal: **Pending: Mainframe/Platform/Ops**.
