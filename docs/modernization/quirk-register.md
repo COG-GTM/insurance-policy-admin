@@ -107,7 +107,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Where:** `PREMBAT.cbl` `2000-LOAD-RATING-TABLES` L102-115: `DECLARE TERR_CURSOR`, `OPEN`, then immediately `CLOSE` ("simplified - production loads all rows", L113). `WS-TERRITORY-TABLE` / `WS-CLASS-TABLE` (L50-59) are never filled or read. `3200-CALCULATE-PREMIUM` L166-176 multiplies by literal 1.00 for territory, class and experience mod. `3300` L214-215 inserts literal `1.0000` into `TERRITORY_FACTOR`, `CLASS_FACTOR`, `EXPERIENCE_MOD`, `SCHEDULE_MOD`.
 - **Evidence:** every `prembat` golden row has `territory_premium = class_premium = mod_premium = base_rate`.
 - **Impact:** `ACMEINS.TERRITORY_FACTORS` content has no effect on premiums. Whether "production loads all rows" (a different load module) is an open question ([OQ-03](open-questions.md#oq-03)).
-- **Decision:** **Preserve** at parity (factors effectively 1.00; `pas-policy-service` `rating/PremiumCalculator` already matches). Turning on real territory/class factors is a separate, flag-guarded follow-up that stays **off by default** ([OQ-04](open-questions.md#oq-04)).
+- **Decision:** **Preserve** at parity (factors effectively 1.00; `pas-rating` `PremiumCalculator` with the `PARITY` factor set matches). Turning on real territory/class factors is a separate, flag-guarded follow-up that stays **off by default** ([OQ-04](open-questions.md#oq-04)).
 - **Owner:** ACT. **Target:** AB-522 (rating), AB-523 (batch). **Status:** Proposed — pending PO sign-off.
 
 ### Q-04
