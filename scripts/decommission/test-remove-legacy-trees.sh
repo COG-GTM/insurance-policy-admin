@@ -31,7 +31,7 @@ BASE=$(git -C "$SCRATCH" rev-parse HEAD)
 cd "$SCRATCH"
 
 echo "== remove-legacy-trees.sh --scratch"
-scripts/decommission/remove-legacy-trees.sh --scratch
+DECOMMISSION_SCRATCH_ROOT="$(git rev-parse --show-toplevel)" scripts/decommission/remove-legacy-trees.sh --scratch
 
 echo "== assertions"
 for d in cobol jcl java-facade; do

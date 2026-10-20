@@ -6,7 +6,7 @@
   route_flags.py set      [--file F] [--production] STATE CAPABILITY... | --all-merged | --all
 
 Rules (exit 2 on violation):
-  * the capability set is exactly the ADR 0001 D7 list; states are legacy|shadow|new|retired;
+  * the capability set and each kind are exactly the ADR 0001 D7 list; states are legacy|shadow|new|retired;
   * write capabilities flip together: if one is new/retired, every merged write capability is too;
   * retired only when every capability of its kind (read/write/feed) is new or retired;
   * --production: no capability may be new/retired while it is still pendingMerge.
@@ -18,10 +18,13 @@ import sys
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT = REPO / "pas-platform" / "routing" / "route-flags.json"
-CAPABILITIES = [
-    "inquiry", "broker-read", "new-business", "underwriting", "renewal", "endorsement",
-    "premium-batch", "claims-extract", "actuarial-exposure", "document-events",
-]
+KINDS = {
+    "inquiry": "read", "broker-read": "read",
+    "new-business": "write", "underwriting": "write", "renewal": "write", "endorsement": "write",
+    "premium-batch": "write",
+    "claims-extract": "feed", "actuarial-exposure": "feed", "document-events": "feed",
+}
+CAPABILITIES = list(KINDS)
 STATES = ["legacy", "shadow", "new", "retired"]
 LIVE = {"new", "retired"}
 
@@ -36,11 +39,13 @@ def errors(doc, production):
     if sorted(caps) != sorted(CAPABILITIES):
         errs.append(f"capabilities must be exactly {CAPABILITIES}, got {sorted(caps)}")
     for name, c in caps.items():
+        if name in KINDS and c.get("kind") != KINDS[name]:
+            errs.append(f"{name}: kind {c.get('kind')!r} must be {KINDS[name]!r}")
         if c.get("state") not in STATES:
             errs.append(f"{name}: state {c.get('state')!r} not in {STATES}")
         if production and c.get("state") in LIVE and c.get("pendingMerge"):
             errs.append(f"{name}: {c['state']} while pending {c['pendingMerge']} merge")
-    writes = {n: c for n, c in caps.items() if c.get("kind") == "write"}
+    writes = {n: c for n, c in caps.items() if KINDS.get(n) == "write"}
     live = [n for n, c in writes.items() if c.get("state") in LIVE]
     if live:
         lagging = [n for n, c in writes.items()
@@ -49,7 +54,7 @@ def errors(doc, production):
             errs.append(f"write capabilities flip together (D7): {live} live but {lagging} not")
     for name, c in caps.items():
         if c.get("state") == "retired":
-            group = [o for o in caps.values() if o.get("kind") == c.get("kind")]
+            group = [o for n, o in caps.items() if KINDS.get(n) == KINDS.get(name)]
             if any(o.get("state") not in LIVE for o in group):
                 errs.append(f"{name}: retired before its {c.get('kind')} group is new")
     return errs

@@ -63,6 +63,13 @@ class RouteFlagsTest(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             rf.main(["set", "new", "billing", "--file", self.file])
 
+    def test_mislabelled_write_capability_is_rejected(self):
+        doc = rf.load(self.file)
+        doc["capabilities"]["new-business"]["kind"] = "read"
+        pathlib.Path(self.file).write_text(json.dumps(doc))
+        self.assertEqual(2, self.run_cli("validate"))
+        self.assertEqual(2, self.run_cli("set", "new", "underwriting", "renewal", "endorsement", "premium-batch"))
+
     def test_capability_set_must_match_adr(self):
         doc = rf.load(self.file)
         del doc["capabilities"]["document-events"]

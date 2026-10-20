@@ -8,7 +8,8 @@
 # (scripts/decommission/test-remove-legacy-trees.sh, `make decommission-dry-run`).
 #
 #   CUTOVER_SIGNOFF_REF=<change/sign-off reference> scripts/decommission/remove-legacy-trees.sh
-#   scripts/decommission/remove-legacy-trees.sh --scratch      (dry-run copies only)
+#   scripts/decommission/remove-legacy-trees.sh --scratch      (only inside the dry-run clone made by
+#                                                               test-remove-legacy-trees.sh)
 #
 # What it does (one commit):
 #   1. keeps what the new platform still reads:
@@ -27,6 +28,12 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 HERE="scripts/decommission"
 
+# --scratch skips the sign-off only in the disposable clone created by test-remove-legacy-trees.sh,
+# which exports DECOMMISSION_SCRATCH_ROOT as that clone's path.
+if [ "$scratch" = 1 ] && [ "${DECOMMISSION_SCRATCH_ROOT:-}" != "$ROOT" ]; then
+  echo "refusing: --scratch only runs inside the clone made by scripts/decommission/test-remove-legacy-trees.sh" >&2
+  exit 2
+fi
 if [ "$scratch" = 0 ] && [ -z "${CUTOVER_SIGNOFF_REF:-}" ]; then
   echo "refusing: set CUTOVER_SIGNOFF_REF to the cutover sign-off / change reference (decommission.md D-10)" >&2
   exit 2
