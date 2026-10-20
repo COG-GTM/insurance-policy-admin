@@ -64,15 +64,21 @@ public class PolicyController {
     }
 
     private boolean isEntitled(Policy policy, Authentication authentication) {
-        if (policy == null || authentication == null
-                || !StringUtils.hasText(policy.getBranchCode())) {
+        if (policy == null || authentication == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if ("BRANCH_*".equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        if (!StringUtils.hasText(policy.getBranchCode())) {
             return false;
         }
         String branchAuthority = "BRANCH_"
                 + policy.getBranchCode().trim().toUpperCase(Locale.ROOT);
         for (GrantedAuthority authority : authentication.getAuthorities()) {
-            if ("BRANCH_*".equals(authority.getAuthority())
-                    || branchAuthority.equals(authority.getAuthority())) {
+            if (branchAuthority.equals(authority.getAuthority())) {
                 return true;
             }
         }
