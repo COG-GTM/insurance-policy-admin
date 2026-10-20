@@ -22,7 +22,11 @@ FROM eclipse-temurin:21-jre
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --uid 10001 --create-home appuser
+    && useradd --system --uid 10001 --create-home appuser \
+    && mkdir -p /var/lib/pas-batch/reports \
+    && chown 10001 /var/lib/pas-batch/reports
+# PREMRPT run reports (AB-523); mount a persistent volume here
+ENV PAS_BATCH_REPORT_DIR=/var/lib/pas-batch/reports
 USER 10001
 WORKDIR /app
 COPY --from=build /workspace/pas-batch/target/pas-batch-0.1.0-SNAPSHOT.jar app.jar

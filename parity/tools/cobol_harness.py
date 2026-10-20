@@ -307,12 +307,15 @@ def process_program(prog_dir, cobc):
     records = [encode_record(spec, r) for r in rows]
     outputs = spec["output"]
     results = []
+    # PREMBAT ends RC 4 when it counted errors; a spec may expect that
+    expected_rc = int(spec.get("expected_rc", 0))
     if spec.get("mode") == "batch":
         stdin = "".join(r + "\n" for r in records) + EOF_SENTINEL + "\n"
         res = subprocess.run([str(binary)], cwd=bdir, input=stdin,
                              capture_output=True, text=True)
-        if res.returncode != 0:
-            raise HarnessError(f"{prog}: rc={res.returncode}\n{res.stderr}")
+        if res.returncode != expected_rc:
+            raise HarnessError(
+                f"{prog}: rc={res.returncode} (expected {expected_rc})\n{res.stderr}")
         lines = [l for l in res.stdout.splitlines() if l.startswith("PARITY|")]
         if len(lines) != len(rows):
             raise HarnessError(
@@ -323,9 +326,9 @@ def process_program(prog_dir, cobc):
         for rec in records:
             res = subprocess.run([str(binary)], cwd=bdir, input=rec + "\n",
                                  capture_output=True, text=True)
-            if res.returncode != 0:
+            if res.returncode != expected_rc:
                 raise HarnessError(
-                    f"{prog}: rc={res.returncode} for {rec[:20].strip()}\n{res.stderr}")
+                    f"{prog}: rc={res.returncode} (expected {expected_rc}) for {rec[:20].strip()}\n{res.stderr}")
             lines = [l for l in res.stdout.splitlines() if l.startswith("PARITY|")]
             if len(lines) != 1:
                 raise HarnessError(

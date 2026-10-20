@@ -83,6 +83,12 @@ services:
       PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:?Set PAS_DB_PASSWORD or copy .env.example to .env}
       PAS_RATING_FACTOR_SET: ${PAS_RATING_FACTOR_SET:-PARITY}
       SPRING_PROFILES_ACTIVE: ${PAS_SPRING_PROFILES_ACTIVE:-local}
+      # premiumRecalculationJob (AB-523): schedule off by default; operator API needs an issuer
+      PAS_BATCH_PREMIUM_CRON: ${PAS_BATCH_PREMIUM_CRON:--}
+      PAS_OIDC_ISSUER_URI: ${PAS_OIDC_ISSUER_URI:-}
+      PAS_OIDC_AUDIENCE: ${PAS_OIDC_AUDIENCE:-}
+    volumes:
+      - pas-batch-reports:/var/lib/pas-batch/reports
     ports:
       - "${PAS_BIND_ADDRESS:-127.0.0.1}:${PAS_BATCH_HTTP_PORT:-8081}:8081"
     depends_on:
@@ -97,3 +103,4 @@ services:
 
 volumes:
   pas-pgdata:
+  pas-batch-reports:

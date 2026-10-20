@@ -71,4 +71,4 @@ parity-golden:
 	python3 parity/tools/cobol_harness.py update
 
 parity-java:
-	cd pas-platform && ./mvnw -B -ntp -pl pas-rating,pas-policy-service -am -Dtest='*Parity*Test,*ParityHarness*Test' -Dsurefire.failIfNoSpecifiedTests=false test
+	cd pas-platform && ./mvnw -B -ntp -pl pas-rating,pas-policy-service,pas-batch -am -Dtest='*Parity*Test,*ParityHarness*Test' -Dsurefire.failIfNoSpecifiedTests=false test
