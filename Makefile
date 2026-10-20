@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-build parity parity-cobol parity-golden parity-java
+.PHONY: compat compat-static compat-api compat-build parity parity-cobol parity-golden parity-java parity-extracts parity-extracts-golden
 
 compat: compat-static compat-build compat-api
 
@@ -62,7 +62,7 @@ dev-logs:
 dev-ps:
 	$(COMPOSE) ps
 
-parity: parity-cobol parity-java
+parity: parity-cobol parity-java parity-extracts
 
 parity-cobol:
 	python3 -m unittest discover -s parity/tools -p 'test_*.py' && python3 parity/tools/cobol_harness.py check
@@ -72,3 +72,11 @@ parity-golden:
 
 parity-java:
 	cd pas-platform && ./mvnw -B -ntp -pl pas-rating,pas-policy-service -am -Dtest='*Parity*Test,*ParityHarness*Test' -Dsurefire.failIfNoSpecifiedTests=false test
+
+# AB-527: oracle goldens are current, then the Java jobs reproduce them byte for byte (needs Docker).
+parity-extracts:
+	python3 parity/extracts/oracle.py check
+	cd pas-platform && ./mvnw -B -ntp -pl pas-batch -am -Dtest=none -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false -Dit.test='ExtractParityIT' -Dspotbugs.skip verify
+
+parity-extracts-golden:
+	python3 parity/extracts/oracle.py update

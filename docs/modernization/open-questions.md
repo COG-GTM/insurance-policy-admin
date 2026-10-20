@@ -226,3 +226,36 @@ Mainframe team.
 - **Context:** see `pii-handling.md`. Open items: KMS/secret store and rotation, whether
   name/address/phone/email also need field encryption, masking rules for extracts.
 - **Proposed owner:** Security.
+
+## AB-527 (Claims and Actuarial extracts)
+
+### Proposed: Capture production DAILYEXT / MONEXP files for the byte-level parallel run
+- **Context:** `parity/extracts/` goldens come from an independent oracle, not the mainframe
+  ([Q-31](quirk-register.md#q-31): DSNTEP2 writes to SYSPRINT as coded, so what Claims/Actuarial
+  actually receive is unknown, [OQ-08](#oq-08)). Capture 5 consecutive daily files and one monthly
+  file plus the matching DB2 unloads, then run the same harness against them.
+- **Proposed owner:** Mainframe team + PAS tech lead.
+
+### Proposed: Claims and Actuarial ingest confirmation and cut-over dates
+- **Context:** consumers must confirm the layouts in `extract-layouts.md`, the `.sha256` /
+  `.done` convention, SFTP with key auth, and Actuarial's dated file name
+  `exposure_monthly_<YYYYMMDD>.csv` ([Q-33](quirk-register.md#q-33)). Cut-over dates are
+  "Pending: Claims/Actuarial" in `extracts-runbook.md`.
+- **Proposed owner:** Claims team, Actuarial (named contact TBC).
+
+### Proposed: Provision SFTP accounts, keys and host-key pins
+- **Context:** `pas-batch` needs per-consumer SFTP users, an SSH key pair in the secrets store
+  (`PAS_*_SFTP_PRIVATE_KEY_FILE`), and a `known_hosts` with the consumer servers' keys. Decide
+  whether an enterprise MFT hub replaces direct SFTP (ADR 0001 D6 alternative).
+- **Proposed owner:** Security + Platform.
+
+### Proposed: Remove the FTP steps and CA-7 entries after cut-over
+- **Context:** `jcl/DAILY-EXTRACT.jcl` STEP030 and `jcl/MONTHLY-EXPOSURE.jcl` still FTP in clear
+  text; AB-527 does not edit `jcl/` (compat gate). Retire them, and CA-7 `PAS0100`/`PAS0200`, once
+  each consumer is live on SFTP.
+- **Proposed owner:** Mainframe team (AB-529 decommission).
+
+### Proposed: Scheduler leadership for multiple pas-batch replicas
+- **Context:** `ExtractScheduler` assumes one scheduling replica. If `pas-batch` scales out, add a
+  lock (e.g. ShedLock on `pas_batch`) or move triggering to the platform scheduler.
+- **Proposed owner:** Platform.
