@@ -9,7 +9,7 @@ is in [decommission.md](../decommission.md).
 |---|---|
 | Status | **Ready for rehearsal only.** Rehearsed locally on Compose ([rehearsal-results-local.md](rehearsal-results-local.md)). The production cutover has not happened. |
 | Cutover date / freeze window | **Pending: Business owner + Ops** (proposal below) |
-| Blocked by | AB-526 (renewal, endorsement) and AB-528 (document events, Broker Portal) are not merged yet; their steps are marked *pending AB-52x merge* |
+| Blocked by | AB-528 (document events / FileNet bridge, Broker Portal) is not merged yet; its steps are marked *pending AB-528 merge* |
 | Sign-off of this runbook | Pending: Ops. Pending: Mainframe team. Pending: Business owner. |
 
 Local rehearsal of the whole runbook, including the rollback: `make cutover-rehearsal`
@@ -37,7 +37,7 @@ Named people go in the change record. This repo only names roles.
 |---|---|---|---|
 | P1 | Every capability meets the ADR 0001 D7 "moved" rule: parity green, parallel run clean, consumer sign-off, rollback rehearsed, NFRs met, secure and operable | per-capability ticket + flag PR | Cutover lead |
 | P2 | Full billing cycle of parallel run with zero unexplained differences ([parallel-run.md](../parallel-run.md)); `consecutivePassingDays` covers the cycle | `/actuator/migration`, `pas.migration_check_runs` | DBA lead, Business owner |
-| P3 | `python3 scripts/cutover/route_flags.py validate --production` passes on the change PR with every capability set to `new`, so no capability is still `pendingMerge` (today: renewal, endorsement → AB-526; document-events, broker-read → AB-528) | CI on the flag PR | Cutover lead |
+| P3 | `python3 scripts/cutover/route_flags.py validate --production` passes on the change PR with every capability set to `new`, so no capability is still `pendingMerge` (today: document-events, broker-read → AB-528) | CI on the flag PR | Cutover lead |
 | P4 | Production rollback rehearsal in pre-prod within the window, including reverse replication | rehearsal record | Mainframe ops lead, Ops |
 | P5 | Reverse replication PostgreSQL → DB2 built and tested (ADR 0001 D3 step 5). **Not built in this repo**; the local rehearsal uses a SQL stand-in | pre-prod test | Mainframe team |
 | P6 | Real claims adapter deployed: `pas.claims.adapter` is not `unavailable`, or UW returns 503 (OQ, AB-525) | config review | Claims team, PAS Platform |
@@ -93,8 +93,8 @@ with each flip:
 | `broker-read` | Broker Portal linked server → DB2 | `pas-policy-service` with agent/branch entitlements | Broker Portal client in the IdP (`agent_code`/`branch_code` claims). **Broker Portal integration steps: pending AB-528 merge** | AB-524 / AB-528 |
 | `new-business` | POLNEW (PNEW) | `POST /api/v1/policies` (`policy:write`, `Idempotency-Key`) | `PAS_OUTBOX_RELAY_ENABLED=true`; `PAS_BUSINESS_TIME_ZONE` confirmed; step 4 done | AB-525 |
 | `underwriting` | UNDWRT (PUWR) | `POST /api/v1/policies/{n}/underwriting-decisions` (`underwriting:decide`) | `PAS_CLAIMS_ADAPTER` = the real Claims adapter (never `unavailable` or `stub` in production) | AB-525 |
-| `renewal` | POLRNW (PRWL) | renewal API | **pending AB-526 merge.** On the open AB-526 branch today: `POST /api/v1/policies/{n}/renewals` (`policy:write`), `pas.renewal.uplift-pct` / `PAS_RENEWAL_UPLIFT_PCT`, `pas.renewal.rate-cap-pct` / `PAS_RENEWAL_RATE_CAP_PCT`, `pas.renewal.max-open-claims` / `PAS_RENEWAL_MAX_OPEN_CLAIMS`, event `PolicyRenewed`; needs the real Claims adapter (Q-02 fix). Reconcile these names when AB-526 merges | AB-526 |
-| `endorsement` | POLEND (PEND) | endorsement API | **pending AB-526 merge.** On the open AB-526 branch today: `POST /api/v1/policies/{n}/endorsements` (`policy:write`, body `endorsementType`), audit table `pas.policy_audit` (Flyway V8) replacing the ENDORSEMENT-AUDIT queue, event `PolicyEndorsed` | AB-526 |
+| `renewal` | POLRNW (PRWL) | `POST /api/v1/policies/{n}/renewals` (`policy:write`) | `pas.renewal.uplift-pct` / `PAS_RENEWAL_UPLIFT_PCT` (5, Q-05), `pas.renewal.rate-cap-pct` / `PAS_RENEWAL_RATE_CAP_PCT` (15, Q-04), `pas.renewal.max-open-claims` / `PAS_RENEWAL_MAX_OPEN_CLAIMS` (3, Q-02 fix); event `PolicyRenewed`; audit row in `pas.policy_audit` (V8); needs the real Claims adapter (`PAS_CLAIMS_ADAPTER`) | AB-526 |
+| `endorsement` | POLEND (PEND) | `POST /api/v1/policies/{n}/endorsements` (`policy:write`, body `endorsementType`) | event `PolicyEndorsed`; `pas.policy_audit` (V8) replaces the ENDORSEMENT-AUDIT TS queue | AB-526 |
 | `premium-batch` | PREMIUM-BATCH / PREMBAT, CA-7 PAS0050 01:00 | `premiumRecalculationJob` | `PAS_BATCH_PREMIUM_WRITE_TARGET=pas` (was `shadow` in the parallel run); `PAS_BATCH_PREMIUM_CRON="0 0 1 * * *"`; `PAS_BATCH_PREMIUM_ZONE=America/New_York`; PAS0050 held | AB-523 |
 | `claims-extract` | DAILY-EXTRACT (POLEXT), CA-7 PAS0100 23:00 | `dailyExtractJob` + SFTP | `PAS_SCHEDULE_ENABLED=true`, `PAS_TRANSFER_ENABLED=true`, `PAS_CLAIMS_SFTP_*`, `PAS_SFTP_KNOWN_HOSTS_FILE`, `PAS_CLAIMS_SFTP_REMOTE_DIR` = production folder; PAS0100 held | AB-527 |
 | `actuarial-exposure` | MONTHLY-EXPOSURE (MONEXP), CA-7 PAS0200 02:00 on the 1st | `monthlyExposureJob` + SFTP | same as above with `PAS_ACTUARIAL_SFTP_*`; PAS0200 held | AB-527 |
@@ -108,7 +108,7 @@ rollback re-entry (`resume-sync`) needs them.
 
 `scripts/cutover/smoke-tests.sh [capability ...]` prints `SMOKE <capability> PASS|FAIL|PENDING|SKIP`
 and exits 1 on any FAIL. Production settings: `PAS_POLICY_URL`, `PAS_SMOKE_TOKEN_CMD`,
-`PAS_SMOKE_AGENT`/`_BRANCH`/`_HOLDER`, `PAS_SMOKE_PSQL` (read-only role), and optionally
+`PAS_SMOKE_POLICY` (the designated smoke policy: renewal and endorsement change it), `PAS_SMOKE_AGENT`/`_BRANCH`/`_HOLDER`, `PAS_SMOKE_PSQL` (read-only role), and optionally
 `PAS_SMOKE_BATCH_CMD`/`PAS_SMOKE_EXTRACT_DIR` (a one-shot `pas-batch` job) and `PAS_SMOKE_KAFKA_CMD`.
 
 | Capability | What the smoke test does | Pass condition |
@@ -121,7 +121,8 @@ and exits 1 on any FAIL. Production settings: `PAS_POLICY_URL`, `PAS_SMOKE_TOKEN
 | `premium-batch` | one-shot `--pas.batch.premium.cli.run=true --pas.batch.premium.cli.run-date=<date>`, then `pas_batch.premium_run_summary` | CLI exit 0; latest row `write_target = PAS`, `outcome = COMPLETED` |
 | `claims-extract` | one-shot `dailyExtractJob` with `businessDate=<date>` | exit 0; `policy_extract.dat`, `coverage_extract.dat` non-empty |
 | `actuarial-exposure` | one-shot `monthlyExposureJob` for the 1st of the month | exit 0; `exposure_monthly.csv` non-empty |
-| `renewal`, `endorsement` | — | **pending AB-526 merge** (reported as PENDING) |
+| `renewal` | `POST /api/v1/policies/{smoke policy}/renewals` | 201 (503 = Claims adapter unavailable) |
+| `endorsement` | `POST /api/v1/policies/{smoke policy}/endorsements` with `endorsementType` `ACH` | 201 |
 
 In production, run the batch smoke tests with `PAS_TRANSFER_ENABLED=false` against a scratch
 `PAS_EXTRACT_OUTPUT_DIR` so nothing is delivered early. The first scheduled run is then checked

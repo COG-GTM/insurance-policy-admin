@@ -41,14 +41,15 @@ class RouteFlagsTest(unittest.TestCase):
         self.assertEqual(0, self.run_cli("set", "--all-merged", "new"))
         s = self.states()
         self.assertEqual("new", s["new-business"])
-        self.assertEqual("legacy", s["renewal"])
+        self.assertEqual("new", s["renewal"])
+        self.assertEqual("legacy", s["document-events"])
         self.assertEqual(0, self.run_cli("set", "--all", "legacy"))
         self.assertEqual({"legacy"}, set(self.states().values()))
 
     def test_production_rules_refuse_pending_merge_capabilities(self):
         self.assertEqual(2, self.run_cli("set", "--all", "new", "--production"))
-        self.assertEqual(0, self.run_cli("set", "--all-merged", "new"))
-        self.assertEqual(2, self.run_cli("validate", "--production"))
+        self.assertEqual(0, self.run_cli("set", "--all-merged", "new", "--production"))
+        self.assertEqual(2, self.run_cli("set", "new", "document-events", "--production"))
 
     def test_read_capability_moves_on_its_own(self):
         self.assertEqual(0, self.run_cli("set", "new", "inquiry"))

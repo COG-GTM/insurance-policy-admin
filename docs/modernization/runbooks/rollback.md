@@ -40,7 +40,7 @@ of ADR 0001 D7.
 |---|---|---|
 | `inquiry`, `broker-read` | flag → `legacy`; facade and linked server serve again | none (read only). Broker Portal rollback steps: **pending AB-528 merge** |
 | `new-business`, `underwriting` | flag → `legacy`; PNEW/PUWR re-enabled | policies, coverages and decisions created since the flip → R4; `POLICY_SEQ` → R5. Decisions keep their DB2 key `(policy_number, decision_date)` (two same-day decisions collide in DB2, Q-20) |
-| `renewal`, `endorsement` | flag → `legacy`; PRWL/PEND re-enabled | **pending AB-526 merge** (renewed terms after the leap-day fix Q-01 differ from what POLRNW would have written; endorsement audit rows have no DB2 table) |
+| `renewal`, `endorsement` | flag → `legacy`; PRWL/PEND re-enabled | renewed terms and ENDORSEMENTS rows since the flip → R4 (a renewal across 29 Feb carries the Q-01 fix, which POLRNW would not have produced; flag such policies to the PO). `pas.policy_audit` rows have no DB2 table: keep them in PostgreSQL for the audit trail |
 | `premium-batch` | cron off, PAS0050 released | PREMIUMS rows written by `premiumRecalculationJob` → R4. PREMBAT fails with -803 on rows that already exist for the term (Q-22): hold PAS0050 until R4 is done |
 | `claims-extract`, `actuarial-exposure` | schedule off, PAS0100/PAS0200 released | files already delivered over SFTP stay with the consumer; tell Claims/Actuarial which delivery path the next file comes from |
 | `document-events` | flag → `legacy` | events already published on Kafka stay published; the FileNet bridge must not process them twice. **Pending AB-528 merge** |

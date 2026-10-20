@@ -408,5 +408,125 @@
     "quirk": "Q-28 POLNEW never sets COV-LIMIT on the default coverages",
     "decision": "docs/modernization/quirk-register.md#q-28",
     "rationale": "Fix (Proposed rule, pending PO sign-off): each default coverage takes the policy limit"
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-LEAP",
+    "field": "policy_expiry_date",
+    "cobol": "20250229",
+    "java": "20250228",
+    "quirk": "Q-01 POLRNW ADD 10000 to a YYYYMMDD expiry turns Feb 29 into the invalid date 20250229",
+    "decision": "docs/modernization/quirk-register.md#q-01",
+    "rationale": "Fix (Proposed, pending PO sign-off): the new expiry is the old expiry plus one calendar year (LocalDate.plusYears), so Feb 29 renews to Feb 28. Every other renewal date is unchanged (POLRNW-L228/L231 still match)."
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-CLAIMS",
+    "field": "error_msg",
+    "cobol": "",
+    "java": "POLICY HAS OPEN CLAIMS - NOT ELIGIBLE FOR RENEWAL",
+    "quirk": "Q-02 POLRNW counts open claims but never enforces the count, so a policy with 5 open claims renews",
+    "decision": "docs/modernization/quirk-register.md#q-02",
+    "rationale": "Fix (Proposed, pending PO sign-off): more than pas.renewal.max-open-claims (default 3, the threshold in the POLRNW TODO) open claims makes the policy ineligible; the renewal is refused (422) and the policy is left as it was. Threshold pending PO/Claims confirmation."
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-CLAIMS",
+    "field": "screens_sent",
+    "cobol": "POLRCONF",
+    "java": "TEXT",
+    "quirk": "Q-02 POLRNW counts open claims but never enforces the count, so a policy with 5 open claims renews",
+    "decision": "docs/modernization/quirk-register.md#q-02",
+    "rationale": "Fix (Proposed, pending PO sign-off): more than pas.renewal.max-open-claims (default 3, the threshold in the POLRNW TODO) open claims makes the policy ineligible; the renewal is refused (422) and the policy is left as it was. Threshold pending PO/Claims confirmation."
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-CLAIMS",
+    "field": "new_premium",
+    "cobol": "1050.00",
+    "java": "0.00",
+    "quirk": "Q-02 POLRNW counts open claims but never enforces the count, so a policy with 5 open claims renews",
+    "decision": "docs/modernization/quirk-register.md#q-02",
+    "rationale": "Fix (Proposed, pending PO sign-off): more than pas.renewal.max-open-claims (default 3, the threshold in the POLRNW TODO) open claims makes the policy ineligible; the renewal is refused (422) and the policy is left as it was. Threshold pending PO/Claims confirmation."
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-CLAIMS",
+    "field": "rate_change_pct",
+    "cobol": "5.00",
+    "java": "0.00",
+    "quirk": "Q-02 POLRNW counts open claims but never enforces the count, so a policy with 5 open claims renews",
+    "decision": "docs/modernization/quirk-register.md#q-02",
+    "rationale": "Fix (Proposed, pending PO sign-off): more than pas.renewal.max-open-claims (default 3, the threshold in the POLRNW TODO) open claims makes the policy ineligible; the renewal is refused (422) and the policy is left as it was. Threshold pending PO/Claims confirmation."
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-CLAIMS",
+    "field": "policy_total_premium",
+    "cobol": "1050.00",
+    "java": "1000.00",
+    "quirk": "Q-02 POLRNW counts open claims but never enforces the count, so a policy with 5 open claims renews",
+    "decision": "docs/modernization/quirk-register.md#q-02",
+    "rationale": "Fix (Proposed, pending PO sign-off): more than pas.renewal.max-open-claims (default 3, the threshold in the POLRNW TODO) open claims makes the policy ineligible; the renewal is refused (422) and the policy is left as it was. Threshold pending PO/Claims confirmation."
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-CLAIMS",
+    "field": "policy_effective_date",
+    "cobol": "20250630",
+    "java": "0",
+    "quirk": "Q-02 POLRNW counts open claims but never enforces the count, so a policy with 5 open claims renews",
+    "decision": "docs/modernization/quirk-register.md#q-02",
+    "rationale": "Fix (Proposed, pending PO sign-off): more than pas.renewal.max-open-claims (default 3, the threshold in the POLRNW TODO) open claims makes the policy ineligible; the renewal is refused (422) and the policy is left as it was. Threshold pending PO/Claims confirmation."
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-CLAIMS",
+    "field": "policy_expiry_date",
+    "cobol": "20260630",
+    "java": "20250630",
+    "quirk": "Q-02 POLRNW counts open claims but never enforces the count, so a policy with 5 open claims renews",
+    "decision": "docs/modernization/quirk-register.md#q-02",
+    "rationale": "Fix (Proposed, pending PO sign-off): more than pas.renewal.max-open-claims (default 3, the threshold in the POLRNW TODO) open claims makes the policy ineligible; the renewal is refused (422) and the policy is left as it was. Threshold pending PO/Claims confirmation."
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-CLAIMS",
+    "field": "renewal_count",
+    "cobol": "1",
+    "java": "0",
+    "quirk": "Q-02 POLRNW counts open claims but never enforces the count, so a policy with 5 open claims renews",
+    "decision": "docs/modernization/quirk-register.md#q-02",
+    "rationale": "Fix (Proposed, pending PO sign-off): more than pas.renewal.max-open-claims (default 3, the threshold in the POLRNW TODO) open claims makes the policy ineligible; the renewal is refused (422) and the policy is left as it was. Threshold pending PO/Claims confirmation."
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-CLAIMS",
+    "field": "uw_status",
+    "cobol": "PN",
+    "java": "AP",
+    "quirk": "Q-02 POLRNW counts open claims but never enforces the count, so a policy with 5 open claims renews",
+    "decision": "docs/modernization/quirk-register.md#q-02",
+    "rationale": "Fix (Proposed, pending PO sign-off): more than pas.renewal.max-open-claims (default 3, the threshold in the POLRNW TODO) open claims makes the policy ineligible; the renewal is refused (422) and the policy is left as it was. Threshold pending PO/Claims confirmation."
+  },
+  {
+    "program": "polrnw",
+    "case_id": "POLRNW-UPD911",
+    "field": "screens_sent",
+    "cobol": "TEXT+POLRCONF",
+    "java": "TEXT",
+    "quirk": "Q-09 POLRNW sends the DB2 error text and then the renewal confirmation after a failed UPDATE",
+    "decision": "docs/modernization/quirk-register.md#q-09",
+    "rationale": "Fix (Proposed, pending PO sign-off): renewal is one transaction; a failed write rolls back the policy, coverages, audit row and event and the caller gets an error, never a confirmation."
+  },
+  {
+    "program": "polend",
+    "case_id": "POLEND-INSF",
+    "field": "screens_sent",
+    "cobol": "POLECONF",
+    "java": "TEXT",
+    "quirk": "Q-14 POLEND continues after a failed ENDORSEMENTS insert: updates the premium, writes the audit queue and confirms",
+    "decision": "docs/modernization/quirk-register.md#q-14",
+    "rationale": "Fix (Proposed, pending PO sign-off): endorsement is one transaction; a failed insert rolls back the premium update, audit row and event and the caller gets an error, never a confirmation."
   }
 ]

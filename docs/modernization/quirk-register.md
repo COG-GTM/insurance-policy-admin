@@ -89,6 +89,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Impact:** An invalid date is either rejected by DB2 (renewal fails with "DB2 ERROR UPDATING RENEWAL", see Q-09) or, depending on host-variable conversion, stored and then breaks downstream date maths (POLEND, Q-13).
 - **Decision:** **Fix.** The Java renewal uses calendar arithmetic (`LocalDate.plusYears(1)`, so 2024-02-29 → 2025-02-28). Needs a `parity/known-differences.json` entry for `POLRNW-LEAP` / `policy_expiry_date` with `decision` = `docs/modernization/quirk-register.md#q-01`.
 - **Owner:** PO. **Target:** AB-526. **Status:** Proposed — pending PO sign-off.
+- **Implementation (AB-526):** `RenewalCalculator.oneYearLater` (`LocalDate.plusYears(1)`); `RenewalEndorsementCalculatorTest`, `RenewalEndorsementApiIT.feb29TermRenewsToFeb28AndRedatesActiveCoverages`; known difference `POLRNW-LEAP`. Status still Proposed — pending PO sign-off.
 
 ### Q-02
 
@@ -100,6 +101,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Impact:** Policies with heavy open-claim activity renew automatically, contrary to the stated business rule.
 - **Decision:** **Fix.** Block renewal when open claims > 3 (threshold from the 2005 comment; PO to confirm), with a clear error. The read of claims goes through the agreed Claims interface (ACMEINS.CLAIMS is owned by the Claims team, see [integrations](integrations.md#i-08)). Needs a known-differences entry for `POLRNW-CLAIMS` pointing at `#q-02`.
 - **Owner:** PO + CLM. **Target:** AB-526. **Status:** Proposed — pending PO sign-off.
+- **Implementation (AB-526):** `RenewalService` reads `ClaimsHistoryPort` and refuses (422 `RENEWAL_NOT_ELIGIBLE`) when open claims > `pas.renewal.max-open-claims` (default 3); known difference `POLRNW-CLAIMS` (9 fields). Status still Proposed — pending PO sign-off.
 
 ### Q-03
 
@@ -173,6 +175,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Impact:** POLICIES and COVERAGES disagree on term dates after a failed renewal (no explicit SYNCPOINT ROLLBACK; the CICS task ends normally and commits).
 - **Decision:** **Fix.** Java renewal runs in one transaction and returns an error with no partial update. Known-differences entry for `POLRNW-UPD911` / `screens_sent` pointing at `#q-09`.
 - **Owner:** PO + MF. **Target:** AB-526. **Status:** Proposed — pending PO sign-off.
+- **Implementation (AB-526):** `RenewalService` is one transaction (policy, coverages, `pas.policy_audit`, outbox); `RenewalEndorsementApiIT.failedCoverageUpdateRollsBackTheWholeRenewal`; known difference `POLRNW-UPD911`. Status still Proposed — pending PO sign-off.
 
 ### Q-10
 
@@ -224,6 +227,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Evidence:** golden `POLEND-INSF` → error text with `screens_sent=POLECONF`.
 - **Decision:** **Fix.** Java endorsement is atomic and returns the error. Known-differences entry for `POLEND-INSF` / `screens_sent` pointing at `#q-14`.
 - **Owner:** PO + MF. **Target:** AB-526. **Status:** Proposed — pending PO sign-off.
+- **Implementation (AB-526):** `EndorsementService` is one transaction (endorsement row, policy, `pas.policy_audit`, outbox); `RenewalEndorsementApiIT.failedEndorsementInsertChangesNothing`; known difference `POLEND-INSF`. Status still Proposed — pending PO sign-off.
 
 ### Q-15
 

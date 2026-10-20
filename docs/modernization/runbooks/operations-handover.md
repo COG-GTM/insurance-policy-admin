@@ -13,7 +13,7 @@ section points at the detailed runbook rather than repeating it.
 
 | Component | What it does | Replaces | Runbook |
 |---|---|---|---|
-| `pas-policy-service` (:8080) | Inquiry, new business, underwriting (renewal/endorsement: pending AB-526 merge) APIs; transactional outbox relay to Kafka | CICS PQRY/PNEW/PUWR (PRWL/PEND), `java-facade` | [facade-retirement.md](../facade-retirement.md), [events.md](../events.md) |
+| `pas-policy-service` (:8080) | Inquiry, new business, underwriting, renewal and endorsement APIs; `pas.policy_audit` audit trail; transactional outbox relay to Kafka | CICS PQRY/PNEW/PUWR/PRWL/PEND, `java-facade` | [facade-retirement.md](../facade-retirement.md), [events.md](../events.md) |
 | `pas-batch` (:8081) | `premiumRecalculationJob`, `dailyExtractJob`, `monthlyExposureJob`, SFTP delivery; transitional DB2 migration jobs | PREMBAT/PAS0050, DAILY-EXTRACT/PAS0100, MONTHLY-EXPOSURE/PAS0200 | [premium-batch.md](premium-batch.md), [extracts-runbook.md](../extracts-runbook.md), [data-migration.md](../data-migration.md) |
 | PostgreSQL 16 | schema `pas` (system of record, Flyway in pas-policy-service), `pas_batch` (Spring Batch metadata), `pas_shadow` (transitional, dropped in decommission D-11) | DB2 ACMEINS | [ADR 0002](../../adr/0002-pas-target-data-model-and-pii.md) |
 | Kafka | `pas.policy.events.v1`, `pas.underwriting.events.v1`, `pas.document.requests.v1` | CICS TDQ/TSQ + MQ | [events.md](../events.md) |

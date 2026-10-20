@@ -115,18 +115,16 @@ paused=$(q "SELECT paused FROM pas.migration_sync_control WHERE sync_name = 'DB2
 [ "$paused" = t ] && step "4. pause DB2 -> pas sync (pas is system of record)" PASS "migration_sync_control.paused = true" \
   || step "4. pause DB2 -> pas sync (pas is system of record)" FAIL "paused=$paused"
 
-# 5. Route flags -> new for every merged capability (pending AB-526/AB-528 ones stay legacy).
+# 5. Route flags -> new for every merged capability (pending AB-528 ones stay legacy).
 if "${ROUTE_FLAGS[@]}" set --file "$FLAGS" --all-merged new >/dev/null; then
   live=$(python3 -c "import json,sys; c=json.load(open(sys.argv[1]))['capabilities']; print(' '.join(n for n,v in c.items() if v['state']=='new'))" "$FLAGS")
   step "5. route flags -> new" PASS "new: $live"
 else
   step "5. route flags -> new" FAIL "route_flags.py refused the flip"
 fi
-if "${ROUTE_FLAGS[@]}" validate --file "$FLAGS" --production >/dev/null 2>&1; then
-  prod_note="production rules pass"
-else
-  prod_note="production rules block go-live until AB-526/AB-528 merge (expected)"
-fi
+pending=$(python3 -c "import json,sys; c=json.load(open(sys.argv[1]))['capabilities']; print(' '.join(n for n,v in c.items() if v.get('pendingMerge')))" "$FLAGS")
+prod_note="${pending:+not live until their tickets merge: $pending}"
+prod_note="${prod_note:-every capability live}"
 
 # 6. Smoke tests per capability against the flipped platform.
 export PAS_SMOKE_PSQL="${COMPOSE[*]} exec -T postgres psql -U ${PAS_DB_USERNAME:-pas} -d pas -tA"

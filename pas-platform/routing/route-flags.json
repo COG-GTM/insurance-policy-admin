@@ -34,17 +34,15 @@
       "state": "legacy",
       "kind": "write",
       "legacy": "POLRNW (PRWL)",
-      "new": "pas-policy-service renewal API",
-      "ticket": "AB-526",
-      "pendingMerge": "AB-526"
+      "new": "pas-policy-service POST /api/v1/policies/{n}/renewals",
+      "ticket": "AB-526"
     },
     "endorsement": {
       "state": "legacy",
       "kind": "write",
       "legacy": "POLEND (PEND)",
-      "new": "pas-policy-service endorsement API",
-      "ticket": "AB-526",
-      "pendingMerge": "AB-526"
+      "new": "pas-policy-service POST /api/v1/policies/{n}/endorsements",
+      "ticket": "AB-526"
     },
     "premium-batch": {
       "state": "legacy",

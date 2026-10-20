@@ -4,7 +4,7 @@
 #   scripts/cutover/smoke-tests.sh [capability ...]     (default: every capability)
 #
 # Prints one "SMOKE <capability> PASS|FAIL|PENDING|SKIP <evidence>" line per capability and exits 1
-# if any is FAIL. PENDING = the capability's code has not merged (AB-526 / AB-528); SKIP = a hook
+# if any is FAIL. PENDING = the capability's code has not merged (AB-528); SKIP = a hook
 # below is not configured for this environment. Neither counts as a pass at go/no-go.
 #
 # Environment (local defaults target `make dev` / the cutover rehearsal):
@@ -171,8 +171,28 @@ extract_job() {
 
 smoke_claims_extract() { extract_job claims-extract dailyExtractJob "$BUSINESS_DATE" policy_extract.dat coverage_extract.dat; }
 smoke_actuarial_exposure() { extract_job actuarial-exposure monthlyExposureJob "${BUSINESS_DATE%-*}-01" exposure_monthly.csv; }
-smoke_renewal() { result renewal PENDING "pending AB-526 merge (renewal API not on the integration branch)"; }
-smoke_endorsement() { result endorsement PENDING "pending AB-526 merge (endorsement API not on the integration branch)"; }
+# Renewal and endorsement change PAS_SMOKE_POLICY: in production it must be the designated smoke policy.
+smoke_renewal() {
+  local s expiry
+  s=$(http POST "/api/v1/policies/$POLICY/renewals" "$(token "policy:write policy:read" "\"agent_code\":\"$AGENT\"")" "")
+  expiry=$(jq -r '.. | objects | .expiryDate? // empty' "$WORK/body" 2>/dev/null | head -1)
+  if [ "$s" = 201 ]; then
+    result renewal PASS "POST /api/v1/policies/$POLICY/renewals 201${expiry:+ -> expiry $expiry}"
+  else
+    result renewal FAIL "POST renewals -> $s $(head -c 300 "$WORK/body") (503 = pas.claims.adapter unavailable)"
+  fi
+}
+
+smoke_endorsement() {
+  local s
+  s=$(http POST "/api/v1/policies/$POLICY/endorsements" "$(token "policy:write policy:read" "\"agent_code\":\"$AGENT\"")" \
+    '{"endorsementType":"ACH"}')
+  if [ "$s" = 201 ]; then
+    result endorsement PASS "POST /api/v1/policies/$POLICY/endorsements 201 (ACH)"
+  else
+    result endorsement FAIL "POST endorsements -> $s $(head -c 300 "$WORK/body")"
+  fi
+}
 
 for cap in ${*:-$ALL}; do
   case "$cap" in
