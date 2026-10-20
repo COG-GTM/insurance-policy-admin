@@ -1,0 +1,15 @@
+case_id,note,as_of_date,ws_endorsement_type,select_sqlcode,policy_status,effective_date,expiry_date,total_premium,max_endorsement_seq,insert_sqlcode
+POLEND-MID,mid-term CAD on a 365-day term,20250702,CAD,0,AC,20250101,20260101,1000.00,3,0
+POLEND-LEAP,leap term 20240101 to 20250101 is 366 days,20240701,LCH,0,AC,20240101,20250101,2000.00,0,0
+POLEND-D229,as-of on 20240229,20240229,CAD,0,AC,20240101,20250101,2000.00,0,0
+POLEND-D0,as-of equals effective date,20250101,CAD,0,AC,20250101,20260101,1000.00,0,0
+POLEND-DEND,as-of equals expiry date,20260101,CAD,0,AC,20250101,20260101,1000.00,0,0
+POLEND-DPAST,as-of after expiry wraps unsigned days,20260115,CAD,0,AC,20250101,20260101,1000.00,0,0
+POLEND-BIGTERM,1096-day term truncates PIC 9(3),20250101,CAD,0,AC,20230101,20260101,1000.00,0,0
+POLEND-ZEROT,eff equals exp gives zero-day term,20250101,CAD,0,AC,20250101,20250101,1000.00,0,0
+POLEND-BLANK,blank endorsement type is required,20250702,,0,AC,20250101,20260101,1000.00,0,0
+POLEND-INACT,inactive status rejected before type check,20250702,CAD,0,PN,20250101,20260101,1000.00,0,0
+POLEND-NF,select returns not found,20250702,CAD,100,AC,20250101,20260101,1000.00,0,0
+POLEND-ZEROP,zero premium still endorses,20250702,CAD,0,AC,20250101,20260101,0.00,0,0
+POLEND-INSF,insert -803 still sends confirmation,20250702,CAD,0,AC,20250101,20260101,1000.00,7,-803
+POLEND-INVDT,invalid expiry 20250229 as produced by POLRNW,20240601,CAD,0,AC,20240301,20250229,1000.00,0,0

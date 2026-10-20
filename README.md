@@ -101,6 +101,15 @@ GET /manage/health                              - Health check
 - **Broker Portal:** SQL Server linked server to DB2 (read-only ODBC)
 - **Document Management:** IBM MQ events trigger document creation in FileNet
 
+## Parity harness
+
+`parity/` contains a COBOL characterization harness (AB-520): the real
+PREMBAT / POLRNW / POLEND / UNDWRT programs run under GnuCOBOL against
+committed fixtures, producing golden CSVs that the Java modernization
+(`pas-platform`) is checked against with exact-string (cent-level) compares.
+Run `make parity` locally; see `parity/README.md` for how it works, how to
+add a program, and the quirks the goldens have surfaced.
+
 ## Known Limitations
 
 1. **No real-time API for writes** - All mutations require CICS terminal or MQ message

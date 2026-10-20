@@ -2,3 +2,4 @@ compat-api.log
 __pycache__/
 target/
 pas-platform/.env
+parity/build/

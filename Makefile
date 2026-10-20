@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-build
+.PHONY: compat compat-static compat-api compat-build parity parity-cobol parity-golden parity-java
 
 compat: compat-static compat-build compat-api
 
@@ -13,7 +13,7 @@ compat-build:
 compat-api:
 	./compat/api/run_facade.sh
 
-.PHONY: build test dev dev-images dev-up dev-down dev-logs dev-ps
+.PHONY: build test parity parity-cobol parity-golden parity-java dev dev-images dev-up dev-down dev-logs dev-ps
 
 PAS_DIR := pas-platform
 COMPOSE := docker compose -f $(PAS_DIR)/docker-compose.yml
@@ -61,3 +61,14 @@ dev-logs:
 
 dev-ps:
 	$(COMPOSE) ps
+
+parity: parity-cobol parity-java
+
+parity-cobol:
+	python3 -m unittest discover -s parity/tools -p 'test_*.py' && python3 parity/tools/cobol_harness.py check
+
+parity-golden:
+	python3 parity/tools/cobol_harness.py update
+
+parity-java:
+	cd pas-platform && ./mvnw -B -ntp -pl pas-policy-service -am -Dtest='*Parity*Test,*ParityHarness*Test' -Dsurefire.failIfNoSpecifiedTests=false test

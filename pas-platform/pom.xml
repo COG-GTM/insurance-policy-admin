@@ -20,6 +20,7 @@
 
     <modules>
         <module>pas-common</module>
+        <module>pas-parity</module>
         <module>pas-policy-service</module>
         <module>pas-batch</module>
     </modules>
