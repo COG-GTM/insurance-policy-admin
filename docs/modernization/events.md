@@ -41,6 +41,8 @@ rest. Final topic and event names are confirmed in AB-528 (ADR 0001 D4).
 | `PolicyCreated` | `pas.policy.events.v1` | POLNEW `WRITEQ TD ACME.PAS.UNDERWRITING.REQUEST` (whole POLICY-RECORD) | `POST /api/v1/policies` commits | policyType, policyStatus, uwStatus, policyholderId, agentCode, branchCode, effective/expiry/inception dates, coverageLimit, deductible, totalPremium, coverages[sequenceNum, coverageType] |
 | `UnderwritingReferred` | `pas.underwriting.events.v1` | UNDWRT `WRITEQ TD ACME.PAS.UNDERWRITING.DECISION` | a decision (automated or override) with code `RS` or `RM` | decisionId, decisionDate, decisionCode, riskScore, policyRiskScore, decisionReason, underwriterId, override, overrideBy |
 | `UnderwritingDecided` | `pas.underwriting.events.v1` | same TDQ | a decision with code `AP` or `DC` | same as above |
+| `PolicyRenewed` | `pas.policy.events.v1` | none (POLRNW sent only the POLRCONF map) | `POST /api/v1/policies/{n}/renewals` commits | previousPremium, newPremium, rateChangePct, rateCapApplied, previousEffectiveDate, effectiveDate, expiryDate, renewalCount, policyStatus, uwStatus, agentCode, branchCode |
+| `PolicyEndorsed` | `pas.policy.events.v1` | POLEND `WRITEQ TS ENDORSEMENT-AUDIT` (with the durable `pas.policy_audit` row) | `POST /api/v1/policies/{n}/endorsements` commits | endorsementSeq, endorsementType, effectiveDate, daysInTerm, daysRemaining, proRataFactor, premiumAdjustment, totalPremium, agentCode, branchCode |
 
 Notes:
 
@@ -52,3 +54,7 @@ Notes:
   AB-528 FileNet bridge must use `policyRiskScore` when it rebuilds POLICY-RECORD.
 - Overrides carry `overrideBy` (JWT subject) but not the free-text reason; read it from
   `GET /api/v1/policies/{n}/underwriting-decisions`.
+- `PolicyRenewed` / `PolicyEndorsed` (AB-526) are written in the same transaction as the policy
+  change and its `pas.policy_audit` row; a failed write rolls all three back (Q-09, Q-14), so no
+  event is ever published for a change that did not commit. `policyVersion` is the
+  `pas.policies.version` after the change. `premiumAdjustment` is `0.00` today (Q-11, preserved).
