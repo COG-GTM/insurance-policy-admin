@@ -33,12 +33,22 @@ public final class PolicyHolderPii {
           "tax_id_bidx",
           "credit_score_enc");
 
+  private static final String RECONCILE_PURPOSE = "pas.migration.reconcile.policy_holders";
+
   private final PiiCipher cipher;
   private final BlindIndexer indexer;
 
   public PolicyHolderPii(PiiCipher cipher, BlindIndexer indexer) {
     this.cipher = cipher;
     this.indexer = indexer;
+  }
+
+  /**
+   * Keyed (HMAC, blind-index key) fingerprint of a holder record digest. Reconciliation publishes
+   * this instead of an unsalted hash, so report values cannot be used to guess holder PII offline.
+   */
+  public String fingerprint(String recordDigest) {
+    return indexer.index(RECONCILE_PURPOSE, recordDigest);
   }
 
   static List<String> withSourcePiiColumns(List<String> columns) {

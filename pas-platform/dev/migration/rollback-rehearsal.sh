@@ -51,7 +51,7 @@ after=$(psql_pas -tAc "SELECT COALESCE(SUM(rows_applied),0) || '/' || COALESCE(M
 # from DB2 but did not come from a DB2-side change made after the flip (DB2 ahead is fine).
 reverse_sql() {
   local t="$1" k="$2" ts="${3:-}"
-  local on; on=$(echo "$k" | sed -E 's/([a-z_]+)/p.\1 = s.\1/g; s/,/ AND/g')
+  local on; on=$(echo "$k" | sed -E 's/([a-z_]+)/p.\1 = s.\1/g; s/,/ AND /g')
   echo "(SELECT COUNT(*) FROM pas.$t p WHERE NOT EXISTS (SELECT 1 FROM ${SOURCE_SCHEMA}.$t s WHERE $on))"
   if [ -n "$ts" ]; then
     echo "+ (SELECT COUNT(*) FROM pas.$t p WHERE p.$ts > TIMESTAMP '${FLIP_TS}')"

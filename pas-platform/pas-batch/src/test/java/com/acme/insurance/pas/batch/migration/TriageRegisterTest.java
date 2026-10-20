@@ -54,7 +54,7 @@ class TriageRegisterTest {
 
   @Test
   void quirkIdsComeFromRegisterHeadings() throws Exception {
-    assertThat(TriageRegister.quirkIds(QUIRKS)).contains("Q-01", "Q-22", "Q-34").hasSize(34);
+    assertThat(TriageRegister.quirkIds(QUIRKS)).contains("Q-01", "Q-22", "Q-35").hasSize(35);
   }
 
   @Test

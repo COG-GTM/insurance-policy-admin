@@ -30,10 +30,17 @@ exist (open question "Capture production DAILYEXT / MONEXP files", [Q-31](quirk-
 local and CI runs use the AB-527 oracle goldens in `parity/extracts/golden/` as the stand-in; reports
 say so in their provenance.
 
-**AB-523 premium output.** `JdbcPremiumOutputSource.shadow` reads `pas_shadow.premiums` (Flyway V6).
-TODO(AB-523): `premiumRecalculationJob` writes `pas.premiums` today; for the parallel run it needs a
-shadow mode that writes the same rows to `pas_shadow.premiums` with a sortable `shadow_run_id` and the
-`business_date`. Until then `PREMIUMS` reports `NEW_NOT_AVAILABLE`. Another output plugs in by adding
+**AB-523 premium output.** During the parallel run, `premiumRecalculationJob` runs with
+`pas.batch.premium.write-target=shadow` (`PAS_BATCH_PREMIUM_WRITE_TARGET`). In that mode it writes the
+same PREMIUMS rows to `pas_shadow.premiums` (Flyway V6), not to `pas.premiums`, which only the DB2
+sync writes while DB2 is authoritative. Each row carries `shadow_run_id =
+premiumRecalculationJob-<job instance id, 12 digits>` and `business_date` = the job's `businessDate`.
+A restart reuses the shadow run; `rerun=true` creates a new one. `PremiumJobOutputSource` compares
+the latest `COMPLETED` run for the date in `pas_batch.premium_run_summary` (this includes
+`COMPLETED_WITH_ERRORS`, whose skipped rows show up as `MISSING_IN_NEW`). If no such run exists, or
+the run wrote to `pas`, `PREMIUMS` reports `NEW_NOT_AVAILABLE` and the day is `INCOMPLETE`. Schedule:
+enable `PAS_BATCH_PREMIUM_CRON` in shadow mode next to CA-7 PAS0050, or launch it through
+`POST /api/batch/premium/runs?runDate=`, before `parallel-run-cron`. Another output plugs in by adding
 an `OutputAdapter` bean (or a `PremiumOutputSource`).
 
 ## Triage
@@ -54,7 +61,7 @@ applies only if every given field matches; `legacy`/`candidate` pin exact values
 fail the job at start-up. Quirk decisions remain **Proposed — pending PO sign-off**; an
 `APPROVED_FIX` entry records the link, it does not record sign-off.
 
-Current entries: none. Proposed for triage once AB-523 shadow output exists: `PREMIUMS` `EXTRA_IN_NEW` →
+Current entries: none. Proposed for triage when the first shadow runs are compared: `PREMIUMS` `EXTRA_IN_NEW` →
 `APPROVED_FIX` [Q-22](quirk-register.md#q-22) (new job replaces a term's row on rerun; PREMBAT keeps
 the first), added per key (or `legacy`/`candidate`-pinned) after checking DB2 holds an earlier row for
 the same term, never as a `*` wildcard.

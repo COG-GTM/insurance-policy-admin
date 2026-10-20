@@ -94,5 +94,5 @@ detects them, and a bulk-load re-run repairs them. `pas_shadow` is dropped by AB
 
 ## Open questions
 
-See `open-questions.md` § AB-529: CDC product, billing-cycle run, AB-523 shadow mode, production
+See `open-questions.md` § AB-529: CDC product, billing-cycle run, premium job shadow-mode schedule, production
 rollback rehearsal and window, report publishing, POLICY_SEQ at cutover.

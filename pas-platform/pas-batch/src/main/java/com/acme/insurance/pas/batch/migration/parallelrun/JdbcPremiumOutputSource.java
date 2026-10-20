@@ -14,30 +14,22 @@ import java.util.TreeMap;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Reads PREMIUMS rows for a business date over JDBC.
- *
- * <ul>
- *   <li>{@link #legacy}: the mainframe PREMBAT output, {@code ACMEINS.PREMIUMS WHERE CALC_DATE =
- *       d}.
- *   <li>{@link #shadow}: the new premium job's parallel-run output in {@code pas_shadow.premiums}
- *       (latest {@code shadow_run_id} for the business date). Empty until AB-523 writes there.
- * </ul>
+ * Legacy side of the PREMIUMS comparison: the mainframe PREMBAT output, {@code ACMEINS.PREMIUMS
+ * WHERE CALC_DATE = d}, read over the read-only source JDBC pool. The new side is {@link
+ * PremiumJobOutputSource}.
  */
 public final class JdbcPremiumOutputSource implements PremiumOutputSource {
 
-  private static final List<String> COLUMNS = MigrationTable.PREMIUMS.columns();
+  static final List<String> COLUMNS = MigrationTable.PREMIUMS.columns();
 
   private final JdbcTemplate jdbc;
   private final String sql;
   private final String location;
-  private final boolean emptyMeansMissing;
 
-  private JdbcPremiumOutputSource(
-      JdbcTemplate jdbc, String sql, String location, boolean emptyMeansMissing) {
+  private JdbcPremiumOutputSource(JdbcTemplate jdbc, String sql, String location) {
     this.jdbc = jdbc;
     this.sql = sql;
     this.location = location;
-    this.emptyMeansMissing = emptyMeansMissing;
   }
 
   public static JdbcPremiumOutputSource legacy(SourceDatabase source) {
@@ -49,25 +41,7 @@ public final class JdbcPremiumOutputSource implements PremiumOutputSource {
             + " FROM "
             + table
             + " WHERE CALC_DATE = ?",
-        table + " (CALC_DATE = business date)",
-        false);
-  }
-
-  /*
-   * TODO(AB-523): premiumRecalculationJob writes pas.premiums directly. For the parallel run it
-   * needs a shadow mode that writes the same rows to pas_shadow.premiums with shadow_run_id
-   * (sortable, e.g. premiumRecalculationJob-<zero-padded execution id>) and business_date; until
-   * then this source is empty and the PREMIUMS output is reported NOT_AVAILABLE (INCOMPLETE).
-   */
-  public static JdbcPremiumOutputSource shadow(JdbcTemplate target) {
-    return new JdbcPremiumOutputSource(
-        target,
-        "SELECT "
-            + String.join(", ", COLUMNS)
-            + " FROM pas_shadow.premiums WHERE business_date = ? AND shadow_run_id ="
-            + " (SELECT MAX(shadow_run_id) FROM pas_shadow.premiums WHERE business_date = ?)",
-        "pas_shadow.premiums (latest shadow_run_id for business date)",
-        true);
+        table + " (CALC_DATE = business date)");
   }
 
   @Override
@@ -77,8 +51,11 @@ public final class JdbcPremiumOutputSource implements PremiumOutputSource {
 
   @Override
   public Optional<Map<String, String>> premiums(LocalDate businessDate) {
-    Date date = Date.valueOf(businessDate);
-    Object[] args = emptyMeansMissing ? new Object[] {date, date} : new Object[] {date};
+    return Optional.of(read(jdbc, sql, Date.valueOf(businessDate)));
+  }
+
+  /** Canonical PREMIUMS records keyed by primary key. */
+  static Map<String, String> read(JdbcTemplate jdbc, String sql, Object... args) {
     Map<String, String> rows = new TreeMap<>();
     jdbc.query(
         sql,
@@ -87,6 +64,6 @@ public final class JdbcPremiumOutputSource implements PremiumOutputSource {
           rows.put(Canonical.key(MigrationTable.PREMIUMS, row), Canonical.record(COLUMNS, row));
         },
         args);
-    return emptyMeansMissing && rows.isEmpty() ? Optional.empty() : Optional.of(rows);
+    return rows;
   }
 }

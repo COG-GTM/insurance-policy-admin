@@ -245,6 +245,9 @@ class MigrationIT {
         "UPDATE pas.premiums SET total_premium = total_premium + 1 WHERE policy_number = 'POL-00000001'");
     target.update("DELETE FROM pas.endorsements WHERE policy_number = 'POL-00000002'");
     target.update(
+        "UPDATE pas.policy_holders SET tax_id_enc = ? WHERE cust_id = 'C000000001'",
+        new PiiCipher(Base64.getDecoder().decode(ENC_KEY), "k1").encrypt("99-7654321"));
+    target.update(
         "INSERT INTO pas.policies (policy_number, policy_type, policy_status, effective_date,"
             + " expiry_date, policyholder_id, branch_code, total_premium, coverage_limit)"
             + " VALUES ('POL-99999999', 'HOM', 'AC', DATE '2026-01-01', DATE '2027-01-01',"
@@ -274,6 +277,20 @@ class MigrationIT {
             .filter(d -> d.kind().equals("CHANGED") && d.scope().equals("PREMIUMS"))
             .findFirst()
             .orElseThrow();
+    Difference holder =
+        untriaged.differences().stream()
+            .filter(d -> d.kind().equals("CHANGED") && d.scope().equals("POLICY_HOLDERS"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(holder.fields()).containsExactly("TAX_ID");
+    assertThat(holder.legacy()).isNull();
+    assertThat(holder.candidate()).isNull();
+    assertThat(untriaged.differences())
+        .filteredOn(d -> d.scope().equals("POLICY_HOLDERS"))
+        .allSatisfy(d -> assertThat(d.legacy()).isNull());
+    assertThat(String.valueOf(untriaged.differences()))
+        .doesNotContain("1234567")
+        .doesNotContain("7654321");
     assertThat(premium.fields()).containsExactly("TOTAL_PREMIUM");
     assertThat(premium.legacy()).isEqualTo("1275.00");
     assertThat(premium.candidate()).isEqualTo("1276.00");

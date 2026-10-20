@@ -41,6 +41,7 @@ warnings" is no longer sent for a clean run and a failure now alerts (Q-26).
 | CA-7 / JCL | Replacement |
 |---|---|
 | Job PAS0050, schedule daily 01:00 EST | `pas.batch.premium.cron` (`PAS_BATCH_PREMIUM_CRON`), zone `pas.batch.premium.zone` (`PAS_BATCH_PREMIUM_ZONE`, default `America/New_York`). Default `-` = **disabled** |
+| `pas.batch.premium.write-target` | `PAS_BATCH_PREMIUM_WRITE_TARGET` | `pas` | `shadow` writes `pas_shadow.premiums` (AB-529 parallel run, see [parallel-run.md](../parallel-run.md)); `pas` writes `pas.premiums` (after cut-over) |
 | STEP010 `IKJEFT01` → PREMBAT, plan PREMPLAN, DB2 DBPD | pas-batch container, datasource `PAS_DB_URL` (PostgreSQL `pas` schema) |
 | `PREMRPT` DD `PAS.PREMIUM.REPORT.D&LYYMMDD` | `PAS_BATCH_REPORT_DIR/PREMRPT-<yyyymmdd>-<instance>.txt` (mount a persistent volume) |
 | STEP020 `IEFBR14` "send email" (no-op) | — |

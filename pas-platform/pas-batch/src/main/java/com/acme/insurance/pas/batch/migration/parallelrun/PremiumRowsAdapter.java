@@ -7,7 +7,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-/** Parallel-run comparison of PREMBAT PREMIUMS rows (legacy) with the AB-523 premium job output. */
+/**
+ * Parallel-run comparison of PREMBAT PREMIUMS rows (legacy, {@link JdbcPremiumOutputSource}) with
+ * the AB-523 premiumRecalculationJob shadow output ({@link PremiumJobOutputSource}).
+ */
 public final class PremiumRowsAdapter implements OutputAdapter {
 
   public static final String SCOPE = "PREMIUMS";

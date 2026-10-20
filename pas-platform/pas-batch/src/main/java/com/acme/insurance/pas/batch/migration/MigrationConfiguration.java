@@ -9,6 +9,7 @@ import com.acme.insurance.pas.batch.migration.parallelrun.JdbcPremiumOutputSourc
 import com.acme.insurance.pas.batch.migration.parallelrun.LineFileAdapter;
 import com.acme.insurance.pas.batch.migration.parallelrun.OutputAdapter;
 import com.acme.insurance.pas.batch.migration.parallelrun.ParallelRunService;
+import com.acme.insurance.pas.batch.migration.parallelrun.PremiumJobOutputSource;
 import com.acme.insurance.pas.batch.migration.parallelrun.PremiumRowsAdapter;
 import com.acme.insurance.pas.batch.migration.reconcile.ReconciliationService;
 import com.acme.insurance.pas.batch.migration.report.CheckRunStore;
@@ -155,7 +156,7 @@ public class MigrationConfiguration {
             EXPOSURE_GROUP_COLUMNS));
     adapters.add(
         new PremiumRowsAdapter(
-            JdbcPremiumOutputSource.legacy(source), JdbcPremiumOutputSource.shadow(jdbc)));
+            JdbcPremiumOutputSource.legacy(source), new PremiumJobOutputSource(jdbc)));
     extraAdapters.orderedStream().forEach(adapters::add);
     List<String> provenance =
         List.of(
@@ -164,7 +165,8 @@ public class MigrationConfiguration {
                 + "/<job>/<business-date>/ (mainframe captures;"
                 + " parity oracle goldens when run locally/CI — not mainframe output)",
             "legacy premiums: " + source.table("PREMIUMS") + " rows with CALC_DATE = business date",
-            "new: AB-527 extract job outputs and pas_shadow.premiums (AB-523 shadow mode)");
+            "new: AB-527 extract job outputs and the AB-523 premiumRecalculationJob shadow-mode"
+                + " rows in pas_shadow.premiums (latest COMPLETED run for the business date)");
     return new ParallelRunService(adapters, triage, provenance, Clock.systemUTC());
   }
 

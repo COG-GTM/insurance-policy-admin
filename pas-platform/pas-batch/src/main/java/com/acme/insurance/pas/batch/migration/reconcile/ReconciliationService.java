@@ -233,7 +233,7 @@ public final class ReconciliationService {
                 "MISSING_IN_TARGET",
                 e.getKey(),
                 List.of(),
-                e.getValue(),
+                shown(table, e.getValue()),
                 null));
       } else if (other.equals(e.getValue())) {
         matched++;
@@ -252,7 +252,7 @@ public final class ReconciliationService {
                 e.getKey(),
                 List.of(),
                 null,
-                e.getValue()));
+                shown(table, e.getValue())));
       }
     }
     for (int i = 0; i < changed.size(); i++) {
@@ -266,8 +266,8 @@ public final class ReconciliationService {
                   "CHANGED",
                   key,
                   List.of(),
-                  src.get(key),
-                  tgt.get(key)));
+                  shown(table, src.get(key)),
+                  shown(table, tgt.get(key))));
     }
     return new HashSummary(
         table.sourceTable(),
@@ -302,8 +302,13 @@ public final class ReconciliationService {
         "CHANGED",
         key,
         fields,
-        String.join("|", sv),
-        String.join("|", tv));
+        shown(table, String.join("|", sv)),
+        shown(table, String.join("|", tv)));
+  }
+
+  /** Holder differences report field names only: never PII values or record fingerprints. */
+  private static String shown(MigrationTable table, String value) {
+    return table == MigrationTable.POLICY_HOLDERS ? null : value;
   }
 
   private Map<String, Object> fetch(
@@ -374,9 +379,10 @@ public final class ReconciliationService {
                   com.acme.insurance.pas.batch.migration.SourceRows.INSTANCE.mapRow(rs, 0),
                   table,
                   isTarget);
+          String digest = Canonical.sha256(Canonical.record(hashColumns(table), row));
           hashes.put(
               Canonical.key(table, row),
-              Canonical.sha256(Canonical.record(hashColumns(table), row)));
+              table == MigrationTable.POLICY_HOLDERS ? pii.fingerprint(digest) : digest);
         });
     return hashes;
   }

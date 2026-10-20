@@ -6,14 +6,19 @@ import com.acme.insurance.pas.batch.extract.DailyExtractJobConfig;
 import com.acme.insurance.pas.batch.migration.parallelrun.ParallelRunService.OutputSummary;
 import com.acme.insurance.pas.batch.migration.report.CheckReport;
 import com.acme.insurance.pas.batch.migration.triage.Classification;
+import com.acme.insurance.pas.batch.premium.PremiumJobLauncher;
+import com.acme.insurance.pas.batch.premium.PremiumRecalculationJobConfig;
+import com.acme.insurance.pas.batch.premium.ShadowPremiumWriter;
 import com.acme.insurance.pas.batch.schedule.ExtractJobLauncher;
 import com.acme.insurance.pas.batch.support.ParityFixtures;
 import com.acme.insurance.pas.batch.support.SourceStandIn;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -22,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -37,14 +43,16 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * AB-529 daily parallel-run diff: the AB-527 dailyExtractJob output versus the legacy capture (here
  * the committed oracle goldens standing in for mainframe files), and PREMBAT PREMIUMS rows versus
- * {@code pas_shadow.premiums}. Every difference is classified; a missing output makes the day
- * INCOMPLETE.
+ * the AB-523 premiumRecalculationJob run in shadow mode ({@code pas_shadow.premiums}). Every
+ * difference is classified; a missing output makes the day INCOMPLETE.
  */
 @SpringBootTest(
     properties = {
       "pas.transfer.enabled=false",
       "pas.migration.enabled=true",
-      "pas.migration.source.username=sa"
+      "pas.migration.source.username=sa",
+      "pas.batch.premium.write-target=shadow",
+      "pas.batch.premium.partitions=2"
     })
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -84,6 +92,7 @@ class ParallelRunIT {
     registry.add("pas.extract.output-dir", () -> WORK.resolve("new").toString());
     registry.add("pas.migration.legacy-output-dir", () -> WORK.resolve("legacy").toString());
     registry.add("pas.migration.report-dir", () -> WORK.resolve("reports").toString());
+    registry.add("pas.batch.premium.report-dir", () -> WORK.resolve("premium").toString());
     registry.add("pas.migration.triage-register", () -> WORK.resolve("triage-register.json"));
     registry.add(
         "pas.migration.quirk-register",
@@ -113,6 +122,10 @@ class ParallelRunIT {
   @Autowired
   @Qualifier("dailyExtractJob")
   Job dailyExtract;
+
+  @Autowired
+  @Qualifier(PremiumRecalculationJobConfig.JOB_NAME)
+  Job premiumJob;
 
   @Autowired DataSource dataSource;
   @Autowired JdbcTemplate target;
@@ -146,21 +159,47 @@ class ParallelRunIT {
   @Test
   @Order(2)
   void injectedDifferencesAreDetectedAndClassified() throws Exception {
-    // Shadow premiums as AB-523 would write them: POL-00000001 matches, POL-00000002 differs,
-    // POL-00000003 is recalculated today (Q-22 replace; DB2 kept the 2026-10-11 row).
-    target.update(
-        "INSERT INTO pas_shadow.premiums (shadow_run_id, business_date, policy_number,"
-            + " coverage_seq, term_effective_date, term_expiry_date, base_rate, tax_amt,"
-            + " total_premium, installment_code, installment_amt, calc_date, calc_by) VALUES"
-            + " ('run-001', DATE '2026-10-12', 'POL-00000001', 1, DATE '2025-01-01',"
-            + " DATE '2026-01-01', 1250.0000, 25.00, 1275.00, 'AN', 1275.00, DATE '2026-10-12',"
-            + " 'PREMBAT'),"
-            + " ('run-001', DATE '2026-10-12', 'POL-00000002', 1, DATE '2025-03-15',"
-            + " DATE '2026-03-15', 890.5000, 17.81, 908.32, 'MO', 75.69, DATE '2026-10-12',"
-            + " 'PREMBAT'),"
-            + " ('run-001', DATE '2026-10-12', 'POL-00000003', 1, DATE '2025-06-01',"
-            + " DATE '2026-06-01', 4500.0000, 90.00, 4590.00, 'QT', 1147.50, DATE '2026-10-12',"
-            + " 'PREMBAT')");
+    // The real AB-523 job in shadow mode: rows go to pas_shadow.premiums, pas.premiums is untouched
+    Integer pasPremiums = target.queryForObject("SELECT COUNT(*) FROM pas.premiums", Integer.class);
+    JobExecution premiumRun = launcher.run(premiumJob, PremiumJobLauncher.parameters(DAY, false));
+    assertThat(premiumRun.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+    assertThat(target.queryForObject("SELECT COUNT(*) FROM pas.premiums", Integer.class))
+        .isEqualTo(pasPremiums);
+    List<Map<String, Object>> shadow =
+        target.queryForList(
+            "SELECT * FROM pas_shadow.premiums WHERE shadow_run_id = ? AND business_date = ?"
+                + " ORDER BY policy_number, coverage_seq",
+            ShadowPremiumWriter.shadowRunId(premiumRun.getJobInstance().getInstanceId()),
+            java.sql.Date.valueOf(DAY));
+    assertThat(shadow).hasSizeGreaterThanOrEqualTo(3);
+
+    // Mainframe PREMBAT output for the same day: the same rows, except that the first policy's row
+    // is not written (DB2 kept the earlier row of the term, Q-22) and the second has another total.
+    JdbcTemplate db2 =
+        new JdbcTemplate(
+            new org.springframework.jdbc.datasource.DriverManagerDataSource(SOURCE, "sa", ""));
+    db2.execute("SET REFERENTIAL_INTEGRITY FALSE");
+    db2.update("DELETE FROM ACMEINS.PREMIUMS WHERE CALC_DATE = ?", java.sql.Date.valueOf(DAY));
+    List<String> columns = MigrationTable.PREMIUMS.columns();
+    String insert =
+        "INSERT INTO ACMEINS.PREMIUMS ("
+            + String.join(", ", columns).toUpperCase(java.util.Locale.ROOT)
+            + ") VALUES ("
+            + String.join(", ", java.util.Collections.nCopies(columns.size(), "?"))
+            + ")";
+    for (int i = 1; i < shadow.size(); i++) {
+      Map<String, Object> row = new java.util.HashMap<>(shadow.get(i));
+      if (i == 1) {
+        row.put("total_premium", ((BigDecimal) row.get("total_premium")).add(BigDecimal.ONE));
+      }
+      db2.update(
+          "DELETE FROM ACMEINS.PREMIUMS WHERE POLICY_NUMBER = ? AND COVERAGE_SEQ = ?"
+              + " AND TERM_EFFECTIVE_DATE = ?",
+          row.get("policy_number"),
+          row.get("coverage_seq"),
+          row.get("term_effective_date"));
+      db2.update(insert, columns.stream().map(row::get).toArray());
+    }
     Path legacy = WORK.resolve("legacy/dailyExtractJob/" + DAY + "/policy_extract.dat");
     byte[] bytes = Files.readAllBytes(legacy);
     int offset =

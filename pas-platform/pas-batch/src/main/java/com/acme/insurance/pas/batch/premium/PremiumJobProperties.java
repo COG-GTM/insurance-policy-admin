@@ -14,6 +14,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param chunkSize policies per transaction (also the JDBC page size)
  * @param skipLimit per-partition limit of PREMIUMS write errors before the run fails
  * @param reportDir directory for the PREMRPT run report and its per-partition part files
+ * @param writeTarget {@code pas} writes {@code pas.premiums}; {@code shadow} writes {@code
+ *     pas_shadow.premiums} for the AB-529 parallel run (required while DB2 is authoritative)
  */
 @ConfigurationProperties("pas.batch.premium")
 public record PremiumJobProperties(
@@ -22,7 +24,8 @@ public record PremiumJobProperties(
     @DefaultValue("8") int partitions,
     @DefaultValue("1000") int chunkSize,
     @DefaultValue("10000") int skipLimit,
-    @DefaultValue("./reports/premium") Path reportDir) {
+    @DefaultValue("./reports/premium") Path reportDir,
+    @DefaultValue("pas") PremiumWriteTarget writeTarget) {
 
   public PremiumJobProperties {
     if (partitions < 1 || chunkSize < 1 || skipLimit < 0) {

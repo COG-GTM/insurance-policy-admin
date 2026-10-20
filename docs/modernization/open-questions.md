@@ -331,14 +331,16 @@ Mainframe team.
 
 ### Proposed: Run the full-billing-cycle parallel run
 - **Context:** the harness (`parallelRunDiffJob`, [parallel-run.md](parallel-run.md)) is ready, but
-  needs daily mainframe captures in `pas.migration.legacy-output-dir`, AB-523 shadow output in
-  `pas_shadow.premiums`, agreed cycle dates and a named triage owner.
+  needs daily mainframe captures in `pas.migration.legacy-output-dir`, daily shadow-mode
+  `premiumRecalculationJob` runs, agreed cycle dates and a named triage owner.
 - **Proposed owner:** Ops + PAS tech lead; acceptance by Product Owner, Claims, Actuarial.
 
-### Proposed: AB-523 shadow mode for the premium job
-- **Context:** `premiumRecalculationJob` writes `pas.premiums`. In parallel run it must write to
-  `pas_shadow.premiums` (`shadow_run_id`, `business_date`) instead, so DB2 stays authoritative.
-- **Proposed owner:** AB-523 owner.
+### Proposed: Schedule the premium job in shadow mode for the parallel run
+- **Context:** `premiumRecalculationJob` supports `PAS_BATCH_PREMIUM_WRITE_TARGET=shadow` (writes
+  `pas_shadow.premiums` only). For the billing-cycle run, enable `PAS_BATCH_PREMIUM_CRON` in shadow
+  mode next to CA-7 PAS0050, before the parallel-run diff. Switch to `pas` only at the PREMIUMS cut-over
+  (see "Cut-over of CA-7 PAS0050" above).
+- **Proposed owner:** Batch operations.
 
 ### Proposed: Production rollback rehearsal and window
 - **Context:** only a local Compose rehearsal exists ([rollback-rehearsal-local.md](rollback-rehearsal-local.md)).
