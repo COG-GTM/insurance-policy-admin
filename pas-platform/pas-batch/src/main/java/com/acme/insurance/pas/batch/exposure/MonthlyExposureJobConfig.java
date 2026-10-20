@@ -2,6 +2,7 @@ package com.acme.insurance.pas.batch.exposure;
 
 import com.acme.insurance.pas.batch.alert.JobFailureAlertListener;
 import com.acme.insurance.pas.batch.extract.ExtractOutputs;
+import com.acme.insurance.pas.batch.extract.SingleRunPerDateTasklet;
 import com.acme.insurance.pas.batch.extract.SqlExtractTasklet;
 import com.acme.insurance.pas.batch.transfer.DeliveryFile;
 import com.acme.insurance.pas.batch.transfer.DeliveryStepTasklet;
@@ -12,6 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
@@ -87,10 +89,17 @@ public class MonthlyExposureJobConfig {
       JobRepository jobRepository,
       Step exposureExtractStep,
       Step actuarialDeliveryStep,
-      JobFailureAlertListener alertListener) {
+      JobFailureAlertListener alertListener,
+      JobExplorer jobExplorer,
+      PlatformTransactionManager transactionManager) {
+    Step guard =
+        new StepBuilder(JOB_NAME + "SingleRunGuard", jobRepository)
+            .tasklet(new SingleRunPerDateTasklet(jobExplorer), transactionManager)
+            .build();
     return new JobBuilder(JOB_NAME, jobRepository)
         .listener(alertListener)
-        .start(exposureExtractStep)
+        .start(guard)
+        .next(exposureExtractStep)
         .next(actuarialDeliveryStep)
         .build();
   }

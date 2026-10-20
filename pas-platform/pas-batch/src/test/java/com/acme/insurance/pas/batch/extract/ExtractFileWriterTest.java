@@ -26,7 +26,24 @@ class ExtractFileWriterTest {
     assertThat(file.records()).isEqualTo(2);
     assertThat(file.bytes()).isEqualTo(10);
     assertThat(file.sha256()).hasSize(64);
-    assertThat(dir.resolve("out.dat.part")).doesNotExist();
+    try (var files = Files.list(dir)) {
+      assertThat(files).extracting(f -> f.getFileName().toString()).containsExactly("out.dat");
+    }
+  }
+
+  @Test
+  void concurrentWritersUseSeparateStagingFiles() throws Exception {
+    Path target = dir.resolve("out.dat");
+    try (ExtractFileWriter first = new ExtractFileWriter(target, 3);
+        ExtractFileWriter second = new ExtractFileWriter(target, 3)) {
+      first.write("aaa".getBytes());
+      second.write("bbb".getBytes());
+      first.write("ccc".getBytes());
+      first.commit();
+      assertThat(Files.readString(target)).isEqualTo("aaa\r\nccc\r\n");
+      second.commit();
+    }
+    assertThat(Files.readString(target)).isEqualTo("bbb\r\n");
   }
 
   @Test

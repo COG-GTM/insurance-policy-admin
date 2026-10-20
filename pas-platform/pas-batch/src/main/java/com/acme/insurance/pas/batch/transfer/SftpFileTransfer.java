@@ -175,8 +175,7 @@ public class SftpFileTransfer implements SecureFileTransfer {
             Files.copy(file.path(), out);
           }
           verify(sftp, part, file);
-          removeIfExists(sftp, remote);
-          sftp.rename(part, remote);
+          replace(sftp, part, remote);
           writeText(sftp, remote + ".sha256", file.sha256() + "  " + file.remoteName() + "\n");
           receipts.add(new DeliveryReceipt(name, remote, file.bytes(), file.sha256()));
         }
@@ -234,6 +233,45 @@ public class SftpFileTransfer implements SecureFileTransfer {
   private static void writeText(SftpClient sftp, String remote, String text) throws IOException {
     try (OutputStream out = sftp.write(remote)) {
       out.write(text.getBytes(StandardCharsets.US_ASCII));
+    }
+  }
+
+  /**
+   * Moves {@code part} to {@code remote}. An existing file is first renamed to {@code .prev} (a
+   * plain rename onto an existing file is not portable across SFTP servers) and restored if the
+   * rename fails, so a failed rerun never removes the last good delivery.
+   */
+  private static void replace(SftpClient sftp, String part, String remote) throws IOException {
+    String previous = remote + ".prev";
+    removeIfExists(sftp, previous);
+    boolean backedUp = renameIfExists(sftp, remote, previous);
+    try {
+      sftp.rename(part, remote);
+    } catch (IOException e) {
+      if (backedUp) {
+        try {
+          sftp.rename(previous, remote);
+        } catch (IOException restore) {
+          e.addSuppressed(restore);
+        }
+      }
+      throw e;
+    }
+    if (backedUp) {
+      removeIfExists(sftp, previous);
+    }
+  }
+
+  private static boolean renameIfExists(SftpClient sftp, String from, String to)
+      throws IOException {
+    try {
+      sftp.rename(from, to);
+      return true;
+    } catch (SftpException e) {
+      if (e.getStatus() == SftpConstants.SSH_FX_NO_SUCH_FILE) {
+        return false;
+      }
+      throw e;
     }
   }
 
