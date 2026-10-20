@@ -75,6 +75,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 | [Q-32](#q-32) | `jcl/DAILY-EXTRACT.jcl` L36-39, L47-55, L75-80 | Policy extract window is `LAST_UPDATED >= CURRENT DATE - 1 DAY` (overlapping); coverage extract is a full snapshot; same-day rerun fails on DISP=NEW | **Preserve** selection; **Fix** rerun | CLM + OPS | AB-527 | Proposed — pending PO sign-off |
 | [Q-33](#q-33) | `jcl/MONTHLY-EXPOSURE.jcl` L30-33, L40-57, L63-70 | `POLICY_COUNT` counts coverage rows; premium sums COVERAGES.PREMIUM (never maintained); remote file name overwritten monthly; plain FTP | **Preserve** aggregates; **Fix** transport | ACT + SEC | AB-527 | Proposed — pending PO sign-off |
 | [Q-34](#q-34) | `java-facade` PolicyController L27-28, application.properties L14, L33 | Facade has no authentication; actuator endpoints unsecured | **Fix** | SEC | AB-524 | Proposed — pending PO sign-off |
+| [Q-35](#q-35) | PREMBAT `3000-PROCESS-POLICIES` L129-130, `3100-FETCH-POLICY` | `PERFORM 3100-FETCH-POLICY UNTIL SQLCODE NOT = 0` tests the INSERT's SQLCODE: the first failed PREMIUMS INSERT ends the run, the rest of the book is not processed | **Fix** (count the error and continue) | OPS + ACT | AB-523 | Proposed — pending PO sign-off |
 
 ## Details
 
@@ -299,7 +300,7 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Where:** `PREMBAT.cbl` `3300-WRITE-PREMIUM-RECORD` L192 (`COVERAGE_SEQ` always 1), L202-219 plain INSERT, L220-224 counts failures; `sql/ddl/create-tables.sql` L103-104 PK `(POLICY_NUMBER, COVERAGE_SEQ, TERM_EFFECTIVE_DATE)`.
 - **Behaviour:** The key does not include `CALC_DATE`, so any second run for a policy in the same term — a same-day rerun after a failure, and also the next scheduled daily run — fails with -803 for every policy. Failures are only counted (RC 4, Q-26), never replaced.
 - **Impact:** PREMIUMS keeps the first calculation of each term; reruns are not safe. Whether something outside this repo purges PREMIUMS before the run is [OQ-07](open-questions.md#oq-07).
-- **Evidence:** no golden (the harness stubs the INSERT); derived from DDL + code.
+- **Evidence:** golden `parity/programs/prembat-rerun` (AB-523): the INSERT stub answers -803 and PREMBAT ends RC 4 with the row not written. AB-523 also found that the run does not continue to the next policy after the first -803 — see [Q-35](#q-35); "-803 for every policy" above is therefore really "-803 for the first policy, then the run stops".
 - **Decision:** **Fix.** AB-523 makes the premium job idempotent: a rerun **replaces** the row for the same key. Epic success criterion "reruns are safe".
 - **Owner:** OPS + ACT. **Target:** AB-523. **Status:** Proposed — pending PO sign-off.
 
@@ -412,3 +413,14 @@ Owner roles: **PO** = PAS Product Owner, **UW** = Underwriting business owner,
 - **Where:** `java-facade/.../controller/PolicyController.java` L27-28 ("No authentication ... relies on network segmentation"); `application.properties` L33 sets `management.security.enabled` to false; L14 connects straight to DB2 `DBPD`. Existing tickets AB-364 / AB-365.
 - **Decision:** **Fix.** Inquiry API (AB-524) is authenticated and authorised; actuator restricted. Consumers keep the v1 response shape (compat gate).
 - **Owner:** SEC. **Target:** AB-524. **Status:** Proposed — pending PO sign-off.
+
+### Q-35
+
+**PREMBAT stops at the first failed PREMIUMS INSERT.**
+
+- **Where:** `PREMBAT.cbl` `3000-PROCESS-POLICIES` (`PERFORM 3100-FETCH-POLICY UNTIL SQLCODE NOT = 0`) and `3100-FETCH-POLICY` / `3300-WRITE-PREMIUM-RECORD`.
+- **Behaviour:** The loop condition is evaluated after 3100 returns, when SQLCODE holds the result of the INSERT, not of the FETCH. Any failed INSERT (-803 on a rerun, Q-22, or any other DB2 error) ends the loop: the failed policy is counted as an error, the remaining active policies are never fetched, the summary is written and the job ends RC 4 — which STEP030 reports as "completed with warnings" (Q-26).
+- **Impact:** One bad row silently leaves the rest of the book without a premium for the day. On a same-term rerun the run does one policy and stops.
+- **Evidence:** found by AB-523 while characterising Q-22: the harness fed three rerun fixtures (all -803) and PREMBAT emitted one PARITY line and ended RC 4. The committed `prembat-rerun` golden keeps one case because the harness expects one output line per fixture.
+- **Decision:** **Fix.** `premiumRecalculationJob` counts a failed PREMIUMS write as an error and carries on with the next policy (Spring Batch skip, up to `pas.batch.premium.skip-limit` per partition, after which the run FAILS and alerts). With Q-22 fixed, the -803 trigger no longer occurs.
+- **Owner:** OPS + ACT. **Target:** AB-523. **Status:** Proposed — pending PO sign-off.

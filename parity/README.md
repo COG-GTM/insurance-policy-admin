@@ -24,7 +24,8 @@ values for the same fixtures.
    is literally `./PREMRPT` inside `build/<prog>`.
 4. `per-case` mode: one process per fixture row (fresh WORKING-STORAGE, like a
    CICS task). `batch` mode (PREMBAT): one process fed all rows then an
-   `*EOF*` sentinel.
+   `*EOF*` sentinel. The process must end RC 0 unless the spec sets
+   `expected_rc` (e.g. `prembat-rerun` expects PREMBAT's RC 4 for counted errors).
 5. Programs emit `PARITY|<case_id>|<out1>|...` lines (helpers in `HXPROC.cpy`);
    the harness splits them and compares to `golden.csv`. Separately, the
    stub name → original EXEC text mapping is committed as
@@ -77,7 +78,7 @@ either an AB-517 quirk-register link
 (`https://cog-gtm.atlassian.net/browse/AB-517...`) or a repo path under
 `docs/modernization/`. Stale entries (unknown case/field or values that no
 longer match) fail the run — they are deliberately brittle so the register
-stays honest. Currently empty.
+stays honest. Current entries: `prembat-rerun` (Q-22, AB-523).
 
 ## GnuCOBOL vs z/OS caveats
 

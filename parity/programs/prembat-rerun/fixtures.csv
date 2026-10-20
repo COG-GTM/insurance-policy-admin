@@ -1,0 +1,2 @@
+case_id,note,policy_type,total_premium,deductible,coverage_limit,effective_date,expiry_date,premiums_sqlcode
+POL-AUT-RR,auto rerun same term: row from first run exists,AUT,1200.00,500.00,250000.00,20240101,20250101,-803
