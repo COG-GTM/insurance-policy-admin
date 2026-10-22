@@ -37,14 +37,18 @@ public class RestClaimsHistoryAdapter implements ClaimsHistoryPort {
   @Override
   public int countOpenClaims(String policyNumber) {
     try {
-      return retry(
-          () ->
-              restClient
-                  .get()
-                  .uri("/claims/v1/policies/{policyNumber}/open-claims", policyNumber)
-                  .retrieve()
-                  .body(OpenClaimsResponse.class)
-                  .openClaimCount());
+      OpenClaimsResponse response =
+          retry(
+              () ->
+                  restClient
+                      .get()
+                      .uri("/claims/v1/policies/{policyNumber}/open-claims", policyNumber)
+                      .retrieve()
+                      .body(OpenClaimsResponse.class));
+      if (response == null || response.openClaimCount() == null || response.openClaimCount() < 0) {
+        throw new IllegalArgumentException("Claims response has an invalid openClaimCount");
+      }
+      return response.openClaimCount();
     } catch (HttpClientErrorException.NotFound exception) {
       return 0;
     } catch (RuntimeException exception) {
@@ -68,11 +72,13 @@ public class RestClaimsHistoryAdapter implements ClaimsHistoryPort {
                                   .build(policyNumber))
                       .retrieve()
                       .body(SummaryResponse.class));
-      return new ClaimsSummary(
-          response.claimCount(),
-          response.totalIncurred() == null
-              ? BigDecimal.ZERO.setScale(2)
-              : response.totalIncurred());
+      if (response == null
+          || response.claimCount() == null
+          || response.claimCount() < 0
+          || response.totalIncurred() == null) {
+        throw new IllegalArgumentException("Claims response has incomplete summary fields");
+      }
+      return new ClaimsSummary(response.claimCount(), response.totalIncurred());
     } catch (HttpClientErrorException.NotFound exception) {
       return new ClaimsSummary(0, BigDecimal.ZERO.setScale(2));
     } catch (RuntimeException exception) {
@@ -104,7 +110,7 @@ public class RestClaimsHistoryAdapter implements ClaimsHistoryPort {
     return new ClaimsHistoryUnavailableException("Claims history service is unavailable", cause);
   }
 
-  private record OpenClaimsResponse(int openClaimCount) {}
+  private record OpenClaimsResponse(Integer openClaimCount) {}
 
-  private record SummaryResponse(int claimCount, BigDecimal totalIncurred) {}
+  private record SummaryResponse(Integer claimCount, BigDecimal totalIncurred) {}
 }

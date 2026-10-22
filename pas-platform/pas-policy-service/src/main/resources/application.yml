@@ -44,6 +44,8 @@ pas:
     policy-inquiry: ${PAS_ROUTE_POLICY_INQUIRY:legacy}
     new-business: ${PAS_ROUTE_NEW_BUSINESS:legacy}
     underwriting: ${PAS_ROUTE_UNDERWRITING:legacy}
+    renewal: ${PAS_ROUTE_RENEWAL:legacy}
+    endorsement: ${PAS_ROUTE_ENDORSEMENT:legacy}
   outbox:
     relay:
       enabled: ${PAS_OUTBOX_RELAY_ENABLED:true}
@@ -101,6 +103,12 @@ pas:
       policies: {}
   clock:
     zone: ${PAS_CLOCK_ZONE:UTC}
+  renewal:
+    uplift-pct: 5.00
+    max-increase-pct: 15.00
+    max-open-claims: 3
+    window-days-before-expiry: 90
+    window-days-after-expiry: 30
   pii:
     encryption:
       active-key-id: ${PAS_PII_ENCRYPTION_KEY_ID:local-v1}

@@ -15,8 +15,9 @@ PostgreSQL 16 in schema `pas`. Flyway ownership remains with `pas-policy-service
 | V5 | `V5__policy_holder_pii_columns.sql` | Encrypted PII columns and tax-ID blind index |
 | V30 | `V30__outbox_and_idempotency.sql` | Transactional event outbox and caller-scoped idempotency keys |
 | V31 | `V31__policy_row_version.sql` | Optimistic policy row version |
-| V32 | `V32__underwriting_decision_audit.sql` | Surrogate decision key, actor, override reference and policy/date index |
+| V32 | `V32__underwriting_decision_audit.sql` | Surrogate decision key, audit columns and non-unique policy/date index |
 | V33 | `V33__shadow_new_business_underwriting.sql` | PII-free shadow comparison results |
+| V34 | `V34__underwriting_audit_loss_ratio.sql` | `loss_ratio NUMERIC(15,2)` and decision-reason backfill |
 
 ## Core schema
 
@@ -35,10 +36,16 @@ repository mappers while variable-width strings are not.
 | `underwriting_decisions` | `decision_id` | Decision audit; V32 retains legacy key columns |
 | `policy_holders` | `cust_id` | Customer/contact information and encrypted regulated fields |
 
-The V32 decision key supports multiple same-day decisions while retaining legacy columns.
-Legacy columns do not gain new code-domain
-checks: unknown codes remain representable as `Coded<E>` values and preserve their raw string
-([Q-43](quirk-register.md#q-43)). Do not infer that an unknown code is invalid during migration.
+V32 changes `pas.underwriting_decisions` from primary key `(policy_number, decision_date)` to the
+surrogate `decision_id`, populated by `pas.underwriting_decision_seq`. It retains the legacy
+columns and changes `(policy_number, decision_date)` to a non-unique index so multiple same-day
+decisions are supported. V32 adds `decided_by`, `decision_reasons`, and `overrides_decision_id`;
+V34 adds `loss_ratio NUMERIC(15,2)`. AB-529's DB2 sync must insert new decision rows rather than
+upsert on the former composite key.
+
+Legacy columns do not gain new code-domain checks: unknown codes remain representable as `Coded<E>`
+values and preserve their raw string ([Q-43](quirk-register.md#q-43)). Do not infer that an unknown
+code is invalid during migration.
 
 `policy_holders` excludes cleartext `date_of_birth`, `ssn_last4`, `tax_id`, and `credit_score` in
 V2. V5 adds the corresponding `_enc` bytea columns, plus a nullable `tax_id_bidx` constrained to

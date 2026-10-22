@@ -46,7 +46,15 @@ class EventSchemaTest {
             "decisionCode",
             new NullableValue(null),
             "riskScore",
-            0));
+            new NullableValue(null),
+            "reasons",
+            new NullableValue(null),
+            "lossRatio",
+            new NullableValue(null),
+            "override",
+            new NullableValue(null),
+            "overridesDecisionId",
+            new NullableValue(null)));
     events.put(
         "UnderwritingDecisionRecorded",
         Map.of(

@@ -48,7 +48,7 @@ public class OutboxWriter {
     envelope.put("policyNumber", policyNumber.trim());
     envelope.put("policyVersion", policyVersion);
     envelope.put("occurredAt", OffsetDateTime.now(clock).withOffsetSameInstant(ZoneOffset.UTC));
-    envelope.put("correlationId", CorrelationIds.fromHeader(correlationId));
+    envelope.put("correlationId", correlationId);
     envelope.put("data", data);
     jdbc.sql(
             """

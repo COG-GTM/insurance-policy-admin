@@ -9,6 +9,7 @@ import com.acme.insurance.pas.policy.inquiry.CallerEntitlements;
 import com.acme.insurance.pas.policy.inquiry.PolicyInquiryRepository;
 import java.math.BigDecimal;
 import java.util.Optional;
+import org.springframework.dao.IncorrectUpdateSemanticsDataAccessException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -201,5 +202,40 @@ public class PolicyRepository {
         .param("branchCode", branchCode)
         .query(BigDecimal.class)
         .single();
+  }
+
+  /**
+   * Rewrites the columns POLRNW/POLEND change. Callers hold the row lock from {@code
+   * PolicyInquiryRepository.lockPolicy}; anything but one row is a failure so the transaction rolls
+   * back (Q-14, Q-16).
+   */
+  public void saveLifecycle(Policy policy) {
+    int rows =
+        jdbc.sql(
+                "UPDATE pas.policies SET policy_status = :policyStatus, effective_date = :effectiveDate, expiry_date = :expiryDate, total_premium = :totalPremium, coverage_limit = :coverageLimit, renewal_count = :renewalCount, uw_status = :uwStatus, row_version = row_version + 1, last_updated = now(), updated_by = :updatedBy WHERE policy_number = :policyNumber")
+            .param("policyStatus", policy.policyStatus().raw())
+            .param("effectiveDate", policy.effectiveDate())
+            .param("expiryDate", policy.expiryDate())
+            .param("totalPremium", policy.totalPremium())
+            .param("coverageLimit", policy.coverageLimit())
+            .param("renewalCount", policy.renewalCount())
+            .param("uwStatus", policy.uwStatus() == null ? null : policy.uwStatus().raw())
+            .param("updatedBy", policy.updatedBy())
+            .param("policyNumber", policy.policyNumber())
+            .update();
+    if (rows != 1) {
+      throw new IncorrectUpdateSemanticsDataAccessException(
+          "Policy write affected " + rows + " rows");
+    }
+  }
+
+  /** State of the policyholder, used for the per-state renewal cap (Q-04). */
+  public Optional<String> findPolicyholderState(String policyNumber) {
+    return jdbc.sql(
+            "SELECT h.state_code FROM pas.policies p JOIN pas.policy_holders h ON h.cust_id = p.policyholder_id WHERE p.policy_number = :policyNumber")
+        .param("policyNumber", policyNumber)
+        .query(String.class)
+        .optional()
+        .map(String::trim);
   }
 }

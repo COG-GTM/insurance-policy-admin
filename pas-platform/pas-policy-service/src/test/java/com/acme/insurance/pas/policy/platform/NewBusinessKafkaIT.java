@@ -3,6 +3,7 @@ package com.acme.insurance.pas.policy.platform;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.common.security.PasScopes;
+import com.acme.insurance.pas.policy.events.CorrelationIds;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.networknt.schema.JsonSchemaFactory;
@@ -10,6 +11,7 @@ import com.networknt.schema.SpecVersion;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -101,6 +103,8 @@ class NewBusinessKafkaIT {
       ResponseEntity<String> created =
           post("/api/v1/policies", createBody, agentJwt, "kafka-" + UUID.randomUUID());
       assertThat(created.getStatusCode().value()).isEqualTo(201);
+      String createCorrelationId = created.getHeaders().getFirst(CorrelationIds.HEADER_NAME);
+      UUID.fromString(createCorrelationId);
       String policyNumber = MAPPER.readTree(created.getBody()).path("policyNumber").asText();
       String underwriterJwt =
           PolicyJwtTestSupport.mint(
@@ -115,14 +119,21 @@ class NewBusinessKafkaIT {
               null);
       assertThat(decision.getStatusCode().value()).isEqualTo(201);
       assertThat(MAPPER.readTree(decision.getBody()).path("decisionCode").asText()).isEqualTo("RS");
+      String decisionCorrelationId = decision.getHeaders().getFirst(CorrelationIds.HEADER_NAME);
+      UUID.fromString(decisionCorrelationId);
 
       Set<String> eventTypes = new HashSet<>();
+      Map<String, String> eventCorrelationIds = new HashMap<>();
       boolean createdEventHasSchemaEnvelope = false;
       long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
       while (System.nanoTime() < deadline
-          && !(eventTypes.contains("PolicyCreated")
-              && eventTypes.contains("UnderwritingDecisionRecorded")
-              && eventTypes.contains("UnderwritingReferralRequested"))) {
+          && !eventCorrelationIds
+              .keySet()
+              .containsAll(
+                  Set.of(
+                      "PolicyCreated",
+                      "NewBusinessReferralRequested",
+                      "DecisionReferralRequested"))) {
         for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
           JsonNode envelope = MAPPER.readTree(record.value());
           if (!policyNumber.equals(record.key())) {
@@ -143,17 +154,51 @@ class NewBusinessKafkaIT {
             assertThat(envelope.path("policyVersion").asLong()).isEqualTo(1L);
             assertThat(record.value()).doesNotContain(custId);
             createdEventHasSchemaEnvelope = true;
+            eventCorrelationIds.put("PolicyCreated", envelope.path("correlationId").asText());
           }
-          if ("UnderwritingDecisionRecorded".equals(eventType)
-              || "UnderwritingReferralRequested".equals(eventType)) {
+          if ("UnderwritingReferralRequested".equals(eventType)) {
             assertThat(record.topic()).isEqualTo("pas.underwriting.events.v1");
+            String trigger = envelope.path("data").path("trigger").asText();
+            if ("NEW_BUSINESS".equals(trigger)) {
+              eventCorrelationIds.put(
+                  "NewBusinessReferralRequested", envelope.path("correlationId").asText());
+            } else if ("DECISION".equals(trigger)) {
+              assertThat(envelope.path("policyVersion").asLong()).isEqualTo(2L);
+              assertThat(envelope.path("data").path("decisionId").asLong()).isPositive();
+              assertThat(envelope.path("data").path("decisionCode").asText()).isEqualTo("RS");
+              assertThat(envelope.path("data").path("riskScore").isNumber()).isTrue();
+              assertThat(envelope.path("data").path("reasons").isArray()).isTrue();
+              assertThat(envelope.path("data").path("lossRatio").isNumber()).isTrue();
+              assertThat(envelope.path("data").path("override").asBoolean()).isFalse();
+              assertThat(envelope.path("data").path("overridesDecisionId").isNull()).isTrue();
+              eventCorrelationIds.put(
+                  "DecisionReferralRequested", envelope.path("correlationId").asText());
+            }
           }
         }
       }
       assertThat(eventTypes)
-          .contains(
-              "PolicyCreated", "UnderwritingDecisionRecorded", "UnderwritingReferralRequested");
+          .contains("PolicyCreated", "UnderwritingReferralRequested")
+          .doesNotContain("UnderwritingDecisionRecorded");
       assertThat(createdEventHasSchemaEnvelope).isTrue();
+      assertThat(eventCorrelationIds)
+          .containsEntry("PolicyCreated", createCorrelationId)
+          .containsEntry("NewBusinessReferralRequested", createCorrelationId)
+          .containsEntry("DecisionReferralRequested", decisionCorrelationId);
+      assertThat(
+              jdbc.queryForObject(
+                  """
+                  SELECT count(*) FROM (
+                    SELECT topic, payload ->> 'policyNumber', payload ->> 'policyVersion'
+                    FROM pas.outbox
+                    WHERE payload ->> 'policyNumber' = ?
+                    GROUP BY topic, payload ->> 'policyNumber', payload ->> 'policyVersion'
+                    HAVING count(*) > 1
+                  ) duplicate_versions
+                  """,
+                  Integer.class,
+                  policyNumber))
+          .isZero();
     }
   }
 

@@ -37,6 +37,10 @@ public class PolicySecurityConfig {
                     .requestMatchers(
                         HttpMethod.POST, "/api/v1/policies/*/underwriting-decisions/*/override")
                     .hasAuthority(PasScopes.authority(PasScopes.UNDERWRITING_OVERRIDE))
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/renewals")
+                    .hasAuthority(PasScopes.authority(PasScopes.POLICY_RENEW))
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/endorsements")
+                    .hasAuthority(PasScopes.authority(PasScopes.POLICY_ENDORSE))
                     .requestMatchers(
                         request ->
                             (request.getServletPath().equals("/api/v1/policies")

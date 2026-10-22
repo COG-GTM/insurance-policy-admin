@@ -580,7 +580,7 @@ Names, addresses, phone and email are personal data (masked in logs, GDPR consen
 
 - **On-call rotation:** PAS modernization team rotation, to be created before the first capability
   moves (TBD); mainframe-ops and DB2 DBA stay on call for legacy until decommission.
-- **Runbooks:** `docs/modernization/runbooks/` (premium batch, sync/reconciliation, cutover,
+- **Runbooks:** `docs/runbooks/` (new-business underwriting, premium batch, sync/reconciliation, cutover,
   rollback, decommission — AB-523, AB-529, AB-530).
 - **Dashboards / alarms:** API error rate and latency, premium job duration > 30 min, sync lag,
   reconciliation mismatches, outbox backlog age, relay failures, consumer lag, SFTP delivery failures,

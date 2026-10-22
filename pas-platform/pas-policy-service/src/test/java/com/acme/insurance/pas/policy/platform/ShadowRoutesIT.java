@@ -80,6 +80,38 @@ class ShadowRoutesIT {
     assertThat(jdbc.queryForObject("SELECT count(*) FROM pas.idempotency_keys", Integer.class))
         .isZero();
 
+    Long shadowResultMarker =
+        jdbc.queryForObject("SELECT max(id) FROM pas_shadow.new_business_results", Long.class);
+    String otherCustId = "C" + UUID.randomUUID().toString().replace("-", "").substring(0, 9);
+    jdbc.update("INSERT INTO pas.policy_holders (cust_id, cust_type) VALUES (?, 'I')", otherCustId);
+    String invalidPolicyTypeBody =
+        body.replace("\"policyType\":\"AUT\"", "\"policyType\":\"AUTOMOBILE\"");
+    ResponseEntity<String> invalidPolicyType =
+        post("/api/v1/policies", invalidPolicyTypeBody, createJwt, null);
+    ResponseEntity<String> invalidPolicyTypeWithOtherHolder =
+        post(
+            "/api/v1/policies",
+            invalidPolicyTypeBody.replace(custId, otherCustId),
+            createJwt,
+            null);
+    assertThat(invalidPolicyType.getStatusCode().value()).isEqualTo(202);
+    assertThat(invalidPolicyTypeWithOtherHolder.getStatusCode().value()).isEqualTo(202);
+    List<String> invalidHashes =
+        jdbc.queryForList(
+            "SELECT request_hash FROM pas_shadow.new_business_results WHERE id > ? ORDER BY id",
+            String.class,
+            shadowResultMarker);
+    assertThat(invalidHashes).hasSize(2);
+    assertThat(invalidHashes.get(0)).isEqualTo(invalidHashes.get(1));
+    List<String> invalidPolicyTypes =
+        jdbc.queryForList(
+            "SELECT policy_type FROM pas_shadow.new_business_results WHERE id > ? ORDER BY id",
+            String.class,
+            shadowResultMarker);
+    assertThat(invalidPolicyTypes).hasSize(2);
+    assertThat(invalidPolicyTypes.get(0)).isNull();
+    assertThat(invalidPolicyTypes.get(1)).isNull();
+
     String policyNumber = "POL000000021";
     jdbc.update(
         """

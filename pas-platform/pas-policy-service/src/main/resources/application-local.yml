@@ -14,5 +14,11 @@ pas:
     policy-inquiry: new
     new-business: new
     underwriting: new
+    renewal: new
+    endorsement: new
   claims:
     adapter: fixture
+  dev:
+    claims-stub:
+      enabled: false
+      open-claims: 0

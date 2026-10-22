@@ -13,7 +13,7 @@ public class UnderwritingDecisionRepository {
   private static final String SELECT =
       """
       SELECT decision_id, policy_number, decision_date, decision_code, risk_score, decision_reason,
-             decision_reasons, underwriter_id, decided_by, override_reason, override_by,
+             decision_reasons, loss_ratio, underwriter_id, decided_by, override_reason, override_by,
              overrides_decision_id, created_timestamp
       FROM pas.underwriting_decisions
       """;
@@ -52,11 +52,11 @@ public class UnderwritingDecisionRepository {
             """
             INSERT INTO pas.underwriting_decisions (
                 policy_number, decision_date, decision_code, risk_score, decision_reason,
-                decision_reasons, underwriter_id, decided_by, override_reason, override_by,
+                decision_reasons, loss_ratio, underwriter_id, decided_by, override_reason, override_by,
                 overrides_decision_id, created_timestamp
             ) VALUES (
                 :policyNumber, :decisionDate, :decisionCode, :riskScore, :decisionReason,
-                CAST(:reasons AS text[]), :underwriterId, :decidedBy, :overrideReason,
+                CAST(:reasons AS text[]), :lossRatio, :underwriterId, :decidedBy, :overrideReason,
                 :overrideBy, :overridesDecisionId, :createdTimestamp
             )
             RETURNING decision_id
@@ -67,6 +67,7 @@ public class UnderwritingDecisionRepository {
         .param("riskScore", decision.riskScore())
         .param("decisionReason", decision.decisionReason())
         .param("reasons", decision.reasons().toArray(String[]::new))
+        .param("lossRatio", decision.lossRatio())
         .param("underwriterId", decision.underwriterId())
         .param("decidedBy", decision.decidedBy())
         .param("overrideReason", decision.overrideReason())
@@ -134,7 +135,13 @@ public class UnderwritingDecisionRepository {
   private static UnderwritingDecisionAudit mapAudit(java.sql.ResultSet row)
       throws java.sql.SQLException {
     java.sql.Array reasons = row.getArray("decision_reasons");
-    String[] values = reasons == null ? new String[0] : (String[]) reasons.getArray();
+    String[] values;
+    if (reasons == null) {
+      String reason = row.getString("decision_reason");
+      values = reason == null ? new String[0] : new String[] {reason};
+    } else {
+      values = (String[]) reasons.getArray();
+    }
     return new UnderwritingDecisionAudit(
         row.getLong("decision_id"),
         JdbcValues.charValue(row, "policy_number"),
@@ -143,7 +150,7 @@ public class UnderwritingDecisionRepository {
         JdbcValues.integer(row, "risk_score"),
         row.getString("decision_reason"),
         List.of(values),
-        null,
+        row.getBigDecimal("loss_ratio"),
         JdbcValues.charValue(row, "underwriter_id"),
         row.getString("decided_by"),
         JdbcValues.timestamp(row, "created_timestamp"),

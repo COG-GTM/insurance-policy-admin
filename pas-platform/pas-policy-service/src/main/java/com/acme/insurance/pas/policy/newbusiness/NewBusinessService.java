@@ -19,6 +19,7 @@ import com.acme.insurance.pas.policy.repository.PolicyHolderRepository;
 import com.acme.insurance.pas.policy.repository.PolicyRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigDecimal;
 import java.security.MessageDigest;
@@ -89,6 +90,15 @@ public class NewBusinessService {
     }
 
     String requestHash = requestHash(request);
+    String shadowRequestHash = shadowRequestHash(request);
+    if (idempotencyKey != null && !shadow) {
+      Optional<IdempotencyRepository.StoredResponse> stored =
+          idempotency.find(subject, idempotencyKey);
+      if (stored.isPresent()) {
+        return replayOrConflict(requestHash, stored.get());
+      }
+    }
+
     List<NewBusinessError> errors = validate(request);
     if (!errors.isEmpty()) {
       if (shadow) {
@@ -96,11 +106,10 @@ public class NewBusinessService {
           return problem(
               HttpStatus.FORBIDDEN, "Caller is not entitled to write this agent or branch");
         }
-        List<String> coverageTypes = defaultCoverageTypes(request.policyType());
         shadowResults.insert(
-            requestHash,
-            request.policyType(),
-            coverageTypes,
+            shadowRequestHash,
+            validatedPolicyType(request.policyType(), errors),
+            defaultCoverageTypes(request.policyType()),
             errors.stream().map(NewBusinessError::field).distinct().toList());
         return new CreatePolicyResult(
             HttpStatus.ACCEPTED.value(), null, new ShadowResponse(true, "INVALID", errors), false);
@@ -121,9 +130,38 @@ public class NewBusinessService {
       return problem(HttpStatus.FORBIDDEN, "Caller is not entitled to write this agent or branch");
     }
 
+    if (!holders.existsByCustId(request.policyholderId().trim())) {
+      NewBusinessError error = new NewBusinessError("policyholderId", "POLICYHOLDER NOT FOUND");
+      if (shadow) {
+        shadowResults.insert(
+            shadowRequestHash,
+            request.policyType(),
+            defaultCoverageTypes(request.policyType()),
+            List.of(error.field()));
+        return new CreatePolicyResult(
+            HttpStatus.ACCEPTED.value(),
+            null,
+            new ShadowResponse(true, "INVALID", List.of(error)),
+            false);
+      }
+      return new CreatePolicyResult(
+          HttpStatus.UNPROCESSABLE_ENTITY.value(),
+          null,
+          new ApiProblem(
+              "about:blank",
+              "Unprocessable Entity",
+              422,
+              "Policy request validation failed",
+              List.of(error)),
+          true);
+    }
+
     if (shadow) {
       shadowResults.insert(
-          requestHash, request.policyType(), defaultCoverageTypes(request.policyType()), List.of());
+          shadowRequestHash,
+          request.policyType(),
+          defaultCoverageTypes(request.policyType()),
+          List.of());
       return new CreatePolicyResult(
           HttpStatus.ACCEPTED.value(), null, new ShadowResponse(true, "VALID", List.of()), false);
     }
@@ -135,11 +173,7 @@ public class NewBusinessService {
         if (stored.isEmpty()) {
           throw new IllegalStateException("Idempotency row disappeared after conflict");
         }
-        if (!requestHash.equals(stored.get().requestHash())) {
-          return problem(
-              HttpStatus.CONFLICT, "Idempotency-Key was already used for another request");
-        }
-        return replay(stored.get());
+        return replayOrConflict(requestHash, stored.get());
       }
     }
 
@@ -169,7 +203,11 @@ public class NewBusinessService {
     referral.put("trigger", "NEW_BUSINESS");
     referral.put("decisionId", null);
     referral.put("decisionCode", null);
-    referral.put("riskScore", 0);
+    referral.put("riskScore", null);
+    referral.put("reasons", null);
+    referral.put("lossRatio", null);
+    referral.put("override", null);
+    referral.put("overridesDecisionId", null);
     outboxWriter.append(
         OutboxWriter.UNDERWRITING_TOPIC,
         "UnderwritingReferralRequested",
@@ -212,10 +250,6 @@ public class NewBusinessService {
     addNumericError(errors, "totalPremium", request.totalPremium(), 11, 2);
     addLengthError(errors, "agentCode", request.agentCode(), 6);
     addLengthError(errors, "branchCode", request.branchCode(), 4);
-    if (!isBlank(request.policyholderId())
-        && !holders.existsByCustId(request.policyholderId().trim())) {
-      errors.add(new NewBusinessError("policyholderId", "POLICYHOLDER NOT FOUND IN SYSTEM"));
-    }
     return List.copyOf(errors);
   }
 
@@ -245,8 +279,9 @@ public class NewBusinessService {
     }
     String agent = normalize(request.agentCode());
     String branch = normalize(request.branchCode());
-    return (agent != null && agent.equals(entitlements.agentId()))
-        || (branch != null && entitlements.branchCodes().contains(branch));
+    return (agent != null || branch != null)
+        && (agent == null || agent.equals(entitlements.agentId()))
+        && (branch == null || entitlements.branchCodes().contains(branch));
   }
 
   private Policy toPolicy(String policyNumber, NewBusinessRequest request, String subject) {
@@ -341,6 +376,31 @@ public class NewBusinessService {
     } catch (JsonProcessingException | NoSuchAlgorithmException exception) {
       throw new IllegalStateException("Unable to hash policy request", exception);
     }
+  }
+
+  private String shadowRequestHash(NewBusinessRequest request) {
+    try {
+      ObjectNode withoutPolicyholderId = objectMapper.valueToTree(request);
+      withoutPolicyholderId.remove("policyholderId");
+      byte[] canonical = objectMapper.writeValueAsBytes(withoutPolicyholderId);
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical));
+    } catch (JsonProcessingException | NoSuchAlgorithmException exception) {
+      throw new IllegalStateException("Unable to hash shadow policy request", exception);
+    }
+  }
+
+  private CreatePolicyResult replayOrConflict(
+      String requestHash, IdempotencyRepository.StoredResponse stored) {
+    if (!requestHash.equals(stored.requestHash())) {
+      return problem(HttpStatus.CONFLICT, "Idempotency-Key was already used for another request");
+    }
+    return replay(stored);
+  }
+
+  private static String validatedPolicyType(String policyType, List<NewBusinessError> errors) {
+    return errors.stream().anyMatch(error -> "policyType".equals(error.field()))
+        ? null
+        : policyType;
   }
 
   private String toJson(Object response) {

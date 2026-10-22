@@ -236,20 +236,25 @@ class UndwrtServiceParityIT {
                 new UndwrtParityAdapter.PolicyUpdateRow(
                     row.getString("uw_status").trim(), row.getInt("risk_score")),
             policyNumber);
+    String eventType =
+        "RS".equals(decision.decisionCode()) || "RM".equals(decision.decisionCode())
+            ? "UnderwritingReferralRequested"
+            : "UnderwritingDecisionRecorded";
     UndwrtParityAdapter.NotificationRow notification =
         jdbc.queryForObject(
             """
             SELECT payload -> 'data' ->> 'decisionCode' AS decision_code,
                    payload -> 'data' ->> 'riskScore' AS risk_score
             FROM pas.outbox
-            WHERE aggregate_id = ? AND event_type = 'UnderwritingDecisionRecorded'
+            WHERE aggregate_id = ? AND event_type = ?
             """,
             (row, rowNumber) ->
                 new UndwrtParityAdapter.NotificationRow(
                     policyNumber,
                     row.getString("decision_code"),
                     Integer.parseInt(row.getString("risk_score"))),
-            policyNumber);
+            policyNumber,
+            eventType);
     return new UndwrtParityAdapter.Output(
         List.of(decision), List.of(policyUpdate), List.of(notification), List.of());
   }

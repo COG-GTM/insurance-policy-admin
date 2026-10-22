@@ -30,9 +30,17 @@ tests and automated tests select `PAS_CLAIMS_ADAPTER=fixture`.
 
 Policy creation and underwriting write events in the same database transaction as the policy and
 audit changes. The relay publishes in outbox ID order to `pas.policy.events.v1` and
-`pas.underwriting.events.v1`, and marks rows only after Kafka acknowledges. Topic creation is
-tuned with `PAS_KAFKA_TOPIC_PARTITIONS` and `PAS_KAFKA_TOPIC_REPLICAS`; event schemas are under
-`pas-platform/events/schemas/v1/`. Event payloads must remain PII-free.
+`pas.underwriting.events.v1`, and marks rows only after Kafka acknowledges. Each topic contains at
+most one event for a policy version. A create emits `PolicyCreated` to the policy topic and a
+`UnderwritingReferralRequested` with trigger `NEW_BUSINESS` to the underwriting topic. A decision
+or override with code RS/RM emits only `UnderwritingReferralRequested` with trigger `DECISION`;
+its data contains the complete decision payload. AP/DC decisions emit only
+`UnderwritingDecisionRecorded`. Topic creation is tuned with `PAS_KAFKA_TOPIC_PARTITIONS` and
+`PAS_KAFKA_TOPIC_REPLICAS`; event schemas are under `pas-platform/events/schemas/v1/`. Event
+payloads must remain PII-free.
+
+The `pas_shadow` `request_hash` is a digest calculated after removing `policyholderId` from the
+request; the stored hash contains no PII.
 
 ## Local verification
 

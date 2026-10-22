@@ -105,9 +105,13 @@ underwriting:override policy:read" --claim book=AGENT --claim agent_id=AGT001
 --claim branch_codes=B001`.
 
 The transactional outbox publishes to `pas.policy.events.v1` and
-`pas.underwriting.events.v1`. Set `PAS_KAFKA_TOPIC_PARTITIONS` and `PAS_KAFKA_TOPIC_REPLICAS` to
-configure topic creation. The API, claims adapter and outbox operational guidance is in
-[`docs/modernization/runbooks/new-business-underwriting.md`](../docs/modernization/runbooks/new-business-underwriting.md).
+`pas.underwriting.events.v1`. Each topic has at most one event for a policy version: create
+publishes `PolicyCreated` and a `NEW_BUSINESS` referral on their respective topics; RS/RM decision
+and override outcomes publish one `DECISION` referral with the full decision payload; AP/DC
+outcomes publish one `UnderwritingDecisionRecorded`. Set `PAS_KAFKA_TOPIC_PARTITIONS` and
+`PAS_KAFKA_TOPIC_REPLICAS` to configure topic creation. The API, claims adapter and outbox
+operational guidance is in
+[`docs/runbooks/new-business-underwriting.md`](../docs/runbooks/new-business-underwriting.md).
 
 ## Policy inquiry API (AB-524)
 

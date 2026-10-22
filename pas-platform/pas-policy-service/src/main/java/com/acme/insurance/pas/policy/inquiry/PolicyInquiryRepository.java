@@ -109,6 +109,44 @@ public class PolicyInquiryRepository {
         "branchCodes", textArray(entitlements.branchCodes()));
   }
 
+  /**
+   * True when the policyholder also holds a policy the caller is not entitled to; an ACH
+   * endorsement would otherwise change that policy's mailing address too.
+   */
+  public boolean holderHasPoliciesOutside(String policyholderId, CallerEntitlements entitlements) {
+    return jdbc.sql(
+            "SELECT EXISTS (SELECT 1 FROM pas.policies p WHERE p.policyholder_id = :policyholderId AND NOT "
+                + ENTITLEMENT_PREDICATE
+                + ")")
+        .param("policyholderId", policyholderId)
+        .params(entitlementParameters(entitlements))
+        .query(Boolean.class)
+        .single();
+  }
+
+  /**
+   * Entitlement-filtered read that takes the policy row lock for the rest of the transaction — the
+   * PostgreSQL equivalent of POLEND's {@code WITH RS USE AND KEEP UPDATE LOCKS} (AB-526). Unknown
+   * and unentitled policies are both empty so callers return 404.
+   */
+  public Optional<Policy> lockPolicy(String policyNumber, CallerEntitlements entitlements) {
+    return jdbc.sql(
+            """
+            SELECT p.policy_number, p.policy_type, p.policy_status, p.effective_date, p.expiry_date,
+                   p.policyholder_id, p.agent_code, p.branch_code, p.total_premium, p.deductible,
+                   p.coverage_limit, p.inception_date, p.renewal_count, p.uw_status, p.risk_score,
+                   p.web_indicator, p.api_flag, p.last_updated, p.updated_by
+            FROM pas.policies p
+            WHERE p.policy_number = :policyNumber AND
+            """
+                + ENTITLEMENT_PREDICATE
+                + " FOR UPDATE OF p")
+        .param("policyNumber", policyNumber)
+        .params(entitlementParameters(entitlements))
+        .query((row, rowNumber) -> policy(row))
+        .optional();
+  }
+
   private static AbstractSqlTypeValue textArray(List<String> branchCodes) {
     Object[] values = branchCodes.toArray(String[]::new);
     return new AbstractSqlTypeValue() {

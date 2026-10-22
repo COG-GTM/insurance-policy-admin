@@ -4,7 +4,9 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,6 +33,7 @@ public class OutboxRelay {
   private final KafkaTemplate<String, String> kafka;
   private final OutboxRelayProperties properties;
   private final MeterRegistry metrics;
+  private final Map<String, FailureBackoff> failureBackoff = new ConcurrentHashMap<>();
 
   @SuppressFBWarnings(
       value = "EI_EXPOSE_REP2",
@@ -64,30 +67,62 @@ public class OutboxRelay {
     if (!Boolean.TRUE.equals(locked)) {
       return;
     }
-    Set<String> failedPolicies = new HashSet<>();
-    for (OutboxRepository.OutboxRecord record : outbox.unpublished(properties.batchSize())) {
-      if (failedPolicies.contains(record.aggregateId())) {
-        continue;
+    int published = 0;
+    while (published < properties.batchSize() && !Thread.currentThread().isInterrupted()) {
+      Set<String> excludedPolicies = policiesInBackoff();
+      var records = outbox.unpublished(properties.batchSize() - published, excludedPolicies);
+      if (records.isEmpty()) {
+        break;
       }
-      try {
-        kafka
-            .send(record.topic(), record.aggregateId(), record.payload())
-            .get(properties.ackTimeout().toMillis(), TimeUnit.MILLISECONDS);
-        outbox.markPublished(record.id());
-        metrics.counter("pas.outbox.published", "topic", record.topic()).increment();
-      } catch (InterruptedException exception) {
-        Thread.currentThread().interrupt();
-        recordFailure(record, failedPolicies);
-      } catch (ExecutionException | TimeoutException | RuntimeException exception) {
-        recordFailure(record, failedPolicies);
+      int publishedThisPass = 0;
+      for (OutboxRepository.OutboxRecord record : records) {
+        try {
+          kafka
+              .send(record.topic(), record.aggregateId(), record.payload())
+              .get(properties.ackTimeout().toMillis(), TimeUnit.MILLISECONDS);
+          outbox.markPublished(record.id());
+          failureBackoff.remove(record.aggregateId());
+          metrics.counter("pas.outbox.published", "topic", record.topic()).increment();
+          published++;
+          publishedThisPass++;
+        } catch (InterruptedException exception) {
+          Thread.currentThread().interrupt();
+          recordFailure(record);
+          break;
+        } catch (ExecutionException | TimeoutException | RuntimeException exception) {
+          recordFailure(record);
+        }
+      }
+      if (publishedThisPass == 0) {
+        break;
       }
     }
   }
 
-  private void recordFailure(OutboxRepository.OutboxRecord record, Set<String> failedPolicies) {
-    failedPolicies.add(record.aggregateId());
+  private Set<String> policiesInBackoff() {
+    long now = System.nanoTime();
+    Set<String> excluded = new HashSet<>();
+    failureBackoff.forEach(
+        (policyNumber, backoff) -> {
+          if (now - backoff.retryAtNanos() < 0) {
+            excluded.add(policyNumber);
+          }
+        });
+    return Set.copyOf(excluded);
+  }
+
+  private void recordFailure(OutboxRepository.OutboxRecord record) {
+    FailureBackoff previous = failureBackoff.get(record.aggregateId());
+    int failures = previous == null ? 1 : Math.min(previous.failures() + 1, 7);
+    long delayMillis = Math.min(60_000L, 1_000L << (failures - 1));
+    failureBackoff.put(
+        record.aggregateId(),
+        new FailureBackoff(
+            failures, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(delayMillis)));
     metrics.counter("pas.outbox.publish.failures", "topic", record.topic()).increment();
     LOGGER.error(
         "pas.outbox.publish.failed policyNumber={} topic={}", record.aggregateId(), record.topic());
   }
+
+  private record FailureBackoff(int failures, long retryAtNanos) {}
 }

@@ -21,6 +21,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
@@ -29,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UnderwritingService {
-  private static final Pattern POLICY_NUMBER = Pattern.compile("POL[0-9]{9}");
+  private static final Pattern POLICY_NUMBER = Pattern.compile("[A-Za-z0-9-]{1,12}");
 
   private final PolicyRepository policies;
   private final PolicyInquiryRepository policyInquiry;
@@ -68,6 +69,10 @@ public class UnderwritingService {
 
   public static boolean validPolicyNumber(String policyNumber) {
     return policyNumber != null && POLICY_NUMBER.matcher(policyNumber).matches();
+  }
+
+  public static String normalizePolicyNumber(String policyNumber) {
+    return policyNumber == null ? null : policyNumber.toUpperCase(Locale.ROOT);
   }
 
   @Transactional
@@ -144,13 +149,6 @@ public class UnderwritingService {
     long policyVersion =
         policies.updateUnderwriting(
             policyNumber, decision.code().name(), decision.riskScore(), "UNDWRT");
-    outbox.append(
-        OutboxWriter.UNDERWRITING_TOPIC,
-        "UnderwritingDecisionRecorded",
-        policyNumber,
-        policyVersion,
-        correlationId,
-        decisionData(decisionId, decision, false, null));
     if (isReferral(decision.code().name())) {
       outbox.append(
           OutboxWriter.UNDERWRITING_TOPIC,
@@ -158,7 +156,15 @@ public class UnderwritingService {
           policyNumber,
           policyVersion,
           correlationId,
-          referralData("DECISION", decisionId, decision.code().name(), decision.riskScore()));
+          referralData(decisionId, decision, false, null));
+    } else {
+      outbox.append(
+          OutboxWriter.UNDERWRITING_TOPIC,
+          "UnderwritingDecisionRecorded",
+          policyNumber,
+          policyVersion,
+          correlationId,
+          decisionData(decisionId, decision, false, null));
     }
     return response(
         decisionId,
@@ -227,13 +233,6 @@ public class UnderwritingService {
     long newDecisionId = decisions.insert(draft);
     long policyVersion =
         policies.updateUnderwriting(policyNumber, code, original.riskScore(), "UNDWRT");
-    outbox.append(
-        OutboxWriter.UNDERWRITING_TOPIC,
-        "UnderwritingDecisionRecorded",
-        policyNumber,
-        policyVersion,
-        correlationId,
-        overrideData(newDecisionId, code, original));
     if (isReferral(code)) {
       outbox.append(
           OutboxWriter.UNDERWRITING_TOPIC,
@@ -241,7 +240,22 @@ public class UnderwritingService {
           policyNumber,
           policyVersion,
           correlationId,
-          referralData("DECISION", newDecisionId, code, original.riskScore()));
+          referralData(
+              newDecisionId,
+              code,
+              original.riskScore(),
+              List.of("MANUAL OVERRIDE"),
+              original.lossRatio(),
+              true,
+              original.decisionId()));
+    } else {
+      outbox.append(
+          OutboxWriter.UNDERWRITING_TOPIC,
+          "UnderwritingDecisionRecorded",
+          policyNumber,
+          policyVersion,
+          correlationId,
+          overrideData(newDecisionId, code, original));
     }
     return response(
         newDecisionId,
@@ -366,12 +380,34 @@ public class UnderwritingService {
   }
 
   private static Map<String, Object> referralData(
-      String trigger, Long decisionId, String decisionCode, int riskScore) {
+      long decisionId, UnderwritingOutcome decision, boolean override, Long overridesDecisionId) {
+    return referralData(
+        decisionId,
+        decision.code().name(),
+        decision.riskScore(),
+        decision.reasons(),
+        decision.lossRatio(),
+        override,
+        overridesDecisionId);
+  }
+
+  private static Map<String, Object> referralData(
+      long decisionId,
+      String decisionCode,
+      int riskScore,
+      List<String> reasons,
+      BigDecimal lossRatio,
+      boolean override,
+      Long overridesDecisionId) {
     Map<String, Object> data = new LinkedHashMap<>();
-    data.put("trigger", trigger);
+    data.put("trigger", "DECISION");
     data.put("decisionId", decisionId);
     data.put("decisionCode", decisionCode);
     data.put("riskScore", riskScore);
+    data.put("reasons", reasons);
+    data.put("lossRatio", lossRatio);
+    data.put("override", override);
+    data.put("overridesDecisionId", overridesDecisionId);
     return data;
   }
 }

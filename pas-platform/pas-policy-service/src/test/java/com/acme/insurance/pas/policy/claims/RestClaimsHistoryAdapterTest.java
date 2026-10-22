@@ -122,4 +122,46 @@ class RestClaimsHistoryAdapterTest {
     server.verify(
         1, getRequestedFor(urlPathEqualTo("/claims/v1/policies/POL000000003/open-claims")));
   }
+
+  @Test
+  void rejectsIncompleteOrNegativeSuccessfulResponses() {
+    server.stubFor(
+        get(urlPathEqualTo("/claims/v1/policies/POL000000004/open-claims"))
+            .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("{}")));
+    server.stubFor(
+        get(urlPathEqualTo("/claims/v1/policies/POL000000005/open-claims"))
+            .willReturn(
+                aResponse()
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{\"openClaimCount\":-1}")));
+    server.stubFor(
+        get(urlPathEqualTo("/claims/v1/policies/POL000000006/summary"))
+            .withQueryParam("since", equalTo("2020-01-01"))
+            .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("{}")));
+    server.stubFor(
+        get(urlPathEqualTo("/claims/v1/policies/POL000000007/summary"))
+            .withQueryParam("since", equalTo("2020-01-01"))
+            .willReturn(
+                aResponse()
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{\"claimCount\":-1,\"totalIncurred\":0}")));
+    server.stubFor(
+        get(urlPathEqualTo("/claims/v1/policies/POL000000008/summary"))
+            .withQueryParam("since", equalTo("2020-01-01"))
+            .willReturn(
+                aResponse()
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("{\"claimCount\":1}")));
+
+    assertThatThrownBy(() -> adapter.countOpenClaims("POL000000004"))
+        .isInstanceOf(ClaimsHistoryUnavailableException.class);
+    assertThatThrownBy(() -> adapter.countOpenClaims("POL000000005"))
+        .isInstanceOf(ClaimsHistoryUnavailableException.class);
+    assertThatThrownBy(() -> adapter.summarizeSince("POL000000006", LocalDate.of(2020, 1, 1)))
+        .isInstanceOf(ClaimsHistoryUnavailableException.class);
+    assertThatThrownBy(() -> adapter.summarizeSince("POL000000007", LocalDate.of(2020, 1, 1)))
+        .isInstanceOf(ClaimsHistoryUnavailableException.class);
+    assertThatThrownBy(() -> adapter.summarizeSince("POL000000008", LocalDate.of(2020, 1, 1)))
+        .isInstanceOf(ClaimsHistoryUnavailableException.class);
+  }
 }

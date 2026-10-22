@@ -2,7 +2,8 @@ package com.acme.insurance.pas.policy.newbusiness;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.acme.insurance.pas.policy.events.OutboxWriter;
 import com.acme.insurance.pas.policy.repository.CoverageRepository;
@@ -32,7 +33,6 @@ class NewBusinessServiceTest {
 
   @Test
   void collectsAllNewBusinessAndColumnErrors() {
-    when(holders.existsByCustId("MISSING")).thenReturn(false);
     var errors =
         service.validate(
             new NewBusinessRequest(
@@ -54,15 +54,14 @@ class NewBusinessServiceTest {
             "deductible",
             "totalPremium",
             "agentCode",
-            "branchCode",
-            "policyholderId");
+            "branchCode");
     assertThat(errors)
         .extracting(NewBusinessError::message)
         .contains(
             "POLICY TYPE IS REQUIRED",
             "EFFECTIVE DATE CANNOT BE IN PAST",
-            "POLICY LIMIT MUST BE GREATER THAN ZERO",
-            "POLICYHOLDER NOT FOUND IN SYSTEM");
+            "POLICY LIMIT MUST BE GREATER THAN ZERO");
+    verify(holders, never()).existsByCustId("MISSING");
   }
 
   @Test

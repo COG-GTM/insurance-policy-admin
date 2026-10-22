@@ -69,4 +69,14 @@ public class EndorsementRepository {
         JdbcValues.timestamp(row, "processed_date"),
         JdbcValues.charValue(row, "processed_by"));
   }
+
+  /** POLEND 5000: MAX(ENDORSEMENT_SEQ); callers hold the policy row lock. */
+  public Integer maxSequence(String policyNumber) {
+    return jdbc.sql(
+            "SELECT MAX(endorsement_seq) FROM pas.endorsements WHERE policy_number = :policyNumber")
+        .param("policyNumber", policyNumber)
+        .query(Integer.class)
+        .optional()
+        .orElse(null);
+  }
 }

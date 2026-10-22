@@ -2,10 +2,13 @@ package com.acme.insurance.pas.policy.newbusiness;
 
 import com.acme.insurance.pas.common.routing.RouteFlags;
 import com.acme.insurance.pas.common.routing.RouteState;
+import com.acme.insurance.pas.policy.events.CorrelationIds;
 import com.acme.insurance.pas.policy.inquiry.CallerEntitlements;
 import com.acme.insurance.pas.policy.platform.ApiProblem;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -14,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,11 +42,13 @@ public class NewBusinessController {
   @Operation(
       summary = "Create a new-business policy",
       description =
-          "Requires policy:write and entitlement to the requested agent or branch. Shadow mode records only PII-free validation results.")
+          "Requires policy:write and entitlement to the requested agent or branch. Shadow mode records only PII-free validation results.",
+      parameters =
+          @Parameter(in = ParameterIn.HEADER, name = CorrelationIds.HEADER_NAME, required = false))
   public ResponseEntity<Object> create(
       @RequestBody NewBusinessRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId,
+      @RequestAttribute(CorrelationIds.REQUEST_ATTRIBUTE) String correlationId,
       @AuthenticationPrincipal Jwt jwt) {
     RouteState state = routeFlags.state(RouteFlags.NEW_BUSINESS);
     if (state == RouteState.LEGACY || state == RouteState.RETIRED) {
