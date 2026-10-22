@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local
+.PHONY: compat compat-static compat-api compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local extract-compare
 
 compat: compat-static compat-build compat-api
 
@@ -72,3 +72,15 @@ local:
 	BATCH_PORT="$$(docker compose port pas-batch 8081 | sed 's/.*://')" && \
 	curl -fsS "http://localhost:$$POLICY_PORT/actuator/health/readiness" && \
 	curl -fsS "http://localhost:$$BATCH_PORT/actuator/health/readiness"
+
+extract-compare:
+	@if [ -z "$(EXPECTED)" ] || [ -z "$(ACTUAL)" ]; then \
+		printf 'Usage: make extract-compare EXPECTED=<dir> ACTUAL=<dir>\n' >&2; exit 2; \
+	fi
+	@if ! ls pas-platform/pas-batch/target/pas-batch-*.jar >/dev/null 2>&1; then \
+		cd pas-platform && ./mvnw -B -q -pl pas-batch -am package -DskipTests; \
+	fi
+	cd pas-platform && jar=$$(find pas-batch/target -maxdepth 1 -type f -name 'pas-batch-*.jar' ! -name '*-original.jar' | head -n 1) && \
+		java -Dloader.main=com.acme.insurance.pas.batch.extract.compare.ExtractCompare \
+		-cp "$$jar" org.springframework.boot.loader.launch.PropertiesLauncher \
+		"$(abspath $(EXPECTED))" "$(abspath $(ACTUAL))"

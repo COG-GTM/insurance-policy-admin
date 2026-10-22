@@ -68,6 +68,7 @@ differences must cite the Q-id.
 | Q-43 | java-facade seed | Seed data uses values outside COBOL domains (`POL-00000001`, type `CGL`, tiers `A`/`B`) | Data migration lead | Preserve | AB-521, AB-529 |
 | Q-44 | UNDWRT, POLRNW | CICS RECEIVE failure leaves the performed flow running into later processing | PAS product owner / Underwriting | Fix | AB-525, AB-526 |
 | Q-45 | UNDWRT | Negative credit loses its sign when moved into unsigned `CUST-CREDIT-SCORE` | Underwriting | Fix | AB-525 |
+| Q-46 | Extract ordering | DB2 EBCDIC collation can order mixed letter/digit codes differently from ASCII; ties are not fully ordered | Mainframe team (batch) | Fix | AB-527 |
 
 ## Details
 
@@ -521,8 +522,8 @@ differences must cite the Q-id.
 - **Location:** `jcl/DAILY-EXTRACT.jcl:31-56` (STEP010 allocates POLOUT LRECL 200), `jcl/DAILY-EXTRACT.jcl:61-81` (STEP020 allocates COVOUT LRECL 150 and has no SYSPRINT DD), `jcl/MONTHLY-EXPOSURE.jcl:26-58` (EXPOUT LRECL 300).
 - **Observed:** standard DSNTEP2 writes a formatted report (headings, column titles, page breaks) to SYSPRINT. It does not write to POLOUT, COVOUT or EXPOUT. STEP010 runs DSNTEP2 from `ACME.PAS.LOADLIB` (`jcl/DAILY-EXTRACT.jcl:42-43`), so it may be a site-modified copy. As written, the extract datasets would be empty and STEP020 has nowhere to write its output. The file the consumers actually receive cannot be derived from this repository.
 - **Owner:** Mainframe team (batch).
-- **Decision:** **Fix.** The new extracts have explicit fixed-width layouts (LRECL 200, 150 and 300) taken from real production samples. Parity compares against captured production files, not against the JCL (OQ-13).
-- **Implemented by:** AB-527 (layouts), AB-520 (golden files).
+- **Decision:** **Fix.** The new extracts have explicit versioned layouts (fixed LRECL 200 and 150, and CSV maximum record length 300) reconstructed from the schema and JCL clues. They are not proven byte-parity layouts. Compare against captured production files, not the JCL, when samples become available (OQ-13).
+- **Implemented by:** AB-527 (layouts and comparer); parity remains pending production samples.
 
 ### Q-42
 
@@ -567,3 +568,14 @@ differences must cite the Q-id.
 - **Decision:** **Fix.** Treat scores less than or equal to zero as no score, with base 400.
 - **Found by:** AB-520.
 - **Implemented by:** AB-525.
+
+### Q-46
+
+**Extract ordering depends on DB2 EBCDIC collation and leaves ties unordered**
+
+- **Location:** `jcl/DAILY-EXTRACT.jcl:53-56`, `jcl/DAILY-EXTRACT.jcl:78-81`, and `jcl/MONTHLY-EXPOSURE.jcl:53-57`.
+- **Observed:** DB2 compares character values in its EBCDIC code page, while PostgreSQL's `"C"` collation compares bytes in the extract's ASCII-compatible character set. Mixed letters and digits (including branch codes) may therefore sort differently. The legacy exposure order specifies only policy type and branch, leaving rows tied on those keys in an unspecified order.
+- **Impact:** byte-for-byte comparisons can differ or vary between runs even when the selected rows and values are the same.
+- **Owner:** Mainframe team (batch), with Actuarial and Claims for sample validation.
+- **Decision:** **Fix.** Order with PostgreSQL byte-order `"C"` collation and all grouping keys as deterministic tiebreakers. Validate the resulting order against production samples before cutover.
+- **Implemented by:** AB-527.
