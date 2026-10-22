@@ -4,24 +4,23 @@ import com.acme.insurance.pas.domain.Coded;
 import com.acme.insurance.pas.domain.Coverage;
 import com.acme.insurance.pas.domain.CoverageStatus;
 import com.acme.insurance.pas.domain.CoverageType;
-import com.acme.insurance.pas.domain.CustomerType;
 import com.acme.insurance.pas.domain.Policy;
 import com.acme.insurance.pas.domain.PolicyHolder;
 import com.acme.insurance.pas.domain.PolicyStatus;
 import com.acme.insurance.pas.domain.PolicyType;
-import com.acme.insurance.pas.domain.RiskTier;
 import com.acme.insurance.pas.domain.UnderwritingStatus;
 import com.acme.insurance.pas.domain.YesNo;
-import com.acme.insurance.pas.pii.PiiCipher;
-import com.acme.insurance.pas.pii.PiiContext;
-import com.acme.insurance.pas.pii.PolicyHolderPii;
+import com.acme.insurance.pas.policy.repository.PolicyHolderRepository;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.core.support.AbstractSqlTypeValue;
 import org.springframework.stereotype.Repository;
@@ -31,17 +30,20 @@ public class PolicyInquiryRepository {
   private static final String ENTITLEMENT_PREDICATE =
       """
       (:wholeBook OR
-       (CAST(:agentId AS text) IS NOT NULL AND rtrim(p.agent_code) = CAST(:agentId AS text)) OR
-       (cardinality(CAST(:branchCodes AS text[])) > 0
-        AND rtrim(p.branch_code) = ANY(CAST(:branchCodes AS text[]))))
+       (CAST(:agentId AS bpchar) IS NOT NULL AND p.agent_code = CAST(:agentId AS bpchar)) OR
+       (cardinality(CAST(:branchCodes AS bpchar[])) > 0
+        AND p.branch_code = ANY(CAST(:branchCodes AS bpchar[]))))
       """;
 
   private final JdbcClient jdbc;
-  private final PiiCipher cipher;
+  private final PolicyHolderRepository policyHolderRepository;
 
-  public PolicyInquiryRepository(JdbcClient jdbc, PiiCipher cipher) {
+  @SuppressFBWarnings(
+      value = "EI_EXPOSE_REP2",
+      justification = "Spring-managed repository collaborator is retained for holder lookup.")
+  public PolicyInquiryRepository(JdbcClient jdbc, PolicyHolderRepository policyHolderRepository) {
     this.jdbc = jdbc;
-    this.cipher = cipher;
+    this.policyHolderRepository = policyHolderRepository;
   }
 
   public Optional<Policy> findPolicy(String policyNumber, CallerEntitlements entitlements) {
@@ -80,29 +82,26 @@ public class PolicyInquiryRepository {
   }
 
   public Optional<PolicyHolder> findHolder(String policyNumber, CallerEntitlements entitlements) {
-    return jdbc.sql(
-            """
-            SELECT h.cust_id, h.cust_type, h.last_name, h.first_name, h.middle_init,
-                   h.company_name, h.addr_line1, h.addr_line2, h.city, h.state_code, h.zip_code,
-                   h.country_code, h.phone, h.email, h.date_of_birth_enc, h.ssn_last4_enc,
-                   h.tax_id_enc, h.credit_score_enc, h.risk_tier, h.gdpr_consent, h.created_date,
-                   h.last_updated
+    Optional<String> policyholderId =
+        jdbc.sql(
+                """
+            SELECT p.policyholder_id
             FROM pas.policies p
-            JOIN pas.policy_holders h ON h.cust_id = p.policyholder_id
             WHERE p.policy_number = :policyNumber AND
             """
-                + ENTITLEMENT_PREDICATE)
-        .param("policyNumber", policyNumber)
-        .params(entitlementParameters(entitlements))
-        .query((row, rowNumber) -> holder(row))
-        .optional();
+                    + ENTITLEMENT_PREDICATE)
+            .param("policyNumber", policyNumber)
+            .params(entitlementParameters(entitlements))
+            .query((row, rowNumber) -> charValue(row, "policyholder_id"))
+            .optional();
+    return policyholderId.flatMap(policyHolderRepository::findByCustId);
   }
 
   private static java.util.Map<String, Object> entitlementParameters(
       CallerEntitlements entitlements) {
     return java.util.Map.of(
         "wholeBook", entitlements.wholeBook(),
-        "agentId", entitlements.agentId() == null ? "" : entitlements.agentId(),
+        "agentId", new SqlParameterValue(Types.VARCHAR, entitlements.agentId()),
         "branchCodes", textArray(entitlements.branchCodes()));
   }
 
@@ -155,41 +154,6 @@ public class PolicyInquiryRepository {
         integer(row, "coinsurance_pct"),
         charValue(row, "rating_territory"),
         charValue(row, "class_code"));
-  }
-
-  private PolicyHolder holder(ResultSet row) throws SQLException {
-    String custId = charValue(row, "cust_id");
-    return new PolicyHolder(
-        custId,
-        coded(row, "cust_type", CustomerType.class),
-        row.getString("last_name"),
-        row.getString("first_name"),
-        charValue(row, "middle_init"),
-        row.getString("company_name"),
-        row.getString("addr_line1"),
-        row.getString("addr_line2"),
-        row.getString("city"),
-        charValue(row, "state_code"),
-        charValue(row, "zip_code"),
-        charValue(row, "country_code"),
-        row.getString("phone"),
-        row.getString("email"),
-        PolicyHolderPii.decryptDate(
-            row.getBytes("date_of_birth_enc"), cipher, context(custId, "date_of_birth_enc")),
-        PolicyHolderPii.decryptString(
-            row.getBytes("ssn_last4_enc"), cipher, context(custId, "ssn_last4_enc")),
-        PolicyHolderPii.decryptString(
-            row.getBytes("tax_id_enc"), cipher, context(custId, "tax_id_enc")),
-        PolicyHolderPii.decryptInteger(
-            row.getBytes("credit_score_enc"), cipher, context(custId, "credit_score_enc")),
-        coded(row, "risk_tier", RiskTier.class),
-        coded(row, "gdpr_consent", YesNo.class),
-        date(row, "created_date"),
-        timestamp(row, "last_updated"));
-  }
-
-  private static PiiContext context(String custId, String column) {
-    return new PiiContext("policy_holders", column, custId);
   }
 
   private static String charValue(ResultSet row, String column) throws SQLException {

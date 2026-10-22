@@ -129,6 +129,24 @@ class PolicyInquirySecurityIT {
   }
 
   @Test
+  void doesNotExposePoliciesWithBlankOrNullAgentCodesWithoutMatchingBranchEntitlement()
+      throws Exception {
+    insertPolicyWithAgentCode("POL-90000001", "      ");
+    insertPolicyWithAgentCode("POL-90000002", null);
+
+    for (String policyNumber : List.of("POL-90000001", "POL-90000002")) {
+      for (String path :
+          List.of(
+              "/api/v1/policies/" + policyNumber,
+              "/api/v1/policies/" + policyNumber + "/coverages",
+              "/api/v1/policies/" + policyNumber + "/policyholder")) {
+        assertNotFound(path, Map.of("branch_codes", List.of("NYC1")));
+        assertNotFound(path, Map.of());
+      }
+    }
+  }
+
+  @Test
   void masksPolicyholderPiiAndOmitsCreditScoreUnlessScopeIsGranted() throws Exception {
     String path = "/api/v1/policies/POL-00000001/policyholder";
     ResponseEntity<String> masked =
@@ -179,6 +197,26 @@ class PolicyInquirySecurityIT {
         get(path, PolicyJwtTestSupport.mint(PasScopes.POLICY_READ, claims));
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     assertThat(response.getBody()).isNullOrEmpty();
+  }
+
+  private void insertPolicyWithAgentCode(String policyNumber, String agentCode) {
+    jdbcTemplate.update(
+        """
+        INSERT INTO pas.policies (
+            policy_number, policy_type, policy_status, effective_date, expiry_date,
+            policyholder_id, agent_code, branch_code, total_premium, deductible,
+            coverage_limit, inception_date, renewal_count, uw_status, risk_score,
+            web_indicator, api_flag, last_updated, updated_by
+        )
+        SELECT ?, policy_type, policy_status, effective_date, expiry_date,
+               policyholder_id, CAST(? AS CHAR(6)), 'CHI1', total_premium, deductible,
+               coverage_limit, inception_date, renewal_count, uw_status, risk_score,
+               web_indicator, api_flag, last_updated, updated_by
+        FROM pas.policies
+        WHERE policy_number = 'POL-00000001'
+        """,
+        policyNumber,
+        agentCode);
   }
 
   private static List<String> inquiryPaths() {
