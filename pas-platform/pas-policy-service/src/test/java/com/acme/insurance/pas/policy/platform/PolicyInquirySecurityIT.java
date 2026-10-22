@@ -3,9 +3,18 @@ package com.acme.insurance.pas.policy.platform;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.common.security.PasScopes;
+import com.acme.insurance.pas.domain.Coded;
+import com.acme.insurance.pas.domain.CustomerType;
+import com.acme.insurance.pas.domain.PolicyHolder;
+import com.acme.insurance.pas.domain.RiskTier;
+import com.acme.insurance.pas.domain.YesNo;
 import com.acme.insurance.pas.policy.dev.FacadeSeedLoader;
+import com.acme.insurance.pas.policy.repository.PolicyHolderRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +48,7 @@ class PolicyInquirySecurityIT {
   @Autowired private FacadeSeedLoader seedLoader;
   @Autowired private ObjectMapper objectMapper;
   @Autowired private JdbcTemplate jdbcTemplate;
+  @Autowired private PolicyHolderRepository policyHolderRepository;
   @LocalServerPort private int port;
 
   @DynamicPropertySource
@@ -186,6 +196,35 @@ class PolicyInquirySecurityIT {
   }
 
   @Test
+  void fullyRedactsShortTaxIdsUnlessPiiScopeIsGranted() throws Exception {
+    assertShortTaxIdMaskedAndReadable("POL-90000010", "C900000010", "1234");
+    assertShortTaxIdMaskedAndReadable("POL-90000011", "C900000011", "12");
+  }
+
+  @Test
+  void trimsCoverageStringsLikeTheLegacyFacade() throws Exception {
+    insertPaddedCoverage();
+
+    ResponseEntity<String> response =
+        get(
+            "/api/v1/policies/POL-00000001/coverages",
+            PolicyJwtTestSupport.mint(PasScopes.POLICY_READ, Map.of("book", "ALL")));
+    JsonNode coverages = objectMapper.readTree(response.getBody());
+    JsonNode paddedCoverage = null;
+    for (JsonNode coverage : coverages) {
+      if (coverage.path("sequenceNum").asInt() == 99) {
+        paddedCoverage = coverage;
+        break;
+      }
+    }
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(paddedCoverage).isNotNull();
+    assertThat(paddedCoverage.path("description").asText()).isEqualTo("Liability");
+    assertThat(paddedCoverage.path("classCode").asText()).isEqualTo("XX");
+  }
+
+  @Test
   void returnsEmptyNotFoundWhenPolicyholderIsMissing() throws Exception {
     jdbcTemplate.update("DELETE FROM pas.policy_holders WHERE cust_id = ?", "C000000002");
     assertNotFound("/api/v1/policies/POL-00000002/policyholder", Map.of("book", "ALL"));
@@ -217,6 +256,87 @@ class PolicyInquirySecurityIT {
         """,
         policyNumber,
         agentCode);
+  }
+
+  private void insertPaddedCoverage() {
+    jdbcTemplate.update(
+        """
+        INSERT INTO pas.coverages (
+            policy_number, sequence_num, coverage_type, description, coverage_limit,
+            deductible, premium, effective_date, expiry_date, status, coinsurance_pct,
+            rating_territory, class_code
+        )
+        SELECT policy_number, 99, coverage_type, ?, coverage_limit, deductible, premium,
+               effective_date, expiry_date, status, coinsurance_pct, rating_territory,
+               CAST(? AS CHAR(5))
+        FROM pas.coverages
+        WHERE policy_number = 'POL-00000001' AND sequence_num = 1
+        """,
+        "  Liability  ",
+        " XX ");
+  }
+
+  private void assertShortTaxIdMaskedAndReadable(String policyNumber, String custId, String taxId)
+      throws Exception {
+    LocalDate today = LocalDate.now(ZoneOffset.UTC);
+    OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+    policyHolderRepository.insert(
+        new PolicyHolder(
+            custId,
+            Coded.of(CustomerType.class, "I"),
+            "Test",
+            "User",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "USA",
+            null,
+            null,
+            null,
+            null,
+            taxId,
+            null,
+            Coded.of(RiskTier.class, "S"),
+            Coded.of(YesNo.class, "N"),
+            today,
+            now));
+    jdbcTemplate.update(
+        """
+        INSERT INTO pas.policies (
+            policy_number, policy_type, policy_status, effective_date, expiry_date,
+            policyholder_id, agent_code, branch_code, total_premium, deductible,
+            coverage_limit, inception_date, renewal_count, uw_status, risk_score,
+            web_indicator, api_flag, last_updated, updated_by
+        )
+        SELECT ?, policy_type, policy_status, effective_date, expiry_date,
+               ?, agent_code, branch_code, total_premium, deductible, coverage_limit,
+               inception_date, renewal_count, uw_status, risk_score, web_indicator,
+               api_flag, last_updated, updated_by
+        FROM pas.policies
+        WHERE policy_number = 'POL-00000001'
+        """,
+        policyNumber,
+        custId);
+
+    String path = "/api/v1/policies/" + policyNumber + "/policyholder";
+    JsonNode masked =
+        objectMapper.readTree(
+            get(path, PolicyJwtTestSupport.mint(PasScopes.POLICY_READ, Map.of("book", "ALL")))
+                .getBody());
+    assertThat(masked.path("taxId").asText()).isEqualTo("****");
+
+    JsonNode unmasked =
+        objectMapper.readTree(
+            get(
+                    path,
+                    PolicyJwtTestSupport.mint(
+                        PasScopes.POLICY_READ + " " + PasScopes.PII_READ, Map.of("book", "ALL")))
+                .getBody());
+    assertThat(unmasked.path("taxId").asText()).isEqualTo(taxId);
   }
 
   private static List<String> inquiryPaths() {

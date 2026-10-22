@@ -79,9 +79,11 @@ For local development, use `dev/dev-jwt.sh keygen` and `dev/dev-jwt.sh mint`. Ke
 response contract. `GET /api/v1/policies/{policyNumber}/policyholder` provides
 the POLQRY screen view. All three require `policy:read` plus an object-level
 entitlement: `book=ALL`, a matching `agent_id`, or a matching value in
-`branch_codes`. Claims are trimmed and compared case-insensitively (Q-32,
-ADR D7). Missing or nonmatching entitlements are deliberately indistinguishable
-from an unknown policy (404).
+`branch_codes`. Claims are trimmed (Q-32, ADR D7). Agent and branch codes are
+stored uppercase legacy DB2 values, written only by the sync job, and JWT
+claims are upper-cased before SQL comparison; a non-uppercase stored code fails
+closed with 404, never open. Missing or nonmatching entitlements are
+deliberately indistinguishable from an unknown policy (404).
 
 The policyholder endpoint returns `Cache-Control: no-store`. Without `pii:read`,
 SSN and tax ID are masked, date of birth is withheld (birth year remains

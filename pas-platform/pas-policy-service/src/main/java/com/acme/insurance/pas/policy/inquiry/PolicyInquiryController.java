@@ -228,11 +228,18 @@ public class PolicyInquiryController {
         piiRead ? date(dateOfBirth) : null,
         dateOfBirth == null ? null : dateOfBirth.getYear(),
         piiRead ? holder.ssnLast4() : Masking.redact(holder.ssnLast4()),
-        piiRead ? holder.taxId() : Masking.last(holder.taxId(), 4),
+        piiRead ? holder.taxId() : maskTaxId(holder.taxId()),
         piiRead ? holder.creditScore() : null,
         raw(holder.riskTier()),
         raw(holder.gdprConsent()),
         !piiRead);
+  }
+
+  private static String maskTaxId(String taxId) {
+    if (taxId == null) {
+      return null;
+    }
+    return taxId.length() <= 4 ? Masking.redact(taxId) : Masking.last(taxId, 4);
   }
 
   private static String date(LocalDate date) {

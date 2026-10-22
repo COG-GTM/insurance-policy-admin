@@ -92,7 +92,7 @@ public class PolicyInquiryRepository {
                     + ENTITLEMENT_PREDICATE)
             .param("policyNumber", policyNumber)
             .params(entitlementParameters(entitlements))
-            .query((row, rowNumber) -> charValue(row, "policyholder_id"))
+            .query((row, rowNumber) -> trimmedString(row, "policyholder_id"))
             .optional();
     return policyholderId.flatMap(policyHolderRepository::findByCustId);
   }
@@ -118,14 +118,14 @@ public class PolicyInquiryRepository {
 
   private Policy policy(ResultSet row) throws SQLException {
     return new Policy(
-        charValue(row, "policy_number"),
+        trimmedString(row, "policy_number"),
         coded(row, "policy_type", PolicyType.class),
         coded(row, "policy_status", PolicyStatus.class),
         date(row, "effective_date"),
         date(row, "expiry_date"),
-        charValue(row, "policyholder_id"),
-        charValue(row, "agent_code"),
-        charValue(row, "branch_code"),
+        trimmedString(row, "policyholder_id"),
+        trimmedString(row, "agent_code"),
+        trimmedString(row, "branch_code"),
         row.getBigDecimal("total_premium"),
         row.getBigDecimal("deductible"),
         row.getBigDecimal("coverage_limit"),
@@ -136,15 +136,15 @@ public class PolicyInquiryRepository {
         coded(row, "web_indicator", YesNo.class),
         coded(row, "api_flag", YesNo.class),
         timestamp(row, "last_updated"),
-        charValue(row, "updated_by"));
+        trimmedString(row, "updated_by"));
   }
 
   private static Coverage coverage(ResultSet row) throws SQLException {
     return new Coverage(
-        charValue(row, "policy_number"),
+        trimmedString(row, "policy_number"),
         integer(row, "sequence_num"),
         coded(row, "coverage_type", CoverageType.class),
-        row.getString("description"),
+        trimmedString(row, "description"),
         row.getBigDecimal("coverage_limit"),
         row.getBigDecimal("deductible"),
         row.getBigDecimal("premium"),
@@ -152,13 +152,13 @@ public class PolicyInquiryRepository {
         date(row, "expiry_date"),
         coded(row, "status", CoverageStatus.class),
         integer(row, "coinsurance_pct"),
-        charValue(row, "rating_territory"),
-        charValue(row, "class_code"));
+        trimmedString(row, "rating_territory"),
+        trimmedString(row, "class_code"));
   }
 
-  private static String charValue(ResultSet row, String column) throws SQLException {
+  private static String trimmedString(ResultSet row, String column) throws SQLException {
     String value = row.getString(column);
-    return value == null ? null : value.replaceFirst(" +$", "");
+    return value == null ? null : value.trim();
   }
 
   private static LocalDate date(ResultSet row, String column) throws SQLException {
@@ -176,7 +176,7 @@ public class PolicyInquiryRepository {
 
   private static <E extends Enum<E> & com.acme.insurance.pas.domain.CobolCode> Coded<E> coded(
       ResultSet row, String column, Class<E> type) throws SQLException {
-    String value = charValue(row, column);
+    String value = trimmedString(row, column);
     return value == null ? null : Coded.of(type, value);
   }
 }
