@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.acme.insurance.pas.policy.events.DocumentRequests;
 import com.acme.insurance.pas.policy.events.OutboxWriter;
 import com.acme.insurance.pas.policy.repository.CoverageRepository;
 import com.acme.insurance.pas.policy.repository.PolicyHolderRepository;
@@ -28,6 +29,7 @@ class NewBusinessServiceTest {
           mock(ShadowNewBusinessRepository.class),
           new DefaultCoverageProperties(Map.of()),
           mock(OutboxWriter.class),
+          mock(DocumentRequests.class),
           new ObjectMapper().findAndRegisterModules(),
           Clock.fixed(Instant.parse("2025-02-01T00:00:00Z"), ZoneOffset.UTC));
 

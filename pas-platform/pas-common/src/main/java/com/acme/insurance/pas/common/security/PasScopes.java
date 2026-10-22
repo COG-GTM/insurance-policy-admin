@@ -9,6 +9,7 @@ public final class PasScopes {
   public static final String UNDERWRITING_DECIDE = "underwriting:decide";
   public static final String UNDERWRITING_OVERRIDE = "underwriting:override";
   public static final String BATCH_OPERATE = "batch:operate";
+  public static final String EVENTS_REPLAY = "events:replay";
 
   private PasScopes() {}
 

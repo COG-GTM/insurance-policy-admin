@@ -25,6 +25,10 @@ spring:
         enable.idempotence: true
         max.in.flight.requests.per.connection: 1
       acks: all
+    consumer:
+      enable-auto-commit: false
+    listener:
+      ack-mode: record
   flyway:
     schemas: pas
     default-schema: pas
@@ -46,6 +50,20 @@ pas:
     underwriting: ${PAS_ROUTE_UNDERWRITING:legacy}
     renewal: ${PAS_ROUTE_RENEWAL:legacy}
     endorsement: ${PAS_ROUTE_ENDORSEMENT:legacy}
+    document-events: ${PAS_ROUTE_DOCUMENT_EVENTS:legacy}
+    broker-portal-read: ${PAS_ROUTE_BROKER_PORTAL_READ:legacy}
+  bridge:
+    document-queue: ${PAS_BRIDGE_DOCUMENT_QUEUE:ACME.PAS.DOCUMENT.REQUEST}
+    decision-queue: ${PAS_BRIDGE_DECISION_QUEUE:ACME.PAS.UNDERWRITING.DECISION}
+    referral-queue: ${PAS_BRIDGE_REFERRAL_QUEUE:ACME.PAS.UNDERWRITING.REQUEST}
+    referral-triggers: ${PAS_BRIDGE_REFERRAL_TRIGGERS:NEW_BUSINESS}
+    charset: ${PAS_BRIDGE_CHARSET:IBM037}
+    mq:
+      host: ${PAS_BRIDGE_MQ_HOST:}
+      port: ${PAS_BRIDGE_MQ_PORT:1414}
+      queue-manager: ${PAS_BRIDGE_MQ_QUEUE_MANAGER:}
+      channel: ${PAS_BRIDGE_MQ_CHANNEL:}
+      tls-cipher-suite: ${PAS_BRIDGE_MQ_TLS_CIPHER_SUITE:}
   outbox:
     relay:
       enabled: ${PAS_OUTBOX_RELAY_ENABLED:true}

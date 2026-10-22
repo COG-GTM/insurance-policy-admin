@@ -81,6 +81,70 @@ public class PolicyInquiryRepository {
         .list();
   }
 
+  public List<Policy> search(
+      CallerEntitlements entitlements,
+      String agentCode,
+      String branchCode,
+      String status,
+      String policyType,
+      int page,
+      int size) {
+    String filters =
+        " AND (:filterAgent IS NULL OR p.agent_code = CAST(:filterAgent AS bpchar))"
+            + " AND (:filterBranch IS NULL OR p.branch_code = CAST(:filterBranch AS bpchar))"
+            + " AND (:filterStatus IS NULL OR p.policy_status = CAST(:filterStatus AS bpchar))"
+            + " AND (:filterType IS NULL OR p.policy_type = CAST(:filterType AS bpchar))";
+    return jdbc.sql(
+            """
+            SELECT p.policy_number, p.policy_type, p.policy_status, p.effective_date, p.expiry_date,
+                   p.policyholder_id, p.agent_code, p.branch_code, p.total_premium, p.deductible,
+                   p.coverage_limit, p.inception_date, p.renewal_count, p.uw_status, p.risk_score,
+                   p.web_indicator, p.api_flag, p.last_updated, p.updated_by
+            FROM pas.policies p
+            WHERE
+            """
+                + ENTITLEMENT_PREDICATE
+                + filters
+                + " ORDER BY p.policy_number LIMIT :size OFFSET :offset")
+        .params(entitlementParameters(entitlements))
+        .param("filterAgent", new SqlParameterValue(Types.VARCHAR, normalized(agentCode)))
+        .param("filterBranch", new SqlParameterValue(Types.VARCHAR, normalized(branchCode)))
+        .param("filterStatus", new SqlParameterValue(Types.VARCHAR, normalized(status)))
+        .param("filterType", new SqlParameterValue(Types.VARCHAR, normalized(policyType)))
+        .param("size", size)
+        .param("offset", Math.multiplyExact((long) page, size))
+        .query((row, rowNumber) -> policy(row))
+        .list();
+  }
+
+  public long countSearch(
+      CallerEntitlements entitlements,
+      String agentCode,
+      String branchCode,
+      String status,
+      String policyType) {
+    return jdbc.sql(
+            "SELECT count(*) FROM pas.policies p WHERE "
+                + ENTITLEMENT_PREDICATE
+                + " AND (:filterAgent IS NULL OR p.agent_code = CAST(:filterAgent AS bpchar))"
+                + " AND (:filterBranch IS NULL OR p.branch_code = CAST(:filterBranch AS bpchar))"
+                + " AND (:filterStatus IS NULL OR p.policy_status = CAST(:filterStatus AS bpchar))"
+                + " AND (:filterType IS NULL OR p.policy_type = CAST(:filterType AS bpchar))")
+        .params(entitlementParameters(entitlements))
+        .param("filterAgent", new SqlParameterValue(Types.VARCHAR, normalized(agentCode)))
+        .param("filterBranch", new SqlParameterValue(Types.VARCHAR, normalized(branchCode)))
+        .param("filterStatus", new SqlParameterValue(Types.VARCHAR, normalized(status)))
+        .param("filterType", new SqlParameterValue(Types.VARCHAR, normalized(policyType)))
+        .query(Long.class)
+        .single();
+  }
+
+  private static String normalized(String value) {
+    return value == null || value.isBlank()
+        ? null
+        : value.trim().toUpperCase(java.util.Locale.ROOT);
+  }
+
   public Optional<PolicyHolder> findHolder(String policyNumber, CallerEntitlements entitlements) {
     Optional<String> policyholderId =
         jdbc.sql(

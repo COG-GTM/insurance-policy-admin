@@ -26,6 +26,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -38,6 +39,36 @@ public class PolicyInquiryController {
   public PolicyInquiryController(PolicyInquiryRepository repository, RouteFlags routeFlags) {
     this.repository = repository;
     this.routeFlags = routeFlags;
+  }
+
+  @GetMapping
+  @Operation(
+      summary = "Search policies for the broker portal",
+      description = "Requires policy:read and applies caller entitlements before filtering.")
+  public ResponseEntity<?> search(
+      @RequestParam(required = false) String agentCode,
+      @RequestParam(required = false) String branchCode,
+      @RequestParam(required = false) String status,
+      @RequestParam(required = false) String policyType,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "50") int size,
+      @AuthenticationPrincipal Jwt jwt) {
+    if (!routeFlags.servesTraffic(RouteFlags.BROKER_PORTAL_READ)) {
+      return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+    }
+    if (page < 0 || size < 1 || size > 200) {
+      return ResponseEntity.badRequest().build();
+    }
+    CallerEntitlements entitlements = CallerEntitlements.from(jwt);
+    List<PolicyResponse> items =
+        repository
+            .search(entitlements, agentCode, branchCode, status, policyType, page, size)
+            .stream()
+            .map(PolicyResponseMapper::map)
+            .toList();
+    long total = repository.countSearch(entitlements, agentCode, branchCode, status, policyType);
+    long pages = total == 0 ? 0 : (total + size - 1) / size;
+    return ResponseEntity.ok(new PolicyPageResponse(items, page, size, total, pages));
   }
 
   @GetMapping("/{policyNumber}")

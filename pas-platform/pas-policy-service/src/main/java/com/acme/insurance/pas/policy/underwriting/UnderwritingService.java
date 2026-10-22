@@ -4,6 +4,7 @@ import com.acme.insurance.pas.domain.Policy;
 import com.acme.insurance.pas.domain.PolicyHolder;
 import com.acme.insurance.pas.domain.claims.ClaimsHistoryPort;
 import com.acme.insurance.pas.domain.claims.ClaimsSummary;
+import com.acme.insurance.pas.policy.events.DocumentRequests;
 import com.acme.insurance.pas.policy.events.OutboxWriter;
 import com.acme.insurance.pas.policy.inquiry.CallerEntitlements;
 import com.acme.insurance.pas.policy.inquiry.PolicyInquiryRepository;
@@ -23,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,7 @@ public class UnderwritingService {
   private final ClaimsHistoryPort claimsHistory;
   private final UnderwritingThresholds thresholds;
   private final OutboxWriter outbox;
+  private final DocumentRequests documentRequests;
   private final Clock clock;
 
   @SuppressFBWarnings(
@@ -55,6 +58,7 @@ public class UnderwritingService {
       ClaimsHistoryPort claimsHistory,
       UnderwritingThresholds thresholds,
       OutboxWriter outbox,
+      DocumentRequests documentRequests,
       Clock clock) {
     this.policies = policies;
     this.policyInquiry = policyInquiry;
@@ -64,6 +68,7 @@ public class UnderwritingService {
     this.claimsHistory = claimsHistory;
     this.thresholds = thresholds;
     this.outbox = outbox;
+    this.documentRequests = documentRequests;
     this.clock = clock;
   }
 
@@ -149,23 +154,36 @@ public class UnderwritingService {
     long policyVersion =
         policies.updateUnderwriting(
             policyNumber, decision.code().name(), decision.riskScore(), "UNDWRT");
+    String eventType;
+    UUID eventId;
     if (isReferral(decision.code().name())) {
-      outbox.append(
-          OutboxWriter.UNDERWRITING_TOPIC,
-          "UnderwritingReferralRequested",
-          policyNumber,
-          policyVersion,
-          correlationId,
-          referralData(decisionId, decision, false, null));
+      eventType = "UnderwritingReferralRequested";
+      eventId =
+          outbox.append(
+              OutboxWriter.UNDERWRITING_TOPIC,
+              eventType,
+              policyNumber,
+              policyVersion,
+              correlationId,
+              referralData(decisionId, decision, false, null));
     } else {
-      outbox.append(
-          OutboxWriter.UNDERWRITING_TOPIC,
-          "UnderwritingDecisionRecorded",
-          policyNumber,
-          policyVersion,
-          correlationId,
-          decisionData(decisionId, decision, false, null));
+      eventType = "UnderwritingDecisionRecorded";
+      eventId =
+          outbox.append(
+              OutboxWriter.UNDERWRITING_TOPIC,
+              eventType,
+              policyNumber,
+              policyVersion,
+              correlationId,
+              decisionData(decisionId, decision, false, null));
     }
+    documentRequests.append(
+        policyNumber,
+        policyVersion,
+        correlationId,
+        DocumentRequests.DocumentType.UNDERWRITING_DECISION,
+        eventId,
+        eventType);
     return response(
         decisionId,
         policyNumber,
@@ -233,30 +251,43 @@ public class UnderwritingService {
     long newDecisionId = decisions.insert(draft);
     long policyVersion =
         policies.updateUnderwriting(policyNumber, code, original.riskScore(), "UNDWRT");
+    String eventType;
+    UUID eventId;
     if (isReferral(code)) {
-      outbox.append(
-          OutboxWriter.UNDERWRITING_TOPIC,
-          "UnderwritingReferralRequested",
-          policyNumber,
-          policyVersion,
-          correlationId,
-          referralData(
-              newDecisionId,
-              code,
-              original.riskScore(),
-              List.of(reason),
-              original.lossRatio(),
-              true,
-              original.decisionId()));
+      eventType = "UnderwritingReferralRequested";
+      eventId =
+          outbox.append(
+              OutboxWriter.UNDERWRITING_TOPIC,
+              eventType,
+              policyNumber,
+              policyVersion,
+              correlationId,
+              referralData(
+                  newDecisionId,
+                  code,
+                  original.riskScore(),
+                  List.of(reason),
+                  original.lossRatio(),
+                  true,
+                  original.decisionId()));
     } else {
-      outbox.append(
-          OutboxWriter.UNDERWRITING_TOPIC,
-          "UnderwritingDecisionRecorded",
-          policyNumber,
-          policyVersion,
-          correlationId,
-          overrideData(newDecisionId, code, original, reason));
+      eventType = "UnderwritingDecisionRecorded";
+      eventId =
+          outbox.append(
+              OutboxWriter.UNDERWRITING_TOPIC,
+              eventType,
+              policyNumber,
+              policyVersion,
+              correlationId,
+              overrideData(newDecisionId, code, original, reason));
     }
+    documentRequests.append(
+        policyNumber,
+        policyVersion,
+        correlationId,
+        DocumentRequests.DocumentType.UNDERWRITING_DECISION,
+        eventId,
+        eventType);
     return response(
         newDecisionId,
         policyNumber,

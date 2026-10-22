@@ -21,6 +21,18 @@ replacement column follows the AB-516 architecture baseline. Behaviour details a
 | I-11 | 3270 operators | CSRs / underwriters ↔ CICS | BMS maps | PAS product owner (business users) | REST APIs + UI out of scope | AB-524–AB-526 |
 | I-12 | Premium report dataset | PREMBAT → dataset | `ACME.PAS.REPORTS.PREMIUM.D&LYYMMDD` | Mainframe operations (reader unknown) | job summary table + report | AB-523 |
 
+## Transitional queue decommission
+
+| Legacy queue | TDQ→MQ definition | Owner | Replacement | Consumers | Deletion precondition |
+| --- | --- | --- | --- | --- | --- |
+| `ACME.PAS.UNDERWRITING.REQUEST` TDQ/MQ | not present in repository (OQ-03) | Underwriting operations / MQ admin | underwriting events and referral bridge | UW work queue | consumer migrated, bridge route retired, then N=30 days with zero messages |
+| `ACME.PAS.UNDERWRITING.DECISION` TDQ/MQ | not present in repository (OQ-03) | ECM / FileNet | document events and decision bridge | FileNet document workflow | consumer migrated, bridge route retired, then N=30 days with zero messages |
+| `ENDORSEMENT-AUDIT` TS queue | not applicable | Compliance | durable audit table and `PolicyEndorsed` | Compliance reader (unknown) | reader migrated, bridge route retired, then N=30 days with zero messages |
+| Transitional document-request MQ queue | not applicable | ECM / FileNet | `pas.document.requests.v1` | FileNet document workflow | consumer migrated, bridge route retired, then N=30 days with zero messages |
+
+N=30 days is proposed pending agreement with the MQ administrator; retain each queue until all
+consumer and deletion preconditions are confirmed.
+
 ## Details
 
 ### I-01
@@ -49,6 +61,7 @@ replacement column follows the AB-516 architecture baseline. Behaviour details a
 
 **Broker Portal SQL Server linked server**
 
+- **Status (AB-528):** entitlement-filtered list API is available; portal-team sign-off remains pending.
 - **Source:** README "Integration Points": "SQL Server linked server to DB2 (read-only ODBC)". `jcl/DAILY-EXTRACT.jcl:15` mentions a "linked server refresh" that no step performs (Q-39).
 - **Content:** unknown. The tables, columns, query frequency and the SQL Server account used are not in the repo (M-08, OQ-16).
 - **Other end:** Broker Portal team. Brokers see policy data through it, so object-level entitlements must be applied on the new path (Q-32).
@@ -57,6 +70,7 @@ replacement column follows the AB-516 architecture baseline. Behaviour details a
 
 **Underwriting referral queue (POLNEW)**
 
+- **Status (AB-528):** creation and renewal referrals use the transactional outbox and NEW-route bridge.
 - **Source:** `cobol/programs/POLNEW.cbl:31-32`, `cobol/programs/POLNEW.cbl:240-253`.
 - **Message:** the 125-byte POLICY-RECORD (`cobol/copybooks/POLICY-RECORD.cpy:11-49`), queue literal `ACME.PAS.UNDERWRITING.REQUEST`. The write is a CICS `WRITEQ TD`, so delivery to MQ depends on a TDQ-to-MQ definition that is not in the repo (M-04, Q-29, OQ-03).
 - **Other end:** the consumer that starts underwriting (presumably a PUWR operator work queue or an automated trigger) is not identified; ask Underwriting operations and the MQ admin. Renewals put UW status back to PN but send no referral (Q-17).
@@ -65,9 +79,10 @@ replacement column follows the AB-516 architecture baseline. Behaviour details a
 
 **Underwriting decision → FileNet document creation (UNDWRT)**
 
+- **Status (AB-528):** document events use `pas.document.requests.v1`; the NEW-route bridge retains the legacy queue contract.
 - **Source:** `cobol/programs/UNDWRT.cbl:45-46`, `cobol/programs/UNDWRT.cbl:236-243`; README "Document Management: IBM MQ events trigger document creation in FileNet".
 - **Message:** the 125-byte POLICY-RECORD with UW status and risk score (3 digits, Q-20). The queue literal is `ACME.PAS.UNDERWRITING.DECISION`.
-- **Other end:** the ECM / FileNet team. Which document templates each decision code produces is unknown (M-09, OQ-17). POLNEW, POLRNW and POLEND send nothing to FileNet in this code. Whether new-business, renewal and endorsement documents come from somewhere else is OQ-17.
+- **Other end:** the ECM / FileNet team. Which document templates each decision code produces is unknown (M-09, OQ-17). New-business, renewal and endorsement use the transitional document queue; template mapping remains open.
 
 ### I-06
 
@@ -81,6 +96,7 @@ replacement column follows the AB-516 architecture baseline. Behaviour details a
 
 **Endorsement audit TS queue (POLEND)**
 
+- **Status (AB-528):** the audit remains durable in the audit table and is associated with `PolicyEndorsed`; no TS-queue bridge is added.
 - **Source:** `cobol/programs/POLEND.cbl:169-176`.
 - **Message:** the 125-byte POLICY-RECORD on TS queue `ENDORSEMENT-AUDIT`, whose effective name is uncertain (Q-15).
 - **Other end:** unknown. No program in the repo reads the queue. It is described as "regulatory compliance", so Compliance owns the requirement (OQ-06).

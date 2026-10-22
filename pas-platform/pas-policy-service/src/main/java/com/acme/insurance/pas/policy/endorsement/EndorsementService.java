@@ -11,6 +11,8 @@ import com.acme.insurance.pas.lifecycle.EndorsementRules;
 import com.acme.insurance.pas.lifecycle.EndorsementType;
 import com.acme.insurance.pas.lifecycle.LifecycleRejectedException;
 import com.acme.insurance.pas.lifecycle.LifecycleRejectedException.Rejection;
+import com.acme.insurance.pas.policy.events.DocumentRequests;
+import com.acme.insurance.pas.policy.events.OutboxWriter;
 import com.acme.insurance.pas.policy.inquiry.CallerEntitlements;
 import com.acme.insurance.pas.policy.inquiry.PolicyInquiryRepository;
 import com.acme.insurance.pas.policy.lifecycle.PolicyAuditRepository;
@@ -28,6 +30,7 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
  * POLEND on the new service. The policy row lock ({@code SELECT … FOR UPDATE}) replaces DB2's
  * update lock, so concurrent endorsements on one policy serialise and each sees the other's
  * sequence number and premium. The endorsement row, its effect (Q-13), the policy write and the
- * audit row (Q-15) commit together or not at all (Q-14). No events: AB-528.
+ * audit row (Q-15) commit together or not at all (Q-14).
  */
 @Service
 public class EndorsementService {
@@ -49,6 +52,8 @@ public class EndorsementService {
   private final PolicyAuditRepository audit;
   private final ShadowResultRepository shadow;
   private final Clock clock;
+  private final OutboxWriter outbox;
+  private final DocumentRequests documentRequests;
 
   @SuppressFBWarnings(
       value = "EI_EXPOSE_REP2",
@@ -61,7 +66,9 @@ public class EndorsementService {
       PolicyHolderRepository holders,
       PolicyAuditRepository audit,
       ShadowResultRepository shadow,
-      Clock clock) {
+      Clock clock,
+      OutboxWriter outbox,
+      DocumentRequests documentRequests) {
     this.inquiry = inquiry;
     this.policies = policies;
     this.coverages = coverages;
@@ -70,11 +77,17 @@ public class EndorsementService {
     this.audit = audit;
     this.shadow = shadow;
     this.clock = clock;
+    this.outbox = outbox;
+    this.documentRequests = documentRequests;
   }
 
   @Transactional
   public EndorsementResponse endorse(
-      String policyNumber, EndorsementRequest request, CallerEntitlements caller, String actor) {
+      String policyNumber,
+      EndorsementRequest request,
+      CallerEntitlements caller,
+      String actor,
+      String correlationId) {
     Policy policy =
         inquiry.lockPolicy(policyNumber, caller).orElseThrow(PolicyNotFoundException::new);
     Calculation calculation = calculate(policy, request, caller);
@@ -94,7 +107,8 @@ public class EndorsementService {
     details.put("proRataFactor", calculation.factor());
     details.put("premiumAdjustment", calculation.adjustment());
     String status = applyEffect(policy, request, calculation, details);
-    policies.saveLifecycle(withPremiumAndStatus(policy, calculation.totalPremium(), status));
+    long policyVersion =
+        policies.saveLifecycle(withPremiumAndStatus(policy, calculation.totalPremium(), status));
     audit.record(
         policy.policyNumber(),
         PolicyAuditRepository.ENDORSEMENT,
@@ -103,6 +117,27 @@ public class EndorsementService {
         policy.totalPremium(),
         calculation.totalPremium(),
         details);
+    Map<String, Object> eventData = new LinkedHashMap<>();
+    eventData.put("endorsementSequence", calculation.sequence());
+    eventData.put("endorsementType", calculation.type().code());
+    eventData.put("effectiveDate", calculation.effectiveDate());
+    eventData.put("premiumAdjustment", calculation.adjustment());
+    eventData.put("totalPremium", calculation.totalPremium());
+    eventData.put("policyStatus", status);
+    UUID endorsedEventId =
+        outbox.append(
+            OutboxWriter.POLICY_TOPIC,
+            "PolicyEndorsed",
+            policy.policyNumber(),
+            policyVersion,
+            correlationId,
+            eventData);
+    documentRequests.append(
+        policy.policyNumber(),
+        policyVersion,
+        correlationId,
+        DocumentRequests.DocumentType.ENDORSEMENT,
+        endorsedEventId);
     return response(policy, request, calculation, status, "APPLIED");
   }
 

@@ -9,6 +9,7 @@ import com.acme.insurance.pas.domain.PolicyStatus;
 import com.acme.insurance.pas.domain.PolicyType;
 import com.acme.insurance.pas.domain.UnderwritingStatus;
 import com.acme.insurance.pas.domain.YesNo;
+import com.acme.insurance.pas.policy.events.DocumentRequests;
 import com.acme.insurance.pas.policy.events.OutboxWriter;
 import com.acme.insurance.pas.policy.inquiry.CallerEntitlements;
 import com.acme.insurance.pas.policy.inquiry.PolicyResponse;
@@ -48,6 +49,7 @@ public class NewBusinessService {
   private final ShadowNewBusinessRepository shadowResults;
   private final DefaultCoverageProperties defaultCoverageProperties;
   private final OutboxWriter outboxWriter;
+  private final DocumentRequests documentRequests;
   private final ObjectMapper objectMapper;
   private final Clock clock;
 
@@ -63,6 +65,7 @@ public class NewBusinessService {
       ShadowNewBusinessRepository shadowResults,
       DefaultCoverageProperties defaultCoverageProperties,
       OutboxWriter outboxWriter,
+      DocumentRequests documentRequests,
       ObjectMapper objectMapper,
       Clock clock) {
     this.policies = policies;
@@ -73,6 +76,7 @@ public class NewBusinessService {
     this.shadowResults = shadowResults;
     this.defaultCoverageProperties = defaultCoverageProperties;
     this.outboxWriter = outboxWriter;
+    this.documentRequests = documentRequests;
     this.objectMapper = objectMapper;
     this.clock = clock;
   }
@@ -156,13 +160,20 @@ public class NewBusinessService {
 
     insertDefaultCoverages(policy, request);
     List<Coverage> createdCoverages = coverages.findByPolicyNumber(policy.policyNumber());
-    outboxWriter.append(
-        OutboxWriter.POLICY_TOPIC,
-        "PolicyCreated",
+    java.util.UUID createdEventId =
+        outboxWriter.append(
+            OutboxWriter.POLICY_TOPIC,
+            "PolicyCreated",
+            policy.policyNumber(),
+            1,
+            correlationId,
+            policyCreatedData(policy, createdCoverages));
+    documentRequests.append(
         policy.policyNumber(),
         1,
         correlationId,
-        policyCreatedData(policy, createdCoverages));
+        DocumentRequests.DocumentType.NEW_BUSINESS,
+        createdEventId);
     Map<String, Object> referral = new LinkedHashMap<>();
     referral.put("trigger", "NEW_BUSINESS");
     referral.put("decisionId", null);

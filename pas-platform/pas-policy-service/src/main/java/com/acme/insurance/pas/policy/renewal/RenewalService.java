@@ -8,6 +8,8 @@ import com.acme.insurance.pas.lifecycle.LifecycleRejectedException;
 import com.acme.insurance.pas.lifecycle.LifecycleRejectedException.Rejection;
 import com.acme.insurance.pas.lifecycle.RenewalRules;
 import com.acme.insurance.pas.lifecycle.RenewalSettings;
+import com.acme.insurance.pas.policy.events.DocumentRequests;
+import com.acme.insurance.pas.policy.events.OutboxWriter;
 import com.acme.insurance.pas.policy.inquiry.CallerEntitlements;
 import com.acme.insurance.pas.policy.inquiry.PolicyInquiryRepository;
 import com.acme.insurance.pas.policy.lifecycle.ClaimsHistoryClient;
@@ -25,6 +27,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * POLRNW on the new service. One transaction: the policy row lock, the policy and coverage writes,
  * the idempotency row and the audit row commit together or not at all (Q-16). No events are
- * published here; AB-528 adds the renewal and underwriting-request events (Q-17).
+ * published here.
  */
 @Service
 public class RenewalService {
@@ -47,6 +50,8 @@ public class RenewalService {
   private final ClaimsHistoryClient claims;
   private final RenewalProperties properties;
   private final Clock clock;
+  private final OutboxWriter outbox;
+  private final DocumentRequests documentRequests;
 
   @SuppressFBWarnings(
       value = "EI_EXPOSE_REP2",
@@ -60,7 +65,9 @@ public class RenewalService {
       ShadowResultRepository shadow,
       ClaimsHistoryClient claims,
       RenewalProperties properties,
-      Clock clock) {
+      Clock clock,
+      OutboxWriter outbox,
+      DocumentRequests documentRequests) {
     this.inquiry = inquiry;
     this.policies = policies;
     this.coverages = coverages;
@@ -70,11 +77,17 @@ public class RenewalService {
     this.claims = claims;
     this.properties = properties;
     this.clock = clock;
+    this.outbox = outbox;
+    this.documentRequests = documentRequests;
   }
 
   @Transactional
   public RenewalResponse renew(
-      String policyNumber, RenewalRequest request, CallerEntitlements caller, String actor) {
+      String policyNumber,
+      RenewalRequest request,
+      CallerEntitlements caller,
+      String actor,
+      String correlationId) {
     Policy policy =
         inquiry.lockPolicy(policyNumber, caller).orElseThrow(PolicyNotFoundException::new);
     Calculation calculation = calculate(policy, request);
@@ -99,7 +112,7 @@ public class RenewalService {
             policy.apiFlag(),
             policy.lastUpdated(),
             PROGRAM);
-    policies.saveLifecycle(renewed);
+    long policyVersion = policies.saveLifecycle(renewed);
     coverages.redateActive(
         policy.policyNumber(), calculation.effectiveDate(), calculation.expiryDate());
     renewals.insert(
@@ -131,6 +144,47 @@ public class RenewalService {
         calculation.premium().oldPremium(),
         calculation.premium().newPremium(),
         details);
+    Map<String, Object> renewalData = new LinkedHashMap<>();
+    renewalData.put("priorExpiryDate", policy.expiryDate());
+    renewalData.put("effectiveDate", calculation.effectiveDate());
+    renewalData.put("expiryDate", calculation.expiryDate());
+    renewalData.put("renewalCount", calculation.renewalCount());
+    renewalData.put("policyStatus", PolicyStatus.ACTIVE.code());
+    renewalData.put("uwStatus", UnderwritingStatus.PENDING.code());
+    renewalData.put("oldPremium", calculation.premium().oldPremium());
+    renewalData.put("newPremium", calculation.premium().newPremium());
+    renewalData.put("rateChangePct", calculation.premium().rateChangePct());
+    renewalData.put("capped", calculation.premium().capped());
+    UUID renewedEventId =
+        outbox.append(
+            OutboxWriter.POLICY_TOPIC,
+            "PolicyRenewed",
+            policy.policyNumber(),
+            policyVersion,
+            correlationId,
+            renewalData);
+    Map<String, Object> referral = new LinkedHashMap<>();
+    referral.put("trigger", "RENEWAL");
+    referral.put("decisionId", null);
+    referral.put("decisionCode", null);
+    referral.put("riskScore", null);
+    referral.put("reasons", null);
+    referral.put("lossRatio", null);
+    referral.put("override", null);
+    referral.put("overridesDecisionId", null);
+    outbox.append(
+        OutboxWriter.UNDERWRITING_TOPIC,
+        "UnderwritingReferralRequested",
+        policy.policyNumber(),
+        policyVersion,
+        correlationId,
+        referral);
+    documentRequests.append(
+        policy.policyNumber(),
+        policyVersion,
+        correlationId,
+        DocumentRequests.DocumentType.RENEWAL,
+        renewedEventId);
     return response(policy, calculation, "APPLIED");
   }
 

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {"$ref": "envelope.schema.json"},
+    {
+      "properties": {
+        "eventType": {"const": "DocumentRequested"},
+        "data": {
+          "type": "object",
+          "required": ["documentType", "triggeringEventId", "triggeringEventType"],
+          "properties": {
+            "documentType": {"enum": ["NEW_BUSINESS", "RENEWAL", "ENDORSEMENT", "UNDERWRITING_DECISION"]},
+            "triggeringEventId": {"type": "string", "format": "uuid"},
+            "triggeringEventType": {"enum": ["PolicyCreated", "PolicyRenewed", "PolicyEndorsed", "UnderwritingReferralRequested", "UnderwritingDecisionRecorded"]}
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}
