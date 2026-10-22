@@ -1,0 +1,1 @@
+{"description":"The policy premium update fails after endorsement insertion without an error message.","input":{"policyUpdateSqlcode":-911},"expectLegacy":{"outputs.endorsement[0].endorsementType":"CAD","outputs.policyUpdate":[],"trace.state.errorMsg":""}}

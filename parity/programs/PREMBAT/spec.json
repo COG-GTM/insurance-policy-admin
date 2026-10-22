@@ -1,0 +1,75 @@
+{
+  "program": "PREMBAT",
+  "batched": true,
+  "emitOnFinish": ["jobEnd"],
+  "defaults": {
+    "currentDate": "20241015",
+    "policies": []
+  },
+  "inputs": [
+    {"path": "currentDate", "type": "date"}
+  ],
+  "policyInputs": [
+    {"name": "policyNumber", "type": "text", "length": 12},
+    {"name": "policyType", "type": "text", "length": 3},
+    {"name": "totalPremium", "type": "decimal", "integerDigits": 9, "scale": 2},
+    {"name": "deductible", "type": "decimal", "integerDigits": 7, "scale": 2},
+    {"name": "coverageLimit", "type": "decimal", "integerDigits": 11, "scale": 2},
+    {"name": "effectiveDate", "type": "date"},
+    {"name": "expiryDate", "type": "date"},
+    {"name": "insertSqlcode", "type": "int", "digits": 9}
+  ],
+  "outputs": {
+    "premium": {
+      "compare": true,
+      "fields": [
+        {"name": "policyNumber", "type": "text", "length": 12, "source": "PREM-POLICY-NUMBER"},
+        {"name": "coverageSeq", "type": "int", "digits": 3, "source": "PREM-COVERAGE-SEQ"},
+        {"name": "termEffectiveDate", "type": "date", "source": "PREM-TERM-EFF-DATE"},
+        {"name": "termExpiryDate", "type": "date", "source": "PREM-TERM-EXP-DATE"},
+        {"name": "baseRate", "type": "decimal", "integerDigits": 7, "scale": 4, "source": "PREM-BASE-RATE"},
+        {"name": "taxAmount", "type": "decimal", "integerDigits": 7, "scale": 2, "source": "PREM-TAX-AMT"},
+        {"name": "surchargeAmount", "type": "decimal", "integerDigits": 7, "scale": 2, "source": "PREM-SURCHARGE-AMT"},
+        {"name": "totalPremium", "type": "decimal", "integerDigits": 9, "scale": 2, "source": "PREM-TOTAL-PREMIUM"},
+        {"name": "calcDate", "type": "date", "source": "PREM-CALC-DATE"},
+        {"name": "calcBy", "type": "text", "length": 8, "source": "PREM-CALC-BY"}
+      ]
+    },
+    "jobEnd": {
+      "compare": true,
+      "fields": [
+        {"name": "returnCode", "type": "int", "digits": 4, "source": "RETURN-CODE"},
+        {"name": "policiesRead", "type": "int", "digits": 7, "source": "WS-POLICIES-READ"},
+        {"name": "policiesUpdated", "type": "int", "digits": 7, "source": "WS-POLICIES-UPDATED"},
+        {"name": "policiesError", "type": "int", "digits": 7, "source": "WS-POLICIES-ERROR"}
+      ]
+    }
+  },
+  "state": [
+    {"name": "policiesRead", "type": "int", "digits": 7, "source": "WS-POLICIES-READ"},
+    {"name": "policiesUpdated", "type": "int", "digits": 7, "source": "WS-POLICIES-UPDATED"},
+    {"name": "policiesError", "type": "int", "digits": 7, "source": "WS-POLICIES-ERROR"}
+  ],
+  "execRules": [
+    {"name": "DECLARE-TERR", "pattern": "DECLARE TERR_CURSOR CURSOR FOR", "expectCount": 1, "continue": true},
+    {"name": "OPEN-TERR", "pattern": "OPEN TERR_CURSOR", "expectCount": 1},
+    {"name": "CLOSE-TERR", "pattern": "CLOSE TERR_CURSOR", "expectCount": 1},
+    {"name": "DECLARE-POL", "pattern": "DECLARE POL_CURSOR CURSOR FOR", "expectCount": 1, "continue": true},
+    {"name": "OPEN-POL", "pattern": "OPEN POL_CURSOR", "expectCount": 1},
+    {"name": "FETCH-POL", "pattern": "FETCH POL_CURSOR", "expectCount": 1},
+    {"name": "CLOSE-POL", "pattern": "CLOSE POL_CURSOR", "expectCount": 1},
+    {"name": "INSERT-PREMIUM", "pattern": "INSERT INTO PREMIUMS", "expectCount": 1}
+  ],
+  "environmentRewrites": [
+    {
+      "pattern": "ASSIGN TO PREMRPT",
+      "replacement": "ASSIGN TO DYNAMIC PX-REPORT-PATH",
+      "expectCount": 1,
+      "deviation": "Redirect the report file to its per-fixture build path because DD_PREMRPT mapping is not applied by this GnuCOBOL runner."
+    }
+  ],
+  "rewrites": [
+    {"pattern": "ACCEPT WS-CURRENT-DATE FROM DATE YYYYMMDD", "replacement": "MOVE PX-IN-CURRENT-DATE TO WS-CURRENT-DATE", "expectCount": 1},
+    {"pattern": "STOP RUN", "replacement": "PERFORM PX-FINISH STOP RUN", "expectCount": 2}
+  ]
+}

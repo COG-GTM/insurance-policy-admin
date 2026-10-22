@@ -1,0 +1,49 @@
+{
+  "program": "PREMBAT",
+  "fixture": "leap-year-term",
+  "description": "Premium term crosses a leap day.",
+  "outputs": {
+    "premium": [
+      {
+        "policyNumber": "POL000000301",
+        "coverageSeq": 1,
+        "termEffectiveDate": "20240229",
+        "termExpiryDate": "20250228",
+        "baseRate": 850.0000,
+        "taxAmount": 29.75,
+        "surchargeAmount": 25.00,
+        "totalPremium": 904.75,
+        "calcDate": "20240229",
+        "calcBy": "PREMBAT"
+      }
+    ],
+    "jobEnd": [
+      {
+        "returnCode": 0,
+        "policiesRead": 1,
+        "policiesUpdated": 1,
+        "policiesError": 0
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": [],
+      "report": [
+        "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20240229",
+        "------------------------------------------------------------------------------------------------------------------------------------",
+        "POL000000301 PREMIUM: \u0000\u0000\u0000G\\",
+        "====================================================================================================================================",
+        "TOTAL POLICIES READ:    0000001",
+        "TOTAL POLICIES UPDATED: 0000001",
+        "TOTAL ERRORS:           0000000"
+      ]
+    },
+    "state": {
+      "policiesRead": 1,
+      "policiesUpdated": 1,
+      "policiesError": 0
+    },
+    "returnCode": 0
+  }
+}

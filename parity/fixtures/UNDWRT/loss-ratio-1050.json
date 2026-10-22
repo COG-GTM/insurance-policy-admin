@@ -1,0 +1,1 @@
+{"description":"A 1050 percent loss ratio exercises the legacy signed three-digit wrap.","input":{"claims":{"totalIncurred":10500.00}},"expectLegacy":{"outputs.decision[0].riskScore":299}}

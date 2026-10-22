@@ -1,0 +1,1 @@
+{"description":"Health policy premium calculation.","input":{"policies":[{"policyNumber":"POL000000105","policyType":"HLT","totalPremium":800.00,"deductible":100.00,"coverageLimit":100000.00,"effectiveDate":"20240101","expiryDate":"20250101","insertSqlcode":0}]},"expectLegacy":{"outputs.premium[0].totalPremium":3647.50}}

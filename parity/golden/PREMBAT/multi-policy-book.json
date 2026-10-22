@@ -1,0 +1,101 @@
+{
+  "program": "PREMBAT",
+  "fixture": "multi-policy-book",
+  "description": "A five-policy book is processed as one batch.",
+  "outputs": {
+    "premium": [
+      {
+        "policyNumber": "POL000000201",
+        "coverageSeq": 1,
+        "termEffectiveDate": "20240101",
+        "termExpiryDate": "20250101",
+        "baseRate": 850.0000,
+        "taxAmount": 29.75,
+        "surchargeAmount": 25.00,
+        "totalPremium": 904.75,
+        "calcDate": "20241015",
+        "calcBy": "PREMBAT"
+      },
+      {
+        "policyNumber": "POL000000202",
+        "coverageSeq": 1,
+        "termEffectiveDate": "20240101",
+        "termExpiryDate": "20250101",
+        "baseRate": 1200.0000,
+        "taxAmount": 42.00,
+        "surchargeAmount": 25.00,
+        "totalPremium": 1267.00,
+        "calcDate": "20241015",
+        "calcBy": "PREMBAT"
+      },
+      {
+        "policyNumber": "POL000000203",
+        "coverageSeq": 1,
+        "termEffectiveDate": "20240101",
+        "termExpiryDate": "20250101",
+        "baseRate": 5000.0000,
+        "taxAmount": 175.00,
+        "surchargeAmount": 25.00,
+        "totalPremium": 5200.00,
+        "calcDate": "20241015",
+        "calcBy": "PREMBAT"
+      },
+      {
+        "policyNumber": "POL000000204",
+        "coverageSeq": 1,
+        "termEffectiveDate": "20240101",
+        "termExpiryDate": "20250101",
+        "baseRate": 400.0000,
+        "taxAmount": 14.00,
+        "surchargeAmount": 25.00,
+        "totalPremium": 439.00,
+        "calcDate": "20241015",
+        "calcBy": "PREMBAT"
+      },
+      {
+        "policyNumber": "POL000000205",
+        "coverageSeq": 1,
+        "termEffectiveDate": "20240101",
+        "termExpiryDate": "20250101",
+        "baseRate": 3500.0000,
+        "taxAmount": 122.50,
+        "surchargeAmount": 25.00,
+        "totalPremium": 3647.50,
+        "calcDate": "20241015",
+        "calcBy": "PREMBAT"
+      }
+    ],
+    "jobEnd": [
+      {
+        "returnCode": 0,
+        "policiesRead": 5,
+        "policiesUpdated": 5,
+        "policiesError": 0
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": [],
+      "report": [
+        "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20241015",
+        "------------------------------------------------------------------------------------------------------------------------------------",
+        "POL000000201 PREMIUM: \u0000\u0000\u0000G\\",
+        "POL000000202 PREMIUM: \u0000\u0000\u0001&p\f",
+        "POL000000203 PREMIUM: \u0000\u0000\u0005 \u0000\f",
+        "POL000000204 PREMIUM: \u0000\u0000\u0000C\f",
+        "POL000000205 PREMIUM: \u0000\u0000\u0003du\f",
+        "====================================================================================================================================",
+        "TOTAL POLICIES READ:    0000005",
+        "TOTAL POLICIES UPDATED: 0000005",
+        "TOTAL ERRORS:           0000000"
+      ]
+    },
+    "state": {
+      "policiesRead": 5,
+      "policiesUpdated": 5,
+      "policiesError": 0
+    },
+    "returnCode": 0
+  }
+}

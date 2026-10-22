@@ -1,0 +1,1 @@
+{"description":"Premium term crosses a leap day.","input":{"currentDate":"20240229","policies":[{"policyNumber":"POL000000301","policyType":"AUT","totalPremium":1000.00,"deductible":500.00,"coverageLimit":100000.00,"effectiveDate":"20240229","expiryDate":"20250228","insertSqlcode":0}]}}

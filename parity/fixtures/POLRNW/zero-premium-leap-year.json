@@ -1,0 +1,1 @@
+{"description":"Zero premium and leap-year expiry are handled by the renewal calculation.","input":{"currentDate":"20240301","policy":{"totalPremium":0.00,"expiryDate":"20240229"}}}

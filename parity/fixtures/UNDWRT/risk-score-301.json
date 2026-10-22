@@ -1,0 +1,1 @@
+{"description":"Base credit score passes the first referral boundary.","input":{"customer":{"creditScore":298}},"expectLegacy":{"outputs.decision[0].riskScore":301}}

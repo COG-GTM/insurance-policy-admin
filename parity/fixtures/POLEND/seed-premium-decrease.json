@@ -1,0 +1,1 @@
+{"description":"Negative premium adjustment is carried through the endorsement.","seed":{"endorsementType":"END","premiumAdjust":-0.01},"expectLegacy":{"outputs.endorsement[0].premiumAdjustment":-0.01,"outputs.policyUpdate[0].totalPremium":1199.99}}

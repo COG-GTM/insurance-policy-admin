@@ -1,0 +1,26 @@
+{
+  "program": "POLRNW",
+  "fixture": "status-lp",
+  "description": "Lapsed policy status input.",
+  "outputs": {
+    "policyUpdate": [],
+    "coverageUpdate": [],
+    "error": [
+      {
+        "message": "POLICY NOT ELIGIBLE FOR RENEWAL"
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": []
+    },
+    "state": {
+      "oldPremium": 0.00,
+      "newPremium": 0.00,
+      "rateChangePct": 0.00,
+      "errorMsg": "POLICY NOT ELIGIBLE FOR RENEWAL"
+    },
+    "returnCode": 0
+  }
+}

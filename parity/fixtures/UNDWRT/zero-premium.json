@@ -1,0 +1,1 @@
+{"description":"Loss ratio is skipped when premium is zero.","input":{"policy":{"totalPremium":0.00},"claims":{"totalIncurred":1000.00}},"expectLegacy":{"outputs.decision[0].riskScore":299}}

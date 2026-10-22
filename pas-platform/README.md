@@ -7,11 +7,14 @@ legacy COBOL, JCL, DB2 DDL, and Java facade; it does not replace or modify those
 
 | Module | Package | Port | Purpose |
 |--------|---------|------|---------|
-| `pas-common` | `com.acme.insurance.pas.common` | — | Shared domain, copybook, PII, security and schema types; optional Boot/Logback adapters |
+| `pas-common` | `com.acme.insurance.pas.common` | — | Shared domain, copybook, PII, security, and schema types; optional Boot/Logback adapters with no mandatory Spring dependency |
+| `pas-parity` | `com.acme.insurance.pas.parity` | — | Test-scope COBOL golden-file runner, comparators, and known-difference validation |
 | `pas-policy-service` | `com.acme.insurance.pas.policy` | `8080` | Policy HTTP service and policy schema ownership |
 | `pas-batch` | `com.acme.insurance.pas.batch` | `8081` | Spring Batch HTTP service and batch metadata schema ownership |
 
-`pas-rating` and `pas-parity` are planned modules and are not part of this build.
+`pas-rating` remains planned. The parity module is used from test scope by consumers. Run
+`make parity` from the repository root to check COBOL fixtures and exercise the Java parity
+adapters.
 
 ## Configuration
 

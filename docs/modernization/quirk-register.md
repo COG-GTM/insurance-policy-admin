@@ -66,6 +66,8 @@ differences must cite the Q-id.
 | Q-41 | All extracts | DSNTEP2 writes to SYSPRINT, not to the POLOUT/COVOUT/EXPOUT DDs; delivered layout undefined | Mainframe team (batch) | Fix | AB-527 |
 | Q-42 | MONTHLY-EXPOSURE | `POLICY_COUNT` counts coverage rows; ".csv" not CSV; point-in-time, not month-end | Actuarial | Preserve | AB-527 |
 | Q-43 | java-facade seed | Seed data uses values outside COBOL domains (`POL-00000001`, type `CGL`, tiers `A`/`B`) | Data migration lead | Preserve | AB-521, AB-529 |
+| Q-44 | UNDWRT, POLRNW | CICS RECEIVE failure leaves the performed flow running into later processing | PAS product owner / Underwriting | Fix | AB-525, AB-526 |
+| Q-45 | UNDWRT | Negative credit loses its sign when moved into unsigned `CUST-CREDIT-SCORE` | Underwriting | Fix | AB-525 |
 
 ## Details
 
@@ -541,3 +543,27 @@ differences must cite the Q-id.
 - **Owner:** Data migration lead.
 - **Decision:** **Preserve.** Migration and the new domain model accept unknown codes, logged and counted in reconciliation, and do not reject them.
 - **Implemented by:** AB-521 (types), AB-529 (migration).
+
+### Q-44
+
+**CICS RECEIVE failure leaves the performed flow running**
+
+- **Location:** `cobol/programs/UNDWRT.cbl:91-117` sets an error, jumps to `2000-EXIT`, then reaches the following paragraphs; `cobol/programs/UNDWRT.cbl:57-70` contains the caller. `cobol/programs/POLRNW.cbl:85-104` has the same `GO TO 2000-EXIT` pattern, with its caller at `cobol/programs/POLRNW.cbl:49-64`.
+- **Observed:** the AB-520 GnuCOBOL goldens show that UNDWRT still emits a decision, policy update and notification alongside the receive error. POLRNW still emits policy and coverage updates and a confirmation alongside its error.
+- **Impact:** an online transaction can write or notify after CICS failed to receive its request.
+- **Owner:** PAS product owner / Underwriting.
+- **Decision:** **Fix.** A failed receive stops processing and returns the error.
+- **Found by:** AB-520. The decision is proposed pending product-owner and mainframe-team sign-off.
+- **Implemented by:** AB-525, AB-526.
+
+### Q-45
+
+**Negative credit loses its sign in the unsigned customer field**
+
+- **Location:** `CUST-CREDIT-SCORE PIC 9(03)` at `cobol/copybooks/CUSTOMER-RECORD.cpy:32`; the UNDWRT SELECT assigns the signed host variable at `cobol/programs/UNDWRT.cbl:104`.
+- **Observed:** the AB-520 harness models a signed fixture value of -5 being moved into the unsigned field; the COBOL golden scores it as 5 and produces risk score 447. The actual DB2 host-variable conversion is unverified on the mainframe.
+- **Impact:** a nonpositive credit score can be treated as a positive score rather than as missing credit information.
+- **Owner:** Underwriting.
+- **Decision:** **Fix.** Treat scores less than or equal to zero as no score, with base 400.
+- **Found by:** AB-520.
+- **Implemented by:** AB-525.

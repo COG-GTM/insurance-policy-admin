@@ -1,0 +1,45 @@
+{
+  "program": "UNDWRT",
+  "fixture": "limit-5000000",
+  "description": "The exact first limit boundary does not add a surcharge.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "AP",
+        "riskScore": 299,
+        "decisionReason": "AUTO-ACCEPTED: LOW RISK"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "AP",
+        "riskScore": 299
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "AP",
+        "riskScore": 299
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 299,
+      "lossRatio": 0.00,
+      "claimCount": 0,
+      "accumLimit": 1000000.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

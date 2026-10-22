@@ -1,0 +1,1 @@
+{"description":"A loss ratio of 80.01 percent adds 200.","input":{"claims":{"totalIncurred":800.10}},"expectLegacy":{"outputs.decision[0].riskScore":499}}
