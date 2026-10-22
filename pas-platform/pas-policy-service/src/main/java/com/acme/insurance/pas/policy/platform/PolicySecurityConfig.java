@@ -41,6 +41,10 @@ public class PolicySecurityConfig {
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_RENEW))
                     .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/endorsements")
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_ENDORSE))
+                    .requestMatchers(HttpMethod.GET, "/api/v1/policies")
+                    .hasAuthority(PasScopes.authority(PasScopes.POLICY_READ))
+                    .requestMatchers(HttpMethod.POST, "/api/v1/admin/events/dlt-replay")
+                    .hasAuthority(PasScopes.authority(PasScopes.EVENTS_REPLAY))
                     .requestMatchers(
                         request ->
                             (request.getServletPath().equals("/api/v1/policies")

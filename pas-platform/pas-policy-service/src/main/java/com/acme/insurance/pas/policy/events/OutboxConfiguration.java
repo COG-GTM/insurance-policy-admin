@@ -40,4 +40,42 @@ public class OutboxConfiguration {
         .replicas(replicas)
         .build();
   }
+
+  @Bean
+  @ConditionalOnProperty(
+      name = "pas.kafka.topics.enabled",
+      havingValue = "true",
+      matchIfMissing = true)
+  NewTopic documentRequestsTopic() {
+    return TopicBuilder.name(OutboxWriter.DOCUMENT_TOPIC)
+        .partitions(partitions)
+        .replicas(replicas)
+        .build();
+  }
+
+  @Bean
+  @ConditionalOnProperty(
+      name = "pas.kafka.topics.enabled",
+      havingValue = "true",
+      matchIfMissing = true)
+  NewTopic documentBridgeDeadLetterTopic() {
+    return deadLetterTopic(OutboxWriter.DOCUMENT_TOPIC);
+  }
+
+  @Bean
+  @ConditionalOnProperty(
+      name = "pas.kafka.topics.enabled",
+      havingValue = "true",
+      matchIfMissing = true)
+  NewTopic underwritingBridgeDeadLetterTopic() {
+    return deadLetterTopic(OutboxWriter.UNDERWRITING_TOPIC);
+  }
+
+  private NewTopic deadLetterTopic(String topic) {
+    return TopicBuilder.name(
+            EventConsumerGroups.dltTopic(topic, EventConsumerGroups.groupForTopic(topic)))
+        .partitions(partitions)
+        .replicas(replicas)
+        .build();
+  }
 }

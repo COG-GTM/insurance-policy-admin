@@ -4,7 +4,7 @@
   "required": ["eventId", "eventType", "schemaVersion", "policyNumber", "policyVersion", "occurredAt", "correlationId", "data"],
   "properties": {
     "eventId": {"type": "string", "format": "uuid"},
-    "eventType": {"enum": ["PolicyCreated", "UnderwritingReferralRequested", "UnderwritingDecisionRecorded"]},
+    "eventType": {"enum": ["PolicyCreated", "UnderwritingReferralRequested", "UnderwritingDecisionRecorded", "PolicyRenewed", "PolicyEndorsed", "DocumentRequested"]},
     "schemaVersion": {"const": 1},
     "policyNumber": {"type": "string", "pattern": "^POL[0-9]{9}$"},
     "policyVersion": {"type": "integer", "minimum": 1},

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {"$ref": "envelope.schema.json"},
+    {
+      "properties": {
+        "eventType": {"const": "PolicyEndorsed"},
+        "data": {
+          "type": "object",
+          "required": ["endorsementSequence", "endorsementType", "effectiveDate", "premiumAdjustment", "totalPremium", "policyStatus"],
+          "properties": {
+            "endorsementSequence": {"type": "integer", "minimum": 1},
+            "endorsementType": {"type": "string", "maxLength": 3},
+            "effectiveDate": {"type": "string", "format": "date"},
+            "premiumAdjustment": {"type": "number"},
+            "totalPremium": {"type": "number"},
+            "policyStatus": {"type": "string", "maxLength": 2}
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

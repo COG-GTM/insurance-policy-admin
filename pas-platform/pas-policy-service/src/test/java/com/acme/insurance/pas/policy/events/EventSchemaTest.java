@@ -20,7 +20,7 @@ class EventSchemaTest {
   private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
   @Test
-  void validatesTheThreeEventTypesAndRejectsUnexpectedPiiProperties() throws Exception {
+  void validatesEventTypesAndRejectsUnexpectedPiiProperties() throws Exception {
     Map<String, Map<String, Object>> events = new LinkedHashMap<>();
     events.put(
         "PolicyCreated",
@@ -56,6 +56,25 @@ class EventSchemaTest {
             "overridesDecisionId",
             new NullableValue(null)));
     events.put(
+        "UnderwritingReferralRequestedRenewal",
+        Map.of(
+            "trigger",
+            "RENEWAL",
+            "decisionId",
+            new NullableValue(null),
+            "decisionCode",
+            new NullableValue(null),
+            "riskScore",
+            new NullableValue(null),
+            "reasons",
+            new NullableValue(null),
+            "lossRatio",
+            new NullableValue(null),
+            "override",
+            new NullableValue(null),
+            "overridesDecisionId",
+            new NullableValue(null)));
+    events.put(
         "UnderwritingDecisionRecorded",
         Map.of(
             "decisionId",
@@ -72,16 +91,54 @@ class EventSchemaTest {
             false,
             "overridesDecisionId",
             new NullableValue(null)));
+    events.put(
+        "PolicyRenewed",
+        Map.ofEntries(
+            Map.entry("priorExpiryDate", "2025-01-01"),
+            Map.entry("effectiveDate", "2025-01-01"),
+            Map.entry("expiryDate", "2026-01-01"),
+            Map.entry("renewalCount", 1),
+            Map.entry("policyStatus", "AC"),
+            Map.entry("uwStatus", "PN"),
+            Map.entry("oldPremium", 100),
+            Map.entry("newPremium", 105),
+            Map.entry("rateChangePct", 5),
+            Map.entry("capped", false)));
+    events.put(
+        "PolicyEndorsed",
+        Map.of(
+            "endorsementSequence",
+            1,
+            "endorsementType",
+            "ADD",
+            "effectiveDate",
+            "2025-06-01",
+            "premiumAdjustment",
+            25,
+            "totalPremium",
+            125,
+            "policyStatus",
+            "AC"));
+    events.put(
+        "DocumentRequested",
+        Map.of(
+            "documentType", "RENEWAL",
+            "triggeringEventId", "fc2843f3-fdfa-4bf9-8f89-3f6af4ba33ce",
+            "triggeringEventType", "PolicyRenewed"));
 
     JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
     for (Map.Entry<String, Map<String, Object>> entry : events.entrySet()) {
-      JsonSchema schema = factory.getSchema(schemaPath(entry.getKey()).toUri());
-      JsonNode event = mapper.valueToTree(envelope(entry.getKey(), entry.getValue()));
+      String eventType =
+          entry.getKey().equals("UnderwritingReferralRequestedRenewal")
+              ? "UnderwritingReferralRequested"
+              : entry.getKey();
+      JsonSchema schema = factory.getSchema(schemaPath(eventType).toUri());
+      JsonNode event = mapper.valueToTree(envelope(eventType, entry.getValue()));
       assertThat(schema.validate(event)).isEmpty();
       ObjectNode eventWithPii = (ObjectNode) event.deepCopy();
       ((ObjectNode) eventWithPii.get("data")).put("policyholderId", "CUST000001");
       assertThat(schema.validate(eventWithPii)).isNotEmpty();
-      assertThat(propertyNames(schemaPath(entry.getKey())))
+      assertThat(propertyNames(schemaPath(eventType)))
           .noneMatch(
               name ->
                   name.matches("(?i).*(holder|name|credit|tax|ssn|email|phone|address|birth).*"));

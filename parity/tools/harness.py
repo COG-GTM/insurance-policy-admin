@@ -50,7 +50,7 @@ def width(field: dict) -> int:
     kind = field["type"]
     if kind == "date":
         return 8
-    if kind == "text":
+    if kind in ("text", "hex"):
         return field["length"]
     sign = 1
     if kind == "int":
@@ -64,7 +64,7 @@ def picture(field: dict) -> str:
     kind = field["type"]
     if kind == "date":
         return "PIC 9(8)"
-    if kind == "text":
+    if kind in ("text", "hex"):
         return f"PIC X({field['length']})"
     if kind == "int":
         return f"PIC S9({field['digits']}) SIGN IS LEADING SEPARATE"
@@ -87,6 +87,8 @@ def field_max(field: dict) -> Decimal:
 def encode_field(value, field: dict) -> str:
     kind = field["type"]
     label = field.get("name", field.get("path", "field"))
+    if kind == "hex":
+        return str(value)
     if kind == "text":
         text = str(value)
         if len(text) > field["length"]:
@@ -121,7 +123,7 @@ def encode_field(value, field: dict) -> str:
 
 def decode_field(raw: str, field: dict):
     kind = field["type"]
-    if kind in ("text", "date"):
+    if kind in ("text", "date", "hex"):
         return raw.rstrip() if kind == "text" else raw
     sign, digits = raw[0], raw[1:]
     value = Decimal(digits)
@@ -433,6 +435,25 @@ def generate_emitters(spec: dict, slots):
     for kind, field in slots:
         declarations.append(f"05 {slot_name('PX-OUT', kind, field['name'])} {picture(field)}.")
     out_width = 16 + sum(width(field) for _, field in slots)
+    hex_fields = [
+        field
+        for output in spec.get("outputs", {}).values()
+        for field in output["fields"]
+        if field["type"] == "hex"
+    ]
+    if hex_fields:
+        declarations.extend(
+            [
+                "01 PX-HEX-SOURCE PIC X(125).",
+                "01 PX-HEX-TARGET PIC X(250).",
+                "01 PX-HEX-LENGTH PIC 9(4) COMP-5.",
+                "01 PX-HEX-INDEX PIC 9(4) COMP-5.",
+                "01 PX-HEX-VALUE PIC 9(4) COMP-5.",
+                "01 PX-HEX-HIGH PIC 9(4) COMP-5.",
+                "01 PX-HEX-LOW PIC 9(4) COMP-5.",
+                "01 PX-HEX-DIGITS PIC X(16) VALUE '0123456789ABCDEF'.",
+            ]
+        )
     paragraphs = []
     for out_name, output in spec.get("outputs", {}).items():
         paragraphs.append(f"PX-EMIT-{out_name.upper()}.")
@@ -440,7 +461,17 @@ def generate_emitters(spec: dict, slots):
         paragraphs.append(f"MOVE '{out_name}' TO PX-OUTPUT-TAG")
         for field in output["fields"]:
             target = slot_name("PX-OUT", out_name, field["name"])
-            paragraphs.append(f"MOVE {field['source']} TO {target}")
+            if field["type"] == "hex":
+                paragraphs.extend(
+                    [
+                        f"MOVE {field['source']} TO PX-HEX-SOURCE",
+                        f"MOVE {field['sourceLength']} TO PX-HEX-LENGTH",
+                        "PERFORM PX-ENCODE-HEX",
+                        f"MOVE PX-HEX-TARGET TO {target}",
+                    ]
+                )
+            else:
+                paragraphs.append(f"MOVE {field['source']} TO {target}")
         paragraphs.append("WRITE PX-OUTPUT-REC FROM PX-OUTPUT-BUFFER")
         paragraphs.append("EXIT.")
     paragraphs += [
@@ -477,6 +508,25 @@ def generate_emitters(spec: dict, slots):
         "END-IF",
         "EXIT.",
     ]
+    if hex_fields:
+        paragraphs.extend(
+            [
+                "PX-ENCODE-HEX.",
+                "MOVE SPACES TO PX-HEX-TARGET",
+                "PERFORM VARYING PX-HEX-INDEX FROM 1 BY 1",
+                "UNTIL PX-HEX-INDEX > PX-HEX-LENGTH",
+                "COMPUTE PX-HEX-VALUE =",
+                "FUNCTION ORD(PX-HEX-SOURCE(PX-HEX-INDEX:1)) - 1",
+                "DIVIDE PX-HEX-VALUE BY 16 GIVING PX-HEX-HIGH",
+                "REMAINDER PX-HEX-LOW",
+                "MOVE PX-HEX-DIGITS(PX-HEX-HIGH + 1:1) TO",
+                "PX-HEX-TARGET((PX-HEX-INDEX * 2) - 1:1)",
+                "MOVE PX-HEX-DIGITS(PX-HEX-LOW + 1:1) TO",
+                "PX-HEX-TARGET(PX-HEX-INDEX * 2:1)",
+                "END-PERFORM",
+                "EXIT.",
+            ]
+        )
     return declarations, paragraphs, out_width
 
 

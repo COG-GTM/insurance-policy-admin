@@ -9,7 +9,7 @@
           "type": "object",
           "required": ["trigger", "decisionId", "decisionCode", "riskScore", "reasons", "lossRatio", "override", "overridesDecisionId"],
           "properties": {
-            "trigger": {"enum": ["NEW_BUSINESS", "DECISION"]},
+            "trigger": {"enum": ["NEW_BUSINESS", "DECISION", "RENEWAL"]},
             "decisionId": {"type": ["integer", "null"], "minimum": 1},
             "decisionCode": {"type": ["string", "null"], "enum": ["AP", "RS", "RM", "DC", null]},
             "riskScore": {"type": ["integer", "null"], "minimum": 0},

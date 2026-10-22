@@ -170,13 +170,13 @@ class NewBusinessUnderwritingIT {
         .isEqualTo(2);
     assertThat(
             jdbc.queryForObject(
-                "SELECT count(*) FROM pas.outbox WHERE aggregate_id = ?",
+                "SELECT count(*) FROM pas.outbox WHERE aggregate_id = ? AND topic IN ('pas.policy.events.v1', 'pas.underwriting.events.v1')",
                 Integer.class,
                 policyNumber))
         .isEqualTo(2);
     assertThat(
             jdbc.queryForList(
-                "SELECT payload ->> 'correlationId' FROM pas.outbox WHERE aggregate_id = ?",
+                "SELECT payload ->> 'correlationId' FROM pas.outbox WHERE aggregate_id = ? AND topic IN ('pas.policy.events.v1', 'pas.underwriting.events.v1')",
                 String.class,
                 policyNumber))
         .containsExactlyInAnyOrder(suppliedCorrelationId, suppliedCorrelationId);
@@ -530,7 +530,10 @@ class NewBusinessUnderwritingIT {
     String jwt = PolicyJwtTestSupport.mint(PasScopes.UNDERWRITING_DECIDE, "underwriter", Map.of());
     int decisionsBefore =
         jdbc.queryForObject("SELECT count(*) FROM pas.underwriting_decisions", Integer.class);
-    int outboxBefore = jdbc.queryForObject("SELECT count(*) FROM pas.outbox", Integer.class);
+    int outboxBefore =
+        jdbc.queryForObject(
+            "SELECT count(*) FROM pas.outbox WHERE topic IN ('pas.policy.events.v1', 'pas.underwriting.events.v1')",
+            Integer.class);
 
     assertThat(
             post("/api/v1/policies/not_a_policy/underwriting-decisions", "", jwt, null)
@@ -540,7 +543,10 @@ class NewBusinessUnderwritingIT {
     assertThat(
             jdbc.queryForObject("SELECT count(*) FROM pas.underwriting_decisions", Integer.class))
         .isEqualTo(decisionsBefore);
-    assertThat(jdbc.queryForObject("SELECT count(*) FROM pas.outbox", Integer.class))
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM pas.outbox WHERE topic IN ('pas.policy.events.v1', 'pas.underwriting.events.v1')",
+                Integer.class))
         .isEqualTo(outboxBefore);
   }
 
@@ -553,7 +559,10 @@ class NewBusinessUnderwritingIT {
             "SELECT count(*) FROM pas.policies WHERE policyholder_id = ?", Integer.class, custId);
     int coverageCountBefore =
         jdbc.queryForObject("SELECT count(*) FROM pas.coverages", Integer.class);
-    int outboxCountBefore = jdbc.queryForObject("SELECT count(*) FROM pas.outbox", Integer.class);
+    int outboxCountBefore =
+        jdbc.queryForObject(
+            "SELECT count(*) FROM pas.outbox WHERE topic IN ('pas.policy.events.v1', 'pas.underwriting.events.v1')",
+            Integer.class);
     NewBusinessRequest request =
         new NewBusinessRequest(
             "AUT",
@@ -590,7 +599,10 @@ class NewBusinessUnderwritingIT {
         .isEqualTo(policyCountBefore);
     assertThat(jdbc.queryForObject("SELECT count(*) FROM pas.coverages", Integer.class))
         .isEqualTo(coverageCountBefore);
-    assertThat(jdbc.queryForObject("SELECT count(*) FROM pas.outbox", Integer.class))
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM pas.outbox WHERE topic IN ('pas.policy.events.v1', 'pas.underwriting.events.v1')",
+                Integer.class))
         .isEqualTo(outboxCountBefore);
     assertThat(
             jdbc.queryForObject(

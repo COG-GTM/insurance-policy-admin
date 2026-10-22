@@ -192,6 +192,14 @@ public class PolicyRepository {
         .single();
   }
 
+  public long currentVersion(String policyNumber) {
+    return jdbc.sql("SELECT row_version FROM pas.policies WHERE policy_number = :policyNumber")
+        .param("policyNumber", policyNumber)
+        .query(Long.class)
+        .optional()
+        .orElseThrow(() -> new IllegalStateException("Policy not found"));
+  }
+
   public BigDecimal branchAccumulation(String branchCode) {
     return jdbc.sql(
             """
@@ -209,24 +217,22 @@ public class PolicyRepository {
    * PolicyInquiryRepository.lockPolicy}; anything but one row is a failure so the transaction rolls
    * back (Q-14, Q-16).
    */
-  public void saveLifecycle(Policy policy) {
-    int rows =
-        jdbc.sql(
-                "UPDATE pas.policies SET policy_status = :policyStatus, effective_date = :effectiveDate, expiry_date = :expiryDate, total_premium = :totalPremium, coverage_limit = :coverageLimit, renewal_count = :renewalCount, uw_status = :uwStatus, row_version = row_version + 1, last_updated = now(), updated_by = :updatedBy WHERE policy_number = :policyNumber")
-            .param("policyStatus", policy.policyStatus().raw())
-            .param("effectiveDate", policy.effectiveDate())
-            .param("expiryDate", policy.expiryDate())
-            .param("totalPremium", policy.totalPremium())
-            .param("coverageLimit", policy.coverageLimit())
-            .param("renewalCount", policy.renewalCount())
-            .param("uwStatus", policy.uwStatus() == null ? null : policy.uwStatus().raw())
-            .param("updatedBy", policy.updatedBy())
-            .param("policyNumber", policy.policyNumber())
-            .update();
-    if (rows != 1) {
-      throw new IncorrectUpdateSemanticsDataAccessException(
-          "Policy write affected " + rows + " rows");
-    }
+  public long saveLifecycle(Policy policy) {
+    return jdbc.sql(
+            "UPDATE pas.policies SET policy_status = :policyStatus, effective_date = :effectiveDate, expiry_date = :expiryDate, total_premium = :totalPremium, coverage_limit = :coverageLimit, renewal_count = :renewalCount, uw_status = :uwStatus, row_version = row_version + 1, last_updated = now(), updated_by = :updatedBy WHERE policy_number = :policyNumber RETURNING row_version")
+        .param("policyStatus", policy.policyStatus().raw())
+        .param("effectiveDate", policy.effectiveDate())
+        .param("expiryDate", policy.expiryDate())
+        .param("totalPremium", policy.totalPremium())
+        .param("coverageLimit", policy.coverageLimit())
+        .param("renewalCount", policy.renewalCount())
+        .param("uwStatus", policy.uwStatus() == null ? null : policy.uwStatus().raw())
+        .param("updatedBy", policy.updatedBy())
+        .param("policyNumber", policy.policyNumber())
+        .query(Long.class)
+        .optional()
+        .orElseThrow(
+            () -> new IncorrectUpdateSemanticsDataAccessException("Policy write affected 0 rows"));
   }
 
   /** State of the policyholder, used for the per-state renewal cap (Q-04). */

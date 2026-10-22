@@ -1,8 +1,8 @@
 # Renewal and endorsement on pas-policy-service (AB-526)
 
 POLRNW (PRWL) and POLEND (PEND) move to `pas-policy-service`. ADR 0001 (D1, D4, D5, D7, D9, D11)
-applies. Event publishing is not part of this change: AB-528 adds the renewal, endorsement and
-underwriting-request events and replaces the CICS TS queue, TDQ and MQ writes.
+applies. On NEW routes, AB-528 publishes renewal and endorsement lifecycle events and document
+requests through the transactional outbox; a renewal also emits an underwriting referral.
 
 ## Endpoints
 
