@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "capabilities": {
+    "policy-inquiry": {
+      "route": "legacy",
+      "legacy": "java-facade serves policy and coverage inquiry",
+      "new": "pas-policy-service serves policy and coverage inquiry",
+      "ticket": "AB-524",
+      "signoff": null
+    },
+    "new-business": {
+      "route": "legacy",
+      "legacy": "legacy PAS processes new business",
+      "new": "pas-policy-service processes new business",
+      "ticket": "AB-525",
+      "signoff": null
+    },
+    "underwriting": {
+      "route": "legacy",
+      "legacy": "legacy PAS processes underwriting decisions",
+      "new": "pas-policy-service processes underwriting decisions",
+      "ticket": "AB-525",
+      "signoff": null
+    },
+    "renewal": {
+      "route": "legacy",
+      "legacy": "legacy PAS processes renewals",
+      "new": "pas-policy-service processes renewals",
+      "ticket": "AB-526",
+      "signoff": null
+    },
+    "endorsement": {
+      "route": "legacy",
+      "legacy": "legacy PAS processes endorsements",
+      "new": "pas-policy-service processes endorsements",
+      "ticket": "AB-526",
+      "signoff": null
+    },
+    "premium-batch": {
+      "route": "legacy",
+      "legacy": "mainframe premium batch calculates premiums",
+      "new": "pas-batch calculates premiums",
+      "ticket": "AB-523",
+      "signoff": null
+    },
+    "daily-extract": {
+      "route": "legacy",
+      "legacy": "mainframe job creates the daily claims extract",
+      "new": "pas-batch creates the daily claims extract",
+      "ticket": "AB-527",
+      "signoff": null
+    },
+    "monthly-exposure": {
+      "route": "legacy",
+      "legacy": "mainframe job creates the monthly actuarial exposure",
+      "new": "pas-batch creates the monthly actuarial exposure",
+      "ticket": "AB-527",
+      "signoff": null
+    },
+    "document-events": {
+      "route": "legacy",
+      "legacy": "legacy PAS document events are delivered through the mainframe",
+      "new": "pas-policy-service publishes document events",
+      "ticket": "AB-528",
+      "signoff": null
+    },
+    "broker-portal-read": {
+      "route": "legacy",
+      "legacy": "Broker Portal reads through the legacy linked server",
+      "new": "Broker Portal reads through pas-policy-service",
+      "ticket": "AB-528",
+      "signoff": null
+    }
+  }
+}

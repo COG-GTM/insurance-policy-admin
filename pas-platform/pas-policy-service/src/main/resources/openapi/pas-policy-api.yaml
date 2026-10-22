@@ -1,0 +1,255 @@
+openapi: 3.1.0
+info:
+  title: OpenAPI definition
+  version: v0
+servers: []
+paths:
+  /api/v1/policies/{policyNumber}:
+    get:
+      tags:
+      - policy-inquiry-controller
+      summary: Read a policy
+      description: "Requires policy:read and a matching book, agent_id, or branch_codes\
+        \ entitlement."
+      operationId: policy
+      parameters:
+      - name: policyNumber
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Policy found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PolicyResponse"
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks policy:read
+        "404":
+          description: Policy is unknown or not entitled
+        "503":
+          description: Policy inquiry route is not serving traffic
+      security:
+      - bearerAuth: []
+  /api/v1/policies/{policyNumber}/policyholder:
+    get:
+      tags:
+      - policy-inquiry-controller
+      summary: Read the policyholder screen view
+      description: Requires policy:read and policy entitlement. pii:read reveals regulated
+        fields; otherwise values are masked.
+      operationId: policyholder
+      parameters:
+      - name: policyNumber
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Policyholder screen view
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PolicyholderResponse"
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks policy:read
+        "404":
+          description: Policy or policyholder is unknown or not entitled
+        "503":
+          description: Policy inquiry route is not serving traffic
+      security:
+      - bearerAuth: []
+  /api/v1/policies/{policyNumber}/coverages:
+    get:
+      tags:
+      - policy-inquiry-controller
+      summary: Read all coverages for a policy
+      description: "Requires policy:read and the policy's book, agent_id, or branch_codes\
+        \ entitlement."
+      operationId: coverages
+      parameters:
+      - name: policyNumber
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Policy coverages in sequence order
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoverageResponse"
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks policy:read
+        "404":
+          description: Policy is unknown or not entitled
+        "503":
+          description: Policy inquiry route is not serving traffic
+      security:
+      - bearerAuth: []
+  /api/v1/platform/whoami:
+    get:
+      tags:
+      - whoami-controller
+      operationId: whoami
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WhoamiResponse"
+components:
+  schemas:
+    PolicyResponse:
+      type: object
+      properties:
+        policyNumber:
+          type: string
+        policyType:
+          type: string
+        policyStatus:
+          type: string
+        effectiveDate:
+          type: string
+        expiryDate:
+          type: string
+        policyholderId:
+          type: string
+        agentCode:
+          type: string
+        branchCode:
+          type: string
+        totalPremium:
+          type: number
+        deductible:
+          type: number
+        coverageLimit:
+          type: number
+        inceptionDate:
+          type: string
+        renewalCount:
+          type: integer
+          format: int32
+        uwStatus:
+          type: string
+        riskScore:
+          type: integer
+          format: int32
+        webIndicator:
+          type: string
+        apiFlag:
+          type: string
+        lastUpdated:
+          type: integer
+          format: int64
+        updatedBy:
+          type: string
+    PolicyholderResponse:
+      type: object
+      properties:
+        policyNumber:
+          type: string
+        custId:
+          type: string
+        custType:
+          type: string
+        lastName:
+          type: string
+        firstName:
+          type: string
+        middleInit:
+          type: string
+        companyName:
+          type: string
+        addrLine1:
+          type: string
+        addrLine2:
+          type: string
+        city:
+          type: string
+        stateCode:
+          type: string
+        zipCode:
+          type: string
+        countryCode:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        dateOfBirth:
+          type: string
+        birthYear:
+          type: integer
+          format: int32
+        ssnLast4:
+          type: string
+        taxId:
+          type: string
+        creditScore:
+          type: integer
+          format: int32
+        riskTier:
+          type: string
+        gdprConsent:
+          type: string
+        piiMasked:
+          type: boolean
+    CoverageResponse:
+      type: object
+      properties:
+        policyNumber:
+          type: string
+        sequenceNum:
+          type: integer
+          format: int32
+        coverageType:
+          type: string
+        description:
+          type: string
+        coverageLimit:
+          type: number
+        deductible:
+          type: number
+        premium:
+          type: number
+        effectiveDate:
+          type: string
+        expiryDate:
+          type: string
+        status:
+          type: string
+        coinsurancePct:
+          type: integer
+          format: int32
+        ratingTerritory:
+          type: string
+        classCode:
+          type: string
+    WhoamiResponse:
+      type: object
+      properties:
+        subject:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
