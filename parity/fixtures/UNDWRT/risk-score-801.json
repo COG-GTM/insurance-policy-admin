@@ -1,0 +1,1 @@
+{"description":"Substandard tier and loss ratio above 80 reach risk score 801.","input":{"customer":{"creditScore":98,"riskTier":"U"},"claims":{"totalIncurred":800.10}},"expectLegacy":{"outputs.decision[0].riskScore":801}}

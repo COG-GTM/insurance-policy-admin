@@ -1,0 +1,45 @@
+{
+  "program": "UNDWRT",
+  "fixture": "tier-preferred",
+  "description": "Preferred risk tier adjustment.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "AP",
+        "riskScore": 25,
+        "decisionReason": "AUTO-ACCEPTED: LOW RISK"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "AP",
+        "riskScore": 25
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "AP",
+        "riskScore": 25
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 25,
+      "lossRatio": 0.00,
+      "claimCount": 0,
+      "accumLimit": 1000000.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "program": "UNDWRT",
+  "fixture": "risk-score-599",
+  "description": "Substandard tier reaches risk score 599.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "RS",
+        "riskScore": 599,
+        "decisionReason": "REFERRED TO SENIOR UNDERWRITER"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "RS",
+        "riskScore": 599
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "RS",
+        "riskScore": 599
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 599,
+      "lossRatio": 0.00,
+      "claimCount": 0,
+      "accumLimit": 1000000.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

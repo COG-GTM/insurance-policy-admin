@@ -1,0 +1,1 @@
+{"description":"The CICS RECEIVE returns an error response.","input":{"receiveResp":13},"expectLegacy":{"outputs.error[0].message":"ERROR RECEIVING ENDORSEMENT DATA"}}

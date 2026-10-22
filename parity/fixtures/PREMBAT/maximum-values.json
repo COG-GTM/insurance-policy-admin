@@ -1,0 +1,1 @@
+{"description":"Maximum premium, deductible, and coverage limit field values.","input":{"policies":[{"policyNumber":"POL000000501","policyType":"COM","totalPremium":999999999.99,"deductible":9999999.99,"coverageLimit":99999999999.99,"effectiveDate":"20240101","expiryDate":"20250101","insertSqlcode":0}]}}

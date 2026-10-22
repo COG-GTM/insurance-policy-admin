@@ -1,0 +1,34 @@
+       PX-STUB-OPEN-TERR.
+           MOVE 0 TO SQLCODE
+           EXIT.
+       PX-STUB-CLOSE-TERR.
+           MOVE 0 TO SQLCODE
+           EXIT.
+       PX-STUB-OPEN-POL.
+           MOVE 0 TO SQLCODE
+           MOVE 'N' TO PX-END-OF-INPUT
+           EXIT.
+       PX-STUB-FETCH-POL.
+           PERFORM PX-READ-NEXT-POLICY
+           IF PX-END-OF-INPUT = 'Y'
+               MOVE 100 TO SQLCODE
+           ELSE
+               MOVE 0 TO SQLCODE
+               MOVE PX-IN-POLICY-NUMBER TO POLICY-NUMBER
+               MOVE PX-IN-POLICY-TYPE TO POLICY-TYPE
+               MOVE PX-IN-TOTAL-PREMIUM TO POLICY-TOTAL-PREMIUM
+               MOVE PX-IN-DEDUCTIBLE TO POLICY-DEDUCTIBLE
+               MOVE PX-IN-COVERAGE-LIMIT TO POLICY-LIMIT
+               MOVE PX-IN-EFFECTIVE-DATE TO POLICY-EFFECTIVE-DATE
+               MOVE PX-IN-EXPIRY-DATE TO POLICY-EXPIRY-DATE
+           END-IF
+           EXIT.
+       PX-STUB-CLOSE-POL.
+           MOVE 0 TO SQLCODE
+           EXIT.
+       PX-STUB-INSERT-PREMIUM.
+           MOVE PX-IN-INSERT-SQLCODE TO SQLCODE
+           IF SQLCODE = 0
+               PERFORM PX-EMIT-PREMIUM
+           END-IF
+           EXIT.

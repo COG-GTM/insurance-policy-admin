@@ -1,0 +1,1 @@
+{"description":"Current date equals policy effective date.","input":{"currentDate":"20240101","policy":{"effectiveDate":"20240101","expiryDate":"20250101"}},"expectLegacy":{"trace.state.daysRemaining":366,"trace.state.proRataFactor":1.0}}

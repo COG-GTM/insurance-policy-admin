@@ -1,0 +1,42 @@
+{
+  "program": "POLEND",
+  "fixture": "maximum-premium",
+  "description": "Maximum policy premium input value.",
+  "outputs": {
+    "endorsement": [
+      {
+        "policyNumber": "POL000000001",
+        "endorsementSeq": 2,
+        "endorsementType": "CAD",
+        "effectiveDate": "20240701",
+        "premiumAdjustment": 0.00
+      }
+    ],
+    "policyUpdate": [
+      {
+        "totalPremium": 999999999.99
+      }
+    ],
+    "audit": [
+      {
+        "policyNumber": "POL000000001",
+        "totalPremium": 999999999.99
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "POLECONF"
+      ]
+    },
+    "state": {
+      "daysInTerm": 366,
+      "daysRemaining": 184,
+      "proRataFactor": 0.502732,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

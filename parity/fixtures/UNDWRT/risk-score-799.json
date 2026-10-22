@@ -1,0 +1,1 @@
+{"description":"Credit, tier, and four claims reach risk score 799.","input":{"customer":{"creditScore":1,"riskTier":"U"},"claims":{"count":4}},"expectLegacy":{"outputs.decision[0].riskScore":799}}

@@ -1,0 +1,45 @@
+{
+  "program": "UNDWRT",
+  "fixture": "limit-500000001",
+  "description": "A limit just above five million adds 100.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "RS",
+        "riskScore": 399,
+        "decisionReason": "REFERRED TO SENIOR UNDERWRITER"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "RS",
+        "riskScore": 399
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "RS",
+        "riskScore": 399
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 399,
+      "lossRatio": 0.00,
+      "claimCount": 0,
+      "accumLimit": 1000000.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

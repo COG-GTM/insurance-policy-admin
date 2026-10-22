@@ -1,0 +1,1 @@
+{"description":"Term calculation crosses a calendar year boundary.","input":{"currentDate":"20241231","policy":{"effectiveDate":"20240101","expiryDate":"20250101"}},"expectLegacy":{"trace.state.daysInTerm":366,"trace.state.daysRemaining":1,"trace.state.proRataFactor":0.002732}}

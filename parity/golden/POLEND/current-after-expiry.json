@@ -1,0 +1,42 @@
+{
+  "program": "POLEND",
+  "fixture": "current-after-expiry",
+  "description": "Current date after expiry exercises negative-day sign loss.",
+  "outputs": {
+    "endorsement": [
+      {
+        "policyNumber": "POL000000001",
+        "endorsementSeq": 2,
+        "endorsementType": "CAD",
+        "effectiveDate": "20250102",
+        "premiumAdjustment": 0.00
+      }
+    ],
+    "policyUpdate": [
+      {
+        "totalPremium": 1200.00
+      }
+    ],
+    "audit": [
+      {
+        "policyNumber": "POL000000001",
+        "totalPremium": 1200.00
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "POLECONF"
+      ]
+    },
+    "state": {
+      "daysInTerm": 366,
+      "daysRemaining": 1,
+      "proRataFactor": 0.002732,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "program": "POLRNW",
+  "fixture": "receive-failure",
+  "description": "The CICS RECEIVE returns an error response.",
+  "outputs": {
+    "policyUpdate": [
+      {
+        "status": "AC",
+        "effectiveDate": "00000000",
+        "expiryDate": "00010000",
+        "totalPremium": 0.00,
+        "renewalCount": 1,
+        "uwStatus": "PN"
+      }
+    ],
+    "coverageUpdate": [
+      {
+        "effectiveDate": "00000000",
+        "expiryDate": "00010000"
+      }
+    ],
+    "error": [
+      {
+        "message": "POLICY NOT ELIGIBLE FOR RENEWAL"
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "POLRCONF"
+      ]
+    },
+    "state": {
+      "oldPremium": 0.00,
+      "newPremium": 0.00,
+      "rateChangePct": 0.00,
+      "errorMsg": "POLICY NOT ELIGIBLE FOR RENEWAL"
+    },
+    "returnCode": 0
+  }
+}

@@ -1,0 +1,1 @@
+{"description":"The first endorsement sequence is generated from an empty prior maximum.","input":{"maxEndorsementSeq":0},"expectLegacy":{"outputs.endorsement[0].endorsementSeq":1}}

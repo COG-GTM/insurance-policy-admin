@@ -1,0 +1,35 @@
+{
+  "program": "PREMBAT",
+  "fixture": "empty-book",
+  "description": "An empty policy book produces only the job end row.",
+  "outputs": {
+    "premium": [],
+    "jobEnd": [
+      {
+        "returnCode": 0,
+        "policiesRead": 0,
+        "policiesUpdated": 0,
+        "policiesError": 0
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": [],
+      "report": [
+        "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20241015",
+        "------------------------------------------------------------------------------------------------------------------------------------",
+        "====================================================================================================================================",
+        "TOTAL POLICIES READ:    0000000",
+        "TOTAL POLICIES UPDATED: 0000000",
+        "TOTAL ERRORS:           0000000"
+      ]
+    },
+    "state": {
+      "policiesRead": 0,
+      "policiesUpdated": 0,
+      "policiesError": 0
+    },
+    "returnCode": 0
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "program": "POLRNW",
+  "defaults": {
+    "currentDate": "20241015",
+    "receiveResp": 0,
+    "policySqlcode": 0,
+    "policy": {
+      "policyNumber": "POL000000001",
+      "policyType": "AUT",
+      "status": "AC",
+      "totalPremium": 1234.57,
+      "expiryDate": "20240229",
+      "renewalCount": 1,
+      "uwStatus": "AP"
+    },
+    "openClaims": 0,
+    "policyUpdateSqlcode": 0,
+    "coverageUpdateSqlcode": 0
+  },
+  "inputs": [
+    {"path": "currentDate", "type": "date"},
+    {"path": "receiveResp", "type": "int", "digits": 8},
+    {"path": "policySqlcode", "type": "int", "digits": 9},
+    {"path": "policy.policyNumber", "type": "text", "length": 12},
+    {"path": "policy.policyType", "type": "text", "length": 3},
+    {"path": "policy.status", "type": "text", "length": 2},
+    {"path": "policy.totalPremium", "type": "decimal", "integerDigits": 9, "scale": 2},
+    {"path": "policy.expiryDate", "type": "date"},
+    {"path": "policy.renewalCount", "type": "int", "digits": 3},
+    {"path": "policy.uwStatus", "type": "text", "length": 2},
+    {"path": "openClaims", "type": "int", "digits": 9},
+    {"path": "policyUpdateSqlcode", "type": "int", "digits": 9},
+    {"path": "coverageUpdateSqlcode", "type": "int", "digits": 9}
+  ],
+  "outputs": {
+    "policyUpdate": {
+      "compare": true,
+      "fields": [
+        {"name": "status", "type": "text", "length": 2, "source": "POLICY-STATUS"},
+        {"name": "effectiveDate", "type": "date", "source": "POLICY-EFFECTIVE-DATE"},
+        {"name": "expiryDate", "type": "date", "source": "POLICY-EXPIRY-DATE"},
+        {"name": "totalPremium", "type": "decimal", "integerDigits": 9, "scale": 2, "source": "POLICY-TOTAL-PREMIUM"},
+        {"name": "renewalCount", "type": "int", "digits": 3, "source": "POLICY-RENEWAL-COUNT"},
+        {"name": "uwStatus", "type": "text", "length": 2, "source": "POLICY-UW-STATUS"}
+      ]
+    },
+    "coverageUpdate": {
+      "compare": true,
+      "fields": [
+        {"name": "effectiveDate", "type": "date", "source": "POLICY-EFFECTIVE-DATE"},
+        {"name": "expiryDate", "type": "date", "source": "POLICY-EXPIRY-DATE"}
+      ]
+    },
+    "error": {
+      "compare": true,
+      "fields": [
+        {"name": "message", "type": "text", "length": 79, "source": "WS-ERROR-MSG"}
+      ]
+    }
+  },
+  "state": [
+    {"name": "oldPremium", "type": "decimal", "integerDigits": 9, "scale": 2, "source": "WS-OLD-PREMIUM"},
+    {"name": "newPremium", "type": "decimal", "integerDigits": 9, "scale": 2, "source": "WS-NEW-PREMIUM"},
+    {"name": "rateChangePct", "type": "decimal", "integerDigits": 3, "scale": 2, "source": "WS-RATE-CHANGE-PCT"},
+    {"name": "errorMsg", "type": "text", "length": 79, "source": "WS-ERROR-MSG"}
+  ],
+  "execRules": [
+    {"name": "ASKTIME", "pattern": "ASKTIME", "expectCount": 1},
+    {"name": "FORMATTIME", "pattern": "FORMATTIME", "expectCount": 1},
+    {"name": "RECEIVE", "pattern": "CICS RECEIVE", "expectCount": 1},
+    {"name": "SELECT-POLICY", "pattern": "SELECT POLICY_NUMBER, POLICY_TYPE, POLICY_STATUS", "expectCount": 1},
+    {"name": "SELECT-CLAIMS", "pattern": "SELECT COUNT\\(\\*\\) INTO :WS-SQLCODE", "expectCount": 1},
+    {"name": "UPDATE-POLICY", "pattern": "UPDATE POLICIES", "expectCount": 1},
+    {"name": "UPDATE-COVERAGES", "pattern": "UPDATE COVERAGES", "expectCount": 1},
+    {"name": "SEND-MAP", "pattern": "SEND MAP", "expectCount": 1},
+    {"name": "SEND-TEXT", "pattern": "SEND TEXT", "expectCount": 1},
+    {"name": "RETURN", "pattern": "RETURN TRANSID", "expectCount": 1}
+  ],
+  "rewrites": [
+    {"pattern": "DFHRESP\\(NORMAL\\)", "replacement": "0", "expectCount": 1}
+  ]
+}

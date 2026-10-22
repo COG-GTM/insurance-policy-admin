@@ -1,0 +1,1 @@
+{"description":"Endorsement applies to a zero-premium policy.","input":{"policy":{"totalPremium":0.00}},"expectLegacy":{"outputs.policyUpdate[0].totalPremium":0.0}}

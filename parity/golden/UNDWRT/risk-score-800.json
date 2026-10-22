@@ -1,0 +1,45 @@
+{
+  "program": "UNDWRT",
+  "fixture": "risk-score-800",
+  "description": "No score, substandard tier, and loss ratio above 80 reach 800.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "DC",
+        "riskScore": 800,
+        "decisionReason": "AUTO-DECLINED: HIGH RISK"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "DC",
+        "riskScore": 800
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "DC",
+        "riskScore": 800
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 800,
+      "lossRatio": 80.10,
+      "claimCount": 0,
+      "accumLimit": 1000000.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

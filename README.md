@@ -105,10 +105,10 @@ The legacy implementation remains alongside the new Java platform:
 | Module | Port | Responsibility |
 |--------|------|----------------|
 | `pas-common` | — | Shared scopes, claims, and schema names |
+| `pas-parity` | — | COBOL golden-file runner and Java parity test support |
 | `pas-policy-service` | `8080` | Policy API foundation and platform health |
 | `pas-batch` | `8081` | Spring Batch metadata and batch service foundation |
 | `pas-rating` | planned (AB-522) | Rating component shared by the policy service and batch |
-| `pas-parity` | planned (AB-520) | Test-scope parity harness glue (golden-file runner + adapters) |
 
 ## Getting started (pas-platform)
 
