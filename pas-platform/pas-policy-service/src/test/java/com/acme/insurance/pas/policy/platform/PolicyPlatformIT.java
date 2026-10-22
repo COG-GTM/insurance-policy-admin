@@ -141,7 +141,9 @@ class PolicyPlatformIT {
             "SELECT version FROM pas.flyway_schema_history WHERE version IS NOT NULL",
             String.class);
 
-    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "10", "20", "40", "41", "80");
+    assertThat(versions)
+        .containsExactly(
+            "1", "2", "3", "4", "5", "10", "20", "30", "31", "32", "33", "34", "40", "41", "80");
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'pas'",

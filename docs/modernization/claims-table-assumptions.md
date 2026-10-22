@@ -11,11 +11,11 @@ The common domain adds only the adapter boundary needed by policy and underwriti
 - `summarizeSince(policyNumber, since)` for a count and a scale-2 incurred amount.
 
 `ClaimsSummary` normalizes a supplied amount to scale 2 without rounding away non-zero precision.
-It does not define how a claims adapter determines open statuses, handles null incurred amounts,
-deduplicates claims, or interprets dates; those rules require the missing source contract.
+AB-525 supports a configured REST claims-history adapter and a fixture adapter for local/tests.
+REST mode uses OAuth2 client credentials, maps a 404 to zero claims, retries only 5xx/I/O failures,
+and fails closed with 503 when history remains unavailable. A missing REST base URL is a startup
+error. No target claims schema is added.
 
-The integration choice and freshness remain open in
-[OQ-18](open-questions.md#oq-18), and the observations about the current COBOL reads are recorded
-in [Q-02](quirk-register.md#q-02). Adapters and any target claims schema must wait for the Claims
-team's source-of-truth and freshness decision; no guessed schema or status mapping should be
-introduced in the meantime.
+The Claims team still needs to confirm the endpoint and the meaning/freshness of the five-year
+count and incurred amount before production rollout. See [OQ-18](open-questions.md#oq-18) and the
+legacy open-claim observations in [Q-02](quirk-register.md#q-02).

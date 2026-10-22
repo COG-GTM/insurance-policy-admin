@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {"$ref": "envelope.schema.json"},
+    {
+      "properties": {
+        "eventType": {"const": "UnderwritingReferralRequested"},
+        "data": {
+          "type": "object",
+          "required": ["trigger", "decisionId", "decisionCode", "riskScore", "reasons", "lossRatio", "override", "overridesDecisionId"],
+          "properties": {
+            "trigger": {"enum": ["NEW_BUSINESS", "DECISION"]},
+            "decisionId": {"type": ["integer", "null"], "minimum": 1},
+            "decisionCode": {"type": ["string", "null"], "enum": ["AP", "RS", "RM", "DC", null]},
+            "riskScore": {"type": ["integer", "null"], "minimum": 0},
+            "reasons": {"type": ["array", "null"], "items": {"type": "string"}},
+            "lossRatio": {"type": ["number", "null"]},
+            "override": {"type": ["boolean", "null"]},
+            "overridesDecisionId": {"type": ["integer", "null"], "minimum": 1}
+          },
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {"properties": {"trigger": {"const": "DECISION"}}},
+              "then": {
+                "properties": {
+                  "decisionId": {"type": "integer", "minimum": 1},
+                  "decisionCode": {"type": "string", "enum": ["AP", "RS", "RM", "DC"]},
+                  "riskScore": {"type": "integer", "minimum": 0},
+                  "reasons": {"type": "array", "items": {"type": "string"}},
+                  "lossRatio": {"type": "number"},
+                  "override": {"type": "boolean"}
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

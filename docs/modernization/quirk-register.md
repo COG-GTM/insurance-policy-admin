@@ -166,8 +166,9 @@ differences must cite the Q-id.
 - **Impact:** 9 of every 10 new-business attempts fail with a duplicate key on `POLICIES` (`cobol/programs/POLNEW.cbl:183-188`), each wasting a sequence value. The operator sees "DB2 ERROR INSERTING POLICY RECORD" and retries.
 - **Owner:** PAS product owner.
 - **Decision:** **Fix.** Generate 12-character numbers with no collisions (for example `POL` + 9 digits from the sequence). Existing numbers are migrated unchanged.
+- **Formulas:** legacy `STRING 'POL' WS-POLICY-SEQ DELIMITED BY SIZE` into `PIC X(12)` yields `POL` plus the first 9 digits of the zero-padded 10-digit sequence; modern numbering is `'POL' + lpad(nextval('pas.policy_seq'), 9, '0')`.
 - **Rationale:** every new policy number is new, so there is nothing to keep parity with, and the defect blocks most new business.
-- **Implemented by:** AB-525.
+- **Implemented by:** AB-525 (`PolicyNumberGenerator`).
 
 ### Q-09
 
@@ -179,7 +180,7 @@ differences must cite the Q-id.
 - **Owner:** PAS product owner.
 - **Decision:** **Fix.** Store the entered effective date, set expiry = effective + 1 year, and set inception = effective.
 - **Rationale:** the policy term is a core contract attribute.
-- **Implemented by:** AB-525.
+- **Implemented by:** AB-525 (`NewBusinessService`).
 
 ### Q-10
 
@@ -191,7 +192,7 @@ differences must cite the Q-id.
 - **Owner:** PAS product owner.
 - **Decision:** **Fix** the initialisation: sequence starts at 1, and limit/deductible come from the policy (premium 0.00 until rated). **Preserve** the default coverage sets per type, as configuration.
 - **Rationale:** uninitialised storage is not a business rule. The coverage sets are.
-- **Implemented by:** AB-525.
+- **Implemented by:** AB-525 (`DefaultCoverageProperties`, `NewBusinessService`).
 
 ### Q-11
 
@@ -294,7 +295,7 @@ differences must cite the Q-id.
 - **Owner:** Underwriting.
 - **Decision:** **Preserve** (use `CobolArithmetic.storeUnsigned`).
 - **Rationale:** the decision is unaffected, and parity of `RISK_SCORE` matters for reports and extracts (DAILY-EXTRACT selects `RISK_SCORE`).
-- **Implemented by:** AB-525.
+- **Implemented by:** AB-525 (`UnderwritingRules`).
 
 ### Q-20
 
@@ -305,7 +306,7 @@ differences must cite the Q-id.
 - **Impact:** consumers of the queue message see a low-risk score on a declined policy.
 - **Owner:** Underwriting.
 - **Decision:** **Fix.** Events and APIs carry the full score. If AB-528's legacy bridge rebuilds the 125-byte record, it has to truncate the score to 3 digits there, and must document that.
-- **Implemented by:** AB-525, AB-528.
+- **Implemented by:** AB-525 (`UnderwritingOutcome`, `UnderwritingService`); AB-528.
 
 ### Q-21
 
@@ -316,7 +317,7 @@ differences must cite the Q-id.
 - **Impact:** the worst loss histories can score lower than moderate ones.
 - **Owner:** Underwriting.
 - **Decision:** **Fix.** Use the full-precision ratio.
-- **Implemented by:** AB-525.
+- **Implemented by:** AB-525 (`UnderwritingRules`).
 
 ### Q-22
 
@@ -327,7 +328,7 @@ differences must cite the Q-id.
 - **Impact:** an underwriter can't see why a referral happened.
 - **Owner:** Underwriting.
 - **Decision:** **Fix.** Keep all reasons (decision text plus contributing factors).
-- **Implemented by:** AB-525.
+- **Implemented by:** AB-525 (`UnderwritingRules`).
 
 ### Q-23
 
@@ -338,7 +339,7 @@ differences must cite the Q-id.
 - **Impact:** a consumer that decodes against the copybook (for example `UW-REFERRED`) misses every referral.
 - **Owner:** Underwriting.
 - **Decision:** **Preserve.** The UW status enum includes AP, PN, DC, RF, RS and RM.
-- **Implemented by:** AB-521 (types), AB-525.
+- **Implemented by:** AB-521 (types), AB-525 (`UnderwritingRules`, `UnderwritingService`).
 
 ### Q-24
 
@@ -349,7 +350,7 @@ differences must cite the Q-id.
 - **Impact:** a policy that is only in PN is not premium-rated (PREMBAT reads only AC, `cobol/programs/PREMBAT.cbl:118-127`), but it is in the DAILY-EXTRACT (`jcl/DAILY-EXTRACT.jcl:53`).
 - **Owner:** PAS product owner.
 - **Decision:** **Preserve (open question).** Do not invent an activation rule. OQ-01 asks where these transitions happen.
-- **Implemented by:** AB-525 (records status PN), follow-up after OQ-01.
+- **Implemented by:** AB-525 (`NewBusinessService` records status PN), follow-up after OQ-01.
 
 ### Q-25
 
@@ -360,18 +361,21 @@ differences must cite the Q-id.
 - **Impact:** the decision audit trail has gaps, and human decisions can't be attributed to anyone.
 - **Owner:** Underwriting.
 - **Decision:** **Fix.** Every decision is stored with a timestamp and the acting user from the JWT `sub`, and override fields are captured.
-- **Implemented by:** AB-525.
+- **Implemented by:** AB-525 (`UnderwritingService`, `UnderwritingDecisionRepository`).
 
 ### Q-26
 
 **Nullable columns selected without indicator variables**
+
+- **AB-525 implementation note:** Null or nonpositive credit scores use the base score 400, as
+  recorded for Q-26/Q-45 in the quirk register.
 
 - **Location:** `cobol/programs/UNDWRT.cbl:96-110` selects `CREDIT_SCORE` and `RISK_TIER`, both nullable (`sql/ddl/create-tables.sql:167-168`). `cobol/programs/POLQRY.cbl:107-119` selects nullable `LAST_NAME`, `FIRST_NAME`, `COMPANY_NAME`, `PHONE` and `EMAIL`. Neither uses indicator variables.
 - **Observed:** a NULL value gives SQLCODE -305. In UNDWRT this produces "POLICY/CUSTOMER DATA NOT FOUND" (`cobol/programs/UNDWRT.cbl:111-114`), so the "no credit score → 400" branch (`cobol/programs/UNDWRT.cbl:121-126`) only runs for 0. In POLQRY the error is not checked. Individual customers have NULL `COMPANY_NAME` and commercial customers have NULL names, so the customer read fails every time.
 - **Impact:** underwriting can't decide on a policy whose holder has no credit score.
 - **Owner:** Mainframe team (DB2), with Underwriting.
 - **Decision:** **Fix.** NULL credit score → base 400 (the coded intent), and NULL tier → standard.
-- **Implemented by:** AB-525 (underwriting), AB-524 (inquiry).
+- **Implemented by:** AB-525 (`UnderwritingRules`), AB-524 (inquiry).
 
 ### Q-27
 
@@ -381,7 +385,7 @@ differences must cite the Q-id.
 - **Observed:** the modification history lists terrorism (2004), catastrophe zone (2011) and cyber (2018) scoring, but none of them is in the code. The accumulation sum counts only `AC` policies (`cobol/programs/UNDWRT.cbl:172-178`), so the policy being underwritten (PN) is excluded.
 - **Owner:** Underwriting.
 - **Decision:** **Preserve (configurable).** Thresholds become configuration with these defaults. No catastrophe, terrorism or cyber scoring until Underwriting asks for it (OQ-08).
-- **Implemented by:** AB-525.
+- **Implemented by:** AB-525 (`UnderwritingThresholds`, `UnderwritingService`).
 
 ### Q-28
 
@@ -556,7 +560,7 @@ differences must cite the Q-id.
 - **Owner:** PAS product owner / Underwriting.
 - **Decision:** **Fix.** A failed receive stops processing and returns the error.
 - **Found by:** AB-520. The decision is proposed pending product-owner and mainframe-team sign-off.
-- **Implemented by:** AB-525, AB-526.
+- **Implemented by:** AB-525 (`UnderwritingService`), AB-526.
 
 ### Q-45
 
@@ -568,7 +572,7 @@ differences must cite the Q-id.
 - **Owner:** Underwriting.
 - **Decision:** **Fix.** Treat scores less than or equal to zero as no score, with base 400.
 - **Found by:** AB-520.
-- **Implemented by:** AB-525.
+- **Implemented by:** AB-525 (`UnderwritingRules`).
 
 ### Q-46
 

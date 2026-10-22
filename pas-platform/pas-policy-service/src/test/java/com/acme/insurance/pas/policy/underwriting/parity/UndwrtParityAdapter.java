@@ -1,10 +1,10 @@
-package com.acme.insurance.pas.parity.undwrt;
+package com.acme.insurance.pas.policy.underwriting.parity;
 
 import com.acme.insurance.pas.parity.ParityAdapter;
-import com.acme.insurance.pas.underwriting.UnderwritingDecision;
-import com.acme.insurance.pas.underwriting.UnderwritingInput;
-import com.acme.insurance.pas.underwriting.UnderwritingRules;
-import com.acme.insurance.pas.underwriting.UnderwritingThresholds;
+import com.acme.insurance.pas.policy.underwriting.UnderwritingInput;
+import com.acme.insurance.pas.policy.underwriting.UnderwritingOutcome;
+import com.acme.insurance.pas.policy.underwriting.UnderwritingRules;
+import com.acme.insurance.pas.policy.underwriting.UnderwritingThresholds;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -31,7 +31,7 @@ final class UndwrtParityAdapter
     if (input.receiveResp() != 0) {
       return Output.error(RECEIVE_ERROR);
     }
-    UnderwritingDecision decision =
+    UnderwritingOutcome decision =
         UnderwritingRules.decide(
             new UnderwritingInput(
                 input.customer().creditScore(),

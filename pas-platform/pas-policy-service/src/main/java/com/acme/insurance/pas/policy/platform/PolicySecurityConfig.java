@@ -30,10 +30,23 @@ public class PolicySecurityConfig {
                 authorize
                     .requestMatchers(EndpointRequest.to(HealthEndpoint.class))
                     .permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies")
+                    .hasAuthority(PasScopes.authority(PasScopes.POLICY_WRITE))
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/underwriting-decisions")
+                    .hasAuthority(PasScopes.authority(PasScopes.UNDERWRITING_DECIDE))
+                    .requestMatchers(
+                        HttpMethod.POST, "/api/v1/policies/*/underwriting-decisions/*/override")
+                    .hasAuthority(PasScopes.authority(PasScopes.UNDERWRITING_OVERRIDE))
                     .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/renewals")
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_RENEW))
                     .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/endorsements")
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_ENDORSE))
+                    .requestMatchers(
+                        request ->
+                            (request.getServletPath().equals("/api/v1/policies")
+                                    || request.getServletPath().startsWith("/api/v1/policies/"))
+                                && !"GET".equals(request.getMethod()))
+                    .denyAll()
                     .requestMatchers("/api/v1/policies/**")
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_READ))
                     .anyRequest()

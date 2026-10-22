@@ -71,7 +71,7 @@ public class PolicyInquiryController {
     }
     Optional<Policy> policy = repository.findPolicy(policyNumber, CallerEntitlements.from(jwt));
     return policy
-        .map(value -> ResponseEntity.ok(policyResponse(value)))
+        .map(value -> ResponseEntity.ok(PolicyResponseMapper.map(value)))
         .orElseGet(() -> ResponseEntity.notFound().build());
   }
 
@@ -164,29 +164,6 @@ public class PolicyInquiryController {
     return ResponseEntity.ok()
         .headers(responseHeaders -> responseHeaders.putAll(headers))
         .body(policyholderResponse(policyNumber, holder.get(), piiRead));
-  }
-
-  private static PolicyResponse policyResponse(Policy policy) {
-    return new PolicyResponse(
-        policy.policyNumber(),
-        raw(policy.policyType()),
-        raw(policy.policyStatus()),
-        date(policy.effectiveDate()),
-        date(policy.expiryDate()),
-        policy.policyholderId(),
-        policy.agentCode(),
-        policy.branchCode(),
-        policy.totalPremium(),
-        policy.deductible(),
-        policy.coverageLimit(),
-        date(policy.inceptionDate()),
-        policy.renewalCount() == null ? 0 : policy.renewalCount(),
-        raw(policy.uwStatus()),
-        policy.riskScore() == null ? 0 : policy.riskScore(),
-        raw(policy.webIndicator()),
-        raw(policy.apiFlag()),
-        policy.lastUpdated().toInstant().toEpochMilli(),
-        policy.updatedBy());
   }
 
   private static CoverageResponse coverageResponse(Coverage coverage) {

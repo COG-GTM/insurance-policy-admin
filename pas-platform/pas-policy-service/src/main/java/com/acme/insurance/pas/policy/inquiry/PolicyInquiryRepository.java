@@ -97,11 +97,18 @@ public class PolicyInquiryRepository {
     return policyholderId.flatMap(policyHolderRepository::findByCustId);
   }
 
-  /**
-   * Entitlement-filtered read that takes the policy row lock for the rest of the transaction — the
-   * PostgreSQL equivalent of POLEND's {@code WITH RS USE AND KEEP UPDATE LOCKS} (AB-526). Unknown
-   * and unentitled policies are both empty so callers return 404.
-   */
+  public static String entitlementPredicate(String policyAlias) {
+    return ENTITLEMENT_PREDICATE.replace("p.", policyAlias + ".");
+  }
+
+  public static java.util.Map<String, Object> entitlementParameters(
+      CallerEntitlements entitlements) {
+    return java.util.Map.of(
+        "wholeBook", entitlements.wholeBook(),
+        "agentId", new SqlParameterValue(Types.VARCHAR, entitlements.agentId()),
+        "branchCodes", textArray(entitlements.branchCodes()));
+  }
+
   /**
    * True when the policyholder also holds a policy the caller is not entitled to; an ACH
    * endorsement would otherwise change that policy's mailing address too.
@@ -117,6 +124,11 @@ public class PolicyInquiryRepository {
         .single();
   }
 
+  /**
+   * Entitlement-filtered read that takes the policy row lock for the rest of the transaction — the
+   * PostgreSQL equivalent of POLEND's {@code WITH RS USE AND KEEP UPDATE LOCKS} (AB-526). Unknown
+   * and unentitled policies are both empty so callers return 404.
+   */
   public Optional<Policy> lockPolicy(String policyNumber, CallerEntitlements entitlements) {
     return jdbc.sql(
             """
@@ -133,14 +145,6 @@ public class PolicyInquiryRepository {
         .params(entitlementParameters(entitlements))
         .query((row, rowNumber) -> policy(row))
         .optional();
-  }
-
-  private static java.util.Map<String, Object> entitlementParameters(
-      CallerEntitlements entitlements) {
-    return java.util.Map.of(
-        "wholeBook", entitlements.wholeBook(),
-        "agentId", new SqlParameterValue(Types.VARCHAR, entitlements.agentId()),
-        "branchCodes", textArray(entitlements.branchCodes()));
   }
 
   private static AbstractSqlTypeValue textArray(List<String> branchCodes) {

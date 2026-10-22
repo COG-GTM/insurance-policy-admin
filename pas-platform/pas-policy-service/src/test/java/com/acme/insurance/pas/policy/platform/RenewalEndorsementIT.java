@@ -34,6 +34,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -82,6 +83,7 @@ class RenewalEndorsementIT {
 
   @TestConfiguration
   static class ClaimsDouble {
+    @Primary
     @Bean
     ClaimsHistoryPort claimsHistoryPort() {
       return new ClaimsHistoryPort() {
@@ -110,8 +112,10 @@ class RenewalEndorsementIT {
   void feb29TermRenewsToFeb28WithTruncatedUpliftAndRedatedCoverages() throws Exception {
     String policy =
         copyPolicy(LocalDate.of(2023, 3, 1), LocalDate.of(2024, 2, 29), "AC", "1234.57", 1);
+    long beforeRenewal = rowVersion(policy);
     ResponseEntity<String> response = renew(policy, "2024-02-29", wholeBook());
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    assertThat(rowVersion(policy)).isEqualTo(beforeRenewal + 1);
     JsonNode body = objectMapper.readTree(response.getBody());
     assertThat(body.get("effectiveDate").asText()).isEqualTo("2024-02-29");
     assertThat(body.get("expiryDate").asText()).isEqualTo("2025-02-28");
@@ -202,15 +206,19 @@ class RenewalEndorsementIT {
     LocalDate effective = today().minusDays(100);
     LocalDate expiry = effective.plusYears(1);
     String policy = copyPolicy(effective, expiry, "AC", "1200.00", 0);
+    long beforeFirstEndorsement = rowVersion(policy);
     ResponseEntity<String> first = endorse(policy, cancelLike("LCH", effective), wholeBook());
     assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    assertThat(rowVersion(policy)).isEqualTo(beforeFirstEndorsement + 1);
     JsonNode firstBody = objectMapper.readTree(first.getBody());
     assertThat(firstBody.get("proRataFactor").decimalValue()).isEqualByComparingTo("1.000000");
     assertThat(firstBody.get("premiumAdjustment").decimalValue()).isEqualByComparingTo("0.00");
     assertThat(firstBody.get("endorsementSeq").asInt()).isEqualTo(1);
 
+    long beforeLastEndorsement = rowVersion(policy);
     ResponseEntity<String> last = endorse(policy, cancelLike("LCH", expiry), wholeBook());
     assertThat(last.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    assertThat(rowVersion(policy)).isEqualTo(beforeLastEndorsement + 1);
     assertThat(objectMapper.readTree(last.getBody()).get("proRataFactor").decimalValue())
         .isEqualByComparingTo("0.000000");
 
@@ -522,6 +530,11 @@ class RenewalEndorsementIT {
   private int count(String table, String policy) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM " + table + " WHERE policy_number = ?", Integer.class, policy);
+  }
+
+  private long rowVersion(String policy) {
+    return jdbc.queryForObject(
+        "SELECT row_version FROM pas.policies WHERE policy_number = ?", Long.class, policy);
   }
 
   private ResponseEntity<String> renew(String policy, String term, Map<String, Object> claims)

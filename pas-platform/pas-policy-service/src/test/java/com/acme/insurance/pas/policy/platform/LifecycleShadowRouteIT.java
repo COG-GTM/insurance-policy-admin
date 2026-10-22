@@ -18,6 +18,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -57,6 +58,7 @@ class LifecycleShadowRouteIT {
 
   @TestConfiguration
   static class NoClaims {
+    @Primary
     @Bean
     ClaimsHistoryPort claimsHistoryPort() {
       return new ClaimsHistoryPort() {

@@ -5,8 +5,26 @@ spring:
     url: ${PAS_DB_URL:jdbc:postgresql://localhost:5432/pas}
     username: ${PAS_DB_USERNAME}
     password: ${PAS_DB_PASSWORD}
+  security:
+    oauth2:
+      client:
+        registration:
+          claims-api:
+            provider: claims-api
+            client-id: ${PAS_CLAIMS_CLIENT_ID:local}
+            client-secret: ${PAS_CLAIMS_CLIENT_SECRET:local}
+            authorization-grant-type: client_credentials
+            scope: claims:history:read
+        provider:
+          claims-api:
+            token-uri: ${PAS_CLAIMS_TOKEN_URL:http://localhost:8090/oauth/token}
   kafka:
     bootstrap-servers: ${PAS_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 1
+      acks: all
   flyway:
     schemas: pas
     default-schema: pas
@@ -15,12 +33,76 @@ spring:
     banner-mode: "off"
 
 pas:
+  kafka:
+    topics:
+      enabled: ${PAS_KAFKA_TOPICS_ENABLED:true}
+      partitions: ${PAS_KAFKA_TOPIC_PARTITIONS:1}
+      replicas: ${PAS_KAFKA_TOPIC_REPLICAS:1}
   rating:
     factor-mode: ${PAS_RATING_FACTOR_MODE:legacy}
   routing:
     policy-inquiry: ${PAS_ROUTE_POLICY_INQUIRY:legacy}
+    new-business: ${PAS_ROUTE_NEW_BUSINESS:legacy}
+    underwriting: ${PAS_ROUTE_UNDERWRITING:legacy}
     renewal: ${PAS_ROUTE_RENEWAL:legacy}
     endorsement: ${PAS_ROUTE_ENDORSEMENT:legacy}
+  outbox:
+    relay:
+      enabled: ${PAS_OUTBOX_RELAY_ENABLED:true}
+      poll-interval: ${PAS_OUTBOX_RELAY_POLL_INTERVAL:PT1S}
+      batch-size: ${PAS_OUTBOX_RELAY_BATCH_SIZE:50}
+      ack-timeout: ${PAS_OUTBOX_RELAY_ACK_TIMEOUT:PT10S}
+  new-business:
+    default-coverages:
+      AUT:
+        - type: AUTL
+          description: Auto Liability
+        - type: AUTP
+          description: Auto Physical Damage
+      HOM:
+        - type: PROP
+          description: Dwelling Coverage
+        - type: LIAB
+          description: Personal Liability
+      COM:
+        - type: PROP
+          description: Commercial Property
+        - type: LIAB
+          description: General Liability
+        - type: WKCP
+          description: Workers Compensation
+  underwriting:
+    senior-referral: 300
+    manager-referral: 600
+    auto-decline: 800
+    credit-ceiling: 900
+    no-score-base: 400
+    substandard-adjustment: 200
+    preferred-adjustment: -100
+    first-claim-threshold: 3
+    first-claim-adjustment: 150
+    second-claim-threshold: 5
+    second-claim-adjustment: 200
+    loss-ratio-threshold: 80
+    loss-ratio-adjustment: 200
+    first-limit-threshold: 5000000
+    first-limit-adjustment: 100
+    second-limit-threshold: 10000000
+    second-limit-adjustment: 200
+    accumulation-threshold: 500000000
+    accumulation-adjustment: 300
+  claims:
+    adapter: ${PAS_CLAIMS_ADAPTER:rest}
+    rest:
+      base-url: ${PAS_CLAIMS_REST_BASE_URL:}
+      connect-timeout: ${PAS_CLAIMS_CONNECT_TIMEOUT:PT2S}
+      read-timeout: ${PAS_CLAIMS_READ_TIMEOUT:PT5S}
+      max-attempts: ${PAS_CLAIMS_MAX_ATTEMPTS:3}
+      retry-backoff: ${PAS_CLAIMS_RETRY_BACKOFF:PT0.2S}
+    fixture:
+      policies: {}
+  clock:
+    zone: ${PAS_CLOCK_ZONE:UTC}
   renewal:
     uplift-pct: 5.00
     max-increase-pct: 15.00

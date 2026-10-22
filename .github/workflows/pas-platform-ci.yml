@@ -112,8 +112,8 @@ jobs:
       - name: Add parity report to summary
         if: always()
         run: |
-          if [ -f pas-platform/pas-parity/target/parity-report.md ]; then
-            cat pas-platform/pas-parity/target/parity-report.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -f pas-platform/pas-policy-service/target/parity-report.md ]; then
+            cat pas-platform/pas-policy-service/target/parity-report.md >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Upload parity report and test results
         if: always()
@@ -121,8 +121,8 @@ jobs:
         with:
           name: pas-platform-parity-reports
           path: |
-            pas-platform/pas-parity/target/parity-report.md
-            pas-platform/pas-parity/target/surefire-reports/**
+            pas-platform/pas-policy-service/target/parity-report.md
+            pas-platform/pas-policy-service/target/surefire-reports/**
 
   container-build:
     name: pas-platform / container-build

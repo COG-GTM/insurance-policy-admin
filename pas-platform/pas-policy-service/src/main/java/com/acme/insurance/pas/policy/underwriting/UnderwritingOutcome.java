@@ -1,11 +1,11 @@
-package com.acme.insurance.pas.underwriting;
+package com.acme.insurance.pas.policy.underwriting;
 
 import java.math.BigDecimal;
 import java.util.List;
 
-public record UnderwritingDecision(
+public record UnderwritingOutcome(
     Code code, int riskScore, List<String> reasons, BigDecimal lossRatio) {
-  public UnderwritingDecision {
+  public UnderwritingOutcome {
     reasons = List.copyOf(reasons);
   }
 

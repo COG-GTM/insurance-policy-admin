@@ -1,4 +1,4 @@
-package com.acme.insurance.pas.parity.undwrt;
+package com.acme.insurance.pas.policy.underwriting.parity;
 
 import com.acme.insurance.pas.parity.ParityHarness;
 import java.util.stream.Stream;
