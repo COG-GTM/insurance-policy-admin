@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.batch.migration.delta;
 
+import com.acme.insurance.pas.batch.migration.ForwardSyncTransactions;
 import com.acme.insurance.pas.batch.migration.MigrationProperties;
 import com.acme.insurance.pas.batch.migration.bulk.MigrationRowWriter;
 import com.acme.insurance.pas.batch.migration.recon.CanonicalRow;
@@ -14,15 +15,16 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -48,8 +50,26 @@ public final class DeltaSyncService {
   private final JdbcTemplate jdbc;
   private final MigrationProperties properties;
   private final MeterRegistry metrics;
+  private final ForwardSyncTransactions transactions;
   private final ZoneId sourceZone;
   private final Map<String, AtomicLong> lagGauges = new ConcurrentHashMap<>();
+
+  @Autowired
+  public DeltaSyncService(
+      Db2Source source,
+      MigrationRowWriter writer,
+      JdbcTemplate jdbc,
+      MigrationProperties properties,
+      MeterRegistry metrics,
+      ForwardSyncTransactions transactions) {
+    this.source = source;
+    this.writer = writer;
+    this.jdbc = jdbc;
+    this.properties = properties;
+    this.metrics = metrics;
+    this.transactions = transactions;
+    sourceZone = ZoneId.of(properties.source().zone());
+  }
 
   public DeltaSyncService(
       Db2Source source,
@@ -57,12 +77,7 @@ public final class DeltaSyncService {
       JdbcTemplate jdbc,
       MigrationProperties properties,
       MeterRegistry metrics) {
-    this.source = source;
-    this.writer = writer;
-    this.jdbc = jdbc;
-    this.properties = properties;
-    this.metrics = metrics;
-    sourceZone = ZoneId.of(properties.source().zone());
+    this(source, writer, jdbc, properties, metrics, new ForwardSyncTransactions(jdbc));
   }
 
   public void sync() {
@@ -97,9 +112,9 @@ public final class DeltaSyncService {
             WHERE table_name = 'COVERAGE_SWEEP' AND direction = 'FORWARD'
             """,
             resultSet -> resultSet.next() ? resultSet.getString(1) : null);
-    List<String> keys = nextCoverageKeys(cursor, sweepSize);
+    List<String> keys = source.readPolicyKeys(cursor, sweepSize);
     if (keys.isEmpty() && cursor != null) {
-      keys = nextCoverageKeys(null, sweepSize);
+      keys = source.readPolicyKeys(null, sweepSize);
     }
     for (String policyNumber : keys) {
       List<Map<String, Object>> sourceRows =
@@ -116,8 +131,11 @@ public final class DeltaSyncService {
       List<String> sourceHashes = coverageHashes(sourceRows);
       List<String> targetHashes = coverageHashes(targetRows);
       if (!sourceHashes.equals(targetHashes)) {
-        jdbc.update("DELETE FROM pas.coverages WHERE policy_number = ?", policyNumber);
-        sourceRows.forEach(row -> writer.upsert(MigrationTable.COVERAGES, row));
+        transactions.run(
+            () -> {
+              jdbc.update("DELETE FROM pas.coverages WHERE policy_number = ?", policyNumber);
+              sourceRows.forEach(row -> writer.upsert(MigrationTable.COVERAGES, row));
+            });
       }
     }
     String nextCursor = keys.isEmpty() ? null : keys.getLast();
@@ -132,22 +150,6 @@ public final class DeltaSyncService {
             updated_at = now()
         """,
         nextCursor);
-  }
-
-  private List<String> nextCoverageKeys(String cursor, int limit) {
-    Set<String> keys = new TreeSet<>(source.readCoveragePolicyKeys(cursor, limit));
-    keys.addAll(
-        jdbc.query(
-            """
-            SELECT DISTINCT rtrim(policy_number) FROM pas.coverages
-            WHERE (?::text IS NULL OR rtrim(policy_number) > ?)
-            ORDER BY 1 LIMIT ?
-            """,
-            (resultSet, rowNum) -> resultSet.getString(1),
-            cursor,
-            cursor,
-            limit));
-    return keys.stream().limit(limit).toList();
   }
 
   private List<String> coverageHashes(List<Map<String, Object>> rows) {
@@ -250,12 +252,22 @@ public final class DeltaSyncService {
             .filter(value -> value != null && !value.isBlank())
             .distinct()
             .toList();
-    for (String policyNumber : policyNumbers) {
-      jdbc.update("DELETE FROM pas.coverages WHERE policy_number = ?", policyNumber);
-    }
     List<Map<String, Object>> coverages =
         source.readByLeadingKeys(MigrationTable.COVERAGES, policyNumbers, 100_000);
-    coverages.forEach(row -> writer.upsert(MigrationTable.COVERAGES, row));
+    Map<String, List<Map<String, Object>>> coveragesByPolicy = new HashMap<>();
+    for (Map<String, Object> coverage : coverages) {
+      String policyNumber = ((String) coverage.get("policy_number")).stripTrailing();
+      coveragesByPolicy.computeIfAbsent(policyNumber, ignored -> new ArrayList<>()).add(coverage);
+    }
+    for (String policyNumber : policyNumbers) {
+      List<Map<String, Object>> policyCoverages =
+          coveragesByPolicy.getOrDefault(policyNumber, List.of());
+      transactions.run(
+          () -> {
+            jdbc.update("DELETE FROM pas.coverages WHERE policy_number = ?", policyNumber);
+            policyCoverages.forEach(row -> writer.upsert(MigrationTable.COVERAGES, row));
+          });
+    }
     for (int index = 0; index < holderIds.size(); index += 100) {
       List<String> batch = holderIds.subList(index, Math.min(index + 100, holderIds.size()));
       source

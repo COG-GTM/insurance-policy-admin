@@ -26,8 +26,6 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pas
     TO pas_service;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pas_shadow
     TO pas_service, pas_batch;
-GRANT INSERT ON TABLE pas.change_log TO pas_sync;
-GRANT USAGE, SELECT ON SEQUENCE pas.change_log_id_seq TO pas_sync;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pas_batch TO pas_batch;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA pas
@@ -42,3 +40,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA pas
     GRANT USAGE, SELECT ON SEQUENCES TO pas_service;
 ALTER DEFAULT PRIVILEGES IN SCHEMA pas_shadow
     GRANT USAGE, SELECT ON SEQUENCES TO pas_service, pas_batch;
+
+REVOKE INSERT ON TABLE pas.change_log FROM pas_sync;
+REVOKE USAGE, SELECT ON SEQUENCE pas.change_log_id_seq FROM pas_sync;

@@ -47,12 +47,40 @@ public class ReverseSyncJobConfiguration {
   }
 
   @Bean
+  Step pruneChangeLogStep(
+      JobRepository repository,
+      @Qualifier("migrationTransactionManager")
+          PlatformTransactionManager migrationTransactionManager,
+      MigrationProperties properties,
+      ReverseSyncService reverseSyncService) {
+    return new StepBuilder("pruneChangeLogStep", repository)
+        .tasklet(
+            (contribution, chunkContext) -> {
+              if (!properties.reverseSync().enabled()) {
+                contribution.setExitStatus(
+                    new org.springframework.batch.core.ExitStatus("DISABLED"));
+              } else {
+                int pruned = reverseSyncService.pruneChangeLog();
+                contribution
+                    .getStepExecution()
+                    .getExecutionContext()
+                    .putInt("reverseSyncChangeLogRowsPruned", pruned);
+              }
+              return org.springframework.batch.repeat.RepeatStatus.FINISHED;
+            },
+            migrationTransactionManager)
+        .build();
+  }
+
+  @Bean
   Job reverseSyncJob(
       JobRepository repository,
-      Step reverseSyncStep,
+      @Qualifier("reverseSyncStep") Step reverseSyncStep,
+      @Qualifier("pruneChangeLogStep") Step pruneChangeLogStep,
       JobFailureListener migrationJobFailureListener) {
     return new JobBuilder("reverseSyncJob", repository)
         .start(reverseSyncStep)
+        .next(pruneChangeLogStep)
         .listener(migrationJobFailureListener)
         .build();
   }

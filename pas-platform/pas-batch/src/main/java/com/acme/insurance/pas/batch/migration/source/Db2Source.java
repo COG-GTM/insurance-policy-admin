@@ -95,6 +95,34 @@ public final class Db2Source implements AutoCloseable {
     }
   }
 
+  public List<String> readPolicyKeys(String afterKey, int limit) {
+    String sql =
+        "SELECT RTRIM(POLICY_NUMBER) AS POLICY_NUMBER FROM "
+            + schema
+            + ".POLICIES WHERE (? IS NULL OR RTRIM(POLICY_NUMBER) > ?) "
+            + "ORDER BY RTRIM(POLICY_NUMBER) FETCH FIRST ? ROWS ONLY";
+    try (Connection connection = pool.getConnection();
+        PreparedStatement statement = connection.prepareStatement(sql)) {
+      if (afterKey == null) {
+        statement.setNull(1, Types.VARCHAR);
+        statement.setNull(2, Types.VARCHAR);
+      } else {
+        statement.setString(1, afterKey);
+        statement.setString(2, afterKey);
+      }
+      statement.setInt(3, limit);
+      try (ResultSet resultSet = statement.executeQuery()) {
+        List<String> keys = new ArrayList<>();
+        while (resultSet.next()) {
+          keys.add(resultSet.getString("POLICY_NUMBER"));
+        }
+        return keys;
+      }
+    } catch (SQLException exception) {
+      throw new IllegalStateException("Unable to read policy keys", exception);
+    }
+  }
+
   @SuppressFBWarnings(
       value = "SQL_PREPARED_STATEMENT_GENERATED_FROM_NONCONSTANT_STRING",
       justification =

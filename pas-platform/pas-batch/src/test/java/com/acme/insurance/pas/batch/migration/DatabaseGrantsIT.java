@@ -53,6 +53,13 @@ class DatabaseGrantsIT {
         new JdbcTemplate(
             new org.springframework.jdbc.datasource.DriverManagerDataSource(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword()));
+    jdbc.update(
+        """
+        INSERT INTO pas.policies
+            (policy_number, policy_type, effective_date, expiry_date, policyholder_id)
+        VALUES ('GRANT0000001', 'AUT', DATE '2025-01-01', DATE '2026-01-01', 'GRANT00001')
+        """);
+    jdbc.execute("TRUNCATE pas.change_log");
 
     executeResource(jdbc, "grants/roles.sql");
     executeResource(jdbc, "grants/pre-cutover.sql");
@@ -61,12 +68,29 @@ class DatabaseGrantsIT {
     assertDenied("pas_batch", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
     assertDenied("pas_batch", "UPDATE pas.policies SET policy_status = policy_status");
     assertAllowed("pas_sync", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
-    assertAllowed("pas_sync", "UPDATE pas.policies SET policy_status = policy_status");
     assertAllowed("pas_sync", "SELECT nextval('pas.policy_seq')");
     assertAllowed("pas_sync", "SELECT nextval('pas.underwriting_decision_seq')");
+    assertDenied(
+        "pas_sync",
+        "INSERT INTO pas.change_log (table_name, record_key) VALUES ('GRANTS_IT', 'DIRECT')");
+    assertDenied("pas_sync", "SELECT nextval('pas.change_log_id_seq')");
+    assertDenied(
+        "pas_sync",
+        "UPDATE pas.policies SET policy_status = 'AC' WHERE policy_number = 'GRANT0000001'");
+    assertTaggedAllowed(
+        "pas_sync",
+        "UPDATE pas.policies SET policy_status = 'AC' WHERE policy_number = 'GRANT0000001'");
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM pas.change_log", Integer.class)).isZero();
     assertAllowed("pas_readonly", "SELECT policy_number FROM pas.policies");
 
     executeResource(jdbc, "grants/post-cutover.sql");
+    int loggedBeforeServiceWrite =
+        jdbc.queryForObject("SELECT count(*) FROM pas.change_log", Integer.class);
+    assertAllowed(
+        "pas_service",
+        "UPDATE pas.policies SET policy_status = 'PN' WHERE policy_number = 'GRANT0000001'");
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM pas.change_log", Integer.class))
+        .isEqualTo(loggedBeforeServiceWrite + 1);
     assertAllowed("pas_service", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
     assertAllowed("pas_service", "UPDATE pas.policies SET policy_status = policy_status");
     assertAllowed("pas_batch", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
@@ -78,7 +102,15 @@ class DatabaseGrantsIT {
             + "VALUES ('GRANTS_IT', 'REVERSE', now(), now(), now()) "
             + "ON CONFLICT (table_name, direction) DO NOTHING");
     assertAllowed("pas_batch", "SELECT nextval('pas_batch.batch_job_seq')");
+    assertAllowed(
+        "pas_batch",
+        "INSERT INTO pas.change_log (table_name, record_key) VALUES ('GRANTS_IT', 'BATCH')");
+    assertAllowed("pas_batch", "SELECT nextval('pas.change_log_id_seq')");
     assertBatchLoginCanRunAJob();
+    assertDenied(
+        "pas_sync",
+        "INSERT INTO pas.change_log (table_name, record_key) VALUES ('GRANTS_IT', 'POST')");
+    assertDenied("pas_sync", "SELECT nextval('pas.change_log_id_seq')");
     assertDenied("pas_sync", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
     assertDenied("pas_sync", "UPDATE pas.policies SET policy_status = policy_status");
     assertAllowed("pas_readonly", "SELECT policy_number FROM pas.policies");
@@ -154,6 +186,19 @@ class DatabaseGrantsIT {
           .hasMessageContaining("permission denied");
     } catch (SQLException exception) {
       throw new AssertionError("Could not test grants for " + role, exception);
+    }
+  }
+
+  private static void assertTaggedAllowed(String role, String sql) throws SQLException {
+    try (Connection connection =
+            DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        var statement = connection.createStatement()) {
+      connection.setAutoCommit(false);
+      statement.execute("SET ROLE " + role);
+      statement.execute("SET LOCAL pas.change_origin = 'forward-sync'");
+      statement.execute(sql);
+      connection.commit();
     }
   }
 

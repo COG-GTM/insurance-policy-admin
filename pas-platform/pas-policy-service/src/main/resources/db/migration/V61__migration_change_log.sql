@@ -1,5 +1,6 @@
 CREATE TABLE pas.change_log (
     id BIGSERIAL PRIMARY KEY,
+    tx_id xid8 NOT NULL DEFAULT pg_current_xact_id(),
     table_name VARCHAR(32) NOT NULL,
     record_key VARCHAR(64) NOT NULL,
     policy_number CHAR(12),
@@ -7,6 +8,7 @@ CREATE TABLE pas.change_log (
 );
 
 CREATE INDEX ix_change_log_changed_at_id ON pas.change_log (changed_at, id);
+CREATE INDEX ix_change_log_tx_id_id ON pas.change_log (tx_id, id);
 
 CREATE FUNCTION pas.capture_change_log() RETURNS trigger
     LANGUAGE plpgsql
@@ -18,6 +20,12 @@ DECLARE
     key_value TEXT;
     policy_value TEXT;
 BEGIN
+    IF current_setting('pas.change_origin', true) = 'forward-sync' THEN
+        IF TG_OP = 'DELETE' THEN
+            RETURN OLD;
+        END IF;
+        RETURN NEW;
+    END IF;
     row_data := CASE WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD) ELSE to_jsonb(NEW) END;
     IF TG_TABLE_NAME = 'policy_holders' THEN
         key_value := row_data ->> 'cust_id';

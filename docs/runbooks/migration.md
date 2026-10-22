@@ -43,16 +43,27 @@ Watermarks are based on source change columns and a five-minute overlap by defau
 run-start timestamp is persisted as `synced_through`; never manually advance a watermark to hide
 lag. Legacy POLNEW/POLRNW are expected to update coverages in the same unit of work as
 POLICIES.LAST_UPDATED; a bounded rolling coverage-set hash sweep and reconciliation hashes detect
-out-of-band writes. The sweep reads the next
-`pas.migration.delta-sync.coverage-sweep-size` policy keys on each side, hashes each coverage set
-with `CanonicalRow`, persists its keyset cursor in `pas_batch.sync_watermark`, wraps when exhausted,
-and re-syncs differing sets. Reverse sync reads `pas.change_log` changes with
-`changed_at >= watermark - overlap ORDER BY id`, groups by policy or holder key, and records its
-watermark with `direction='REVERSE'`. Its six row triggers contain no PII. The
-`pas.capture_change_log` trigger function runs with invoker privileges; pre-cutover `pas_sync` and
-post-cutover `pas_service`/`pas_batch` therefore need INSERT and sequence access on
-`pas.change_log`. For rollback, set modern-write flags to legacy, restart the policy service, drain
-reverse sync, then reconcile.
+out-of-band writes. The sweep walks only DB2 `POLICIES` keys using
+`pas.migration.delta-sync.coverage-sweep-size`, hashes each source and target coverage set with
+`CanonicalRow`, persists its keyset cursor in `pas_batch.sync_watermark`, wraps when exhausted, and
+re-syncs differing sets. This includes source policies with no coverages, which clear stale target
+rows, while leaving PostgreSQL-only policies untouched.
+
+Bulk and forward-delta writes set the transaction-local `pas.change_origin='forward-sync'` before
+writing. The `pas.capture_change_log` trigger skips those writes so forward migration does not
+replay its own changes back to DB2; service and owner writes without the tag remain logged. The
+trigger stays `SECURITY INVOKER`, and pre-cutover `pas_sync` has no INSERT or sequence privilege on
+`pas.change_log`, so an untagged sync write fails closed.
+
+Reverse sync reads `pas.change_log` by transaction ID: each pass captures
+`pg_snapshot_xmin(pg_current_snapshot())`, reads eligible `tx_id` values with an ID keyset, applies
+idempotent MERGEs, then stores the captured `reverse_xmin`. Rows from transactions still in flight
+at pass start are eligible on a later pass after they commit. `changed_at` is retained for lag
+reporting, not as the change cursor. After the drain, `pruneChangeLogStep` deletes rows whose
+`tx_id` is older than the stored reverse xmin in bounded batches; monitor
+`pas.sync.reverse.change_log.pruned` for the number of rows removed. The six row triggers record no
+PII. For rollback, set modern-write flags to legacy, restart the policy service, drain reverse sync,
+then reconcile.
 
 ## Reconciliation and parallel-run triage
 

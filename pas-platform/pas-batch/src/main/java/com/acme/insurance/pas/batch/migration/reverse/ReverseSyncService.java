@@ -132,18 +132,20 @@ public final class ReverseSyncService {
   }
 
   private int syncChangeLog(ReverseSyncTarget target) {
+    String capturedXmin =
+        jdbc.queryForObject("SELECT pg_snapshot_xmin(pg_current_snapshot())::text", String.class);
     ChangeWatermark watermark = reverseChangeWatermark();
-    LocalDateTime lowerBound = watermark.changedAt().minus(properties.deltaSync().overlap());
+    String previousXmin = watermark.reverseXmin() == null ? "0" : watermark.reverseXmin();
     long afterId = 0;
     LocalDateTime maximumChangedAt = watermark.changedAt();
-    int newChanges = 0;
+    int changesApplied = 0;
     while (true) {
       List<Change> changes =
           jdbc.query(
               """
               SELECT id, table_name, record_key, policy_number, changed_at
               FROM pas.change_log
-              WHERE changed_at >= ? AND id > ?
+              WHERE tx_id >= ?::xid8 AND id > ?
               ORDER BY id
               FETCH FIRST ? ROWS ONLY
               """,
@@ -157,7 +159,7 @@ public final class ReverseSyncService {
                           .getObject("changed_at", OffsetDateTime.class)
                           .withOffsetSameInstant(ZoneOffset.UTC)
                           .toLocalDateTime()),
-              lowerBound.atZone(ZoneOffset.UTC).toOffsetDateTime(),
+              previousXmin,
               afterId,
               PAGE_SIZE);
       if (changes.isEmpty()) {
@@ -166,9 +168,7 @@ public final class ReverseSyncService {
       Set<String> changedPolicies = new LinkedHashSet<>();
       Set<String> changedHolders = new LinkedHashSet<>();
       for (Change change : changes) {
-        if (change.changedAt().isAfter(watermark.changedAt())) {
-          newChanges++;
-        }
+        changesApplied++;
         if (change.changedAt().isAfter(maximumChangedAt)) {
           maximumChangedAt = change.changedAt();
         }
@@ -222,38 +222,71 @@ public final class ReverseSyncService {
           });
       afterId = changes.getLast().id();
     }
-    if (maximumChangedAt.isAfter(watermark.changedAt())) {
-      jdbc.update(
-          """
-          INSERT INTO pas_batch.sync_watermark
-              (table_name, direction, watermark_value, synced_through, updated_at)
-          VALUES ('CHANGE_LOG', 'REVERSE', ?, now(), now())
-          ON CONFLICT (table_name, direction) DO UPDATE
-          SET watermark_value = GREATEST(pas_batch.sync_watermark.watermark_value,
-                                         EXCLUDED.watermark_value),
-              synced_through = EXCLUDED.synced_through,
-              updated_at = now()
-          """,
-          maximumChangedAt);
+    jdbc.update(
+        """
+        INSERT INTO pas_batch.sync_watermark
+            (table_name, direction, watermark_value, reverse_xmin, synced_through, updated_at)
+        VALUES ('CHANGE_LOG', 'REVERSE', ?, ?::xid8, now(), now())
+        ON CONFLICT (table_name, direction) DO UPDATE
+        SET watermark_value = GREATEST(
+                COALESCE(pas_batch.sync_watermark.watermark_value, TIMESTAMP '1900-01-01'),
+                EXCLUDED.watermark_value),
+            reverse_xmin = EXCLUDED.reverse_xmin,
+            synced_through = EXCLUDED.synced_through,
+            updated_at = now()
+        """,
+        maximumChangedAt,
+        capturedXmin);
+    metrics.counter("pas.migration.reverse.changes").increment(changesApplied);
+    return changesApplied;
+  }
+
+  public int pruneChangeLog() {
+    if (!properties.reverseSync().enabled()) {
+      return 0;
     }
-    metrics.counter("pas.migration.reverse.changes").increment(newChanges);
-    return newChanges;
+    String reverseXmin = reverseChangeWatermark().reverseXmin();
+    if (reverseXmin == null) {
+      return 0;
+    }
+    int totalPruned = 0;
+    int pruned;
+    do {
+      pruned =
+          jdbc.update(
+              """
+              DELETE FROM pas.change_log
+              WHERE id IN (
+                  SELECT id FROM pas.change_log
+                  WHERE tx_id < ?::xid8
+                  ORDER BY id
+                  LIMIT ?
+              )
+              """,
+              reverseXmin,
+              PAGE_SIZE);
+      totalPruned += pruned;
+    } while (pruned == PAGE_SIZE);
+    metrics.counter("pas.sync.reverse.change_log.pruned").increment(totalPruned);
+    return totalPruned;
   }
 
   private ChangeWatermark reverseChangeWatermark() {
     List<ChangeWatermark> watermarks =
         jdbc.query(
             """
-            SELECT watermark_value FROM pas_batch.sync_watermark
+            SELECT reverse_xmin::text AS reverse_xmin, watermark_value
+            FROM pas_batch.sync_watermark
             WHERE table_name = 'CHANGE_LOG' AND direction = 'REVERSE'
             """,
             (resultSet, rowNum) -> {
-              LocalDateTime timestamp = resultSet.getObject(1, LocalDateTime.class);
+              LocalDateTime timestamp = resultSet.getObject("watermark_value", LocalDateTime.class);
               return new ChangeWatermark(
+                  resultSet.getString("reverse_xmin"),
                   timestamp == null ? LocalDateTime.of(1900, 1, 1, 0, 0) : timestamp);
             });
     return watermarks.isEmpty()
-        ? new ChangeWatermark(LocalDateTime.of(1900, 1, 1, 0, 0))
+        ? new ChangeWatermark(null, LocalDateTime.of(1900, 1, 1, 0, 0))
         : watermarks.getFirst();
   }
 
@@ -517,5 +550,5 @@ public final class ReverseSyncService {
   private record Change(
       long id, String tableName, String recordKey, String policyNumber, LocalDateTime changedAt) {}
 
-  private record ChangeWatermark(LocalDateTime changedAt) {}
+  private record ChangeWatermark(String reverseXmin, LocalDateTime changedAt) {}
 }

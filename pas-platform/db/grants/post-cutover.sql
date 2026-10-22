@@ -26,6 +26,8 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pas_shadow
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pas_batch TO pas_batch;
 REVOKE USAGE, SELECT ON SEQUENCE pas.policy_seq, pas.underwriting_decision_seq
     FROM pas_sync;
+REVOKE INSERT ON TABLE pas.change_log FROM pas_sync;
+REVOKE USAGE, SELECT ON SEQUENCE pas.change_log_id_seq FROM pas_sync;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA pas
     GRANT SELECT ON TABLES TO pas_readonly, pas_sync;

@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.batch.migration.bulk;
 
+import com.acme.insurance.pas.batch.migration.ForwardSyncTransactions;
 import com.acme.insurance.pas.batch.migration.MigrationProperties;
 import com.acme.insurance.pas.batch.migration.source.MigrationTable;
 import com.acme.insurance.pas.pii.BlindIndex;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -27,12 +29,29 @@ import org.springframework.stereotype.Component;
 @SuppressFBWarnings(
     value = "EI_EXPOSE_REP2",
     justification = "Spring-managed collaborators are retained for the lifetime of this writer.")
-public final class MigrationRowWriter implements ItemWriter<MigrationRow> {
+public class MigrationRowWriter implements ItemWriter<MigrationRow> {
   private final JdbcTemplate jdbc;
   private final PiiCipher cipher;
   private final BlindIndex blindIndex;
   private final ZoneId sourceZone;
   private final MeterRegistry metrics;
+  private final ForwardSyncTransactions transactions;
+
+  @Autowired
+  public MigrationRowWriter(
+      JdbcTemplate jdbc,
+      PiiCipher cipher,
+      BlindIndex blindIndex,
+      MigrationProperties properties,
+      MeterRegistry metrics,
+      ForwardSyncTransactions transactions) {
+    this.jdbc = jdbc;
+    this.cipher = cipher;
+    this.blindIndex = blindIndex;
+    sourceZone = ZoneId.of(properties.source().zone());
+    this.metrics = metrics;
+    this.transactions = transactions;
+  }
 
   public MigrationRowWriter(
       JdbcTemplate jdbc,
@@ -40,21 +59,24 @@ public final class MigrationRowWriter implements ItemWriter<MigrationRow> {
       BlindIndex blindIndex,
       MigrationProperties properties,
       MeterRegistry metrics) {
-    this.jdbc = jdbc;
-    this.cipher = cipher;
-    this.blindIndex = blindIndex;
-    sourceZone = ZoneId.of(properties.source().zone());
-    this.metrics = metrics;
+    this(jdbc, cipher, blindIndex, properties, metrics, new ForwardSyncTransactions(jdbc));
   }
 
   @Override
   public void write(Chunk<? extends MigrationRow> chunk) {
-    for (MigrationRow row : chunk) {
-      upsert(row.table(), row.values());
-    }
+    transactions.run(
+        () -> {
+          for (MigrationRow row : chunk) {
+            upsertInTransaction(row.table(), row.values());
+          }
+        });
   }
 
   public void upsert(MigrationTable table, Map<String, Object> sourceRow) {
+    transactions.run(() -> upsertInTransaction(table, sourceRow));
+  }
+
+  private void upsertInTransaction(MigrationTable table, Map<String, Object> sourceRow) {
     List<String> columns = new ArrayList<>();
     List<Object> values = new ArrayList<>();
     ExistingHolder existingHolder =

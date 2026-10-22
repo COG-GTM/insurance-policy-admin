@@ -156,6 +156,8 @@ class BulkLoadRestartIT {
             "bulkLoadPartitionStep-UNDERWRITING_DECISIONS",
             "bulkLoadPartitionStep-TERRITORY_FACTORS");
     assertAllRowsLoaded();
+    assertThat(targetJdbc.queryForObject("SELECT count(*) FROM pas.change_log", Integer.class))
+        .isZero();
     assertThat(
             targetJdbc.queryForObject(
                 "SELECT count(*) FROM pas.policy_holders WHERE tax_id_enc IS NOT NULL "
