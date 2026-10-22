@@ -22,15 +22,17 @@ public class IbmMqConfiguration {
       @Value("${PAS_BRIDGE_MQ_USER:}") String user,
       @Value("${PAS_BRIDGE_MQ_PASSWORD:}") String password)
       throws JMSException {
+    if (cipherSuite.isBlank()) {
+      throw new IllegalStateException(
+          "pas.bridge.mq.tls-cipher-suite must be configured when pas.bridge.mq.host is set");
+    }
     MQConnectionFactory factory = new MQConnectionFactory();
     factory.setHostName(host);
     factory.setPort(port);
     factory.setQueueManager(queueManager);
     factory.setChannel(channel);
     factory.setTransportType(WMQConstants.WMQ_CM_CLIENT);
-    if (!cipherSuite.isBlank()) {
-      factory.setSSLCipherSuite(cipherSuite);
-    }
+    factory.setSSLCipherSuite(cipherSuite);
     if (!user.isBlank()) {
       factory.setStringProperty(WMQConstants.USERID, user);
       factory.setStringProperty(WMQConstants.PASSWORD, password);

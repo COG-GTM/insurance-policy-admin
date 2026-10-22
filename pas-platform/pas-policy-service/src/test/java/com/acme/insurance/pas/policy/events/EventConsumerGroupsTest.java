@@ -18,11 +18,18 @@ class EventConsumerGroupsTest {
                 OutboxWriter.DOCUMENT_TOPIC, EventConsumerGroups.DOCUMENT_BRIDGE),
             EventConsumerGroups.dltTopic(
                 OutboxWriter.UNDERWRITING_TOPIC, EventConsumerGroups.REFERRAL_BRIDGE));
+    assertThat(
+            EventConsumerGroups.sourceTopicForDeadLetterTopic(
+                EventConsumerGroups.dltTopic(
+                    OutboxWriter.DOCUMENT_TOPIC, EventConsumerGroups.DOCUMENT_BRIDGE)))
+        .isEqualTo(OutboxWriter.DOCUMENT_TOPIC);
   }
 
   @Test
   void rejectsTopicsWithoutRegisteredConsumerGroups() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> EventConsumerGroups.groupForTopic("unregistered"));
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> EventConsumerGroups.sourceTopicForDeadLetterTopic("unregistered.dlt"));
   }
 }

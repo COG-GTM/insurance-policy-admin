@@ -63,7 +63,7 @@
       "new": "Kafka document/referral events bridged to legacy MQ queues by pas-policy-service (IBM037 POLICY-RECORD)",
       "ticket": "AB-528",
       "signoff": null,
-      "precondition": "Keep legacy until bridge consumers, operations, and owners sign off; retire only after the queue-decommission preconditions are met."
+      "precondition": "Keep legacy until bridge consumers, operations, and owners sign off; non-local/test deployments require an MQ TLS cipher suite before setting new; retire only after the queue-decommission preconditions are met."
     },
     "broker-portal-read": {
       "route": "legacy",
@@ -71,7 +71,7 @@
       "new": "Broker Portal uses GET /api/v1/policies list/get/coverages; no DB2 connection",
       "ticket": "AB-528",
       "signoff": null,
-      "precondition": "Keep legacy until portal-team acceptance and entitlement, masking, and operational sign-off are recorded."
+      "precondition": "Keep legacy until portal-team acceptance and entitlement, masking, and operational sign-off are recorded; broker-portal-read cannot be shadow or new unless policy-inquiry serves traffic."
     }
   }
 }

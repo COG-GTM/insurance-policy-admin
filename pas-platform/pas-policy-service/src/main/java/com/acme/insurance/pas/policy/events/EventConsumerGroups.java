@@ -12,10 +12,11 @@ public final class EventConsumerGroups {
       Map.of(
           OutboxWriter.DOCUMENT_TOPIC, DOCUMENT_BRIDGE,
           OutboxWriter.UNDERWRITING_TOPIC, REFERRAL_BRIDGE);
-  private static final Set<String> DEAD_LETTER_TOPICS =
+  private static final Map<String, String> SOURCE_TOPIC_BY_DLT =
       GROUP_BY_TOPIC.entrySet().stream()
-          .map(entry -> dltTopic(entry.getKey(), entry.getValue()))
-          .collect(Collectors.toUnmodifiableSet());
+          .collect(
+              Collectors.toUnmodifiableMap(
+                  entry -> dltTopic(entry.getKey(), entry.getValue()), Map.Entry::getKey));
 
   private EventConsumerGroups() {}
 
@@ -32,6 +33,14 @@ public final class EventConsumerGroups {
   }
 
   public static Set<String> deadLetterTopics() {
-    return new HashSet<>(DEAD_LETTER_TOPICS);
+    return new HashSet<>(SOURCE_TOPIC_BY_DLT.keySet());
+  }
+
+  public static String sourceTopicForDeadLetterTopic(String dltTopic) {
+    String topic = SOURCE_TOPIC_BY_DLT.get(dltTopic);
+    if (topic == null) {
+      throw new IllegalArgumentException("No source topic registered for DLT " + dltTopic);
+    }
+    return topic;
   }
 }

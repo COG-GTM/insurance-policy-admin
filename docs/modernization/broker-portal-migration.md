@@ -61,6 +61,10 @@ a direct database connection. The API path and its sign-off gates follow ADR 000
 
 1. Portal team inventories linked-server tables and queries and maps every use to the endpoints above.
 2. Configure and test the client credentials and claims against non-production data.
-3. Set `PAS_ROUTE_BROKER_PORTAL_READ=new` after portal-team acceptance; the route defaults to legacy.
-4. Monitor API authorization errors and latency, then retire the linked-server dependency only after
+3. Advance `policy-inquiry` to `shadow` or `new` first and confirm it serves traffic. The
+   `broker-portal-read` route depends on `policy-inquiry`; startup fails if `broker-portal-read` is
+   `shadow` or `new` while policy inquiry does not serve traffic.
+4. Set `PAS_ROUTE_BROKER_PORTAL_READ=shadow` for observation and then `new` after portal-team
+   acceptance; the route defaults to legacy.
+5. Monitor API authorization errors and latency, then retire the linked-server dependency only after
    consumer sign-off.

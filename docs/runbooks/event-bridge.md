@@ -15,7 +15,9 @@ Set `PAS_ROUTE_DOCUMENT_EVENTS=new` only after IBM MQ and its three queue names 
 `PAS_BRIDGE_MQ_CHANNEL`, `PAS_BRIDGE_MQ_TLS_CIPHER_SUITE`, `PAS_BRIDGE_MQ_USER`, and
 `PAS_BRIDGE_MQ_PASSWORD` configure the MQ connection. `PAS_BRIDGE_CHARSET` defaults to `IBM037`;
 `PAS_BRIDGE_REFERRAL_TRIGGERS` defaults to `NEW_BUSINESS`. Current policy rows are used if they
-have advanced beyond the event version; a lagging policy row is retried.
+have advanced beyond the event version; a lagging policy row is retried. When the MQ host is set,
+`PAS_BRIDGE_MQ_TLS_CIPHER_SUITE` is required; the service refuses to start with plaintext MQ. Outside
+the `local` and `test` profiles, the suite is also required whenever `document-events` is `new`.
 
 Replay an inclusive offset range with a JWT minted by `dev-jwt.sh` carrying `events:replay`:
 
@@ -29,3 +31,8 @@ Replay republishes key and payload to the original topic and does not commit sou
 Delivery is at least once: a send acknowledged by MQ followed by a database rollback can produce
 a duplicate on redelivery. Consumers must remain idempotent. Logs contain actor and offset counts,
 never event payloads.
+
+Replay is an explicit operator action. These bridges are discrete-request consumers and use
+`EVENT_ID_ONLY`: they deduplicate by event ID, process older events with unseen IDs, and do not
+read or write a policy-version watermark. The ADR 0001 D6 version rule applies to state-replicating
+consumers using `MONOTONIC`; replaying these bridge events does not change that policy.

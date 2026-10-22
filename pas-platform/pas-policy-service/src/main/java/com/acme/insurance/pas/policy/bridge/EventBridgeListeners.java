@@ -11,6 +11,7 @@ import com.acme.insurance.pas.policy.events.EventEnvelope;
 import com.acme.insurance.pas.policy.events.IdempotentEventProcessor;
 import com.acme.insurance.pas.policy.events.OutboxWriter;
 import com.acme.insurance.pas.policy.events.PoisonEventException;
+import com.acme.insurance.pas.policy.events.VersionPolicy;
 import com.acme.insurance.pas.policy.inquiry.CallerEntitlements;
 import com.acme.insurance.pas.policy.inquiry.PolicyInquiryRepository;
 import com.acme.insurance.pas.policy.repository.PolicyRepository;
@@ -62,13 +63,22 @@ public class EventBridgeListeners {
   public void documents(String value) {
     requireNewRoute();
     processor.process(
-        DOCUMENT_GROUP, OutboxWriter.DOCUMENT_TOPIC, value, event -> sendDocument(event));
+        DOCUMENT_GROUP,
+        OutboxWriter.DOCUMENT_TOPIC,
+        value,
+        VersionPolicy.EVENT_ID_ONLY,
+        event -> sendDocument(event));
   }
 
   @KafkaListener(topics = OutboxWriter.UNDERWRITING_TOPIC, groupId = REFERRAL_GROUP)
   public void referrals(String value) {
     requireNewRoute();
-    processor.process(REFERRAL_GROUP, OutboxWriter.UNDERWRITING_TOPIC, value, this::sendReferral);
+    processor.process(
+        REFERRAL_GROUP,
+        OutboxWriter.UNDERWRITING_TOPIC,
+        value,
+        VersionPolicy.EVENT_ID_ONLY,
+        this::sendReferral);
   }
 
   private void sendDocument(EventEnvelope event) {

@@ -51,38 +51,68 @@ public class DltReplayService {
         || request.toOffset() - request.fromOffset() >= maxRecords) {
       throw new IllegalArgumentException("Invalid DLT replay range");
     }
+    String sourceTopic = EventConsumerGroups.sourceTopicForDeadLetterTopic(request.dltTopic());
     TopicPartition partition = new TopicPartition(request.dltTopic(), request.partition());
     List<Long> replayedOffsets = new ArrayList<>();
-    String sourceTopic = null;
-    long deadline = System.nanoTime() + replayProperties.pollTimeout().toNanos();
+    int skipped = 0;
     try (Consumer<String, String> consumer =
         consumerFactory.createConsumer("pas-dlt-replay", "manual-replay", null)) {
       consumer.assign(List.of(partition));
+      long endOffset = consumer.endOffsets(List.of(partition)).get(partition);
+      long requestedEndPosition =
+          request.toOffset() == Long.MAX_VALUE ? Long.MAX_VALUE : request.toOffset() + 1;
+      long stopPosition = Math.min(requestedEndPosition, endOffset);
+      if (request.fromOffset() >= stopPosition) {
+        LOGGER.info("pas.events.dlt.replayed actor={} count=0 skipped=0", actor);
+        return new DltReplayResponse(0, 0, -1, -1, sourceTopic);
+      }
       consumer.seek(partition, request.fromOffset());
-      while (System.nanoTime() < deadline && replayedOffsets.size() < maxRecords) {
+      long deadline = System.nanoTime() + replayProperties.pollTimeout().toNanos();
+      int processedRecords = 0;
+      long lastProcessedOffset = -1;
+      while (System.nanoTime() < deadline
+          && processedRecords < maxRecords
+          && consumer.position(partition) < stopPosition) {
         var records = consumer.poll(replayProperties.pollTimeout());
-        boolean pastRange = false;
         for (ConsumerRecord<String, String> record : records.records(partition)) {
-          if (record.offset() > request.toOffset()) {
-            pastRange = true;
+          if (record.offset() >= stopPosition) {
             break;
           }
-          String topic = originalTopic(request.dltTopic(), record.headers());
-          sourceTopic = topic;
-          ProducerRecord<String, String> replay =
-              new ProducerRecord<>(
-                  topic, null, null, record.key(), record.value(), copyHeaders(record));
-          replay
-              .headers()
-              .add(
-                  new RecordHeader(
-                      "x-replayed-from",
-                      (request.dltTopic() + ":" + record.partition() + ":" + record.offset())
-                          .getBytes(StandardCharsets.UTF_8)));
-          kafka.send(replay).get(replayProperties.pollTimeout().toMillis(), TimeUnit.MILLISECONDS);
-          replayedOffsets.add(record.offset());
+          Header original = record.headers().lastHeader("kafka_dlt-original-topic");
+          if (original != null
+              && (original.value() == null
+                  || !sourceTopic.equals(new String(original.value(), StandardCharsets.UTF_8)))) {
+            LOGGER.warn(
+                "Skipping DLT record with mismatched original topic dltTopic={} partition={} offset={}",
+                request.dltTopic(),
+                record.partition(),
+                record.offset());
+            skipped++;
+          } else {
+            ProducerRecord<String, String> replay =
+                new ProducerRecord<>(
+                    sourceTopic, null, null, record.key(), record.value(), copyHeaders(record));
+            replay
+                .headers()
+                .add(
+                    new RecordHeader(
+                        "x-replayed-from",
+                        (request.dltTopic() + ":" + record.partition() + ":" + record.offset())
+                            .getBytes(StandardCharsets.UTF_8)));
+            kafka
+                .send(replay)
+                .get(replayProperties.pollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            replayedOffsets.add(record.offset());
+          }
+          lastProcessedOffset = record.offset();
+          processedRecords++;
+          if (lastProcessedOffset >= request.toOffset() || processedRecords >= maxRecords) {
+            break;
+          }
         }
-        if (pastRange || (!records.isEmpty() && records.records(partition).isEmpty())) {
+        if (lastProcessedOffset >= request.toOffset()
+            || processedRecords >= maxRecords
+            || consumer.position(partition) >= stopPosition) {
           break;
         }
       }
@@ -94,19 +124,12 @@ public class DltReplayService {
     }
     long first = replayedOffsets.isEmpty() ? -1 : replayedOffsets.getFirst();
     long last = replayedOffsets.isEmpty() ? -1 : replayedOffsets.getLast();
-    LOGGER.info("pas.events.dlt.replayed actor={} count={}", actor, replayedOffsets.size());
-    return new DltReplayResponse(replayedOffsets.size(), first, last, sourceTopic);
-  }
-
-  private static String originalTopic(
-      String dltTopic, org.apache.kafka.common.header.Headers headers) {
-    Header original = headers.lastHeader("kafka_dlt-original-topic");
-    if (original != null) {
-      return new String(original.value(), StandardCharsets.UTF_8);
-    }
-    int suffix = dltTopic.lastIndexOf('.');
-    int groupSuffix = dltTopic.lastIndexOf('.', suffix - 1);
-    return groupSuffix > 0 ? dltTopic.substring(0, groupSuffix) : dltTopic;
+    LOGGER.info(
+        "pas.events.dlt.replayed actor={} count={} skipped={}",
+        actor,
+        replayedOffsets.size(),
+        skipped);
+    return new DltReplayResponse(replayedOffsets.size(), skipped, first, last, sourceTopic);
   }
 
   private static Iterable<Header> copyHeaders(ConsumerRecord<String, String> record) {

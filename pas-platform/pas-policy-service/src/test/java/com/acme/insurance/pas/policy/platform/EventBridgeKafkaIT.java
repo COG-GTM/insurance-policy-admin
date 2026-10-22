@@ -19,6 +19,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.jms.BytesMessage;
 import jakarta.jms.ConnectionFactory;
 import jakarta.jms.Message;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -33,8 +34,10 @@ import org.apache.activemq.artemis.core.server.ActiveMQServers;
 import org.apache.activemq.artemis.jms.client.ActiveMQJMSConnectionFactory;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -73,6 +76,7 @@ import org.testcontainers.utility.DockerImageName;
       "pas.bridge.decision-queue=TEST.PAS.DECISION",
       "pas.bridge.referral-queue=TEST.PAS.REFERRAL",
       "pas.bridge.charset=IBM037",
+      "pas.bridge.mq.tls-cipher-suite=TLS_AES_128_GCM_SHA256",
       "pas.renewal.window-days-before-expiry=3650",
       "pas.renewal.window-days-after-expiry=3650",
       "pas.outbox.relay.poll-interval=PT0.2S"
@@ -199,7 +203,7 @@ class EventBridgeKafkaIT {
   }
 
   @Test
-  void dropsDuplicateAndStaleDocumentEventsWithoutSendingJmsMessages() throws Exception {
+  void dropsDuplicateButProcessesAnOlderUnseenDocumentEvent() throws Exception {
     String policyNumber = createPolicy();
     Message originalMessage = receive("TEST.PAS.DOCUMENT");
     receive("TEST.PAS.REFERRAL");
@@ -233,37 +237,30 @@ class EventBridgeKafkaIT {
                 > duplicatesBefore);
     assertThat(receiveIfAvailable("TEST.PAS.DOCUMENT")).isNull();
 
-    ObjectNode stale = (ObjectNode) MAPPER.readTree(raw);
-    String staleEventId = UUID.randomUUID().toString();
-    stale.put("eventId", staleEventId);
-    double staleBefore =
-        counter(
-            "pas.events.consumed",
-            "topic",
-            OutboxWriter.DOCUMENT_TOPIC,
-            "group",
-            EventConsumerGroups.DOCUMENT_BRIDGE,
-            "result",
-            "stale");
-    publishDocumentEvent(policyNumber, MAPPER.writeValueAsString(stale));
+    jdbc.update("UPDATE pas.policies SET row_version = 2 WHERE policy_number = ?", policyNumber);
+    String newerEventId = UUID.randomUUID().toString();
+    publishDocumentEvent(policyNumber, documentEvent(policyNumber, newerEventId, 2));
     await(
         () ->
-            counter(
-                    "pas.events.consumed",
-                    "topic",
-                    OutboxWriter.DOCUMENT_TOPIC,
-                    "group",
-                    EventConsumerGroups.DOCUMENT_BRIDGE,
-                    "result",
-                    "stale")
-                > staleBefore);
-    assertThat(consumedResult(EventConsumerGroups.DOCUMENT_BRIDGE, staleEventId))
-        .isEqualTo("STALE");
-    assertThat(receiveIfAvailable("TEST.PAS.DOCUMENT")).isNull();
+            "PROCESSED".equals(consumedResult(EventConsumerGroups.DOCUMENT_BRIDGE, newerEventId)));
+    Message newerMessage = receive("TEST.PAS.DOCUMENT");
+    assertThat(newerMessage.getStringProperty("PasEventId")).isEqualTo(newerEventId);
+
+    ObjectNode older = (ObjectNode) MAPPER.readTree(raw);
+    String olderEventId = UUID.randomUUID().toString();
+    older.put("eventId", olderEventId);
+    assertThat(older.path("policyVersion").asLong()).isLessThan(2L);
+    publishDocumentEvent(policyNumber, MAPPER.writeValueAsString(older));
+    await(
+        () ->
+            "PROCESSED".equals(consumedResult(EventConsumerGroups.DOCUMENT_BRIDGE, olderEventId)));
+    Message olderMessage = receive("TEST.PAS.DOCUMENT");
+    assertThat(olderMessage.getStringProperty("PasEventId")).isEqualTo(olderEventId);
+    assertThat(body(olderMessage)).isEqualTo(policyRecord(policyNumber));
   }
 
   @Test
-  void deadLettersPoisonAndMissingPolicyEventsAndReplaysAfterPolicyInsert() throws Exception {
+  void deadLettersAndReplaysMissingPolicyEventAfterANewerVersionSucceeds() throws Exception {
     String dltTopic =
         EventConsumerGroups.dltTopic(
             OutboxWriter.DOCUMENT_TOPIC, EventConsumerGroups.DOCUMENT_BRIDGE);
@@ -334,6 +331,16 @@ class EventBridgeKafkaIT {
     assertThat(receiveIfAvailable("TEST.PAS.DOCUMENT")).isNull();
 
     insertPolicy(policyNumber);
+    jdbc.update("UPDATE pas.policies SET row_version = 2 WHERE policy_number = ?", policyNumber);
+    String newerEventId = UUID.randomUUID().toString();
+    publishDocumentEvent(policyNumber, documentEvent(policyNumber, newerEventId, 2));
+    await(
+        () ->
+            "PROCESSED".equals(consumedResult(EventConsumerGroups.DOCUMENT_BRIDGE, newerEventId)));
+    Message newerMessage = receive("TEST.PAS.DOCUMENT");
+    assertThat(newerMessage.getStringProperty("PasEventId")).isEqualTo(newerEventId);
+    assertThat(body(newerMessage)).isEqualTo(policyRecord(policyNumber));
+
     String replayJwt =
         PolicyJwtTestSupport.mint(PasScopes.EVENTS_REPLAY, "event-replay", Map.of("book", "ALL"));
     String readOnlyJwt =
@@ -355,12 +362,16 @@ class EventBridgeKafkaIT {
       observer.poll(Duration.ofMillis(100));
       long sourceOffset = observer.position(sourcePartition);
 
+      long replayStarted = System.nanoTime();
       ResponseEntity<String> replayResponse =
           replay(dltTopic, missing.partition(), missing.offset(), missing.offset(), 1, replayJwt);
+      long replayElapsed = System.nanoTime() - replayStarted;
 
       assertThat(replayResponse.getStatusCode().value()).isEqualTo(200);
       assertThat(MAPPER.readTree(replayResponse.getBody()).path("replayedCount").asInt())
           .isEqualTo(1);
+      assertThat(MAPPER.readTree(replayResponse.getBody()).path("skipped").asInt()).isZero();
+      assertThat(replayElapsed).isLessThan(Duration.ofSeconds(5).toNanos());
       ConsumerRecord<String, String> replayed =
           receiveSourceRecord(observer, sourcePartition, sourceOffset);
       Header replayHeader = replayed.headers().lastHeader("x-replayed-from");
@@ -376,6 +387,55 @@ class EventBridgeKafkaIT {
     Message replayedMessage = receive("TEST.PAS.DOCUMENT");
     assertThat(replayedMessage.getStringProperty("PasEventId")).isEqualTo(missingEventId);
     assertThat(body(replayedMessage)).isEqualTo(policyRecord(policyNumber));
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM pas.consumer_policy_versions WHERE consumer_group = ? AND policy_number = ?",
+                Integer.class,
+                EventConsumerGroups.DOCUMENT_BRIDGE,
+                policyNumber))
+        .isZero();
+
+    TopicPartition dltPartition = new TopicPartition(dltTopic, 0);
+    ProducerRecord<String, String> mismatchedRecord =
+        new ProducerRecord<>(
+            dltTopic,
+            0,
+            "mismatched-" + UUID.randomUUID(),
+            documentEvent(policyNumber, UUID.randomUUID().toString(), 3));
+    mismatchedRecord
+        .headers()
+        .add(
+            new RecordHeader(
+                "kafka_dlt-original-topic",
+                OutboxWriter.UNDERWRITING_TOPIC.getBytes(StandardCharsets.UTF_8)));
+    var mismatchedMetadata = kafka.send(mismatchedRecord).get(10, TimeUnit.SECONDS);
+    ResponseEntity<String> skippedResponse =
+        replay(
+            dltTopic,
+            mismatchedMetadata.getRecordMetadata().partition(),
+            mismatchedMetadata.getRecordMetadata().offset(),
+            mismatchedMetadata.getRecordMetadata().offset(),
+            1,
+            replayJwt);
+    JsonNode skippedBody = MAPPER.readTree(skippedResponse.getBody());
+    assertThat(skippedResponse.getStatusCode().value()).isEqualTo(200);
+    assertThat(skippedBody.path("replayedCount").asInt()).isZero();
+    assertThat(skippedBody.path("skipped").asInt()).isEqualTo(1);
+    assertThat(skippedBody.path("sourceTopic").asText()).isEqualTo(OutboxWriter.DOCUMENT_TOPIC);
+    assertThat(receiveIfAvailable("TEST.PAS.DOCUMENT")).isNull();
+
+    try (Consumer<String, String> observer =
+        consumerFactory.createConsumer("dlt-empty-range-" + UUID.randomUUID())) {
+      observer.assign(List.of(dltPartition));
+      observer.seekToEnd(List.of(dltPartition));
+      observer.poll(Duration.ofMillis(100));
+      long endOffset = observer.position(dltPartition);
+      ResponseEntity<String> emptyRange = replay(dltTopic, 0, endOffset, endOffset, 1, replayJwt);
+      JsonNode emptyBody = MAPPER.readTree(emptyRange.getBody());
+      assertThat(emptyRange.getStatusCode().value()).isEqualTo(200);
+      assertThat(emptyBody.path("replayedCount").asInt()).isZero();
+      assertThat(emptyBody.path("skipped").asInt()).isZero();
+    }
   }
 
   private String createPolicy() throws Exception {
