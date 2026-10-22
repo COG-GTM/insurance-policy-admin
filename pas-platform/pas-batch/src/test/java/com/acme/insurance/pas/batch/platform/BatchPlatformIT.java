@@ -109,10 +109,15 @@ class BatchPlatformIT {
         jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'pas'",
             Integer.class);
+    Integer pasShadowSchema =
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'pas_shadow'",
+            Integer.class);
 
-    assertThat(versions).containsExactly("1", "10", "20", "21");
+    assertThat(versions).containsExactly("1", "10", "20");
     assertThat(metadataTables).isEqualTo(6);
     assertThat(pasSchema).isZero();
+    assertThat(pasShadowSchema).isZero();
     assertThat(jobExplorer.getJobNames()).isEmpty();
     assertThat(premiumCalculator).isNotNull();
   }

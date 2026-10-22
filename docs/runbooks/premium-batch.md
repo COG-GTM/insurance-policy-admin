@@ -1,13 +1,16 @@
 # Premium recalculation batch runbook (AB-523)
 
-`premiumRecalculationJob` replaces `PREMIUM-BATCH.jcl` STEP010–030 and PREMBAT. The legacy job
-header identifies CA-7 PAS0050 as a daily 01:00 run. Its schedule definition, predecessors,
-calendars, and rerun procedure are missing (M-05); confirm them with operations before cutover.
-The integrations register tracks the legacy TSO alert as I-08 and scheduler ownership as I-09.
+`premiumRecalculationJob` replaces [`PREMIUM-BATCH.jcl`](../../jcl/PREMIUM-BATCH.jcl) STEP010–030
+and [`PREMBAT`](../../cobol/programs/PREMBAT.cbl). The legacy job header identifies CA-7 PAS0050
+as a daily 01:00 run. Its schedule definition, predecessors, calendars, and rerun procedure are
+missing (M-05); confirm them with operations before cutover. The
+[integrations register](../modernization/integrations.md) tracks the legacy TSO alert as I-08 and
+scheduler ownership as I-09.
 
 PREMBAT rates only active (`AC`) policies by policy number. The new job calls `pas-rating`, writes
 one premium row per policy with `coverage_seq=1`, and leaves `pas.policies.total_premium` unchanged
-(Q-36). It uses bounded chunks and restartable policy-number partitions. The daily extract PAS0100
+(Q-36; see the [quirk register](../modernization/quirk-register.md)). It uses bounded chunks and
+restartable policy-number partitions. The daily extract PAS0100
 is listed at 23:00, before PAS0050 at 01:00; it therefore does not include that night's premium
 calculation, and premium writes do not create extract deltas (Q-36/Q-38). Confirm downstream
 ordering before changing either schedule.
@@ -24,11 +27,11 @@ ordering before changing either schedule.
 | `new` | Writes to `pas.premiums`. Use only after cutover grants are issued. |
 | `retired` | Writes to `pas.premiums`; legacy processing is assumed retired. |
 
-Follow ADR D4/D5 for privileges. Shadow requires write access to `pas_shadow` and `pas_batch` only.
-New ownership requires `INSERT`/`UPDATE` on `pas.premiums`, coordinated at cutover AB-530; never
-grant or enable that write before the cutover decision. AB-523 places the shadow migration in
-pas-batch per the coordinator decision, deviating from the D4 ownership table; the no-FK-to-`pas`
-rule remains in force.
+Follow [ADR 0001 D4/D5](../adr/0001-pas-target-architecture.md) for privileges. Shadow requires
+write access to `pas_shadow` and `pas_batch` only. The `pas_shadow` tables are owned by
+pas-policy-service migrations under D4; AB-523 adds them in V80. New ownership requires
+`INSERT`/`UPDATE` on `pas.premiums`, coordinated at cutover AB-530; never grant or enable that write
+before the cutover decision.
 
 ## Configuration
 
@@ -126,14 +129,15 @@ Back out by setting `premium-batch` to `legacy`, stopping the new schedule, and 
 PAS0050 after confirming the legacy chain. In `legacy`, the new job does not write. Retain
 `premium_run_item`, `premium_run_summary`, reports, and Spring Batch metadata according to the
 approved batch audit/retention policy; the report reader and retention duration remain open
-(OQ-20).
+(OQ-20; see [open questions](../modernization/open-questions.md)).
 
 ## Load-test evidence and open questions
 
 The default load-test size is 250,000 policies; the actual production active-policy and coverage
-book size is unknown (OQ-23). The local Testcontainers run processed 225,000 active policies
-(two coverages per policy) in 26.332 seconds excluding data generation, with grid 8, chunk 500,
-and concurrency 8. The host was Ubuntu 22.04.5 with 8 Intel Xeon vCPUs and 31 GiB RAM; Docker
+book size is unknown (OQ-23; see [open questions](../modernization/open-questions.md)). The local
+Testcontainers run processed 225,000 active policies (two coverages per policy) in 26.332 seconds
+excluding data generation, with grid 8, chunk 500, and concurrency 8. The host was Ubuntu 22.04.5
+with 8 Intel Xeon vCPUs and 31 GiB RAM; Docker
 29.7.2 ran `postgres:16-alpine` (PostgreSQL 16.15). Production-sized load verification remains
 pending until OQ-23 is answered. Do not extrapolate linear throughput without validating the
 database, storage, and concurrency limits of the target environment.

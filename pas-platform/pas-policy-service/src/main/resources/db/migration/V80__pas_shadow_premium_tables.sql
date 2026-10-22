@@ -1,5 +1,5 @@
--- Owned by pas-batch per coordinator decision for AB-523; ADR D4 lists pas_shadow DDL with pas.
--- No foreign keys to pas are kept in accordance with ADR D4 rule 4.
+-- AB-523: pas/pas_shadow DDL lives only in pas-policy-service per ADR 0001 D4.
+-- ADR 0001 D4 rule 4: pas_shadow has no foreign keys to pas.
 CREATE SCHEMA IF NOT EXISTS pas_shadow;
 
 CREATE TABLE pas_shadow.premiums (

@@ -21,7 +21,7 @@ defaults to `legacy`, `shadow` writes to `pas_shadow`, and `new`/`retired` write
 report files are isolated by job execution. Extract jobs write per-execution files under
 `PAS_BATCH_EXTRACT_WORK_DIR` and deliver with pinned-host-key, public-key-only SFTP when the
 corresponding `PAS_ROUTING_*` route is `new`. Scheduling is disabled by default. See the
-[`premium-batch.md`](../docs/modernization/runbooks/premium-batch.md) and
+[`premium-batch.md`](../docs/runbooks/premium-batch.md) and
 [`extracts.md`](../docs/modernization/runbooks/extracts.md) runbooks for CLI, configuration and
 operational steps.
 
