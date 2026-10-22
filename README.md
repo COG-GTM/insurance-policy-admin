@@ -79,10 +79,63 @@ GET /manage/health                              - Health check
 
 - **COBOL/JCL:** IBM Rational Team Concert (RTC) on z/OS
 - **Java facade:** SVN (svn://svn.acme.local/pas-facade/trunk)
-- **No CI/CD pipeline** - Manual compilation and deployment
+- **Historically no CI/CD pipeline** - Legacy modules still use manual compilation and deployment; CI now runs for the compatibility gate and `pas-platform`.
 
 ## Team Contacts
 
 - **Mainframe Team:** mainframe-ops@acme.com
 - **DBA Team:** db2-admin@acme.com
 - **Java Facade:** t.nguyen@acme.com
+
+## Repository layout
+
+The legacy implementation remains alongside the new Java platform:
+
+| Path | Responsibility |
+|------|----------------|
+| `cobol/` | Mainframe program sources and copybooks |
+| `jcl/` | Batch job control language |
+| `sql/ddl/` | Legacy DB2 schema definitions |
+| `java-facade/` | Existing Java 8 / Spring Boot 1.5 read-only facade |
+| `compat/` | Schema, layout, security, and API compatibility checks |
+| `pas-platform/` | Java 21 / Spring Boot platform services |
+
+`pas-platform/` currently contains these Maven modules:
+
+| Module | Port | Responsibility |
+|--------|------|----------------|
+| `pas-common` | — | Shared scopes, claims, and schema names |
+| `pas-policy-service` | `8080` | Policy API foundation and platform health |
+| `pas-batch` | `8081` | Spring Batch metadata and batch service foundation |
+| `pas-rating` | planned (AB-522) | Rating component shared by the policy service and batch |
+| `pas-parity` | planned (AB-520) | Test-scope parity harness glue (golden-file runner + adapters) |
+
+## Getting started (pas-platform)
+
+Install JDK 21 and Docker. From the repository root, run the one-command fresh-clone setup:
+
+```sh
+make local
+```
+
+This runs the Maven verification suite, creates a local `.env` and RSA development key pair when
+needed, builds both service images, starts the local stack, and checks both readiness probes.
+Individual targets are `make test`, `make dev`, and `make dev-down`. To remove the PostgreSQL data
+volume as well, use `make dev-clean`.
+
+Mint a local JWT and call the authenticated identity endpoint:
+
+```sh
+JWT=$(pas-platform/dev/dev-jwt.sh mint --scope "policy:read policy:write")
+curl -H "Authorization: Bearer $JWT" http://localhost:8080/api/v1/platform/whoami
+```
+
+The development key pair and `.env` are ignored by Git. Local Compose ports can be overridden with
+environment variables or `pas-platform/.env`; for example, set `PAS_POLICY_HTTP_PORT=18080` when
+host port 8080 is already in use.
+
+## CI
+
+The `pas-platform` workflow runs module tests and Testcontainers integration tests, static analysis,
+filesystem vulnerability scanning, and container builds. The compatibility workflow also runs for
+pull requests targeting `devin/ab-516-v2` as well as `main`.
