@@ -202,6 +202,21 @@ class PolicyInquirySecurityIT {
   }
 
   @Test
+  void preservesLeadingSpacesInThePolicyholderLookupKey() throws Exception {
+    String custId = " C00000099";
+    insertPolicyHolder(custId, null);
+    insertPolicyForHolder("POL-90000099", custId);
+
+    ResponseEntity<String> response =
+        get(
+            "/api/v1/policies/POL-90000099/policyholder",
+            PolicyJwtTestSupport.mint(PasScopes.POLICY_READ, Map.of("book", "ALL")));
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(objectMapper.readTree(response.getBody()).path("custId").asText()).isEqualTo(custId);
+  }
+
+  @Test
   void trimsCoverageStringsLikeTheLegacyFacade() throws Exception {
     insertPaddedCoverage();
 
@@ -278,6 +293,27 @@ class PolicyInquirySecurityIT {
 
   private void assertShortTaxIdMaskedAndReadable(String policyNumber, String custId, String taxId)
       throws Exception {
+    insertPolicyHolder(custId, taxId);
+    insertPolicyForHolder(policyNumber, custId);
+
+    String path = "/api/v1/policies/" + policyNumber + "/policyholder";
+    JsonNode masked =
+        objectMapper.readTree(
+            get(path, PolicyJwtTestSupport.mint(PasScopes.POLICY_READ, Map.of("book", "ALL")))
+                .getBody());
+    assertThat(masked.path("taxId").asText()).isEqualTo("****");
+
+    JsonNode unmasked =
+        objectMapper.readTree(
+            get(
+                    path,
+                    PolicyJwtTestSupport.mint(
+                        PasScopes.POLICY_READ + " " + PasScopes.PII_READ, Map.of("book", "ALL")))
+                .getBody());
+    assertThat(unmasked.path("taxId").asText()).isEqualTo(taxId);
+  }
+
+  private void insertPolicyHolder(String custId, String taxId) {
     LocalDate today = LocalDate.now(ZoneOffset.UTC);
     OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
     policyHolderRepository.insert(
@@ -304,6 +340,9 @@ class PolicyInquirySecurityIT {
             Coded.of(YesNo.class, "N"),
             today,
             now));
+  }
+
+  private void insertPolicyForHolder(String policyNumber, String custId) {
     jdbcTemplate.update(
         """
         INSERT INTO pas.policies (
@@ -321,22 +360,6 @@ class PolicyInquirySecurityIT {
         """,
         policyNumber,
         custId);
-
-    String path = "/api/v1/policies/" + policyNumber + "/policyholder";
-    JsonNode masked =
-        objectMapper.readTree(
-            get(path, PolicyJwtTestSupport.mint(PasScopes.POLICY_READ, Map.of("book", "ALL")))
-                .getBody());
-    assertThat(masked.path("taxId").asText()).isEqualTo("****");
-
-    JsonNode unmasked =
-        objectMapper.readTree(
-            get(
-                    path,
-                    PolicyJwtTestSupport.mint(
-                        PasScopes.POLICY_READ + " " + PasScopes.PII_READ, Map.of("book", "ALL")))
-                .getBody());
-    assertThat(unmasked.path("taxId").asText()).isEqualTo(taxId);
   }
 
   private static List<String> inquiryPaths() {

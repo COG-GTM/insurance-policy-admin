@@ -92,7 +92,7 @@ public class PolicyInquiryRepository {
                     + ENTITLEMENT_PREDICATE)
             .param("policyNumber", policyNumber)
             .params(entitlementParameters(entitlements))
-            .query((row, rowNumber) -> trimmedString(row, "policyholder_id"))
+            .query((row, rowNumber) -> trailingTrimmedChar(row, "policyholder_id"))
             .optional();
     return policyholderId.flatMap(policyHolderRepository::findByCustId);
   }
@@ -159,6 +159,11 @@ public class PolicyInquiryRepository {
   private static String trimmedString(ResultSet row, String column) throws SQLException {
     String value = row.getString(column);
     return value == null ? null : value.trim();
+  }
+
+  private static String trailingTrimmedChar(ResultSet row, String column) throws SQLException {
+    String value = row.getString(column);
+    return value == null ? null : value.replaceFirst(" +$", "");
   }
 
   private static LocalDate date(ResultSet row, String column) throws SQLException {
