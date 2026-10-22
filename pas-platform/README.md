@@ -7,7 +7,7 @@ legacy COBOL, JCL, DB2 DDL, and Java facade; it does not replace or modify those
 
 | Module | Package | Port | Purpose |
 |--------|---------|------|---------|
-| `pas-common` | `com.acme.insurance.pas.common` | — | Shared security scope, claim, and schema constants; no Spring dependency |
+| `pas-common` | `com.acme.insurance.pas.common` | — | Shared domain, copybook, PII, security and schema types; optional Boot/Logback adapters |
 | `pas-policy-service` | `com.acme.insurance.pas.policy` | `8080` | Policy HTTP service and policy schema ownership |
 | `pas-batch` | `com.acme.insurance.pas.batch` | `8081` | Spring Batch HTTP service and batch metadata schema ownership |
 
@@ -35,6 +35,16 @@ Spring Batch PostgreSQL metadata script and creates the metadata tables in `pas_
 
 Never edit an applied migration. Allocate future versions within their owning schema and coordinate
 cross-service schema changes. Schema `pas_shadow` is reserved for parity work.
+
+See the [PAS target data model](../docs/modernization/data-model.md) for the business schema,
+migration, rating-reference, and coexistence details.
+
+## PII keys
+
+The policy service requires `PAS_PII_ENCRYPTION_KEY_ID`, `PAS_PII_ENCRYPTION_KEY_VERSION`,
+`PAS_PII_ENCRYPTION_KEY`, and `PAS_PII_BLIND_INDEX_KEY`. Use `make dev-env` to generate separate
+local-only keys; production keys must come from the platform secrets store. Batch does not receive
+PII keys. See [PII handling](../docs/security/pii-handling.md).
 
 ## Observability
 

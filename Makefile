@@ -18,6 +18,17 @@ test:
 
 dev-env:
 	cd pas-platform && if [ ! -f .env ]; then cp .env.example .env; fi
+	cd pas-platform && \
+	for key in PAS_PII_ENCRYPTION_KEY_ID PAS_PII_ENCRYPTION_KEY_VERSION PAS_PII_ENCRYPTION_KEY PAS_PII_BLIND_INDEX_KEY; do \
+		if ! rg -q "^$${key}=" .env; then \
+			case "$$key" in \
+				PAS_PII_ENCRYPTION_KEY_ID) value=local-v1 ;; \
+				PAS_PII_ENCRYPTION_KEY_VERSION) value=1 ;; \
+				*) value="$$(python3 -c 'import base64,secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())')" ;; \
+			esac; \
+			printf '%s=%s\n' "$$key" "$$value" >> .env; \
+		fi; \
+	done
 	cd pas-platform && ./dev/dev-jwt.sh keygen
 
 dev-images:

@@ -55,3 +55,6 @@ logging:
   structured:
     format:
       console: ecs
+    json:
+      customizer:
+        - com.acme.insurance.pas.pii.logging.PiiMaskingJsonCustomizer
