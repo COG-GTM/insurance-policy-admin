@@ -6,8 +6,10 @@ import com.acme.insurance.pas.batch.extract.delivery.SftpProperties;
 import com.acme.insurance.pas.batch.extract.layout.ExtractLayout;
 import com.acme.insurance.pas.batch.extract.layout.ExtractLayouts;
 import com.acme.insurance.pas.batch.extract.layout.ExtractRecordEncoder;
-import com.acme.insurance.pas.batch.extract.routing.ExtractRouteProperties;
-import com.acme.insurance.pas.batch.extract.routing.RouteMode;
+import com.acme.insurance.pas.batch.platform.JobFailureListener;
+import com.acme.insurance.pas.batch.routing.BatchRouteProperties;
+import com.acme.insurance.pas.common.routing.RouteFlags;
+import com.acme.insurance.pas.common.routing.RouteState;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.time.LocalDate;
@@ -18,8 +20,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.sql.DataSource;
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -29,10 +29,12 @@ import org.springframework.batch.item.database.JdbcCursorItemReader;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.PreparedStatementSetter;
 import org.springframework.jdbc.core.RowMapper;
@@ -41,18 +43,18 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
 @EnableConfigurationProperties({
-  ExtractRouteProperties.class,
+  BatchRouteProperties.class,
   SftpProperties.class,
   com.acme.insurance.pas.batch.extract.delivery.ExtractRetryProperties.class
 })
 public class ExtractJobConfiguration {
   @Bean
-  JobExecutionListener extractFailureListener(
-      io.micrometer.core.instrument.MeterRegistry registry) {
-    return new ExtractFailureListener(registry);
+  JobFailureListener jobFailureListener(io.micrometer.core.instrument.MeterRegistry registry) {
+    return new JobFailureListener(registry);
   }
 
   @Bean
+  @Primary
   PlatformTransactionManager extractTransactionManager(DataSource dataSource) {
     return new DataSourceTransactionManager(dataSource);
   }
@@ -60,22 +62,22 @@ public class ExtractJobConfiguration {
   @Bean
   ExtractDeliveryTasklet extractDeliveryTasklet(
       ExtractDeliveryService deliveryService,
-      ExtractRouteProperties routes,
+      RouteFlags routes,
       @Value("${pas.batch.extract.work-dir:/var/lib/pas-batch/extracts}") String workDir) {
-    return new ExtractDeliveryTasklet(deliveryService, routes, workDir);
+    return new ExtractDeliveryTasklet(deliveryService, workDir);
   }
 
   @Bean
   Step extractRouteGuardStep(
       JobRepository jobRepository,
-      PlatformTransactionManager extractTransactionManager,
-      ExtractRouteProperties routes) {
+      @Qualifier("extractTransactionManager") PlatformTransactionManager extractTransactionManager,
+      RouteFlags routes) {
     return new StepBuilder("extractRouteGuardStep", jobRepository)
         .tasklet(
             (contribution, chunkContext) -> {
               String jobName =
                   contribution.getStepExecution().getJobExecution().getJobInstance().getJobName();
-              if (routes.forJob(jobName) == RouteMode.RETIRED) {
+              if (routes.state(routeForJob(jobName)) == RouteState.RETIRED) {
                 throw new IllegalStateException("Extract capability is retired");
               }
               return org.springframework.batch.repeat.RepeatStatus.FINISHED;
@@ -167,7 +169,7 @@ public class ExtractJobConfiguration {
   @Bean
   Step policyExtractStep(
       JobRepository jobRepository,
-      PlatformTransactionManager extractTransactionManager,
+      @Qualifier("extractTransactionManager") PlatformTransactionManager extractTransactionManager,
       JdbcCursorItemReader<Map<String, Object>> policyExtractReader,
       FlatFileItemWriter<Map<String, Object>> policyExtractWriter) {
     return chunkStep(
@@ -181,7 +183,7 @@ public class ExtractJobConfiguration {
   @Bean
   Step coverageExtractStep(
       JobRepository jobRepository,
-      PlatformTransactionManager extractTransactionManager,
+      @Qualifier("extractTransactionManager") PlatformTransactionManager extractTransactionManager,
       JdbcCursorItemReader<Map<String, Object>> coverageExtractReader,
       FlatFileItemWriter<Map<String, Object>> coverageExtractWriter) {
     return chunkStep(
@@ -195,7 +197,7 @@ public class ExtractJobConfiguration {
   @Bean
   Step exposureExtractStep(
       JobRepository jobRepository,
-      PlatformTransactionManager extractTransactionManager,
+      @Qualifier("extractTransactionManager") PlatformTransactionManager extractTransactionManager,
       JdbcCursorItemReader<Map<String, Object>> exposureExtractReader,
       FlatFileItemWriter<Map<String, Object>> exposureExtractWriter) {
     return chunkStep(
@@ -209,23 +211,26 @@ public class ExtractJobConfiguration {
   @Bean
   Step claimsDeliveryStep(
       JobRepository repository,
-      PlatformTransactionManager transactionManager,
-      ExtractRouteProperties routes,
+      @Qualifier("extractTransactionManager") PlatformTransactionManager transactionManager,
+      RouteFlags routes,
       ExtractDeliveryTasklet deliveryTasklet) {
     return new StepBuilder("claimsDeliveryStep", repository)
-        .tasklet(deliveryTasklet.forTarget("claims", routes.dailyExtract()), transactionManager)
+        .tasklet(
+            deliveryTasklet.forTarget("claims", routes.state(RouteFlags.DAILY_EXTRACT)),
+            transactionManager)
         .build();
   }
 
   @Bean
   Step actuarialDeliveryStep(
       JobRepository repository,
-      PlatformTransactionManager transactionManager,
-      ExtractRouteProperties routes,
+      @Qualifier("extractTransactionManager") PlatformTransactionManager transactionManager,
+      RouteFlags routes,
       ExtractDeliveryTasklet deliveryTasklet) {
     return new StepBuilder("actuarialDeliveryStep", repository)
         .tasklet(
-            deliveryTasklet.forTarget("actuarial", routes.monthlyExposure()), transactionManager)
+            deliveryTasklet.forTarget("actuarial", routes.state(RouteFlags.MONTHLY_EXPOSURE)),
+            transactionManager)
         .build();
   }
 
@@ -236,9 +241,9 @@ public class ExtractJobConfiguration {
       Step policyExtractStep,
       Step coverageExtractStep,
       Step claimsDeliveryStep,
-      JobExecutionListener extractFailureListener) {
+      JobFailureListener jobFailureListener) {
     return new JobBuilder("dailyExtractJob", repository)
-        .listener(extractFailureListener)
+        .listener(jobFailureListener)
         .start(extractRouteGuardStep)
         .next(policyExtractStep)
         .next(coverageExtractStep)
@@ -252,9 +257,9 @@ public class ExtractJobConfiguration {
       Step extractRouteGuardStep,
       Step exposureExtractStep,
       Step actuarialDeliveryStep,
-      JobExecutionListener extractFailureListener) {
+      JobFailureListener jobFailureListener) {
     return new JobBuilder("monthlyExposureJob", repository)
-        .listener(extractFailureListener)
+        .listener(jobFailureListener)
         .start(extractRouteGuardStep)
         .next(exposureExtractStep)
         .next(actuarialDeliveryStep)
@@ -333,37 +338,11 @@ public class ExtractJobConfiguration {
         .toString();
   }
 
-  private static final class ExtractFailureListener implements JobExecutionListener {
-    private static final org.slf4j.Logger log =
-        org.slf4j.LoggerFactory.getLogger(ExtractFailureListener.class);
-    private final io.micrometer.core.instrument.MeterRegistry registry;
-
-    private ExtractFailureListener(io.micrometer.core.instrument.MeterRegistry registry) {
-      this.registry = registry;
-    }
-
-    @Override
-    public void afterJob(JobExecution execution) {
-      if (execution.getStatus() == org.springframework.batch.core.BatchStatus.COMPLETED) {
-        return;
-      }
-      registry
-          .counter("pas.batch.job.failures", "job", execution.getJobInstance().getJobName())
-          .increment();
-      String failureTypes =
-          execution.getAllFailureExceptions().stream()
-              .map(exception -> exception.getClass().getSimpleName())
-              .distinct()
-              .sorted()
-              .collect(java.util.stream.Collectors.joining(","));
-      log.atError()
-          .addKeyValue("event", "pas.batch.job.failed")
-          .addKeyValue("job", execution.getJobInstance().getJobName())
-          .addKeyValue("jobExecutionId", execution.getId())
-          .addKeyValue("businessDate", execution.getJobParameters().getString("businessDate"))
-          .addKeyValue("exitCode", execution.getExitStatus().getExitCode())
-          .addKeyValue("failureType", failureTypes)
-          .log("Extract job failed");
-    }
+  private static String routeForJob(String jobName) {
+    return switch (jobName) {
+      case "dailyExtractJob" -> RouteFlags.DAILY_EXTRACT;
+      case "monthlyExposureJob" -> RouteFlags.MONTHLY_EXPOSURE;
+      default -> throw new IllegalArgumentException("Unknown extract job");
+    };
   }
 }

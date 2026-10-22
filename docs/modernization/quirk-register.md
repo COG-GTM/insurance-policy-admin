@@ -69,6 +69,7 @@ differences must cite the Q-id.
 | Q-44 | UNDWRT, POLRNW | CICS RECEIVE failure leaves the performed flow running into later processing | PAS product owner / Underwriting | Fix | AB-525, AB-526 |
 | Q-45 | UNDWRT | Negative credit loses its sign when moved into unsigned `CUST-CREDIT-SCORE` | Underwriting | Fix | AB-525 |
 | Q-46 | Extract ordering | DB2 EBCDIC collation can order mixed letter/digit codes differently from ASCII; ties are not fully ordered | Mainframe team (batch) | Fix | AB-527 |
+| Q-47 | PREMBAT | PREMRPT moves a COMP-3 premium into a display line, yielding non-text bytes in the report | Mainframe team (batch) | Fix | AB-523 |
 
 ## Details
 
@@ -583,3 +584,14 @@ differences must cite the Q-id.
 - **Owner:** Mainframe team (batch), with Actuarial and Claims for sample validation.
 - **Decision:** **Fix.** Order with PostgreSQL byte-order `"C"` collation and all grouping keys as deterministic tiebreakers. Validate the resulting order against production samples before cutover.
 - **Implemented by:** AB-527.
+
+### Q-47
+
+**PREMRPT premium fields are not printable text**
+
+- **Location:** `cobol/programs/PREMBAT.cbl:226-243`.
+- **Observed:** the report line moves the packed-decimal `WS-TOTAL-PREMIUM` directly into a display record. The resulting bytes are not a stable textual amount and cannot be compared or consumed as a readable report value.
+- **Impact:** report consumers cannot reliably parse the premium amount from the legacy line.
+- **Owner:** Mainframe team (batch).
+- **Decision:** **Fix.** Render the amount as nine integer digits, a decimal point, and two fractional digits using locale-independent formatting, for example `000000904.75`.
+- **Implemented by:** AB-523 (`PremiumReportFormatter`).

@@ -39,7 +39,7 @@
     "premium-batch": {
       "route": "legacy",
       "legacy": "mainframe premium batch calculates premiums",
-      "new": "pas-batch calculates premiums",
+      "new": "pas-batch calculates premiums in pas; shadow writes to pas_shadow",
       "ticket": "AB-523",
       "signoff": null
     },

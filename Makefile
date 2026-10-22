@@ -1,4 +1,6 @@
-.PHONY: compat compat-static compat-api compat-api-modern compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local extract-compare
+.PHONY: compat compat-static compat-api compat-api-modern compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local extract-compare load-premium-batch
+
+POLICIES ?= 250000
 
 compat: compat-static compat-build compat-api
 
@@ -87,3 +89,11 @@ extract-compare:
 		java -Dloader.main=com.acme.insurance.pas.batch.extract.compare.ExtractCompare \
 		-cp "$$jar" org.springframework.boot.loader.launch.PropertiesLauncher \
 		"$(abspath $(EXPECTED))" "$(abspath $(ACTUAL))"
+
+load-premium-batch:
+	cd pas-platform && ./mvnw -B -ntp -pl pas-batch -am \
+		-Dtest=none -Dsurefire.failIfNoSpecifiedTests=false \
+		-Dfailsafe.failIfNoSpecifiedTests=false \
+		-Dit.test=PremiumJobLoadIT -Dpas.load.policies=$(POLICIES) \
+		-Dpas.batch.it.excluded-groups= \
+		-Dspotless.check.skip=true -Dspotbugs.skip=true verify
