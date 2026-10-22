@@ -83,6 +83,11 @@ public final class ParityHarness {
                 .resolve("spec.json")
                 .toFile());
     JsonNode inputValue = merge(spec.path("defaults"), fixture.path("input"));
+    if (spec.has("seedDefaults") && inputValue.isObject()) {
+      // Working-storage seeds model uninitialised COBOL fields; adapters whose Java contract
+      // takes them as input (e.g. POLEND's endorsement type, Q-12) read them as "seed".
+      ((ObjectNode) inputValue).set("seed", merge(spec.path("seedDefaults"), fixture.path("seed")));
+    }
     Object input = MAPPER.treeToValue(inputValue, adapter.inputType());
     JsonNode actualOutputs = MAPPER.valueToTree(runAdapter(adapter, input));
     ObjectNode actual = MAPPER.createObjectNode().set("outputs", actualOutputs);
