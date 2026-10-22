@@ -28,5 +28,11 @@ When a replacement service takes over the read API, point `COMPAT_API_MODULE`
 / `COMPAT_API_START` at it; the snapshots stay the contract. Re-record snapshots
 (`compat/api/run_facade.sh --record`) only with an approved contract change.
 
+`make compat-api-modern` starts only the compose PostgreSQL service, builds
+`pas-policy-service`, enables local facade seed data and the `policy-inquiry`
+route, then runs the same snapshot check against the modern API at port 18095
+(override with `COMPAT_MODERN_PORT`). It leaves PostgreSQL running and writes
+service output to the ignored `logs/compat-api-modern.log`.
+
 The Devin "PAS backward-compatibility gate" automation also reviews each PR and
 covers what static checks can't (business-rule parity against COBOL, intent).

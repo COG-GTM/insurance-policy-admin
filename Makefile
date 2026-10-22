@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local extract-compare
+.PHONY: compat compat-static compat-api compat-api-modern compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local extract-compare
 
 compat: compat-static compat-build compat-api
 
@@ -12,6 +12,9 @@ compat-build:
 
 compat-api:
 	./compat/api/run_facade.sh
+
+compat-api-modern:
+	./compat/api/run_modern.sh
 
 parity:
 	python3 parity/tools/harness.py check
