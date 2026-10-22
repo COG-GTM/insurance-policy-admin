@@ -25,7 +25,7 @@ Errors are RFC 9457 problem documents with a `code` property (for example `TOO_M
   only the `local` profile has a stub (`pas.dev.claims-stub.enabled`).
 - Premium: expiring premium × (1 + `pas.renewal.uplift-pct`/100), truncated (Q-06), capped at
   `pas.renewal.max-increase-pct` (15) or `pas.renewal.max-increase-pct-by-state.<ST>` for the
-  policyholder's state (Q-04). Zero or overflowing premiums are rejected (Q-47).
+  policyholder's state (Q-04). Zero or overflowing premiums are rejected (Q-49).
 - Term: effective = prior expiry, expiry = `plusYears(1)`, so Feb 29 renews to Feb 28 (Q-01).
 - Renewal count above 999 is rejected (Q-18). UW status becomes `PN` as in COBOL.
 - Idempotent per term: `pas.policy_renewals` is keyed on (policy, prior expiry); a repeat is 409.
@@ -37,13 +37,13 @@ Errors are RFC 9457 problem documents with a `code` property (for example `TOO_M
 
 - Only `AC` policies. `type` is required and must be CAD, CRM, LCH, ACH or CAN (Q-12).
 - The date (default today, UTC) must be inside [effective, expiry]; first and last days are
-  allowed. Zero-length or inverted terms and dates outside the term are 422 (Q-48).
+  allowed. Zero-length or inverted terms and dates outside the term are 422 (Q-50).
 - Pro-rata factor = days remaining / days in term (`ChronoUnit.DAYS`, exact calendar days),
   divided with `RoundingMode.DOWN` at 6 decimal places. COBOL computes `WS-PRORATA-FACTOR`
   `PIC 9V9(6)` without `ROUNDED`, so the same truncation, but from its own day arithmetic, which
   is wrong across months and years (for example a three-year term counts 96 days). The factor is
   returned for information only (Q-11).
-- The premium adjustment is always 0.00 (Q-11 Preserve, Q-49); `TOTAL_PREMIUM` is rewritten with it.
+- The premium adjustment is always 0.00 (Q-11 Preserve, Q-51); `TOTAL_PREMIUM` is rewritten with it.
 - Effects applied in the same transaction (Q-13): CAD inserts a coverage, CRM cancels one, LCH
   changes a limit, ACH changes the policyholder address, CAN cancels the policy and its active
   coverages.

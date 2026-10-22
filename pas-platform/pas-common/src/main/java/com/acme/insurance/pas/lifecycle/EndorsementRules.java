@@ -8,10 +8,10 @@ import java.time.temporal.ChronoUnit;
 
 /** POLEND 3000/4000/5000 rules with the AB-526 fixes. */
 public final class EndorsementRules {
-  /** ENDORSEMENT_SEQ is PIC 9(05) in POLEND (Q-47). */
+  /** ENDORSEMENT_SEQ is PIC 9(05) in POLEND (Q-49). */
   public static final int MAX_ENDORSEMENT_SEQ = 99_999;
 
-  /** Q-11 (Preserve): the adjustment is 0.00; Q-49: always initialised rather than left in WS. */
+  /** Q-11 (Preserve): the adjustment is 0.00; Q-51: always initialised rather than left in WS. */
   public static final BigDecimal PREMIUM_ADJUSTMENT = new BigDecimal("0.00");
 
   private static final BigDecimal MAX_PREMIUM = new BigDecimal("999999999.99");
@@ -25,7 +25,7 @@ public final class EndorsementRules {
   }
 
   /**
-   * Q-48: the term must be non-empty and the endorsement date must fall in [effective, expiry]. The
+   * Q-50: the term must be non-empty and the endorsement date must fall in [effective, expiry]. The
    * expiry date itself is accepted (zero days remaining, as in POLEND).
    */
   public static void checkTerm(LocalDate effectiveDate, LocalDate expiryDate, LocalDate date) {
@@ -55,7 +55,7 @@ public final class EndorsementRules {
         .divide(BigDecimal.valueOf(daysInTerm), 6, RoundingMode.DOWN);
   }
 
-  /** MAX(ENDORSEMENT_SEQ) + 1, rejected instead of wrapping 99999 to 00000 (Q-47). */
+  /** MAX(ENDORSEMENT_SEQ) + 1, rejected instead of wrapping 99999 to 00000 (Q-49). */
   public static int nextSequence(Integer maxSequence) {
     int max = maxSequence == null ? 0 : maxSequence;
     if (max < 0 || max >= MAX_ENDORSEMENT_SEQ) {
@@ -64,7 +64,7 @@ public final class EndorsementRules {
     return max + 1;
   }
 
-  /** POLICY-TOTAL-PREMIUM + WS-PREMIUM-ADJUST without wrapping S9(9)V99 (Q-47). */
+  /** POLICY-TOTAL-PREMIUM + WS-PREMIUM-ADJUST without wrapping S9(9)V99 (Q-49). */
   public static BigDecimal adjustedPremium(BigDecimal totalPremium, BigDecimal adjustment) {
     BigDecimal current = totalPremium == null ? BigDecimal.ZERO : totalPremium;
     BigDecimal adjusted = current.add(adjustment).setScale(2, RoundingMode.DOWN);

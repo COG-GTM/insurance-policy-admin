@@ -94,7 +94,7 @@ public final class PremiumCalculator {
   /**
    * POLRNW 4000-CALCULATE-NEW-PREMIUM: the renewal does not re-rate; it uplifts the expiring
    * premium (Q-06, truncated) and caps the increase (Q-04). Unlike COBOL, a zero premium (division
-   * by zero) and a premium that no longer fits S9(9)V99 are rejected instead of wrapping (Q-47).
+   * by zero) and a premium that no longer fits S9(9)V99 are rejected instead of wrapping (Q-49).
    */
   public static RenewalPremium renewalPremium(
       BigDecimal oldPremium, BigDecimal upliftPct, BigDecimal capPct) {

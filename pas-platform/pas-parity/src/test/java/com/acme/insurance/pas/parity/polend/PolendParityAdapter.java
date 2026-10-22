@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * POLEND through the AB-526 rules. The legacy program never reads the endorsement type or the
  * adjustment (they are whatever working storage holds, seeded by the harness); the service takes
- * the type as input (Q-12) and always posts a 0.00 adjustment (Q-11, Q-49). Any failed write leaves
+ * the type as input (Q-12) and always posts a 0.00 adjustment (Q-11, Q-51). Any failed write leaves
  * nothing behind (Q-14).
  */
 final class PolendParityAdapter

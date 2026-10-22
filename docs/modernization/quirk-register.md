@@ -69,6 +69,7 @@ differences must cite the Q-id.
 | Q-44 | UNDWRT, POLRNW | CICS RECEIVE failure leaves the performed flow running into later processing | PAS product owner / Underwriting | Fix | AB-525, AB-526 |
 | Q-45 | UNDWRT | Negative credit loses its sign when moved into unsigned `CUST-CREDIT-SCORE` | Underwriting | Fix | AB-525 |
 | Q-46 | Extract ordering | DB2 EBCDIC collation can order mixed letter/digit codes differently from ASCII; ties are not fully ordered | Mainframe team (batch) | Fix | AB-527 |
+| Q-47 | PREMBAT | PREMRPT moves a COMP-3 premium into a display line, yielding non-text bytes in the report | Mainframe team (batch) | Fix | AB-523 |
 
 ## Details
 
@@ -582,6 +583,17 @@ differences must cite the Q-id.
 
 ### Q-47
 
+**PREMRPT premium fields are not printable text**
+
+- **Location:** `cobol/programs/PREMBAT.cbl:226-243`.
+- **Observed:** the report line moves the packed-decimal `WS-TOTAL-PREMIUM` directly into a display record. The resulting bytes are not a stable textual amount and cannot be compared or consumed as a readable report value.
+- **Impact:** report consumers cannot reliably parse the premium amount from the legacy line.
+- **Owner:** Mainframe team (batch).
+- **Decision:** **Fix.** Render the amount as nine integer digits, a decimal point, and two fractional digits using locale-independent formatting, for example `000000904.75`.
+- **Implemented by:** AB-523 (`PremiumReportFormatter`).
+
+### Q-49
+
 **POLRNW and POLEND arithmetic wraps instead of failing**
 
 - **Location:** `cobol/programs/POLRNW.cbl` 4000-CALCULATE-NEW-PREMIUM (`COMPUTE` without `ON SIZE ERROR`, rate change divides by the old premium); `cobol/programs/POLEND.cbl` 5000 (`MAX(ENDORSEMENT_SEQ) + 1` into `PIC 9(05)`).
@@ -592,7 +604,7 @@ differences must cite the Q-id.
 - **Found by:** AB-526.
 - **Implemented by:** AB-526.
 
-### Q-48
+### Q-50
 
 **POLEND accepts zero-length terms and dates outside the term**
 
@@ -604,7 +616,7 @@ differences must cite the Q-id.
 - **Found by:** AB-526.
 - **Implemented by:** AB-526.
 
-### Q-49
+### Q-51
 
 **POLEND posts whatever WS-PREMIUM-ADJUST holds**
 

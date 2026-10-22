@@ -35,10 +35,12 @@ its intermediate precision, size-error, and data-exception behavior; it is not a
 Enterprise COBOL captures. Confirm or replace these goldens with mainframe captures when available.
 
 `known-differences.yaml` is limited to demonstrated COBOL/Java differences. Each entry identifies a
-fixture, output field, quirk-register decision, reason, and required `javaValue`. The runner checks
-that the Java value at the entry's field matches `javaValue` before covering any differences at
-that field, and validates that each referenced quirk exists, has a non-Preserve decision, and is
-still exercised by the named fixture.
+fixture, output field, quirk-register decision, reason, and required `javaValue`. The optional
+`scope` defaults to `component`; adapters may use a separate scope such as `job` so component and
+job-level differences are applied and stale-checked independently. The runner checks that the Java
+value at the entry's field matches `javaValue` before covering any differences at that field, and
+validates that each referenced quirk exists, has a non-Preserve decision, and is still exercised by
+the named fixture in that scope. Reports are keyed by program and scope.
 
 ## Adding a program, fixture, and Java adapter
 

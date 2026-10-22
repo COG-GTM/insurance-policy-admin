@@ -5,6 +5,8 @@ spring:
     url: ${PAS_DB_URL:jdbc:postgresql://localhost:5432/pas}
     username: ${PAS_DB_USERNAME}
     password: ${PAS_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${PAS_DB_POOL_SIZE:16}
   kafka:
     bootstrap-servers: ${PAS_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
   flyway:
@@ -24,6 +26,15 @@ pas:
   rating:
     factor-mode: ${PAS_RATING_FACTOR_MODE:legacy}
   batch:
+    premium:
+      zone: ${PAS_BATCH_PREMIUM_ZONE:America/New_York}
+      grid-size: ${PAS_BATCH_PREMIUM_GRID_SIZE:8}
+      chunk-size: ${PAS_BATCH_PREMIUM_CHUNK_SIZE:500}
+      concurrency: ${PAS_BATCH_PREMIUM_CONCURRENCY:${PAS_BATCH_PREMIUM_GRID_SIZE:8}}
+      skip-limit: ${PAS_BATCH_PREMIUM_SKIP_LIMIT:1000}
+      report-dir: ${PAS_BATCH_PREMIUM_REPORT_DIR:/var/lib/pas-batch/reports}
+      schedule: ${PAS_BATCH_PREMIUM_SCHEDULE:0 0 1 * * *}
+      scheduler-enabled: ${PAS_BATCH_PREMIUM_SCHEDULER_ENABLED:false}
     extract:
       zone: ${PAS_BATCH_EXTRACT_ZONE:America/New_York}
       work-dir: ${PAS_BATCH_EXTRACT_WORK_DIR:/var/lib/pas-batch/extracts}
@@ -57,6 +68,7 @@ pas:
           remote-dir: /actuarial/data
           connect-timeout: 30s
   routing:
+    premium-batch: ${PAS_ROUTING_PREMIUM_BATCH:legacy}
     daily-extract: ${PAS_ROUTING_DAILY_EXTRACT:legacy}
     monthly-exposure: ${PAS_ROUTING_MONTHLY_EXPOSURE:legacy}
 

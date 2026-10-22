@@ -47,19 +47,23 @@ public final class ParityHarness {
       if (fixtures.isEmpty()) {
         throw new IllegalStateException("No fixtures found for " + adapter.program());
       }
-      ProgramReport report =
-          REPORTS.computeIfAbsent(adapter.program(), ignored -> new ProgramReport());
+      String reportKey = reportKey(adapter.program(), adapter.scope());
+      ProgramReport report = REPORTS.computeIfAbsent(reportKey, ignored -> new ProgramReport());
       Stream<DynamicTest> fixtureTests =
           fixtures.stream()
               .map(
                   fixture ->
                       DynamicTest.dynamicTest(
                           fixtureId(fixture),
-                          () -> executeFixture(root, adapter, knownDifferences, fixture, report)));
+                          () ->
+                              executeFixture(
+                                  root, adapter, knownDifferences, fixture, reportKey, report)));
       DynamicTest usedTest =
           DynamicTest.dynamicTest(
               "known-differences-are-used",
-              () -> verifyKnownDifferencesUsed(adapter.program(), knownDifferences, report));
+              () ->
+                  verifyKnownDifferencesUsed(
+                      adapter.program(), adapter.scope(), knownDifferences, report));
       return Stream.concat(fixtureTests, Stream.of(usedTest));
     } catch (IOException error) {
       throw new IllegalStateException(
@@ -72,6 +76,7 @@ public final class ParityHarness {
       ParityAdapter<?, ?> adapter,
       KnownDifferences knownDifferences,
       Path fixturePath,
+      String reportKey,
       ProgramReport report)
       throws IOException {
     String fixtureId = fixtureId(fixturePath);
@@ -101,7 +106,7 @@ public final class ParityHarness {
     List<GoldenComparator.Difference> differences =
         GoldenComparator.compare(expected, actualOutputs);
     List<KnownDifferences.Entry> fixtureEntries =
-        knownDifferences.forFixture(adapter.program(), fixtureId);
+        knownDifferences.forFixture(adapter.program(), adapter.scope(), fixtureId);
     Set<KnownDifferences.Entry> javaValueMismatches =
         fixtureEntries.stream()
             .filter(entry -> !javaValueMatchesAtField(entry, actual))
@@ -136,6 +141,8 @@ public final class ParityHarness {
           "Uncovered parity differences for "
               + adapter.program()
               + "/"
+              + adapter.scope()
+              + "/"
               + fixtureId
               + ":\n"
               + renderDifferences(uncovered));
@@ -148,17 +155,22 @@ public final class ParityHarness {
   }
 
   private static void verifyKnownDifferencesUsed(
-      String program, KnownDifferences knownDifferences, ProgramReport report) throws IOException {
+      String program, String scope, KnownDifferences knownDifferences, ProgramReport report)
+      throws IOException {
     Set<KnownDifferences.Entry> used = report.usedEntries();
     List<KnownDifferences.Entry> stale =
         knownDifferences.entries().stream()
             .filter(entry -> entry.program().equals(program))
+            .filter(entry -> entry.scope().equals(scope))
             .filter(entry -> !used.contains(entry))
             .toList();
     if (!stale.isEmpty()) {
       String message =
           "Stale known differences for "
               + program
+              + " ["
+              + scope
+              + "]"
               + ": "
               + stale.stream().map(entry -> entry.fixture() + " " + entry.field()).toList();
       report.recordFailure("known-differences-are-used", message);
@@ -243,6 +255,10 @@ public final class ParityHarness {
     return GoldenComparator.compare(required, actualValue).isEmpty();
   }
 
+  private static String reportKey(String program, String scope) {
+    return program + " [" + scope + "]";
+  }
+
   private static void writeReport(Path root) throws IOException {
     Path reportDir = Path.of(System.getProperty("user.dir")).resolve("target");
     String registerLink =
@@ -251,9 +267,9 @@ public final class ParityHarness {
             .toString()
             .replace('\\', '/');
     StringBuilder markdown = new StringBuilder("# Parity report\n");
-    for (String program : REPORTS.keySet().stream().sorted().toList()) {
-      ProgramReport report = REPORTS.get(program);
-      markdown.append("\n## ").append(program).append("\n\n");
+    for (String programAndScope : REPORTS.keySet().stream().sorted().toList()) {
+      ProgramReport report = REPORTS.get(programAndScope);
+      markdown.append("\n## ").append(programAndScope).append("\n\n");
       markdown
           .append("| Pass | Fail | Pass with known difference |\n")
           .append("| ---: | ---: | ---: |\n")

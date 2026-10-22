@@ -1,12 +1,12 @@
-package com.acme.insurance.pas.batch.extract;
+package com.acme.insurance.pas.batch.testsupport;
 
 import org.flywaydb.core.Flyway;
 import org.testcontainers.containers.PostgreSQLContainer;
 
-final class PasTestDatabase {
+public final class PasTestDatabase {
   private PasTestDatabase() {}
 
-  static void migratePas(PostgreSQLContainer<?> postgres) {
+  public static void migratePas(PostgreSQLContainer<?> postgres) {
     postgres.start();
     Flyway.configure()
         .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())

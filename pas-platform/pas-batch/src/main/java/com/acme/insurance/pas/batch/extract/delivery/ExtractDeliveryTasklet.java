@@ -1,8 +1,7 @@
 package com.acme.insurance.pas.batch.extract.delivery;
 
 import com.acme.insurance.pas.batch.extract.layout.ExtractLayouts;
-import com.acme.insurance.pas.batch.extract.routing.ExtractRouteProperties;
-import com.acme.insurance.pas.batch.extract.routing.RouteMode;
+import com.acme.insurance.pas.common.routing.RouteState;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
@@ -17,21 +16,21 @@ import org.springframework.batch.repeat.RepeatStatus;
 public final class ExtractDeliveryTasklet {
   private static final Logger log = LoggerFactory.getLogger(ExtractDeliveryTasklet.class);
   private final ExtractDeliveryService deliveryService;
-  private final ExtractRouteProperties routes;
   private final String workDir;
 
-  public ExtractDeliveryTasklet(
-      ExtractDeliveryService deliveryService, ExtractRouteProperties routes, String workDir) {
+  public ExtractDeliveryTasklet(ExtractDeliveryService deliveryService, String workDir) {
     this.deliveryService = deliveryService;
-    this.routes = routes;
     this.workDir = workDir;
   }
 
-  public Tasklet forTarget(String target, RouteMode mode) {
+  public Tasklet forTarget(String target, RouteState mode) {
     return (StepContribution contribution, ChunkContext context) -> {
       JobExecution execution = context.getStepContext().getStepExecution().getJobExecution();
       String jobName = execution.getJobInstance().getJobName();
-      if (mode == RouteMode.LEGACY) {
+      if (mode == RouteState.RETIRED) {
+        throw new IllegalStateException("Extract capability is retired");
+      }
+      if (mode == RouteState.LEGACY || mode == RouteState.SHADOW) {
         log.atInfo()
             .addKeyValue("event", "pas.batch.extract.delivery.skipped")
             .addKeyValue("job", jobName)

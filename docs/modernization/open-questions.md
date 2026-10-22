@@ -157,3 +157,10 @@ Should new business accept an operator-keyed premium, or rate at bind time with 
 
 - **Suggested owner:** Actuarial + PAS product owner
 - **Related:** Q-31
+
+### OQ-23
+
+What is the actual production count of active policies and coverages, and what peak book size and growth should the premium batch load test represent?
+
+- **Suggested owner:** PAS operations + DBA
+- **Related:** AB-523 premium batch load test

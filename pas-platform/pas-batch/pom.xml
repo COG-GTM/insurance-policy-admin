@@ -10,6 +10,9 @@
     </parent>
     <artifactId>pas-batch</artifactId>
     <name>PAS Batch</name>
+    <properties>
+        <pas.batch.it.excluded-groups>load</pas.batch.it.excluded-groups>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>com.acme.insurance.pas</groupId>
@@ -18,6 +21,15 @@
         <dependency>
             <groupId>com.acme.insurance.pas</groupId>
             <artifactId>pas-rating</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme.insurance.pas</groupId>
+            <artifactId>pas-parity</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -109,6 +121,13 @@
             </testResource>
         </testResources>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <excludedGroups>${pas.batch.it.excluded-groups}</excludedGroups>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
