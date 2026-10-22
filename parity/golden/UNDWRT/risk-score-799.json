@@ -1,0 +1,45 @@
+{
+  "program": "UNDWRT",
+  "fixture": "risk-score-799",
+  "description": "Credit, tier, and four claims reach risk score 799.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "RM",
+        "riskScore": 799,
+        "decisionReason": "REFERRED TO UW MANAGER"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "RM",
+        "riskScore": 799
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "RM",
+        "riskScore": 799
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 799,
+      "lossRatio": 0.00,
+      "claimCount": 4,
+      "accumLimit": 1000000.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

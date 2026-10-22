@@ -1,0 +1,1 @@
+{"description":"Current date equals policy expiry date.","input":{"currentDate":"20250101","policy":{"effectiveDate":"20240101","expiryDate":"20250101"}}}

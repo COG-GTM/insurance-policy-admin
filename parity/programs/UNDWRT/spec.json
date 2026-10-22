@@ -1,0 +1,98 @@
+{
+  "program": "UNDWRT",
+  "defaults": {
+    "currentDate": "20241015",
+    "receiveResp": 0,
+    "policySqlcode": 0,
+    "policy": {
+      "policyNumber": "POL000000001",
+      "policyType": "AUT",
+      "totalPremium": 1000.00,
+      "coverageLimit": 100000.00,
+      "branchCode": "B001"
+    },
+    "customer": {
+      "custType": "I",
+      "creditScore": 302,
+      "riskTier": "S"
+    },
+    "claims": {
+      "count": 0,
+      "totalIncurred": 0.00
+    },
+    "branchAccumulatedLimit": 1000000.00
+  },
+  "inputs": [
+    {"path": "currentDate", "type": "date"},
+    {"path": "receiveResp", "type": "int", "digits": 8},
+    {"path": "policySqlcode", "type": "int", "digits": 9},
+    {"path": "policy.policyNumber", "type": "text", "length": 12},
+    {"path": "policy.policyType", "type": "text", "length": 3},
+    {"path": "policy.totalPremium", "type": "decimal", "integerDigits": 9, "scale": 2},
+    {"path": "policy.coverageLimit", "type": "decimal", "integerDigits": 11, "scale": 2},
+    {"path": "policy.branchCode", "type": "text", "length": 4},
+    {"path": "customer.custType", "type": "text", "length": 1},
+    {"path": "customer.creditScore", "type": "int", "digits": 4},
+    {"path": "customer.riskTier", "type": "text", "length": 1},
+    {"path": "claims.count", "type": "int", "digits": 5},
+    {"path": "claims.totalIncurred", "type": "decimal", "integerDigits": 11, "scale": 2},
+    {"path": "branchAccumulatedLimit", "type": "decimal", "integerDigits": 13, "scale": 2}
+  ],
+  "outputs": {
+    "decision": {
+      "compare": true,
+      "fields": [
+        {"name": "policyNumber", "type": "text", "length": 12, "source": "POLICY-NUMBER"},
+        {"name": "decisionDate", "type": "date", "source": "WS-CURRENT-DATE"},
+        {"name": "decisionCode", "type": "text", "length": 2, "source": "WS-DECISION"},
+        {"name": "riskScore", "type": "int", "digits": 4, "source": "WS-RISK-SCORE"},
+        {"name": "decisionReason", "type": "text", "length": 100, "source": "WS-DECISION-REASON"}
+      ]
+    },
+    "policyUpdate": {
+      "compare": true,
+      "fields": [
+        {"name": "uwStatus", "type": "text", "length": 2, "source": "WS-DECISION"},
+        {"name": "riskScore", "type": "int", "digits": 4, "source": "WS-RISK-SCORE"}
+      ]
+    },
+    "notification": {
+      "compare": true,
+      "fields": [
+        {"name": "policyNumber", "type": "text", "length": 12, "source": "POLICY-NUMBER"},
+        {"name": "uwStatus", "type": "text", "length": 2, "source": "POLICY-UW-STATUS"},
+        {"name": "riskScore", "type": "int", "digits": 3, "source": "POLICY-RISK-SCORE"}
+      ]
+    },
+    "error": {
+      "compare": true,
+      "fields": [
+        {"name": "message", "type": "text", "length": 79, "source": "WS-ERROR-MSG"}
+      ]
+    }
+  },
+  "state": [
+    {"name": "wsRiskScore", "type": "int", "digits": 4, "source": "WS-RISK-SCORE"},
+    {"name": "lossRatio", "type": "decimal", "integerDigits": 3, "scale": 2, "source": "WS-LOSS-RATIO"},
+    {"name": "claimCount", "type": "int", "digits": 5, "source": "WS-CLAIM-COUNT"},
+    {"name": "accumLimit", "type": "decimal", "integerDigits": 13, "scale": 2, "source": "WS-ACCUM-LIMIT"},
+    {"name": "errorMsg", "type": "text", "length": 79, "source": "WS-ERROR-MSG"}
+  ],
+  "execRules": [
+    {"name": "ASKTIME", "pattern": "ASKTIME", "expectCount": 1},
+    {"name": "FORMATTIME", "pattern": "FORMATTIME", "expectCount": 1},
+    {"name": "RECEIVE", "pattern": "CICS RECEIVE", "expectCount": 1},
+    {"name": "SELECT-POLICY", "pattern": "SELECT P\\.POLICY_NUMBER", "expectCount": 1},
+    {"name": "SELECT-CLAIMS", "pattern": "SELECT COUNT\\(\\*\\), COALESCE\\(SUM\\(INCURRED_AMOUNT\\)", "expectCount": 1},
+    {"name": "SELECT-ACCUM", "pattern": "SELECT COALESCE\\(SUM\\(COVERAGE_LIMIT\\)", "expectCount": 1},
+    {"name": "INSERT-DECISION", "pattern": "INSERT INTO UNDERWRITING_DECISIONS", "expectCount": 1},
+    {"name": "UPDATE-POLICY", "pattern": "UPDATE POLICIES", "expectCount": 1},
+    {"name": "WRITEQ-TD", "pattern": "WRITEQ TD", "expectCount": 1},
+    {"name": "SEND-MAP", "pattern": "SEND MAP", "expectCount": 1},
+    {"name": "SEND-TEXT", "pattern": "SEND TEXT", "expectCount": 1},
+    {"name": "RETURN", "pattern": "RETURN TRANSID", "expectCount": 1}
+  ],
+  "rewrites": [
+    {"pattern": "DFHRESP\\(NORMAL\\)", "replacement": "0", "expectCount": 1}
+  ]
+}

@@ -1,0 +1,1 @@
+{"description":"Base credit score produces risk score 299.","input":{"customer":{"creditScore":302}},"expectLegacy":{"outputs.decision[0].riskScore":299}}

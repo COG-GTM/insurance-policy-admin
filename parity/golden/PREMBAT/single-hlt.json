@@ -1,0 +1,49 @@
+{
+  "program": "PREMBAT",
+  "fixture": "single-hlt",
+  "description": "Health policy premium calculation.",
+  "outputs": {
+    "premium": [
+      {
+        "policyNumber": "POL000000105",
+        "coverageSeq": 1,
+        "termEffectiveDate": "20240101",
+        "termExpiryDate": "20250101",
+        "baseRate": 3500.0000,
+        "taxAmount": 122.50,
+        "surchargeAmount": 25.00,
+        "totalPremium": 3647.50,
+        "calcDate": "20241015",
+        "calcBy": "PREMBAT"
+      }
+    ],
+    "jobEnd": [
+      {
+        "returnCode": 0,
+        "policiesRead": 1,
+        "policiesUpdated": 1,
+        "policiesError": 0
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": [],
+      "report": [
+        "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20241015",
+        "------------------------------------------------------------------------------------------------------------------------------------",
+        "POL000000105 PREMIUM: \u0000\u0000\u0003du\f",
+        "====================================================================================================================================",
+        "TOTAL POLICIES READ:    0000001",
+        "TOTAL POLICIES UPDATED: 0000001",
+        "TOTAL ERRORS:           0000000"
+      ]
+    },
+    "state": {
+      "policiesRead": 1,
+      "policiesUpdated": 1,
+      "policiesError": 0
+    },
+    "returnCode": 0
+  }
+}

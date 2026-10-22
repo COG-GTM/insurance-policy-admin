@@ -1,0 +1,99 @@
+- program: UNDWRT
+  fixture: risk-score-1799
+  field: "outputs.notification[0].riskScore"
+  quirk: Q-20
+  reason: The COBOL notification moves the full score into the three-digit policy record field.
+  javaValue: 1799
+- program: UNDWRT
+  fixture: loss-ratio-1050
+  field: "outputs.decision[0].riskScore"
+  quirk: Q-21
+  reason: The signed three-digit COBOL loss-ratio field wraps 1050.00 to 50.00 and omits the surcharge.
+  javaValue: 499
+- program: UNDWRT
+  fixture: loss-ratio-1050
+  field: "outputs.decision[0].decisionCode"
+  quirk: Q-21
+  reason: Without the loss-ratio surcharge, COBOL accepts a case Java refers to underwriting.
+  javaValue: RS
+- program: UNDWRT
+  fixture: loss-ratio-1050
+  field: "outputs.decision[0].decisionReason"
+  quirk: Q-21
+  reason: The COBOL decision reason reflects the wrapped loss ratio.
+  javaValue: REFERRED TO SENIOR UNDERWRITER
+- program: UNDWRT
+  fixture: loss-ratio-1050
+  field: "outputs.policyUpdate[0].uwStatus"
+  quirk: Q-21
+  reason: The COBOL policy update preserves the accept status produced by the wrapped loss ratio.
+  javaValue: RS
+- program: UNDWRT
+  fixture: loss-ratio-1050
+  field: "outputs.policyUpdate[0].riskScore"
+  quirk: Q-21
+  reason: The COBOL policy update stores the score without the loss-ratio surcharge.
+  javaValue: 499
+- program: UNDWRT
+  fixture: loss-ratio-1050
+  field: "outputs.notification[0].uwStatus"
+  quirk: Q-21
+  reason: The COBOL notification preserves the accept status produced by the wrapped loss ratio.
+  javaValue: RS
+- program: UNDWRT
+  fixture: loss-ratio-1050
+  field: "outputs.notification[0].riskScore"
+  quirk: Q-21
+  reason: The COBOL notification stores the score without the loss-ratio surcharge.
+  javaValue: 499
+- program: UNDWRT
+  fixture: max-pic-values
+  field: "outputs.decision[0].riskScore"
+  quirk: Q-21
+  reason: The 10000.00% ratio wraps to 0.00 in S9(3)V99, dropping the +200 surcharge.
+  javaValue: 1449
+- program: UNDWRT
+  fixture: max-pic-values
+  field: "outputs.policyUpdate[0].riskScore"
+  quirk: Q-21
+  reason: The 10000.00% ratio wraps to 0.00 in S9(3)V99, dropping the +200 surcharge.
+  javaValue: 1449
+- program: UNDWRT
+  fixture: max-pic-values
+  field: "outputs.notification[0].riskScore"
+  quirk: Q-20
+  reason: The 10000.00% ratio wraps to 0.00, dropping +200; the 9(3) record truncates legacy 1249 to 249 while Java carries 1449.
+  javaValue: 1449
+- program: UNDWRT
+  fixture: receive-failure
+  field: outputs.decision
+  quirk: Q-44
+  reason: COBOL continues underwriting after RECEIVE failure while Java stops with the error.
+- program: UNDWRT
+  fixture: receive-failure
+  field: outputs.policyUpdate
+  quirk: Q-44
+  reason: COBOL updates the policy after RECEIVE failure while Java stops with the error.
+- program: UNDWRT
+  fixture: receive-failure
+  field: outputs.notification
+  quirk: Q-44
+  reason: COBOL notifies after RECEIVE failure while Java stops with the error.
+- program: UNDWRT
+  fixture: credit-negative-five
+  field: "outputs.decision[0].riskScore"
+  quirk: Q-45
+  reason: The legacy MOVE into unsigned CUST-CREDIT-SCORE drops the negative sign.
+  javaValue: 400
+- program: UNDWRT
+  fixture: credit-negative-five
+  field: "outputs.policyUpdate[0].riskScore"
+  quirk: Q-45
+  reason: The legacy MOVE into unsigned CUST-CREDIT-SCORE drops the negative sign.
+  javaValue: 400
+- program: UNDWRT
+  fixture: credit-negative-five
+  field: "outputs.notification[0].riskScore"
+  quirk: Q-45
+  reason: The legacy MOVE into unsigned CUST-CREDIT-SCORE drops the negative sign.
+  javaValue: 400

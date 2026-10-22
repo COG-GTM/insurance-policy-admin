@@ -88,6 +88,42 @@ jobs:
           ignore-unfixed: "false"
           trivyignores: .github/trivy/trivyignore.yaml
 
+  parity:
+    name: pas-platform / parity
+    runs-on: ubuntu-latest
+    env:
+      MVNW_REPOURL: https://maven-central.storage-download.googleapis.com/maven2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Install GnuCOBOL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnucobol
+          cobc --version
+      - name: Check COBOL goldens
+        run: make parity-golden-check
+      - name: Run parity checks
+        run: make parity
+      - name: Add parity report to summary
+        if: always()
+        run: |
+          if [ -f pas-platform/pas-parity/target/parity-report.md ]; then
+            cat pas-platform/pas-parity/target/parity-report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload parity report and test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pas-platform-parity-reports
+          path: |
+            pas-platform/pas-parity/target/parity-report.md
+            pas-platform/pas-parity/target/surefire-reports/**
+
   container-build:
     name: pas-platform / container-build
     runs-on: ubuntu-latest

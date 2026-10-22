@@ -1,0 +1,45 @@
+{
+  "program": "UNDWRT",
+  "fixture": "credit-850-preferred",
+  "description": "Preferred tier subtracts 100 from the base score.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "AP",
+        "riskScore": 75,
+        "decisionReason": "AUTO-ACCEPTED: LOW RISK"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "AP",
+        "riskScore": 75
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "AP",
+        "riskScore": 75
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 75,
+      "lossRatio": 0.00,
+      "claimCount": 0,
+      "accumLimit": 1000000.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

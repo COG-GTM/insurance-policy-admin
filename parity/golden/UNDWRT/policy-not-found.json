@@ -1,0 +1,28 @@
+{
+  "program": "UNDWRT",
+  "fixture": "policy-not-found",
+  "description": "The policy and customer SELECT returns no row.",
+  "outputs": {
+    "decision": [],
+    "policyUpdate": [],
+    "notification": [],
+    "error": [
+      {
+        "message": "POLICY/CUSTOMER DATA NOT FOUND"
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": []
+    },
+    "state": {
+      "wsRiskScore": 0,
+      "lossRatio": 0.00,
+      "claimCount": 0,
+      "accumLimit": 0.00,
+      "errorMsg": "POLICY/CUSTOMER DATA NOT FOUND"
+    },
+    "returnCode": 0
+  }
+}

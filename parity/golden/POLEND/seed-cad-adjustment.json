@@ -1,0 +1,42 @@
+{
+  "program": "POLEND",
+  "fixture": "seed-cad-adjustment",
+  "description": "A CAD endorsement seed changes premium by 125.50.",
+  "outputs": {
+    "endorsement": [
+      {
+        "policyNumber": "POL000000001",
+        "endorsementSeq": 2,
+        "endorsementType": "CAD",
+        "effectiveDate": "20240701",
+        "premiumAdjustment": 125.50
+      }
+    ],
+    "policyUpdate": [
+      {
+        "totalPremium": 1325.50
+      }
+    ],
+    "audit": [
+      {
+        "policyNumber": "POL000000001",
+        "totalPremium": 1325.50
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "POLECONF"
+      ]
+    },
+    "state": {
+      "daysInTerm": 366,
+      "daysRemaining": 184,
+      "proRataFactor": 0.502732,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

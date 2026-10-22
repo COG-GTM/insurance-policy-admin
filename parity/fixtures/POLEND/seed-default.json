@@ -1,0 +1,1 @@
+{"description":"Unseeded endorsement type contains spaces and is rejected.","input":{},"expectLegacy":{"outputs.error[0].message":"ENDORSEMENT TYPE IS REQUIRED"}}

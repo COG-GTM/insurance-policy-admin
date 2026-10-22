@@ -1,0 +1,94 @@
+{
+  "program": "POLEND",
+  "defaults": {
+    "currentDate": "20240701",
+    "receiveResp": 0,
+    "policySqlcode": 0,
+    "policy": {
+      "policyNumber": "POL000000001",
+      "status": "AC",
+      "effectiveDate": "20240101",
+      "expiryDate": "20250101",
+      "totalPremium": 1200.00
+    },
+    "maxEndorsementSeq": 1,
+    "insertSqlcode": 0,
+    "policyUpdateSqlcode": 0
+  },
+  "seedDefaults": {
+    "endorsementType": "",
+    "premiumAdjust": 0.00
+  },
+  "seedMoves": [
+    {"path": "seed.endorsementType", "source": "WS-ENDORSEMENT-TYPE"},
+    {"path": "seed.premiumAdjust", "source": "WS-PREMIUM-ADJUST"}
+  ],
+  "inputs": [
+    {"path": "currentDate", "type": "date"},
+    {"path": "receiveResp", "type": "int", "digits": 8},
+    {"path": "policySqlcode", "type": "int", "digits": 9},
+    {"path": "policy.policyNumber", "type": "text", "length": 12},
+    {"path": "policy.status", "type": "text", "length": 2},
+    {"path": "policy.effectiveDate", "type": "date"},
+    {"path": "policy.expiryDate", "type": "date"},
+    {"path": "policy.totalPremium", "type": "decimal", "integerDigits": 9, "scale": 2},
+    {"path": "maxEndorsementSeq", "type": "int", "digits": 5},
+    {"path": "insertSqlcode", "type": "int", "digits": 9},
+    {"path": "policyUpdateSqlcode", "type": "int", "digits": 9},
+    {"path": "seed.endorsementType", "type": "text", "length": 3},
+    {"path": "seed.premiumAdjust", "type": "decimal", "integerDigits": 9, "scale": 2}
+  ],
+  "outputs": {
+    "endorsement": {
+      "compare": true,
+      "fields": [
+        {"name": "policyNumber", "type": "text", "length": 12, "source": "POLICY-NUMBER"},
+        {"name": "endorsementSeq", "type": "int", "digits": 5, "source": "WS-ENDORSEMENT-SEQ"},
+        {"name": "endorsementType", "type": "text", "length": 3, "source": "WS-ENDORSEMENT-TYPE"},
+        {"name": "effectiveDate", "type": "date", "source": "WS-CURRENT-DATE"},
+        {"name": "premiumAdjustment", "type": "decimal", "integerDigits": 9, "scale": 2, "source": "WS-PREMIUM-ADJUST"}
+      ]
+    },
+    "policyUpdate": {
+      "compare": true,
+      "fields": [
+        {"name": "totalPremium", "type": "decimal", "integerDigits": 9, "scale": 2, "source": "POLICY-TOTAL-PREMIUM"}
+      ]
+    },
+    "audit": {
+      "compare": true,
+      "fields": [
+        {"name": "policyNumber", "type": "text", "length": 12, "source": "POLICY-NUMBER"},
+        {"name": "totalPremium", "type": "decimal", "integerDigits": 9, "scale": 2, "source": "POLICY-TOTAL-PREMIUM"}
+      ]
+    },
+    "error": {
+      "compare": true,
+      "fields": [
+        {"name": "message", "type": "text", "length": 79, "source": "WS-ERROR-MSG"}
+      ]
+    }
+  },
+  "state": [
+    {"name": "daysInTerm", "type": "int", "digits": 3, "source": "WS-DAYS-IN-TERM"},
+    {"name": "daysRemaining", "type": "int", "digits": 3, "source": "WS-DAYS-REMAINING"},
+    {"name": "proRataFactor", "type": "decimal", "integerDigits": 1, "scale": 6, "source": "WS-PRORATA-FACTOR"},
+    {"name": "errorMsg", "type": "text", "length": 79, "source": "WS-ERROR-MSG"}
+  ],
+  "execRules": [
+    {"name": "ASKTIME", "pattern": "ASKTIME", "expectCount": 1},
+    {"name": "FORMATTIME", "pattern": "FORMATTIME", "expectCount": 1},
+    {"name": "RECEIVE", "pattern": "CICS RECEIVE", "expectCount": 1},
+    {"name": "SELECT-POLICY", "pattern": "SELECT POLICY_NUMBER, POLICY_STATUS", "expectCount": 1},
+    {"name": "SELECT-ENDORSEMENT-SEQ", "pattern": "SELECT COALESCE\\(MAX\\(ENDORSEMENT_SEQ\\)", "expectCount": 1},
+    {"name": "INSERT-ENDORSEMENT", "pattern": "INSERT INTO ENDORSEMENTS", "expectCount": 1},
+    {"name": "UPDATE-POLICY", "pattern": "UPDATE POLICIES", "expectCount": 1},
+    {"name": "WRITEQ-TS", "pattern": "WRITEQ TS", "expectCount": 1},
+    {"name": "SEND-MAP", "pattern": "SEND MAP", "expectCount": 1},
+    {"name": "SEND-TEXT", "pattern": "SEND TEXT", "expectCount": 1},
+    {"name": "RETURN", "pattern": "RETURN TRANSID", "expectCount": 1}
+  ],
+  "rewrites": [
+    {"pattern": "DFHRESP\\(NORMAL\\)", "replacement": "0", "expectCount": 1}
+  ]
+}

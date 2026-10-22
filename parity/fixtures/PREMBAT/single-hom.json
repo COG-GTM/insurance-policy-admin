@@ -1,0 +1,1 @@
+{"description":"Home policy premium calculation.","input":{"policies":[{"policyNumber":"POL000000102","policyType":"HOM","totalPremium":1000.00,"deductible":1000.00,"coverageLimit":250000.00,"effectiveDate":"20240101","expiryDate":"20250101","insertSqlcode":0}]},"expectLegacy":{"outputs.premium[0].totalPremium":1267.00}}

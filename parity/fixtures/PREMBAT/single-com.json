@@ -1,0 +1,1 @@
+{"description":"Commercial policy premium calculation.","input":{"policies":[{"policyNumber":"POL000000103","policyType":"COM","totalPremium":1500.00,"deductible":5000.00,"coverageLimit":1000000.00,"effectiveDate":"20240101","expiryDate":"20250101","insertSqlcode":0}]},"expectLegacy":{"outputs.premium[0].totalPremium":5200.00}}

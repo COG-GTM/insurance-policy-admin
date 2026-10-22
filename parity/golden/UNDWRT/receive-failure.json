@@ -1,0 +1,49 @@
+{
+  "program": "UNDWRT",
+  "fixture": "receive-failure",
+  "description": "The CICS RECEIVE fails and records the legacy error path.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "",
+        "decisionDate": "20241015",
+        "decisionCode": "RS",
+        "riskScore": 400,
+        "decisionReason": "REFERRED TO SENIOR UNDERWRITER"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "RS",
+        "riskScore": 400
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "",
+        "uwStatus": "RS",
+        "riskScore": 400
+      }
+    ],
+    "error": [
+      {
+        "message": "ERROR RECEIVING UNDERWRITING DATA"
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 400,
+      "lossRatio": 0.00,
+      "claimCount": 0,
+      "accumLimit": 1000000.00,
+      "errorMsg": "ERROR RECEIVING UNDERWRITING DATA"
+    },
+    "returnCode": 0
+  }
+}

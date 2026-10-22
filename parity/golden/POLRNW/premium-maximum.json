@@ -1,0 +1,38 @@
+{
+  "program": "POLRNW",
+  "fixture": "premium-maximum",
+  "description": "Maximum premium field value.",
+  "outputs": {
+    "policyUpdate": [
+      {
+        "status": "AC",
+        "effectiveDate": "20240229",
+        "expiryDate": "20250229",
+        "totalPremium": 49999999.98,
+        "renewalCount": 2,
+        "uwStatus": "PN"
+      }
+    ],
+    "coverageUpdate": [
+      {
+        "effectiveDate": "20240229",
+        "expiryDate": "20250229"
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "POLRCONF"
+      ]
+    },
+    "state": {
+      "oldPremium": 999999999.99,
+      "newPremium": 49999999.98,
+      "rateChangePct": -95.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

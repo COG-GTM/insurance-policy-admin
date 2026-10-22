@@ -1,0 +1,1 @@
+{"description":"Preferred tier subtracts 100 from the base score.","input":{"customer":{"creditScore":850,"riskTier":"P"}},"expectLegacy":{"outputs.decision[0].riskScore":75}}

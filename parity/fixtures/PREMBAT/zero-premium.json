@@ -1,0 +1,1 @@
+{"description":"A zero premium policy is rated without changing source data.","input":{"policies":[{"policyNumber":"POL000000108","policyType":"AUT","totalPremium":0.00,"deductible":500.00,"coverageLimit":100000.00,"effectiveDate":"20240101","expiryDate":"20250101","insertSqlcode":0}]}}

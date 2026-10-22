@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-build test dev-env dev-images dev dev-down dev-clean local
+.PHONY: compat compat-static compat-api compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local
 
 compat: compat-static compat-build compat-api
 
@@ -12,6 +12,18 @@ compat-build:
 
 compat-api:
 	./compat/api/run_facade.sh
+
+parity:
+	python3 parity/tools/harness.py check
+	python3 -m unittest discover -s parity/tools
+	cd pas-platform && ./mvnw -B -ntp -pl pas-parity -am test
+
+parity-golden:
+	python3 parity/tools/harness.py golden
+
+parity-golden-check: parity-golden
+	git diff --exit-code -- parity/golden
+	test -z "$$(git ls-files --others --exclude-standard -- parity/golden)"
 
 test:
 	cd pas-platform && ./mvnw -B verify

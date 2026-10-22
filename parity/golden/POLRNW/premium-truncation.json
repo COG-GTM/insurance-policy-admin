@@ -1,0 +1,38 @@
+{
+  "program": "POLRNW",
+  "fixture": "premium-truncation",
+  "description": "The legacy percentage arithmetic truncates 1234.57 to 1296.29.",
+  "outputs": {
+    "policyUpdate": [
+      {
+        "status": "AC",
+        "effectiveDate": "20240229",
+        "expiryDate": "20250229",
+        "totalPremium": 1296.29,
+        "renewalCount": 2,
+        "uwStatus": "PN"
+      }
+    ],
+    "coverageUpdate": [
+      {
+        "effectiveDate": "20240229",
+        "expiryDate": "20250229"
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "POLRCONF"
+      ]
+    },
+    "state": {
+      "oldPremium": 1234.57,
+      "newPremium": 1296.29,
+      "rateChangePct": 4.99,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

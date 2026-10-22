@@ -1,0 +1,38 @@
+{
+  "program": "POLRNW",
+  "fixture": "premium-minimum",
+  "description": "Minimum nonzero premium adjustment input.",
+  "outputs": {
+    "policyUpdate": [
+      {
+        "status": "AC",
+        "effectiveDate": "20240229",
+        "expiryDate": "20250229",
+        "totalPremium": 0.01,
+        "renewalCount": 2,
+        "uwStatus": "PN"
+      }
+    ],
+    "coverageUpdate": [
+      {
+        "effectiveDate": "20240229",
+        "expiryDate": "20250229"
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "POLRCONF"
+      ]
+    },
+    "state": {
+      "oldPremium": 0.01,
+      "newPremium": 0.01,
+      "rateChangePct": 0.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

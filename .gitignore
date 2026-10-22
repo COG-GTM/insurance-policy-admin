@@ -5,3 +5,4 @@ pas-platform/.env
 target/
 logs/
 *.log
+parity/build/

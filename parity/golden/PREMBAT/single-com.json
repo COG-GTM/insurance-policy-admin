@@ -1,0 +1,49 @@
+{
+  "program": "PREMBAT",
+  "fixture": "single-com",
+  "description": "Commercial policy premium calculation.",
+  "outputs": {
+    "premium": [
+      {
+        "policyNumber": "POL000000103",
+        "coverageSeq": 1,
+        "termEffectiveDate": "20240101",
+        "termExpiryDate": "20250101",
+        "baseRate": 5000.0000,
+        "taxAmount": 175.00,
+        "surchargeAmount": 25.00,
+        "totalPremium": 5200.00,
+        "calcDate": "20241015",
+        "calcBy": "PREMBAT"
+      }
+    ],
+    "jobEnd": [
+      {
+        "returnCode": 0,
+        "policiesRead": 1,
+        "policiesUpdated": 1,
+        "policiesError": 0
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": [],
+      "report": [
+        "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20241015",
+        "------------------------------------------------------------------------------------------------------------------------------------",
+        "POL000000103 PREMIUM: \u0000\u0000\u0005 \u0000\f",
+        "====================================================================================================================================",
+        "TOTAL POLICIES READ:    0000001",
+        "TOTAL POLICIES UPDATED: 0000001",
+        "TOTAL ERRORS:           0000000"
+      ]
+    },
+    "state": {
+      "policiesRead": 1,
+      "policiesUpdated": 1,
+      "policiesError": 0
+    },
+    "returnCode": 0
+  }
+}

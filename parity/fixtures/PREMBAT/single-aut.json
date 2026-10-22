@@ -1,0 +1,1 @@
+{"description":"Automatic policy premium calculation.","input":{"policies":[{"policyNumber":"POL000000101","policyType":"AUT","totalPremium":1000.00,"deductible":500.00,"coverageLimit":100000.00,"effectiveDate":"20240101","expiryDate":"20250101","insertSqlcode":0}]},"expectLegacy":{"outputs.premium[0].totalPremium":904.75}}

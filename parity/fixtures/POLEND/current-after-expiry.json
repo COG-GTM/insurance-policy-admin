@@ -1,0 +1,1 @@
+{"description":"Current date after expiry exercises negative-day sign loss.","input":{"currentDate":"20250102","policy":{"effectiveDate":"20240101","expiryDate":"20250101"}}}

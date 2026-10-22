@@ -1,0 +1,27 @@
+{
+  "program": "POLEND",
+  "fixture": "policy-not-found",
+  "description": "The policy SELECT returns no row.",
+  "outputs": {
+    "endorsement": [],
+    "policyUpdate": [],
+    "audit": [],
+    "error": [
+      {
+        "message": "POLICY NOT FOUND"
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": []
+    },
+    "state": {
+      "daysInTerm": 0,
+      "daysRemaining": 0,
+      "proRataFactor": 0.000000,
+      "errorMsg": "POLICY NOT FOUND"
+    },
+    "returnCode": 0
+  }
+}

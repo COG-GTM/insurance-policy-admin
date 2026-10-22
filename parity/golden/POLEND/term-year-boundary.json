@@ -1,0 +1,27 @@
+{
+  "program": "POLEND",
+  "fixture": "term-year-boundary",
+  "description": "Term calculation crosses a calendar year boundary.",
+  "outputs": {
+    "endorsement": [],
+    "policyUpdate": [],
+    "audit": [],
+    "error": [
+      {
+        "message": "ENDORSEMENT TYPE IS REQUIRED"
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": []
+    },
+    "state": {
+      "daysInTerm": 0,
+      "daysRemaining": 0,
+      "proRataFactor": 0.000000,
+      "errorMsg": "ENDORSEMENT TYPE IS REQUIRED"
+    },
+    "returnCode": 0
+  }
+}

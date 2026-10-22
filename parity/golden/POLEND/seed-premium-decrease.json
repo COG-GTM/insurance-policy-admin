@@ -1,0 +1,42 @@
+{
+  "program": "POLEND",
+  "fixture": "seed-premium-decrease",
+  "description": "Negative premium adjustment is carried through the endorsement.",
+  "outputs": {
+    "endorsement": [
+      {
+        "policyNumber": "POL000000001",
+        "endorsementSeq": 2,
+        "endorsementType": "END",
+        "effectiveDate": "20240701",
+        "premiumAdjustment": -0.01
+      }
+    ],
+    "policyUpdate": [
+      {
+        "totalPremium": 1199.99
+      }
+    ],
+    "audit": [
+      {
+        "policyNumber": "POL000000001",
+        "totalPremium": 1199.99
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "POLECONF"
+      ]
+    },
+    "state": {
+      "daysInTerm": 366,
+      "daysRemaining": 184,
+      "proRataFactor": 0.502732,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}
