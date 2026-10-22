@@ -5,8 +5,9 @@ source of truth. Its `route` values are `legacy`, `new`, or `retired`; the
 descriptions, ticket, and sign-off fields document the migration decision.
 Each running service independently binds `pas.routing.<capability>` with values
 `legacy`, `shadow`, `new`, or `retired` (the accepted alias `modern` means
-`new`). `shadow` means that the gateway mirrors traffic to the new service
-while the legacy implementation still answers the caller.
+`new`). `shadow` means that the gateway mirrors traffic to the new service while the legacy
+implementation still answers the caller. For `premium-batch`, `shadow` instead writes the
+recalculated premiums and report to `pas_shadow` while leaving `pas` unchanged.
 
 For `policy-inquiry`, the gateway routes `/api/v1/policies/**` to
 `java-facade` while the state is `legacy`, mirrors the request to

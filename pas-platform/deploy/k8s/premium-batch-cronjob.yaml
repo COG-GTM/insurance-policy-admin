@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pas-premium-batch
+  namespace: pas
+spec:
+  schedule: "0 1 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: pas-batch
+              image: pas-batch:<tag>
+              args:
+                - --spring.main.web-application-type=none
+                - --pas.batch.cli.job=premiumRecalculationJob
+              env:
+                - name: PAS_DB_URL
+                  valueFrom:
+                    configMapKeyRef:
+                      name: pas-batch-config
+                      key: database-url
+                - name: PAS_DB_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: pas-batch-database
+                      key: username
+                - name: PAS_DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: pas-batch-database
+                      key: password
+                - name: PAS_ROUTING_PREMIUM_BATCH
+                  valueFrom:
+                    configMapKeyRef:
+                      name: pas-batch-config
+                      key: premium-route
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+                limits:
+                  cpu: "2"
+                  memory: 4Gi

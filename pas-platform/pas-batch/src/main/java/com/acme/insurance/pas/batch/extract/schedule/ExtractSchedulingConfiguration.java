@@ -1,7 +1,6 @@
 package com.acme.insurance.pas.batch.extract.schedule;
 
-import com.acme.insurance.pas.batch.extract.routing.ExtractRouteProperties;
-import com.acme.insurance.pas.batch.extract.routing.RouteMode;
+import com.acme.insurance.pas.common.routing.RouteFlags;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import org.slf4j.Logger;
@@ -29,14 +28,14 @@ public class ExtractSchedulingConfiguration {
   private final JobLauncher jobLauncher;
   private final Job dailyExtractJob;
   private final Job monthlyExposureJob;
-  private final ExtractRouteProperties routes;
+  private final RouteFlags routes;
   private final ZoneId zone;
 
   public ExtractSchedulingConfiguration(
       JobLauncher jobLauncher,
       Job dailyExtractJob,
       Job monthlyExposureJob,
-      ExtractRouteProperties routes,
+      RouteFlags routes,
       @Value("${pas.batch.extract.zone:America/New_York}") String zone) {
     this.jobLauncher = jobLauncher;
     this.dailyExtractJob = dailyExtractJob;
@@ -49,20 +48,17 @@ public class ExtractSchedulingConfiguration {
       cron = "${pas.batch.extract.schedule.daily-cron:0 0 23 * * *}",
       zone = "${pas.batch.extract.zone:America/New_York}")
   public void launchDailyExtract() {
-    launch(dailyExtractJob, routes.dailyExtract());
+    launch(dailyExtractJob);
   }
 
   @Scheduled(
       cron = "${pas.batch.extract.schedule.monthly-cron:0 0 2 1 * *}",
       zone = "${pas.batch.extract.zone:America/New_York}")
   public void launchMonthlyExposure() {
-    launch(monthlyExposureJob, routes.monthlyExposure());
+    launch(monthlyExposureJob);
   }
 
-  private void launch(Job job, RouteMode mode) {
-    if (mode == RouteMode.RETIRED) {
-      return;
-    }
+  private void launch(Job job) {
     try {
       LocalDate businessDate = LocalDate.now(zone);
       JobParameters parameters =

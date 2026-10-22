@@ -40,7 +40,8 @@ public final class KnownDifferences {
               stringValue(value, "field"),
               stringValue(value, "quirk"),
               stringValue(value, "reason"),
-              value.get("javaValue")));
+              value.get("javaValue"),
+              scopeValue(value)));
     }
     return new KnownDifferences(root, entries);
   }
@@ -50,8 +51,16 @@ public final class KnownDifferences {
   }
 
   public List<Entry> forFixture(String program, String fixture) {
+    return forFixture(program, "component", fixture);
+  }
+
+  public List<Entry> forFixture(String program, String scope, String fixture) {
     return entries.stream()
-        .filter(entry -> entry.program().equals(program) && entry.fixture().equals(fixture))
+        .filter(
+            entry ->
+                entry.program().equals(program)
+                    && entry.scope().equals(scope)
+                    && entry.fixture().equals(fixture))
         .toList();
   }
 
@@ -60,7 +69,8 @@ public final class KnownDifferences {
     String register = Files.readString(root.resolve("docs/modernization/quirk-register.md"));
     Set<String> seen = new HashSet<>();
     for (Entry entry : entries) {
-      String key = entry.program() + "/" + entry.fixture() + "/" + entry.field();
+      String key =
+          entry.program() + "/" + entry.scope() + "/" + entry.fixture() + "/" + entry.field();
       if (!seen.add(key)) {
         errors.add("duplicate known difference: " + key);
       }
@@ -71,6 +81,9 @@ public final class KnownDifferences {
       }
       if (entry.reason().isBlank()) {
         errors.add("known difference reason is blank: " + key);
+      }
+      if (entry.scope().isBlank()) {
+        errors.add("known difference scope is blank: " + key);
       }
       if (entry.javaValue() == null) {
         errors.add("known difference javaValue is required: " + key);
@@ -110,11 +123,27 @@ public final class KnownDifferences {
     return entry == null ? "" : entry.toString();
   }
 
+  private static String scopeValue(Map<String, Object> value) {
+    String scope = stringValue(value, "scope");
+    return scope.isBlank() ? "component" : scope;
+  }
+
   public record Entry(
       String program,
       String fixture,
       String field,
       String quirk,
       String reason,
-      Object javaValue) {}
+      Object javaValue,
+      String scope) {
+    public Entry(
+        String program,
+        String fixture,
+        String field,
+        String quirk,
+        String reason,
+        Object javaValue) {
+      this(program, fixture, field, quirk, reason, javaValue, "component");
+    }
+  }
 }

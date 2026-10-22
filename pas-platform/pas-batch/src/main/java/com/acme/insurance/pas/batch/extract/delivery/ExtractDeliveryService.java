@@ -16,6 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -38,7 +39,7 @@ public class ExtractDeliveryService {
       SftpProperties properties,
       ExtractRetryProperties retryProperties,
       JdbcTemplate jdbcTemplate,
-      PlatformTransactionManager transactionManager) {
+      @Qualifier("extractTransactionManager") PlatformTransactionManager transactionManager) {
     this(
         remoteFileStore,
         properties,

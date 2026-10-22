@@ -62,7 +62,7 @@ class KnownDifferencesValidationTest {
         new KnownDifferences(temporaryDirectory, List.of(entry, entry));
 
     assertThat(knownDifferences.validate())
-        .contains("duplicate known difference: UNDWRT/fixture/outputs.decision");
+        .contains("duplicate known difference: UNDWRT/component/fixture/outputs.decision");
   }
 
   @Test
@@ -81,7 +81,27 @@ class KnownDifferencesValidationTest {
                     null)));
 
     assertThat(knownDifferences.validate())
-        .contains("known difference javaValue is required: UNDWRT/fixture/outputs.decision");
+        .contains(
+            "known difference javaValue is required: UNDWRT/component/fixture/outputs.decision");
+  }
+
+  @Test
+  void filtersKnownDifferencesByScope() {
+    KnownDifferences knownDifferences =
+        new KnownDifferences(
+            temporaryDirectory,
+            List.of(
+                new KnownDifferences.Entry(
+                    "PREMBAT", "fixture", "outputs.premium", "Q-99", "job-only", 1, "job"),
+                new KnownDifferences.Entry(
+                    "PREMBAT", "fixture", "outputs.premium", "Q-99", "component-only", 2)));
+
+    assertThat(knownDifferences.forFixture("PREMBAT", "job", "fixture"))
+        .extracting(KnownDifferences.Entry::reason)
+        .containsExactly("job-only");
+    assertThat(knownDifferences.forFixture("PREMBAT", "fixture"))
+        .extracting(KnownDifferences.Entry::reason)
+        .containsExactly("component-only");
   }
 
   private void prepareRoot(String decision) throws Exception {

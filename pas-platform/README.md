@@ -13,16 +13,17 @@ legacy COBOL, JCL, DB2 DDL, and Java facade; it does not replace or modify those
 | `pas-policy-service` | `com.acme.insurance.pas.policy` | `8080` | Policy HTTP service and policy schema ownership |
 | `pas-batch` | `com.acme.insurance.pas.batch` | `8081` | Spring Batch HTTP service and batch metadata schema ownership |
 
-### Extract jobs
+### Batch jobs
 
-`pas-batch` provides restartable daily Claims policy/coverage extracts and a monthly Actuarial
-exposure extract. The jobs read the service-owned `pas` schema, write per-execution files under
-`PAS_BATCH_EXTRACT_WORK_DIR`, and deliver with pinned-host-key, public-key-only SFTP when the
-corresponding `PAS_ROUTING_*` route is `new`. Routes default to `legacy`, which generates local
-comparison files without delivery. Scheduling is disabled by default; enable it with
-`PAS_BATCH_EXTRACT_SCHEDULE_ENABLED=true`. See
-[`docs/modernization/runbooks/extracts.md`](../docs/modernization/runbooks/extracts.md) for CLI,
-configuration and operational steps.
+`pas-batch` provides the restartable premium recalculation, daily Claims policy/coverage extracts,
+and monthly Actuarial exposure extract. The premium job reads active policies from `pas`; its route
+defaults to `legacy`, `shadow` writes to `pas_shadow`, and `new`/`retired` write to `pas`. Premium
+report files are isolated by job execution. Extract jobs write per-execution files under
+`PAS_BATCH_EXTRACT_WORK_DIR` and deliver with pinned-host-key, public-key-only SFTP when the
+corresponding `PAS_ROUTING_*` route is `new`. Scheduling is disabled by default. See the
+[`premium-batch.md`](../docs/modernization/runbooks/premium-batch.md) and
+[`extracts.md`](../docs/modernization/runbooks/extracts.md) runbooks for CLI, configuration and
+operational steps.
 
 The parity module is used from test scope by consumers. Run
 `make parity` from the repository root to check COBOL fixtures and exercise the Java parity
