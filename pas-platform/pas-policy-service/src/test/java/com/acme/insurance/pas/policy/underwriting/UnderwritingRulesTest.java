@@ -1,0 +1,163 @@
+package com.acme.insurance.pas.policy.underwriting;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.math.BigDecimal;
+import org.junit.jupiter.api.Test;
+
+class UnderwritingRulesTest {
+  private final UnderwritingThresholds thresholds = UnderwritingThresholds.legacyDefaults();
+
+  @Test
+  void appliesScoreBoundaries() {
+    assertThat(decide(302, "S", 0, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(299);
+    assertThat(decide(300, "S", 0, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(300);
+    assertThat(decide(298, "S", 0, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(301);
+    assertThat(decide(100, "U", 0, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(600);
+    assertThat(decide(2, "S", 4, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(599);
+    assertThat(decide(1, "U", 4, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(799);
+    assertThat(
+            decideWith(
+                    thresholdsWithFirstLimitAdjustment(1), 1, "U", 4, "0.00", "5000000.01", "0.00")
+                .riskScore())
+        .isEqualTo(800);
+  }
+
+  @Test
+  void treatsNullAndNonpositiveCreditAsNoScore() {
+    assertThat(decide(null, "S", 0, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(400);
+    assertThat(decide(0, "S", 0, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(400);
+    assertThat(decide(-5, "S", 0, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(400);
+    assertThat(decide(999, "S", 0, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(49);
+  }
+
+  @Test
+  void appliesTierAndClaimAdjustments() {
+    assertThat(decide(850, "P", 0, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(75);
+    assertThat(decide(1, "U", 4, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(799);
+    assertThat(decide(1, "U", 6, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(999);
+    assertThat(decide(302, "S", 3, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(299);
+    assertThat(decide(302, "S", 4, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(449);
+    assertThat(decide(302, "S", 5, "0.00", "100000.00", "1000000.00").riskScore()).isEqualTo(449);
+  }
+
+  @Test
+  void appliesLossRatioAndLimitBoundaries() {
+    assertThat(decide(302, "S", 0, "800.00", "5000000.00", "1000000.00").riskScore())
+        .isEqualTo(299);
+    assertThat(decide(302, "S", 0, "800.10", "5000000.00", "1000000.00").riskScore())
+        .isEqualTo(499);
+    assertThat(decide(302, "S", 0, "800.00", "5000000.01", "1000000.00").riskScore())
+        .isEqualTo(399);
+    assertThat(decide(302, "S", 0, "0.00", "10000000.00", "1000000.00").riskScore()).isEqualTo(399);
+    assertThat(decide(302, "S", 0, "0.00", "10000000.01", "1000000.00").riskScore()).isEqualTo(599);
+  }
+
+  @Test
+  void countsOnlyClaimsAndAccumulationAboveTheirExactBoundaries() {
+    assertThat(decide(302, "S", 0, "0.00", "100000.00", "500000000.00").riskScore()).isEqualTo(299);
+    assertThat(decide(302, "S", 0, "0.00", "100000.00", "500000000.01").riskScore()).isEqualTo(599);
+  }
+
+  private static UnderwritingThresholds thresholdsWithFirstLimitAdjustment(int adjustment) {
+    return new UnderwritingThresholds(
+        300,
+        600,
+        800,
+        900,
+        400,
+        200,
+        -100,
+        3,
+        150,
+        5,
+        200,
+        80,
+        200,
+        5_000_000L,
+        adjustment,
+        10_000_000L,
+        200,
+        500_000_000L,
+        300);
+  }
+
+  private UnderwritingOutcome decideWith(
+      UnderwritingThresholds configured,
+      Integer creditScore,
+      String riskTier,
+      int claimCount,
+      String totalIncurred,
+      String coverageLimit,
+      String branchAccumulatedLimit) {
+    return UnderwritingRules.decide(
+        new UnderwritingInput(
+            creditScore,
+            riskTier,
+            new BigDecimal("1000.00"),
+            new BigDecimal(coverageLimit),
+            new BigDecimal(totalIncurred),
+            new BigDecimal(branchAccumulatedLimit),
+            claimCount,
+            "B001"),
+        configured);
+  }
+
+  @Test
+  void keepsLossRatioUncappedAndAppendsAccumulationReason() {
+    UnderwritingOutcome decision = decide(302, "S", 0, "10500.00", "100000.00", "500000000.01");
+    assertThat(decision.lossRatio()).isEqualByComparingTo("1050.00");
+    assertThat(decision.reasons())
+        .containsExactly(
+            "REFERRED TO UW MANAGER",
+            "LOSS RATIO > 80",
+            "ACCUMULATION LIMIT EXCEEDED FOR BRANCH B001");
+  }
+
+  @Test
+  void accumulatesReasonsForEveryAppliedAdjustment() {
+    UnderwritingOutcome decision =
+        UnderwritingRules.decide(
+            new UnderwritingInput(
+                100,
+                "U",
+                new BigDecimal("1000.00"),
+                new BigDecimal("10000000.01"),
+                new BigDecimal("800.10"),
+                new BigDecimal("500000000.01"),
+                6,
+                "B001"),
+            thresholds);
+
+    assertThat(decision.reasons())
+        .containsExactly(
+            "AUTO-DECLINED: HIGH RISK",
+            "SUBSTANDARD RISK TIER",
+            "CLAIMS IN 5 YEARS > 3",
+            "CLAIMS IN 5 YEARS > 5",
+            "LOSS RATIO > 80",
+            "COVERAGE LIMIT > 5000000",
+            "COVERAGE LIMIT > 10000000",
+            "ACCUMULATION LIMIT EXCEEDED FOR BRANCH B001");
+  }
+
+  private UnderwritingOutcome decide(
+      Integer creditScore,
+      String riskTier,
+      int claimCount,
+      String totalIncurred,
+      String coverageLimit,
+      String branchAccumulatedLimit) {
+    return UnderwritingRules.decide(
+        new UnderwritingInput(
+            creditScore,
+            riskTier,
+            new BigDecimal("1000.00"),
+            new BigDecimal(coverageLimit),
+            new BigDecimal(totalIncurred),
+            new BigDecimal(branchAccumulatedLimit),
+            claimCount,
+            "B001"),
+        thresholds);
+  }
+}

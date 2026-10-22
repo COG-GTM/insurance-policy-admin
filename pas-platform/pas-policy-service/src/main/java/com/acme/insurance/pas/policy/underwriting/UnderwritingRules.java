@@ -1,4 +1,4 @@
-package com.acme.insurance.pas.underwriting;
+package com.acme.insurance.pas.policy.underwriting;
 
 import com.acme.insurance.pas.common.cobol.CobolArithmetic;
 import java.math.BigDecimal;
@@ -15,7 +15,7 @@ public final class UnderwritingRules {
 
   private UnderwritingRules() {}
 
-  public static UnderwritingDecision decide(
+  public static UnderwritingOutcome decide(
       UnderwritingInput input, UnderwritingThresholds thresholds) {
     Objects.requireNonNull(input, "input");
     Objects.requireNonNull(thresholds, "thresholds");
@@ -79,19 +79,19 @@ public final class UnderwritingRules {
     }
 
     int riskScore = score.intValueExact();
-    UnderwritingDecision.Code code;
+    UnderwritingOutcome.Code code;
     String decisionReason;
     if (riskScore < thresholds.seniorReferral()) {
-      code = UnderwritingDecision.Code.AP;
+      code = UnderwritingOutcome.Code.AP;
       decisionReason = "AUTO-ACCEPTED: LOW RISK";
     } else if (riskScore < thresholds.managerReferral()) {
-      code = UnderwritingDecision.Code.RS;
+      code = UnderwritingOutcome.Code.RS;
       decisionReason = "REFERRED TO SENIOR UNDERWRITER";
     } else if (riskScore < thresholds.autoDecline()) {
-      code = UnderwritingDecision.Code.RM;
+      code = UnderwritingOutcome.Code.RM;
       decisionReason = "REFERRED TO UW MANAGER";
     } else {
-      code = UnderwritingDecision.Code.DC;
+      code = UnderwritingOutcome.Code.DC;
       decisionReason = "AUTO-DECLINED: HIGH RISK";
     }
     List<String> reasons = new ArrayList<>();
@@ -100,7 +100,7 @@ public final class UnderwritingRules {
     if (accumulationExceeded) {
       reasons.add("ACCUMULATION LIMIT EXCEEDED FOR BRANCH " + input.branchCode());
     }
-    return new UnderwritingDecision(code, riskScore, reasons, lossRatio);
+    return new UnderwritingOutcome(code, riskScore, reasons, lossRatio);
   }
 
   private static BigDecimal add(BigDecimal score, int adjustment) {

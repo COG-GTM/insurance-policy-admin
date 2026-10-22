@@ -1,6 +1,5 @@
 package com.acme.insurance.pas.policy.underwriting;
 
-import com.acme.insurance.pas.underwriting.UnderwritingDecision;
 import java.math.BigDecimal;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -13,7 +12,7 @@ public class ShadowUnderwritingRepository {
     this.jdbc = jdbc;
   }
 
-  public void insert(String policyNumber, UnderwritingDecision decision) {
+  public void insert(String policyNumber, UnderwritingOutcome decision) {
     jdbc.sql(
             """
             INSERT INTO pas_shadow.underwriting_results (

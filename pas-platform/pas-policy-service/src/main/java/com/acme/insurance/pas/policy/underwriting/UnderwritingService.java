@@ -13,10 +13,6 @@ import com.acme.insurance.pas.policy.repository.PolicyHolderRepository;
 import com.acme.insurance.pas.policy.repository.PolicyRepository;
 import com.acme.insurance.pas.policy.repository.UnderwritingDecisionAudit;
 import com.acme.insurance.pas.policy.repository.UnderwritingDecisionRepository;
-import com.acme.insurance.pas.underwriting.UnderwritingDecision;
-import com.acme.insurance.pas.underwriting.UnderwritingInput;
-import com.acme.insurance.pas.underwriting.UnderwritingRules;
-import com.acme.insurance.pas.underwriting.UnderwritingThresholds;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -97,7 +93,7 @@ public class UnderwritingService {
     ClaimsSummary claims = claimsHistory.summarizeSince(policyNumber, today.minusYears(5));
     BigDecimal totalIncurred =
         claims.totalIncurred() == null ? BigDecimal.ZERO.setScale(2) : claims.totalIncurred();
-    UnderwritingDecision decision =
+    UnderwritingOutcome decision =
         UnderwritingRules.decide(
             new UnderwritingInput(
                 holder.creditScore(),
@@ -344,7 +340,7 @@ public class UnderwritingService {
   }
 
   private static Map<String, Object> decisionData(
-      long decisionId, UnderwritingDecision decision, boolean override, Long overridesDecisionId) {
+      long decisionId, UnderwritingOutcome decision, boolean override, Long overridesDecisionId) {
     Map<String, Object> data = new LinkedHashMap<>();
     data.put("decisionId", decisionId);
     data.put("decisionCode", decision.code().name());
