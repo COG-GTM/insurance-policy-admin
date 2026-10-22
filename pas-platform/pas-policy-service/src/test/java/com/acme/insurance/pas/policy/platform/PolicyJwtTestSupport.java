@@ -17,6 +17,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Map;
 
 final class PolicyJwtTestSupport {
   static final KeyPair KEY_PAIR = generateKeyPair();
@@ -25,22 +26,34 @@ final class PolicyJwtTestSupport {
   private PolicyJwtTestSupport() {}
 
   static String mint(String scope) throws JOSEException {
+    return mint(scope, "policy-test-agent", Map.of());
+  }
+
+  static String mint(String scope, Map<String, Object> claims) throws JOSEException {
+    return mint(scope, "policy-test-agent", claims);
+  }
+
+  static String mint(String scope, String subject, Map<String, Object> claims)
+      throws JOSEException {
     Instant now = Instant.now();
-    JWTClaimsSet claims =
+    JWTClaimsSet.Builder claimsBuilder =
         new JWTClaimsSet.Builder()
             .issuer("pas-it")
-            .subject("policy-test-agent")
             .claim("scope", scope)
             .issueTime(Date.from(now))
-            .expirationTime(Date.from(now.plusSeconds(3600)))
-            .build();
+            .expirationTime(Date.from(now.plusSeconds(3600)));
+    if (subject != null) {
+      claimsBuilder.subject(subject);
+    }
+    claims.forEach(claimsBuilder::claim);
+    JWTClaimsSet jwtClaims = claimsBuilder.build();
     SignedJWT jwt =
         new SignedJWT(
             new JWSHeader.Builder(JWSAlgorithm.RS256)
                 .type(JOSEObjectType.JWT)
                 .keyID("pas-it")
                 .build(),
-            claims);
+            jwtClaims);
     jwt.sign(new RSASSASigner((RSAPrivateKey) KEY_PAIR.getPrivate()));
     return jwt.serialize();
   }

@@ -1,0 +1,49 @@
+[
+  {
+    "custId": "C000000001",
+    "custType": "I",
+    "lastName": "Smith",
+    "firstName": "John",
+    "middleInit": "A",
+    "addrLine1": "123 Main St",
+    "city": "Springfield",
+    "stateCode": "IL",
+    "zipCode": "62701",
+    "countryCode": "USA",
+    "phone": "217-555-0100",
+    "email": "john.smith@example.com",
+    "dateOfBirth": "1975-06-15",
+    "creditScore": 720,
+    "riskTier": "A"
+  },
+  {
+    "custId": "C000000002",
+    "custType": "I",
+    "lastName": "Johnson",
+    "firstName": "Mary",
+    "addrLine1": "456 Oak Ave",
+    "city": "Chicago",
+    "stateCode": "IL",
+    "zipCode": "60601",
+    "countryCode": "USA",
+    "phone": "312-555-0200",
+    "email": "mary.johnson@example.com",
+    "dateOfBirth": "1982-03-22",
+    "creditScore": 680,
+    "riskTier": "B"
+  },
+  {
+    "custId": "C000000003",
+    "custType": "C",
+    "companyName": "Acme Manufacturing LLC",
+    "addrLine1": "789 Industrial Blvd",
+    "city": "Detroit",
+    "stateCode": "MI",
+    "zipCode": "48201",
+    "countryCode": "USA",
+    "phone": "313-555-0300",
+    "email": "insurance@acmemfg.com",
+    "taxId": "38-1234567",
+    "riskTier": "S"
+  }
+]

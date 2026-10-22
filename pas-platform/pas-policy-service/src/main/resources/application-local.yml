@@ -4,3 +4,11 @@ spring:
       resourceserver:
         jwt:
           public-key-location: file:${PAS_DEV_JWT_PUBLIC_KEY}
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+pas:
+  routing:
+    policy-inquiry: new

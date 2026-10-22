@@ -2,11 +2,15 @@ package com.acme.insurance.pas.policy.platform;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.acme.insurance.pas.common.routing.RouteFlags;
 import com.acme.insurance.pas.common.security.PasScopes;
 import com.acme.insurance.pas.rating.FactorMode;
 import com.acme.insurance.pas.rating.PremiumCalculator;
 import com.acme.insurance.pas.rating.RatingRequest;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -79,6 +83,41 @@ class PolicyPlatformIT {
   }
 
   @Test
+  void actuatorInfoShowsEveryRouteAndOtherActuatorEndpointsStayHidden() throws Exception {
+    String jwt = PolicyJwtTestSupport.mint(PasScopes.POLICY_READ);
+    ResponseEntity<String> links = get("/actuator", jwt);
+    ResponseEntity<String> info = get("/actuator/info", jwt);
+
+    assertThat(links.getStatusCode()).isEqualTo(HttpStatus.OK);
+    JsonNode actuatorLinks = new ObjectMapper().readTree(links.getBody()).path("_links");
+    List<String> linkNames = new ArrayList<>();
+    actuatorLinks.fieldNames().forEachRemaining(linkNames::add);
+    assertThat(linkNames)
+        .containsExactlyInAnyOrder("self", "health", "health-path", "info", "prometheus");
+
+    JsonNode routes = new ObjectMapper().readTree(info.getBody()).path("routes");
+    List<String> routeNames = new ArrayList<>();
+    routes.fieldNames().forEachRemaining(routeNames::add);
+    assertThat(routeNames).containsExactlyInAnyOrderElementsOf(RouteFlags.CAPABILITIES);
+    for (String endpoint :
+        List.of(
+            "env",
+            "beans",
+            "configprops",
+            "mappings",
+            "loggers",
+            "heapdump",
+            "threaddump",
+            "metrics",
+            "shutdown",
+            "flyway")) {
+      assertThat(get("/actuator/" + endpoint, jwt).getStatusCode())
+          .as("Actuator endpoint %s", endpoint)
+          .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+  }
+
+  @Test
   void exposesAuthenticatedWhoamiAndDefaultSecurityHeaders() throws Exception {
     ResponseEntity<String> response =
         get(
@@ -96,13 +135,13 @@ class PolicyPlatformIT {
   }
 
   @Test
-  void migratesOnlyThePolicySchemaAtVersionFive() {
+  void migratesOnlyThePolicySchemaAtExpectedVersions() {
     List<String> versions =
         jdbcTemplate.queryForList(
             "SELECT version FROM pas.flyway_schema_history WHERE version IS NOT NULL",
             String.class);
 
-    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "10");
+    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "10", "20");
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'pas'",

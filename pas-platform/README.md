@@ -86,6 +86,55 @@ required only for unsafe cookie-authenticated requests; bearer-token APIs remain
 For local development, use `dev/dev-jwt.sh keygen` and `dev/dev-jwt.sh mint`. Keep `.dev-keys/` and
 `.env` local; they are ignored by Git.
 
+## Policy inquiry API (AB-524)
+
+`GET /api/v1/policies/{policyNumber}` and
+`GET /api/v1/policies/{policyNumber}/coverages` preserve the facade's v1
+response contract. `GET /api/v1/policies/{policyNumber}/policyholder` provides
+the POLQRY screen view. All three require `policy:read` plus an object-level
+entitlement: `book=ALL`, a matching `agent_id`, or a matching value in
+`branch_codes`. Claims are trimmed (Q-32, ADR D7). Agent and branch codes are
+stored uppercase legacy DB2 values, written only by the sync job, and JWT
+claims are upper-cased before SQL comparison; a non-uppercase stored code fails
+closed with 404, never open. Missing or nonmatching entitlements are
+deliberately indistinguishable from an unknown policy (404).
+
+The policyholder endpoint returns `Cache-Control: no-store`. Without `pii:read`,
+SSN and tax ID are masked, date of birth is withheld (birth year remains
+available), and credit score is omitted. `pii:read` returns the full regulated
+values for authorized screen users (Q-33); nullable encrypted columns remain
+supported (Q-26). DTOs and response bodies must not be logged.
+
+The `policy-inquiry` route setting follows ADR D9. Production defaults to
+`legacy`; local and integration profiles use `new`. The service returns an
+empty 503 while the route is `legacy`. Effective capability states are
+available from authenticated `/actuator/info` in the `routes` section. The
+gateway/scheduler route source is
+[`routing/route-flags.json`](routing/route-flags.json); see
+[`docs/modernization/route-flags.md`](../docs/modernization/route-flags.md).
+
+For local use, run `make dev-env`, start PostgreSQL with `docker compose up -d
+--wait postgres` from this directory, and run the service with
+`--spring.profiles.active=local --server.port=18095
+--pas.dev.seed-facade-data=true --pas.routing.policy-inquiry=new`. Mint an
+entitled token and call the service:
+
+```sh
+jwt="$(./dev/dev-jwt.sh mint --scope policy:read --claim book=ALL)"
+curl -H "Authorization: Bearer $jwt" \
+  http://localhost:18095/api/v1/policies/POL-00000001
+```
+
+Swagger UI is enabled only in the
+local profile at `/swagger-ui/index.html`; `/v3/api-docs.yaml` requires
+authentication. Regenerate the committed spec with
+`cd pas-policy-service && ../mvnw -B -ntp -Dit.test=OpenApiSpecIT
+-Dpas.openapi.write=true verify`.
+
+Run `make compat-api-modern` from the repository root to start PostgreSQL,
+build the policy service, load facade-equivalent local data, and compare the
+modern API against the committed v1 snapshots.
+
 ## Local development
 
 From the repository root, `make local` runs verification, prepares local development files, builds
