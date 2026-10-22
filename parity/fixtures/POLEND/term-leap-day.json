@@ -1,1 +1,1 @@
-{"description":"A leap-day term runs from 20240229 to 20250228.","input":{"currentDate":"20240701","policy":{"effectiveDate":"20240229","expiryDate":"20250228"}}}
+{"description":"A leap-day term runs from 20240229 to 20250228.","input":{"currentDate":"20240701","policy":{"effectiveDate":"20240229","expiryDate":"20250228"}},"expectLegacy":{"trace.state.daysInTerm":365,"trace.state.daysRemaining":242,"trace.state.proRataFactor":0.663013}}

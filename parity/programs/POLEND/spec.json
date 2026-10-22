@@ -16,7 +16,7 @@
     "policyUpdateSqlcode": 0
   },
   "seedDefaults": {
-    "endorsementType": "",
+    "endorsementType": "CAD",
     "premiumAdjust": 0.00
   },
   "seedMoves": [

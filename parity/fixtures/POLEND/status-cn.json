@@ -1,1 +1,1 @@
-{"description":"Cancelled policy status is rejected.","input":{"policy":{"status":"CN"}}}
+{"description":"Cancelled policy status is rejected.","input":{"policy":{"status":"CN"}},"expectLegacy":{"outputs.error[0].message":"ONLY ACTIVE POLICIES CAN BE ENDORSED"}}

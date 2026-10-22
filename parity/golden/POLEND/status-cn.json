@@ -8,7 +8,7 @@
     "audit": [],
     "error": [
       {
-        "message": "ENDORSEMENT TYPE IS REQUIRED"
+        "message": "ONLY ACTIVE POLICIES CAN BE ENDORSED"
       }
     ]
   },
@@ -20,7 +20,7 @@
       "daysInTerm": 0,
       "daysRemaining": 0,
       "proRataFactor": 0.000000,
-      "errorMsg": "ENDORSEMENT TYPE IS REQUIRED"
+      "errorMsg": "ONLY ACTIVE POLICIES CAN BE ENDORSED"
     },
     "returnCode": 0
   }

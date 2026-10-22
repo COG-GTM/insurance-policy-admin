@@ -1,1 +1,1 @@
-{"description":"Unseeded endorsement type contains spaces and is rejected.","input":{},"expectLegacy":{"outputs.error[0].message":"ENDORSEMENT TYPE IS REQUIRED"}}
+{"description":"Blank seeded endorsement type contains spaces and is rejected.","input":{},"seed":{"endorsementType":"","premiumAdjust":0.0},"expectLegacy":{"outputs.error[0].message":"ENDORSEMENT TYPE IS REQUIRED"}}

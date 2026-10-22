@@ -1,1 +1,1 @@
-{"description":"Reinstatement endorsement type input.","seed":{"endorsementType":"REI","premiumAdjust":0.00}}
+{"description":"Reinstatement endorsement type input.","seed":{"endorsementType":"REI","premiumAdjust":0.00},"expectLegacy":{"outputs.endorsement[0].endorsementType":"REI"}}

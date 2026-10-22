@@ -3,24 +3,39 @@
   "fixture": "maximum-premium",
   "description": "Maximum policy premium input value.",
   "outputs": {
-    "endorsement": [],
-    "policyUpdate": [],
-    "audit": [],
-    "error": [
+    "endorsement": [
       {
-        "message": "ENDORSEMENT TYPE IS REQUIRED"
+        "policyNumber": "POL000000001",
+        "endorsementSeq": 2,
+        "endorsementType": "CAD",
+        "effectiveDate": "20240701",
+        "premiumAdjustment": 0.00
       }
-    ]
+    ],
+    "policyUpdate": [
+      {
+        "totalPremium": 999999999.99
+      }
+    ],
+    "audit": [
+      {
+        "policyNumber": "POL000000001",
+        "totalPremium": 999999999.99
+      }
+    ],
+    "error": []
   },
   "trace": {
     "events": {
-      "screen": []
+      "screen": [
+        "POLECONF"
+      ]
     },
     "state": {
-      "daysInTerm": 0,
-      "daysRemaining": 0,
-      "proRataFactor": 0.000000,
-      "errorMsg": "ENDORSEMENT TYPE IS REQUIRED"
+      "daysInTerm": 366,
+      "daysRemaining": 184,
+      "proRataFactor": 0.502732,
+      "errorMsg": ""
     },
     "returnCode": 0
   }

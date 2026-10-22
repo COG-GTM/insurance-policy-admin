@@ -1,1 +1,1 @@
-{"description":"Cancellation endorsement seed reduces premium.","seed":{"endorsementType":"CAN","premiumAdjust":-1200.00}}
+{"description":"Cancellation endorsement seed reduces premium.","seed":{"endorsementType":"CAN","premiumAdjust":-1200.00},"expectLegacy":{"outputs.endorsement[0].endorsementType":"CAN","outputs.policyUpdate[0].totalPremium":0.0}}

@@ -1,26 +1,37 @@
 {
   "program": "POLEND",
   "fixture": "policy-update-failure",
-  "description": "The policy premium update fails after endorsement insertion.",
+  "description": "The policy premium update fails after endorsement insertion without an error message.",
   "outputs": {
-    "endorsement": [],
-    "policyUpdate": [],
-    "audit": [],
-    "error": [
+    "endorsement": [
       {
-        "message": "ENDORSEMENT TYPE IS REQUIRED"
+        "policyNumber": "POL000000001",
+        "endorsementSeq": 2,
+        "endorsementType": "CAD",
+        "effectiveDate": "20240701",
+        "premiumAdjustment": 0.00
       }
-    ]
+    ],
+    "policyUpdate": [],
+    "audit": [
+      {
+        "policyNumber": "POL000000001",
+        "totalPremium": 1200.00
+      }
+    ],
+    "error": []
   },
   "trace": {
     "events": {
-      "screen": []
+      "screen": [
+        "POLECONF"
+      ]
     },
     "state": {
-      "daysInTerm": 0,
-      "daysRemaining": 0,
-      "proRataFactor": 0.000000,
-      "errorMsg": "ENDORSEMENT TYPE IS REQUIRED"
+      "daysInTerm": 366,
+      "daysRemaining": 184,
+      "proRataFactor": 0.502732,
+      "errorMsg": ""
     },
     "returnCode": 0
   }

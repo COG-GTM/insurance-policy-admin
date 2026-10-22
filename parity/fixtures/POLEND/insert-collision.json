@@ -1,1 +1,1 @@
-{"description":"Endorsement insert reports a duplicate row.","input":{"insertSqlcode":-803}}
+{"description":"Endorsement insert reports a duplicate row.","input":{"insertSqlcode":-803},"expectLegacy":{"outputs.endorsement":[],"trace.state.errorMsg":"DB2 ERROR INSERTING ENDORSEMENT"}}

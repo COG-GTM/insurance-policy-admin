@@ -1,1 +1,1 @@
-{"description":"A CAD endorsement seed changes premium by 125.50.","seed":{"endorsementType":"CAD","premiumAdjust":125.50}}
+{"description":"A CAD endorsement seed changes premium by 125.50.","seed":{"endorsementType":"CAD","premiumAdjust":125.50},"expectLegacy":{"outputs.endorsement[0].premiumAdjustment":125.5,"outputs.policyUpdate[0].totalPremium":1325.5}}

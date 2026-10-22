@@ -69,16 +69,19 @@
   field: outputs.decision
   quirk: Q-44
   reason: COBOL continues underwriting after RECEIVE failure while Java stops with the error.
+  javaValue: []
 - program: UNDWRT
   fixture: receive-failure
   field: outputs.policyUpdate
   quirk: Q-44
   reason: COBOL updates the policy after RECEIVE failure while Java stops with the error.
+  javaValue: []
 - program: UNDWRT
   fixture: receive-failure
   field: outputs.notification
   quirk: Q-44
   reason: COBOL notifies after RECEIVE failure while Java stops with the error.
+  javaValue: []
 - program: UNDWRT
   fixture: credit-negative-five
   field: "outputs.decision[0].riskScore"

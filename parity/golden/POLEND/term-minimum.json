@@ -3,24 +3,39 @@
   "fixture": "term-minimum",
   "description": "Minimum positive term length.",
   "outputs": {
-    "endorsement": [],
-    "policyUpdate": [],
-    "audit": [],
-    "error": [
+    "endorsement": [
       {
-        "message": "ENDORSEMENT TYPE IS REQUIRED"
+        "policyNumber": "POL000000001",
+        "endorsementSeq": 2,
+        "endorsementType": "CAD",
+        "effectiveDate": "20240101",
+        "premiumAdjustment": 0.00
       }
-    ]
+    ],
+    "policyUpdate": [
+      {
+        "totalPremium": 1200.00
+      }
+    ],
+    "audit": [
+      {
+        "policyNumber": "POL000000001",
+        "totalPremium": 1200.00
+      }
+    ],
+    "error": []
   },
   "trace": {
     "events": {
-      "screen": []
+      "screen": [
+        "POLECONF"
+      ]
     },
     "state": {
-      "daysInTerm": 0,
-      "daysRemaining": 0,
-      "proRataFactor": 0.000000,
-      "errorMsg": "ENDORSEMENT TYPE IS REQUIRED"
+      "daysInTerm": 1,
+      "daysRemaining": 1,
+      "proRataFactor": 1.000000,
+      "errorMsg": ""
     },
     "returnCode": 0
   }

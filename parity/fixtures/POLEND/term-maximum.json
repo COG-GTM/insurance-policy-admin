@@ -1,1 +1,1 @@
-{"description":"Maximum supported policy term dates.","input":{"currentDate":"20241231","policy":{"effectiveDate":"19000101","expiryDate":"99991231"}}}
+{"description":"Maximum supported policy term dates.","input":{"currentDate":"20241231","policy":{"effectiveDate":"19000101","expiryDate":"99991231"}},"expectLegacy":{"trace.state.daysInTerm":463,"trace.state.daysRemaining":808,"trace.state.proRataFactor":1.74514}}

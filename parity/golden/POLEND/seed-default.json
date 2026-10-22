@@ -1,7 +1,7 @@
 {
   "program": "POLEND",
   "fixture": "seed-default",
-  "description": "Unseeded endorsement type contains spaces and is rejected.",
+  "description": "Blank seeded endorsement type contains spaces and is rejected.",
   "outputs": {
     "endorsement": [],
     "policyUpdate": [],

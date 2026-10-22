@@ -1,1 +1,1 @@
-{"description":"Coverage endorsement type input.","seed":{"endorsementType":"COV","premiumAdjust":10.00}}
+{"description":"Coverage endorsement type input.","seed":{"endorsementType":"COV","premiumAdjust":10.00},"expectLegacy":{"outputs.endorsement[0].endorsementType":"COV","outputs.policyUpdate[0].totalPremium":1210.0}}

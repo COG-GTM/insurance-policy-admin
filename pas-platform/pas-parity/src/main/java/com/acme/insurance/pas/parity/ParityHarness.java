@@ -97,6 +97,10 @@ public final class ParityHarness {
         GoldenComparator.compare(expected, actualOutputs);
     List<KnownDifferences.Entry> fixtureEntries =
         knownDifferences.forFixture(adapter.program(), fixtureId);
+    Set<KnownDifferences.Entry> javaValueMismatches =
+        fixtureEntries.stream()
+            .filter(entry -> !javaValueMatchesAtField(entry, actual))
+            .collect(java.util.stream.Collectors.toSet());
     List<GoldenComparator.Difference> uncovered = new ArrayList<>();
     List<AppliedDifference> applied = new ArrayList<>();
     for (GoldenComparator.Difference difference : differences) {
@@ -109,13 +113,9 @@ public final class ParityHarness {
         uncovered.add(difference);
         continue;
       }
-      if (entry.javaValue() != null) {
-        JsonNode requiredJavaValue = MAPPER.valueToTree(entry.javaValue());
-        JsonNode actualValue = nodeAtPath(actual, difference.path());
-        if (!GoldenComparator.compare(requiredJavaValue, actualValue).isEmpty()) {
-          uncovered.add(difference);
-          continue;
-        }
+      if (javaValueMismatches.contains(entry)) {
+        uncovered.add(difference);
+        continue;
       }
       applied.add(new AppliedDifference(entry, difference));
     }
@@ -232,7 +232,19 @@ public final class ParityHarness {
     return current;
   }
 
+  static boolean javaValueMatchesAtField(KnownDifferences.Entry entry, JsonNode actual) {
+    JsonNode required = MAPPER.valueToTree(entry.javaValue());
+    JsonNode actualValue = nodeAtPath(actual, entry.field());
+    return GoldenComparator.compare(required, actualValue).isEmpty();
+  }
+
   private static void writeReport(Path root) throws IOException {
+    Path reportDir = Path.of(System.getProperty("user.dir")).resolve("target");
+    String registerLink =
+        reportDir
+            .relativize(root.resolve("docs/modernization/quirk-register.md"))
+            .toString()
+            .replace('\\', '/');
     StringBuilder markdown = new StringBuilder("# Parity report\n");
     for (String program : REPORTS.keySet().stream().sorted().toList()) {
       ProgramReport report = REPORTS.get(program);
@@ -289,15 +301,16 @@ public final class ParityHarness {
               .append(applied.entry().reason())
               .append(" | [")
               .append(applied.entry().quirk())
-              .append("](../../../docs/modernization/quirk-register.md#")
+              .append("](")
+              .append(registerLink)
+              .append("#")
               .append(applied.entry().quirk().toLowerCase())
               .append(") |\n");
         }
       }
     }
-    Path reportDirectory = root.resolve("pas-platform/pas-parity/target");
-    Path reportPath = reportDirectory.resolve("parity-report.md");
-    Files.createDirectories(reportDirectory);
+    Path reportPath = reportDir.resolve("parity-report.md");
+    Files.createDirectories(reportDir);
     Files.writeString(reportPath, markdown);
   }
 

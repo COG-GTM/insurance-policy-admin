@@ -1,1 +1,1 @@
-{"description":"Maximum policy premium input value.","input":{"policy":{"totalPremium":999999999.99}}}
+{"description":"Maximum policy premium input value.","input":{"policy":{"totalPremium":999999999.99}},"expectLegacy":{"outputs.policyUpdate[0].totalPremium":999999999.99}}

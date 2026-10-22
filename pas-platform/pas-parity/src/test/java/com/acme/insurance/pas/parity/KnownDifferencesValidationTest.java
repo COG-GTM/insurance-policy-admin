@@ -19,12 +19,7 @@ class KnownDifferencesValidationTest {
             temporaryDirectory,
             List.of(
                 new KnownDifferences.Entry(
-                    "UNDWRT",
-                    "fixture",
-                    "outputs.decision",
-                    "Q-99",
-                    "Explained difference.",
-                    null)));
+                    "UNDWRT", "fixture", "outputs.decision", "Q-99", "Explained difference.", 0)));
 
     assertThat(knownDifferences.validate()).isEmpty();
   }
@@ -37,12 +32,7 @@ class KnownDifferencesValidationTest {
             temporaryDirectory,
             List.of(
                 new KnownDifferences.Entry(
-                    "UNDWRT",
-                    "fixture",
-                    "outputs.decision",
-                    "Q-99",
-                    "Explained difference.",
-                    null)));
+                    "UNDWRT", "fixture", "outputs.decision", "Q-99", "Explained difference.", 0)));
 
     assertThat(knownDifferences.validate())
         .contains("quirk must exist with a non-Preserve decision: Q-99");
@@ -56,12 +46,7 @@ class KnownDifferencesValidationTest {
             temporaryDirectory,
             List.of(
                 new KnownDifferences.Entry(
-                    "UNDWRT",
-                    "fixture",
-                    "outputs.decision",
-                    "Q-98",
-                    "Explained difference.",
-                    null)));
+                    "UNDWRT", "fixture", "outputs.decision", "Q-98", "Explained difference.", 0)));
 
     assertThat(knownDifferences.validate())
         .contains("quirk must exist with a non-Preserve decision: Q-98");
@@ -72,12 +57,31 @@ class KnownDifferencesValidationTest {
     prepareRoot("- **Decision:** **Fix.**");
     KnownDifferences.Entry entry =
         new KnownDifferences.Entry(
-            "UNDWRT", "fixture", "outputs.decision", "Q-99", "Explained difference.", null);
+            "UNDWRT", "fixture", "outputs.decision", "Q-99", "Explained difference.", 0);
     KnownDifferences knownDifferences =
         new KnownDifferences(temporaryDirectory, List.of(entry, entry));
 
     assertThat(knownDifferences.validate())
         .contains("duplicate known difference: UNDWRT/fixture/outputs.decision");
+  }
+
+  @Test
+  void rejectsMissingJavaValue() throws Exception {
+    prepareRoot("- **Decision:** **Fix.**");
+    KnownDifferences knownDifferences =
+        new KnownDifferences(
+            temporaryDirectory,
+            List.of(
+                new KnownDifferences.Entry(
+                    "UNDWRT",
+                    "fixture",
+                    "outputs.decision",
+                    "Q-99",
+                    "Explained difference.",
+                    null)));
+
+    assertThat(knownDifferences.validate())
+        .contains("known difference javaValue is required: UNDWRT/fixture/outputs.decision");
   }
 
   private void prepareRoot(String decision) throws Exception {

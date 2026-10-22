@@ -1,1 +1,1 @@
-{"description":"The policy SELECT returns no row.","input":{"policySqlcode":100}}
+{"description":"The policy SELECT returns no row.","input":{"policySqlcode":100},"expectLegacy":{"outputs.error[0].message":"POLICY NOT FOUND"}}

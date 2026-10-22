@@ -1,1 +1,1 @@
-{"description":"A three-year term exceeds the three-digit day field.","input":{"currentDate":"20220701","policy":{"effectiveDate":"20220101","expiryDate":"20250101"}}}
+{"description":"A three-year term exceeds the three-digit day field.","input":{"currentDate":"20220701","policy":{"effectiveDate":"20220101","expiryDate":"20250101"}},"expectLegacy":{"trace.state.daysInTerm":96,"trace.state.daysRemaining":915,"trace.state.proRataFactor":9.53125}}

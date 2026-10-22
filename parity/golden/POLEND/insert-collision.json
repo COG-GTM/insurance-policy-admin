@@ -4,23 +4,30 @@
   "description": "Endorsement insert reports a duplicate row.",
   "outputs": {
     "endorsement": [],
-    "policyUpdate": [],
-    "audit": [],
-    "error": [
+    "policyUpdate": [
       {
-        "message": "ENDORSEMENT TYPE IS REQUIRED"
+        "totalPremium": 1200.00
       }
-    ]
+    ],
+    "audit": [
+      {
+        "policyNumber": "POL000000001",
+        "totalPremium": 1200.00
+      }
+    ],
+    "error": []
   },
   "trace": {
     "events": {
-      "screen": []
+      "screen": [
+        "POLECONF"
+      ]
     },
     "state": {
-      "daysInTerm": 0,
-      "daysRemaining": 0,
-      "proRataFactor": 0.000000,
-      "errorMsg": "ENDORSEMENT TYPE IS REQUIRED"
+      "daysInTerm": 366,
+      "daysRemaining": 184,
+      "proRataFactor": 0.502732,
+      "errorMsg": "DB2 ERROR INSERTING ENDORSEMENT"
     },
     "returnCode": 0
   }

@@ -72,6 +72,9 @@ public final class KnownDifferences {
       if (entry.reason().isBlank()) {
         errors.add("known difference reason is blank: " + key);
       }
+      if (entry.javaValue() == null) {
+        errors.add("known difference javaValue is required: " + key);
+      }
       if (!Files.isRegularFile(
           root.resolve("parity/fixtures")
               .resolve(entry.program())
