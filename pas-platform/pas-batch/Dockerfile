@@ -14,6 +14,7 @@ FROM eclipse-temurin:21-jre
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home appuser
+RUN mkdir -p /var/lib/pas-batch/extracts && chown 10001:10001 /var/lib/pas-batch/extracts
 WORKDIR /app
 COPY --from=build --chown=10001:10001 /workspace/pas-batch/target/pas-batch-0.1.0-SNAPSHOT.jar /app/app.jar
 USER 10001:10001
