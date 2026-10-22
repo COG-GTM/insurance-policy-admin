@@ -77,7 +77,7 @@ public class EndorsementService {
       String policyNumber, EndorsementRequest request, CallerEntitlements caller, String actor) {
     Policy policy =
         inquiry.lockPolicy(policyNumber, caller).orElseThrow(PolicyNotFoundException::new);
-    Calculation calculation = calculate(policy, request);
+    Calculation calculation = calculate(policy, request, caller);
     endorsements.insert(
         new Endorsement(
             policy.policyNumber(),
@@ -113,7 +113,7 @@ public class EndorsementService {
     Policy policy =
         inquiry.findPolicy(policyNumber, caller).orElseThrow(PolicyNotFoundException::new);
     try {
-      Calculation calculation = calculate(policy, request);
+      Calculation calculation = calculate(policy, request, caller);
       String status =
           calculation.type() == EndorsementType.CANCEL
               ? PolicyStatus.CANCELLED.code()
@@ -144,7 +144,8 @@ public class EndorsementService {
     }
   }
 
-  private Calculation calculate(Policy policy, EndorsementRequest request) {
+  private Calculation calculate(
+      Policy policy, EndorsementRequest request, CallerEntitlements caller) {
     EndorsementRules.checkActive(raw(policy.policyStatus()));
     EndorsementType type = EndorsementType.fromCode(request.type());
     checkDetails(type, request);
@@ -152,6 +153,7 @@ public class EndorsementService {
         request.effectiveDate() == null ? LocalDate.now(clock) : request.effectiveDate();
     BigDecimal factor =
         EndorsementRules.proRataFactor(policy.effectiveDate(), policy.expiryDate(), date);
+    validateEffect(policy, request, type, date, caller);
     int sequence = EndorsementRules.nextSequence(endorsements.maxSequence(policy.policyNumber()));
     BigDecimal adjustment = EndorsementRules.PREMIUM_ADJUSTMENT;
     BigDecimal total = EndorsementRules.adjustedPremium(policy.totalPremium(), adjustment);
@@ -172,6 +174,48 @@ public class EndorsementService {
     }
   }
 
+  /** Read-only checks shared by NEW and SHADOW so both reject the same requests. */
+  private void validateEffect(
+      Policy policy,
+      EndorsementRequest request,
+      EndorsementType type,
+      LocalDate date,
+      CallerEntitlements caller) {
+    switch (type) {
+      case COVERAGE_ADD -> coverageType(policy, request.coverage());
+      case COVERAGE_REMOVE -> {
+        LocalDate start =
+            coverages
+                .activeCoverageStart(policy.policyNumber(), request.coverageSeq())
+                .orElseThrow(() -> new LifecycleRejectedException(Rejection.COVERAGE_NOT_FOUND));
+        if (date.isBefore(start)) {
+          throw new LifecycleRejectedException(Rejection.COVERAGE_NOT_FOUND);
+        }
+      }
+      case LIMIT_CHANGE ->
+          coverages
+              .activeCoverageStart(policy.policyNumber(), request.coverageSeq())
+              .orElseThrow(() -> new LifecycleRejectedException(Rejection.COVERAGE_NOT_FOUND));
+      case ADDRESS_CHANGE -> {
+        if (inquiry.holderHasPoliciesOutside(policy.policyholderId(), caller)) {
+          throw new LifecycleRejectedException(Rejection.ADDRESS_CHANGE_NOT_PERMITTED);
+        }
+      }
+      case CANCEL -> {}
+    }
+  }
+
+  /** Known codes plus legacy codes already carried by this policy type (Q-43). */
+  private Coded<CoverageType> coverageType(
+      Policy policy, EndorsementRequest.CoverageAddition addition) {
+    String code = addition.coverageType().trim().toUpperCase(Locale.ROOT);
+    Coded<CoverageType> coverageType = Coded.of(CoverageType.class, code);
+    if (!coverageType.isKnown() && !coverages.coverageTypeInUse(raw(policy.policyType()), code)) {
+      throw new LifecycleRejectedException(Rejection.ENDORSEMENT_DETAILS_INVALID);
+    }
+    return coverageType;
+  }
+
   /** Q-13: apply the change in the same transaction; returns the resulting policy status. */
   private String applyEffect(
       Policy policy,
@@ -182,11 +226,7 @@ public class EndorsementService {
     switch (calculation.type()) {
       case COVERAGE_ADD -> {
         EndorsementRequest.CoverageAddition addition = request.coverage();
-        Coded<CoverageType> coverageType =
-            Coded.of(CoverageType.class, addition.coverageType().toUpperCase(Locale.ROOT));
-        if (!coverageType.isKnown()) {
-          throw new LifecycleRejectedException(Rejection.ENDORSEMENT_DETAILS_INVALID);
-        }
+        Coded<CoverageType> coverageType = coverageType(policy, addition);
         int sequence = coverages.nextSequence(policyNumber);
         coverages.insert(
             new Coverage(
@@ -207,12 +247,13 @@ public class EndorsementService {
         details.put("coverageType", coverageType.raw());
       }
       case COVERAGE_REMOVE -> {
-        requireOne(
+        requireCoverage(
             coverages.cancel(policyNumber, request.coverageSeq(), calculation.effectiveDate()));
         details.put("coverageSeq", request.coverageSeq());
       }
       case LIMIT_CHANGE -> {
-        requireOne(coverages.changeLimit(policyNumber, request.coverageSeq(), request.newLimit()));
+        requireCoverage(
+            coverages.changeLimit(policyNumber, request.coverageSeq(), request.newLimit()));
         details.put("coverageSeq", request.coverageSeq());
         details.put("newLimit", request.newLimit());
       }
@@ -236,6 +277,12 @@ public class EndorsementService {
       }
     }
     return raw(policy.policyStatus());
+  }
+
+  private static void requireCoverage(int rows) {
+    if (rows != 1) {
+      throw new LifecycleRejectedException(Rejection.COVERAGE_NOT_FOUND);
+    }
   }
 
   private static void requireOne(int rows) {
@@ -286,12 +333,13 @@ public class EndorsementService {
         status);
   }
 
+  /** Only validated codes reach pas_shadow; anything else is recorded as null. */
   private static String shadowType(String type) {
-    if (type == null) {
+    try {
+      return EndorsementType.fromCode(type).code();
+    } catch (LifecycleRejectedException exception) {
       return null;
     }
-    String trimmed = type.trim().toUpperCase(Locale.ROOT);
-    return trimmed.length() > 3 ? trimmed.substring(0, 3) : trimmed;
   }
 
   private static BigDecimal zeroIfNull(BigDecimal value) {

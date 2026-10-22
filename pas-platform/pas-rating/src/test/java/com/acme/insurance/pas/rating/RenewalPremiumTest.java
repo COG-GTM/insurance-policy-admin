@@ -28,6 +28,15 @@ class RenewalPremiumTest {
   }
 
   @Test
+  void capIsAppliedBeforeTheRangeCheck() {
+    RenewalPremium premium =
+        PremiumCalculator.renewalPremium(
+            new BigDecimal("950000000.00"), new BigDecimal("20"), new BigDecimal("2"));
+    assertThat(premium.newPremium()).isEqualByComparingTo("969000000.00");
+    assertThat(premium.capped()).isTrue();
+  }
+
+  @Test
   void zeroAndOverflowingPremiumsAreRejected() {
     assertThatThrownBy(() -> PremiumCalculator.renewalPremium(BigDecimal.ZERO, UPLIFT, CAP))
         .isInstanceOf(RenewalPremiumException.class);

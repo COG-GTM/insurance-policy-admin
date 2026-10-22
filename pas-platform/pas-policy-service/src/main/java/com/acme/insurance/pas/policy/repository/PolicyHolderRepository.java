@@ -145,7 +145,7 @@ public class PolicyHolderRepository {
       String stateCode,
       String zipCode) {
     return jdbc.sql(
-            "UPDATE pas.policy_holders SET addr_line1 = :addrLine1, addr_line2 = :addrLine2, city = :city, state_code = :stateCode, zip_code = :zipCode WHERE cust_id = :custId")
+            "UPDATE pas.policy_holders SET addr_line1 = :addrLine1, addr_line2 = :addrLine2, city = :city, state_code = :stateCode, zip_code = :zipCode, last_updated = now() WHERE cust_id = :custId")
         .param("addrLine1", addrLine1)
         .param("addrLine2", addrLine2)
         .param("city", city)

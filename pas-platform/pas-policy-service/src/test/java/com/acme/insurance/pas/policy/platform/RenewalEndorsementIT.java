@@ -1,12 +1,16 @@
 package com.acme.insurance.pas.policy.platform;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 
 import com.acme.insurance.pas.domain.claims.ClaimsHistoryPort;
 import com.acme.insurance.pas.domain.claims.ClaimsSummary;
 import com.acme.insurance.pas.policy.dev.FacadeSeedLoader;
+import com.acme.insurance.pas.policy.lifecycle.PolicyAuditRepository;
 import com.acme.insurance.pas.policy.renewal.PolicyRenewalRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,6 +71,7 @@ class RenewalEndorsementIT {
   @Autowired private ObjectMapper objectMapper;
   @Autowired private JdbcTemplate jdbc;
   @MockitoSpyBean private PolicyRenewalRepository renewalRepository;
+  @MockitoSpyBean private PolicyAuditRepository auditRepository;
 
   @DynamicPropertySource
   static void jwtProperties(DynamicPropertyRegistry registry) {
@@ -237,14 +242,106 @@ class RenewalEndorsementIT {
   }
 
   @Test
-  void failedEffectRollsBackEndorsementRowAndAudit() throws Exception {
+  void failedAuditWriteRollsBackEndorsementEffectAndPolicy() throws Exception {
     String policy = copyPolicy(today().minusDays(10), today().plusDays(300), "AC", "1200.00", 0);
-    Map<String, Object> request =
-        Map.of("type", "CRM", "effectiveDate", today().toString(), "coverageSeq", 99);
-    assertThat(endorse(policy, request, wholeBook()).getStatusCode())
-        .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    doThrow(new DataIntegrityViolationException("simulated"))
+        .when(auditRepository)
+        .record(
+            argThat(number -> number != null && policy.equals(number.trim())),
+            eq(PolicyAuditRepository.ENDORSEMENT),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            any());
+    assertThat(
+            endorse(policy, cancelLike("CAN", today()), wholeBook())
+                .getStatusCode()
+                .is5xxServerError())
+        .isTrue();
     assertThat(count("pas.endorsements", policy)).isZero();
-    assertThat(count("pas.policy_audit", policy)).isZero();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT policy_status FROM pas.policies WHERE policy_number = ?",
+                String.class,
+                policy))
+        .isEqualTo("AC");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM pas.coverages WHERE policy_number = ? AND status = 'AC'",
+                Integer.class,
+                policy))
+        .isEqualTo(2);
+  }
+
+  @Test
+  void unknownCoverageAndRemovalBeforeCoverageStartAreRejected() throws Exception {
+    String policy = copyPolicy(today().minusDays(10), today().plusDays(300), "AC", "1200.00", 0);
+    ResponseEntity<String> unknown =
+        endorse(
+            policy,
+            Map.of("type", "CRM", "effectiveDate", today().toString(), "coverageSeq", 99),
+            wholeBook());
+    assertThat(unknown.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    assertThat(unknown.getBody()).contains("COVERAGE_NOT_FOUND");
+
+    Map<String, Object> addition =
+        Map.of(
+            "type",
+            "CAD",
+            "effectiveDate",
+            today().plusDays(10).toString(),
+            "coverage",
+            Map.of("coverageType", "DWEL", "coverageLimit", 100000, "premium", 50));
+    assertThat(endorse(policy, addition, wholeBook()).getStatusCode())
+        .isEqualTo(HttpStatus.CREATED);
+    ResponseEntity<String> backdated =
+        endorse(
+            policy,
+            Map.of("type", "CRM", "effectiveDate", today().toString(), "coverageSeq", 3),
+            wholeBook());
+    assertThat(backdated.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT status FROM pas.coverages WHERE policy_number = ? AND sequence_num = 3",
+                String.class,
+                policy))
+        .isEqualTo("AC");
+    assertThat(count("pas.endorsements", policy)).isEqualTo(1);
+  }
+
+  @Test
+  void addressChangeIsRefusedWhenTheHolderHasPoliciesOutsideTheCallersBook() throws Exception {
+    String policy = copyPolicy(today().minusDays(10), today().plusDays(300), "AC", "1200.00", 0);
+    copyPolicy(today().minusDays(10), today().plusDays(300), "AC", "900.00", 0, "AG9999");
+    Map<String, Object> request =
+        Map.of(
+            "type",
+            "ACH",
+            "effectiveDate",
+            today().toString(),
+            "address",
+            Map.of(
+                "addrLine1",
+                "1 New Street",
+                "city",
+                "Springfield",
+                "stateCode",
+                "il",
+                "zipCode",
+                "62701"));
+    ResponseEntity<String> agent = endorse(policy, request, Map.of("agent_id", "AG1001"));
+    assertThat(agent.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    assertThat(agent.getBody()).contains("ADDRESS_CHANGE_NOT_PERMITTED");
+
+    assertThat(endorse(policy, request, wholeBook()).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Map<String, Object> holder =
+        jdbc.queryForMap(
+            "SELECT h.city, h.state_code, h.last_updated > now() - interval '1 minute' AS fresh FROM pas.policy_holders h JOIN pas.policies p ON p.policyholder_id = h.cust_id WHERE p.policy_number = ?",
+            policy);
+    assertThat(holder.get("city").toString().trim()).isEqualTo("Springfield");
+    assertThat(holder.get("state_code").toString()).isEqualTo("IL");
+    assertThat(holder.get("fresh")).isEqualTo(Boolean.TRUE);
   }
 
   @Test
@@ -360,6 +457,16 @@ class RenewalEndorsementIT {
 
   private String copyPolicy(
       LocalDate effective, LocalDate expiry, String status, String premium, int renewalCount) {
+    return copyPolicy(effective, expiry, status, premium, renewalCount, null);
+  }
+
+  private String copyPolicy(
+      LocalDate effective,
+      LocalDate expiry,
+      String status,
+      String premium,
+      int renewalCount,
+      String agentCode) {
     String number = String.format("T%011d", NUMBERS.incrementAndGet() % 100_000_000_000L);
     jdbc.update(
         """
@@ -367,7 +474,8 @@ class RenewalEndorsementIT {
             policy_number, policy_type, policy_status, effective_date, expiry_date, policyholder_id,
             agent_code, branch_code, total_premium, deductible, coverage_limit, inception_date,
             renewal_count, uw_status, risk_score, web_indicator, api_flag, last_updated, updated_by)
-        SELECT ?, policy_type, ?, ?, ?, policyholder_id, agent_code, branch_code, ?, deductible,
+        SELECT ?, policy_type, ?, ?, ?, policyholder_id, COALESCE(?, agent_code), branch_code, ?,
+               deductible,
                coverage_limit, ?, ?, 'AP', risk_score, web_indicator, api_flag, now(), 'IT'
         FROM pas.policies WHERE policy_number = ?
         """,
@@ -375,6 +483,7 @@ class RenewalEndorsementIT {
         status,
         effective,
         expiry,
+        agentCode,
         new BigDecimal(premium),
         effective,
         renewalCount,

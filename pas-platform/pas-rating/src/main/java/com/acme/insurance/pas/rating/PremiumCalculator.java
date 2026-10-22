@@ -106,14 +106,13 @@ public final class PremiumCalculator {
       throw new RenewalPremiumException("ZERO PREMIUM CANNOT BE RENEWED");
     }
     try {
-      BigDecimal uplifted =
-          CobolPic.store(old.multiply(multiplier(upliftPct)), 9, 2, "WS-NEW-PREMIUM");
+      // Cap first, then range-check only the premium that is saved.
+      BigDecimal uplifted = old.multiply(multiplier(upliftPct)).setScale(2, RoundingMode.DOWN);
       BigDecimal rateChange = rateChangePct(old, uplifted);
       boolean capped = rateChange.compareTo(capPct) > 0;
       BigDecimal renewed =
-          capped
-              ? CobolPic.store(old.multiply(multiplier(capPct)), 9, 2, "WS-NEW-PREMIUM")
-              : uplifted;
+          CobolPic.store(
+              capped ? old.multiply(multiplier(capPct)) : uplifted, 9, 2, "WS-NEW-PREMIUM");
       return new RenewalPremium(old, renewed, rateChange, capped);
     } catch (PremiumOverflowException exception) {
       throw new RenewalPremiumException("RENEWAL PREMIUM OUT OF RANGE", exception);

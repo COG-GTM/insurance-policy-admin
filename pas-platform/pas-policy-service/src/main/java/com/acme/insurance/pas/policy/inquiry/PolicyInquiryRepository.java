@@ -102,6 +102,21 @@ public class PolicyInquiryRepository {
    * PostgreSQL equivalent of POLEND's {@code WITH RS USE AND KEEP UPDATE LOCKS} (AB-526). Unknown
    * and unentitled policies are both empty so callers return 404.
    */
+  /**
+   * True when the policyholder also holds a policy the caller is not entitled to; an ACH
+   * endorsement would otherwise change that policy's mailing address too.
+   */
+  public boolean holderHasPoliciesOutside(String policyholderId, CallerEntitlements entitlements) {
+    return jdbc.sql(
+            "SELECT EXISTS (SELECT 1 FROM pas.policies p WHERE p.policyholder_id = :policyholderId AND NOT "
+                + ENTITLEMENT_PREDICATE
+                + ")")
+        .param("policyholderId", policyholderId)
+        .params(entitlementParameters(entitlements))
+        .query(Boolean.class)
+        .single();
+  }
+
   public Optional<Policy> lockPolicy(String policyNumber, CallerEntitlements entitlements) {
     return jdbc.sql(
             """
