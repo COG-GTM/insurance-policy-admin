@@ -4,6 +4,142 @@ info:
   version: v0
 servers: []
 paths:
+  /api/v1/policies/{policyNumber}/renewals:
+    post:
+      tags:
+      - renewal-controller
+      summary: Renew a policy for the next term (POLRNW)
+      description: "Requires policy:renew and a matching book, agent_id, or branch_codes\
+        \ entitlement. Idempotent per term: a second request for the same termExpiryDate\
+        \ is 409."
+      operationId: renew
+      parameters:
+      - name: policyNumber
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenewalRequest"
+        required: true
+      responses:
+        "201":
+          description: Policy renewed
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RenewalResponse"
+        "202":
+          description: "Route is in SHADOW: result recorded in pas_shadow, policy\
+            \ unchanged"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RenewalResponse"
+        "400":
+          description: Malformed request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks policy:renew
+        "404":
+          description: Policy is unknown or not entitled
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "409":
+          description: Term already renewed or termExpiryDate is not the current term
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "422":
+          description: Renewal rejected by a business rule
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "503":
+          description: Renewal route is LEGACY or the claims source is unavailable
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+      security:
+      - bearerAuth: []
+  /api/v1/policies/{policyNumber}/endorsements:
+    post:
+      tags:
+      - endorsement-controller
+      summary: Endorse a policy mid-term (POLEND)
+      description: "Requires policy:endorse and a matching book, agent_id, or branch_codes\
+        \ entitlement. Concurrent endorsements on one policy are serialised by a row\
+        \ lock."
+      operationId: endorse
+      parameters:
+      - name: policyNumber
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EndorsementRequest"
+        required: true
+      responses:
+        "201":
+          description: Endorsement recorded and applied
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EndorsementResponse"
+        "202":
+          description: "Route is in SHADOW: result recorded in pas_shadow, policy\
+            \ unchanged"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EndorsementResponse"
+        "400":
+          description: Malformed request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Token lacks policy:endorse
+        "404":
+          description: Policy is unknown or not entitled
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "422":
+          description: "Endorsement rejected: type, term, date or details invalid"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "503":
+          description: Endorsement route is LEGACY
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+      security:
+      - bearerAuth: []
   /api/v1/policies/{policyNumber}:
     get:
       tags:
@@ -113,6 +249,182 @@ paths:
                 $ref: "#/components/schemas/WhoamiResponse"
 components:
   schemas:
+    RenewalRequest:
+      type: object
+      properties:
+        termExpiryDate:
+          type: string
+          format: date
+          description: Expiry date of the term being renewed. A second request for
+            the same term is 409.
+          example: 2025-01-01
+      required:
+      - termExpiryDate
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type:
+          - string
+          - "null"
+        status:
+          type: integer
+          format: int32
+        detail:
+          type:
+          - string
+          - "null"
+        instance:
+          type:
+          - string
+          - "null"
+          format: uri
+        properties:
+          type:
+          - object
+          - "null"
+          additionalProperties: {}
+    RenewalResponse:
+      type: object
+      properties:
+        policyNumber:
+          type: string
+        mode:
+          type: string
+        priorEffectiveDate:
+          type: string
+          format: date
+        priorExpiryDate:
+          type: string
+          format: date
+        effectiveDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        priorPremium:
+          type: number
+        totalPremium:
+          type: number
+        rateChangePct:
+          type: number
+        capped:
+          type: boolean
+        renewalCount:
+          type: integer
+          format: int32
+        policyStatus:
+          type: string
+        uwStatus:
+          type: string
+        openClaims:
+          type: integer
+          format: int32
+    AddressChange:
+      type: object
+      properties:
+        addrLine1:
+          type: string
+          maxLength: 40
+          minLength: 0
+        addrLine2:
+          type: string
+          maxLength: 40
+          minLength: 0
+        city:
+          type: string
+          maxLength: 25
+          minLength: 0
+        stateCode:
+          type: string
+          maxLength: 2
+          minLength: 2
+        zipCode:
+          type: string
+          maxLength: 10
+          minLength: 0
+      required:
+      - addrLine1
+      - city
+      - stateCode
+      - zipCode
+    CoverageAddition:
+      type: object
+      properties:
+        coverageType:
+          type: string
+          maxLength: 4
+          minLength: 0
+        description:
+          type: string
+          maxLength: 40
+          minLength: 0
+        coverageLimit:
+          type: number
+          minimum: 0.00
+        deductible:
+          type: number
+          minimum: 0.00
+        premium:
+          type: number
+          minimum: 0.00
+      required:
+      - coverageType
+    EndorsementRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          description: "CAD, CRM, LCH, ACH or CAN"
+          example: LCH
+        effectiveDate:
+          type: string
+          format: date
+          description: Endorsement effective date; defaults to today
+          example: 2024-07-01
+        description:
+          type: string
+          maxLength: 100
+          minLength: 0
+        coverageSeq:
+          type: integer
+          format: int32
+        newLimit:
+          type: number
+          minimum: 0.00
+        coverage:
+          $ref: "#/components/schemas/CoverageAddition"
+        address:
+          $ref: "#/components/schemas/AddressChange"
+    EndorsementResponse:
+      type: object
+      properties:
+        policyNumber:
+          type: string
+        mode:
+          type: string
+        endorsementSeq:
+          type: integer
+          format: int32
+        type:
+          type: string
+        effectiveDate:
+          type: string
+          format: date
+        description:
+          type: string
+        proRataFactor:
+          type: number
+        premiumAdjustment:
+          type: number
+        totalPremium:
+          type: number
+        policyStatus:
+          type: string
     PolicyResponse:
       type: object
       properties:

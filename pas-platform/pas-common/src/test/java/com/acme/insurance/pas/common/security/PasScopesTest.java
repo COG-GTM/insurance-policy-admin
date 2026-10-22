@@ -12,6 +12,9 @@ class PasScopesTest {
     assertEquals("pii:read", PasScopes.PII_READ);
     assertEquals("underwriting:decide", PasScopes.UNDERWRITING_DECIDE);
     assertEquals("batch:operate", PasScopes.BATCH_OPERATE);
+    assertEquals("policy:renew", PasScopes.POLICY_RENEW);
+    assertEquals("policy:endorse", PasScopes.POLICY_ENDORSE);
+    assertEquals("underwriting:override", PasScopes.UNDERWRITING_OVERRIDE);
     assertEquals("SCOPE_policy:read", PasScopes.authority(PasScopes.POLICY_READ));
   }
 }

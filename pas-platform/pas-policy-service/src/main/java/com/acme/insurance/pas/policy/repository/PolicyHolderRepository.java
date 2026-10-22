@@ -135,4 +135,23 @@ public class PolicyHolderRepository {
   private static PiiContext context(String custId, String column) {
     return new PiiContext("policy_holders", column, custId);
   }
+
+  /** ACH endorsement (Q-13). Address columns are not among the V5 encrypted PII columns. */
+  public int changeAddress(
+      String custId,
+      String addrLine1,
+      String addrLine2,
+      String city,
+      String stateCode,
+      String zipCode) {
+    return jdbc.sql(
+            "UPDATE pas.policy_holders SET addr_line1 = :addrLine1, addr_line2 = :addrLine2, city = :city, state_code = :stateCode, zip_code = :zipCode WHERE cust_id = :custId")
+        .param("addrLine1", addrLine1)
+        .param("addrLine2", addrLine2)
+        .param("city", city)
+        .param("stateCode", stateCode)
+        .param("zipCode", zipCode)
+        .param("custId", custId)
+        .update();
+  }
 }

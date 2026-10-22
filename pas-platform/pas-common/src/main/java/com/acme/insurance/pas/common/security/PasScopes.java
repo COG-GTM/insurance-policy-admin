@@ -6,6 +6,9 @@ public final class PasScopes {
   public static final String PII_READ = "pii:read";
   public static final String UNDERWRITING_DECIDE = "underwriting:decide";
   public static final String BATCH_OPERATE = "batch:operate";
+  public static final String POLICY_RENEW = "policy:renew";
+  public static final String POLICY_ENDORSE = "policy:endorse";
+  public static final String UNDERWRITING_OVERRIDE = "underwriting:override";
 
   private PasScopes() {}
 

@@ -19,6 +19,14 @@ pas:
     factor-mode: ${PAS_RATING_FACTOR_MODE:legacy}
   routing:
     policy-inquiry: ${PAS_ROUTE_POLICY_INQUIRY:legacy}
+    renewal: ${PAS_ROUTE_RENEWAL:legacy}
+    endorsement: ${PAS_ROUTE_ENDORSEMENT:legacy}
+  renewal:
+    uplift-pct: 5.00
+    max-increase-pct: 15.00
+    max-open-claims: 3
+    window-days-before-expiry: 90
+    window-days-after-expiry: 30
   pii:
     encryption:
       active-key-id: ${PAS_PII_ENCRYPTION_KEY_ID:local-v1}

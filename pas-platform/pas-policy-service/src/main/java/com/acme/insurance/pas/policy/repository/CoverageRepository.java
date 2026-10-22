@@ -3,6 +3,8 @@ package com.acme.insurance.pas.policy.repository;
 import com.acme.insurance.pas.domain.Coverage;
 import com.acme.insurance.pas.domain.CoverageStatus;
 import com.acme.insurance.pas.domain.CoverageType;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -83,5 +85,52 @@ public class CoverageRepository {
         JdbcValues.integer(row, "coinsurance_pct"),
         JdbcValues.charValue(row, "rating_territory"),
         JdbcValues.charValue(row, "class_code"));
+  }
+
+  /** POLRNW 7000: moves every active coverage to the new term. */
+  public int redateActive(String policyNumber, LocalDate effectiveDate, LocalDate expiryDate) {
+    return jdbc.sql(
+            "UPDATE pas.coverages SET effective_date = :effectiveDate, expiry_date = :expiryDate WHERE policy_number = :policyNumber AND status = 'AC'")
+        .param("effectiveDate", effectiveDate)
+        .param("expiryDate", expiryDate)
+        .param("policyNumber", policyNumber)
+        .update();
+  }
+
+  public int nextSequence(String policyNumber) {
+    Integer max =
+        jdbc.sql("SELECT MAX(sequence_num) FROM pas.coverages WHERE policy_number = :policyNumber")
+            .param("policyNumber", policyNumber)
+            .query(Integer.class)
+            .optional()
+            .orElse(null);
+    return max == null ? 1 : max + 1;
+  }
+
+  /** Ends one active coverage on the given date and marks it cancelled. */
+  public int cancel(String policyNumber, int sequenceNum, LocalDate expiryDate) {
+    return jdbc.sql(
+            "UPDATE pas.coverages SET status = 'CN', expiry_date = :expiryDate WHERE policy_number = :policyNumber AND sequence_num = :sequenceNum AND status = 'AC'")
+        .param("expiryDate", expiryDate)
+        .param("policyNumber", policyNumber)
+        .param("sequenceNum", sequenceNum)
+        .update();
+  }
+
+  public int cancelActive(String policyNumber, LocalDate expiryDate) {
+    return jdbc.sql(
+            "UPDATE pas.coverages SET status = 'CN', expiry_date = :expiryDate WHERE policy_number = :policyNumber AND status = 'AC'")
+        .param("expiryDate", expiryDate)
+        .param("policyNumber", policyNumber)
+        .update();
+  }
+
+  public int changeLimit(String policyNumber, int sequenceNum, BigDecimal coverageLimit) {
+    return jdbc.sql(
+            "UPDATE pas.coverages SET coverage_limit = :coverageLimit WHERE policy_number = :policyNumber AND sequence_num = :sequenceNum AND status = 'AC'")
+        .param("coverageLimit", coverageLimit)
+        .param("policyNumber", policyNumber)
+        .param("sequenceNum", sequenceNum)
+        .update();
   }
 }
