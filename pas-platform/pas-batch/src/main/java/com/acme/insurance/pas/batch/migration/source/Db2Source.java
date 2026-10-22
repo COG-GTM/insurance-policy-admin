@@ -71,18 +71,16 @@ public final class Db2Source implements AutoCloseable {
     String sql =
         "SELECT DISTINCT RTRIM(POLICY_NUMBER) AS POLICY_NUMBER FROM "
             + schema
-            + ".COVERAGES WHERE (? IS NULL OR RTRIM(POLICY_NUMBER) > ?) "
+            + ".COVERAGES "
+            + (afterKey == null ? "" : "WHERE RTRIM(POLICY_NUMBER) > ? ")
             + "ORDER BY POLICY_NUMBER FETCH FIRST ? ROWS ONLY";
     try (Connection connection = pool.getConnection();
         PreparedStatement statement = connection.prepareStatement(sql)) {
-      if (afterKey == null) {
-        statement.setNull(1, Types.VARCHAR);
-        statement.setNull(2, Types.VARCHAR);
-      } else {
-        statement.setString(1, afterKey);
-        statement.setString(2, afterKey);
+      int limitParameterIndex = 1;
+      if (afterKey != null) {
+        statement.setString(limitParameterIndex++, afterKey);
       }
-      statement.setInt(3, limit);
+      statement.setInt(limitParameterIndex, limit);
       try (ResultSet resultSet = statement.executeQuery()) {
         List<String> keys = new ArrayList<>();
         while (resultSet.next()) {
@@ -99,18 +97,16 @@ public final class Db2Source implements AutoCloseable {
     String sql =
         "SELECT RTRIM(POLICY_NUMBER) AS POLICY_NUMBER FROM "
             + schema
-            + ".POLICIES WHERE (? IS NULL OR RTRIM(POLICY_NUMBER) > ?) "
+            + ".POLICIES "
+            + (afterKey == null ? "" : "WHERE RTRIM(POLICY_NUMBER) > ? ")
             + "ORDER BY RTRIM(POLICY_NUMBER) FETCH FIRST ? ROWS ONLY";
     try (Connection connection = pool.getConnection();
         PreparedStatement statement = connection.prepareStatement(sql)) {
-      if (afterKey == null) {
-        statement.setNull(1, Types.VARCHAR);
-        statement.setNull(2, Types.VARCHAR);
-      } else {
-        statement.setString(1, afterKey);
-        statement.setString(2, afterKey);
+      int limitParameterIndex = 1;
+      if (afterKey != null) {
+        statement.setString(limitParameterIndex++, afterKey);
       }
-      statement.setInt(3, limit);
+      statement.setInt(limitParameterIndex, limit);
       try (ResultSet resultSet = statement.executeQuery()) {
         List<String> keys = new ArrayList<>();
         while (resultSet.next()) {
