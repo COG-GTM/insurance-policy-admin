@@ -61,7 +61,8 @@
       "fields": [
         {"name": "policyNumber", "type": "text", "length": 12, "source": "POLICY-NUMBER"},
         {"name": "uwStatus", "type": "text", "length": 2, "source": "POLICY-UW-STATUS"},
-        {"name": "riskScore", "type": "int", "digits": 3, "source": "POLICY-RISK-SCORE"}
+        {"name": "riskScore", "type": "int", "digits": 3, "source": "POLICY-RISK-SCORE"},
+        {"name": "recordHex", "type": "hex", "length": 250, "source": "POLICY-RECORD", "sourceLength": 125}
       ]
     },
     "error": {

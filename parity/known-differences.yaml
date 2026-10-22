@@ -47,6 +47,12 @@
   reason: The COBOL notification stores the score without the loss-ratio surcharge.
   javaValue: 499
 - program: UNDWRT
+  fixture: loss-ratio-1050
+  field: "outputs.notification[0].recordHex"
+  quirk: Q-21
+  reason: The Java notification record reflects its referred decision and loss-ratio surcharge.
+  javaValue: "504F4C303030303030303031415554202030303030303030303030303030303030202020202020202020202020202020204230303100000100000C000000000C0000010000000C303030303030303030303052533439392020303030303030303020202020202020202020202020202020202020202020202020202020"
+- program: UNDWRT
   fixture: max-pic-values
   field: "outputs.decision[0].riskScore"
   quirk: Q-21
@@ -64,6 +70,12 @@
   quirk: Q-20
   reason: The 10000.00% ratio wraps to 0.00, dropping +200; the 9(3) record truncates legacy 1249 to 249 while Java carries 1449.
   javaValue: 1449
+- program: UNDWRT
+  fixture: max-pic-values
+  field: "outputs.notification[0].recordHex"
+  quirk: Q-21
+  reason: The Java notification record reflects the full Java score after the loss-ratio surcharge.
+  javaValue: "504F4C303030303030303031415554202030303030303030303030303030303030202020202020202020202020202020204230303199999999999C000000000C9999999999999C303030303030303030303044433434392020303030303030303020202020202020202020202020202020202020202020202020202020"
 - program: UNDWRT
   fixture: receive-failure
   field: outputs.decision
@@ -100,6 +112,12 @@
   quirk: Q-45
   reason: The legacy MOVE into unsigned CUST-CREDIT-SCORE drops the negative sign.
   javaValue: 400
+- program: UNDWRT
+  fixture: credit-negative-five
+  field: "outputs.notification[0].recordHex"
+  quirk: Q-45
+  reason: The Java notification record retains its risk score when the COBOL unsigned MOVE changes it.
+  javaValue: "504F4C303030303030303031415554202030303030303030303030303030303030202020202020202020202020202020204230303100000100000C000000000C0000010000000C303030303030303030303052533430302020303030303030303020202020202020202020202020202020202020202020202020202020"
 - program: PREMBAT
   scope: job
   fixture: insert-collision

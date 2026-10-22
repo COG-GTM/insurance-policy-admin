@@ -1,11 +1,17 @@
 package com.acme.insurance.pas.policy.underwriting.parity;
 
+import com.acme.insurance.pas.copybook.CopybookCharset;
+import com.acme.insurance.pas.copybook.LegacyPolicyRecords;
+import com.acme.insurance.pas.domain.Coded;
+import com.acme.insurance.pas.domain.PolicyType;
+import com.acme.insurance.pas.domain.UnderwritingStatus;
 import com.acme.insurance.pas.parity.ParityAdapter;
 import com.acme.insurance.pas.policy.underwriting.UnderwritingInput;
 import com.acme.insurance.pas.policy.underwriting.UnderwritingOutcome;
 import com.acme.insurance.pas.policy.underwriting.UnderwritingRules;
 import com.acme.insurance.pas.policy.underwriting.UnderwritingThresholds;
 import java.math.BigDecimal;
+import java.util.HexFormat;
 import java.util.List;
 
 final class UndwrtParityAdapter
@@ -53,8 +59,41 @@ final class UndwrtParityAdapter
                 decision.riskScore(),
                 decision.reasons().get(0))),
         List.of(new PolicyUpdateRow(status, decision.riskScore())),
-        List.of(new NotificationRow(input.policy().policyNumber(), status, decision.riskScore())),
+        List.of(
+            new NotificationRow(
+                input.policy().policyNumber(),
+                status,
+                decision.riskScore(),
+                recordHex(input, status, decision.riskScore()))),
         List.of());
+  }
+
+  private static String recordHex(Input input, String status, int riskScore) {
+    Policy source = input.policy();
+    com.acme.insurance.pas.domain.Policy record =
+        new com.acme.insurance.pas.domain.Policy(
+            source.policyNumber(),
+            Coded.of(PolicyType.class, source.policyType()),
+            null,
+            null,
+            null,
+            null,
+            null,
+            source.branchCode(),
+            source.totalPremium(),
+            BigDecimal.ZERO,
+            source.coverageLimit(),
+            null,
+            0,
+            Coded.of(UnderwritingStatus.class, status),
+            riskScore,
+            null,
+            null,
+            null,
+            null);
+    return HexFormat.of()
+        .formatHex(LegacyPolicyRecords.undwrtDecisionRecord(record, CopybookCharset.ASCII))
+        .toUpperCase(java.util.Locale.ROOT);
   }
 
   record Input(
@@ -96,7 +135,7 @@ final class UndwrtParityAdapter
 
   record PolicyUpdateRow(String uwStatus, int riskScore) {}
 
-  record NotificationRow(String policyNumber, String uwStatus, int riskScore) {}
+  record NotificationRow(String policyNumber, String uwStatus, int riskScore, String recordHex) {}
 
   record ErrorRow(String message) {}
 }

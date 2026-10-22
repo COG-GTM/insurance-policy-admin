@@ -8,6 +8,14 @@ public enum CopybookCharset {
 
   private final Charset charset;
 
+  public static CopybookCharset fromName(String value) {
+    return switch (value.toUpperCase(java.util.Locale.ROOT)) {
+      case "IBM037", "EBCDIC" -> EBCDIC;
+      case "ASCII", "ISO-8859-1" -> ASCII;
+      default -> throw new IllegalArgumentException("Unsupported copybook charset: " + value);
+    };
+  }
+
   CopybookCharset(Charset charset) {
     this.charset = charset;
   }

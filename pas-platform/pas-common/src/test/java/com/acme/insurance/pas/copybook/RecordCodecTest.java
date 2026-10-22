@@ -46,6 +46,41 @@ class RecordCodecTest {
   }
 
   @Test
+  void legacyPolicyRecordWriterTruncatesOnlyTheRiskScoreAndAcceptsIbm037Name() {
+    Policy source =
+        new Policy(
+            policy().policyNumber(),
+            policy().policyType(),
+            policy().policyStatus(),
+            policy().effectiveDate(),
+            policy().expiryDate(),
+            policy().policyholderId(),
+            policy().agentCode(),
+            policy().branchCode(),
+            policy().totalPremium(),
+            policy().deductible(),
+            policy().coverageLimit(),
+            policy().inceptionDate(),
+            policy().renewalCount(),
+            policy().uwStatus(),
+            1234,
+            policy().webIndicator(),
+            policy().apiFlag(),
+            policy().lastUpdated(),
+            policy().updatedBy());
+    byte[] ascii = LegacyPolicyRecords.undwrtDecisionRecord(source, CopybookCharset.ASCII);
+    byte[] ebcdic =
+        LegacyPolicyRecords.undwrtDecisionRecord(source, CopybookCharset.fromName("IBM037"));
+
+    assertThat(ascii).hasSize(125);
+    assertThat(new PolicyRecordCodec(CopybookCharset.ASCII).decode(ascii).riskScore())
+        .isEqualTo(234);
+    assertThat(new PolicyRecordCodec(CopybookCharset.EBCDIC).decode(ebcdic))
+        .isEqualTo(new PolicyRecordCodec(CopybookCharset.ASCII).decode(ascii));
+    assertThat(CopybookCharset.fromName("IBM037")).isEqualTo(CopybookCharset.EBCDIC);
+  }
+
+  @Test
   void ebcdicPolicyBytesMatchHandCraftedCanonicalHex() {
     byte[] encoded = new PolicyRecordCodec(CopybookCharset.EBCDIC).encode(policy());
 
