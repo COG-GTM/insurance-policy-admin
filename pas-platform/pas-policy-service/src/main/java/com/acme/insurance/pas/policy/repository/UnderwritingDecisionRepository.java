@@ -161,9 +161,10 @@ public class UnderwritingDecisionRepository {
         JdbcValues.charValue(row, "override_by"));
   }
 
-  private static String legacyDecisionReason(String reason) {
-    return reason != null && reason.length() > LEGACY_DECISION_REASON_MAX_LENGTH
-        ? reason.substring(0, LEGACY_DECISION_REASON_MAX_LENGTH)
+  static String legacyDecisionReason(String reason) {
+    return reason != null
+            && reason.codePointCount(0, reason.length()) > LEGACY_DECISION_REASON_MAX_LENGTH
+        ? reason.substring(0, reason.offsetByCodePoints(0, LEGACY_DECISION_REASON_MAX_LENGTH))
         : reason;
   }
 }
