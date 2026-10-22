@@ -79,8 +79,8 @@ public final class ParallelRunService {
         throw new IllegalArgumentException("Business date is outside the parallel-run cycle");
       }
     }
-    markAbsent(businessDate, "PREMIUMS");
-    markAbsent(businessDate, "EXTRACT");
+    markAbsent(businessDate, cycleId, "PREMIUMS");
+    markAbsent(businessDate, cycleId, "EXTRACT");
     List<ObservedDifference> differences = new ArrayList<>();
     Map<String, Map<String, Object>> legacy = readLegacyPremiums(businessDate);
     Map<String, Map<String, Object>> shadow = readShadowPremiums(businessDate);
@@ -236,14 +236,15 @@ public final class ParallelRunService {
     }
   }
 
-  private void markAbsent(LocalDate businessDate, String artifact) {
+  private void markAbsent(LocalDate businessDate, UUID cycleId, String artifact) {
     jdbc.update(
         """
         UPDATE pas_batch.parallel_run_difference
         SET present = false, last_seen_run = now()
-        WHERE business_date = ? AND artifact = ?
+        WHERE business_date = ? AND cycle_id IS NOT DISTINCT FROM ? AND artifact = ?
         """,
         businessDate,
+        cycleId,
         artifact);
   }
 
@@ -255,9 +256,8 @@ public final class ParallelRunService {
             (cycle_id, business_date, artifact, record_key, field, legacy_value, shadow_value,
              present, first_seen_run, last_seen_run)
         VALUES (?, ?, ?, ?, ?, ?, ?, true, now(), now())
-        ON CONFLICT (business_date, artifact, record_key, field) DO UPDATE
-        SET cycle_id = COALESCE(EXCLUDED.cycle_id, pas_batch.parallel_run_difference.cycle_id),
-            legacy_value = EXCLUDED.legacy_value,
+        ON CONFLICT (cycle_id, business_date, artifact, record_key, field) DO UPDATE
+        SET legacy_value = EXCLUDED.legacy_value,
             shadow_value = EXCLUDED.shadow_value,
             present = true,
             last_seen_run = now(),

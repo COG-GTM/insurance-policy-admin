@@ -12,8 +12,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -55,6 +57,16 @@ public final class MigrationRowWriter implements ItemWriter<MigrationRow> {
   public void upsert(MigrationTable table, Map<String, Object> sourceRow) {
     List<String> columns = new ArrayList<>();
     List<Object> values = new ArrayList<>();
+    ExistingHolder existingHolder =
+        table == MigrationTable.POLICY_HOLDERS
+            ? findExistingHolder(((String) sourceRow.get("cust_id")).stripTrailing())
+            : null;
+    if (existingHolder != null && existingHolder.matchesRow(sourceRow, cipher, sourceZone)) {
+      metrics
+          .counter("pas.migration.bulk.rows", "table", table.targetName(), "result", "unchanged")
+          .increment();
+      return;
+    }
     if (table == MigrationTable.TERRITORY_FACTORS) {
       columns.add("factor_set");
       values.add("DB2");
@@ -63,7 +75,7 @@ public final class MigrationRowWriter implements ItemWriter<MigrationRow> {
       String sourceName = sourceColumn.toLowerCase(java.util.Locale.ROOT);
       Object value = sourceRow.get(sourceName);
       if (table == MigrationTable.POLICY_HOLDERS && isRegulated(sourceName)) {
-        addEncryptedHolderValue(sourceName, value, sourceRow, columns, values);
+        addEncryptedHolderValue(sourceName, value, sourceRow, existingHolder, columns, values);
       } else {
         columns.add(targetColumn(table, sourceName));
         values.add(convertTimestamp(value));
@@ -122,25 +134,121 @@ public final class MigrationRowWriter implements ItemWriter<MigrationRow> {
         .increment();
   }
 
+  private ExistingHolder findExistingHolder(String custId) {
+    List<Map<String, Object>> rows =
+        jdbc.queryForList(
+            """
+            SELECT * FROM pas.policy_holders WHERE cust_id = ?
+            """,
+            custId);
+    if (rows.isEmpty()) {
+      return null;
+    }
+    Map<String, Object> row = rows.getFirst();
+    return new ExistingHolder(row);
+  }
+
   private void addEncryptedHolderValue(
       String column,
       Object value,
       Map<String, Object> sourceRow,
+      ExistingHolder existingHolder,
       List<String> columns,
       List<Object> values) {
     String custId = ((String) sourceRow.get("cust_id")).stripTrailing();
     String encryptedColumn = column + "_enc";
-    columns.add(encryptedColumn);
     PiiContext context = new PiiContext("policy_holders", encryptedColumn, custId);
-    values.add(
-        switch (column) {
-          case "date_of_birth" -> PolicyHolderPii.encryptDate((LocalDate) value, cipher, context);
-          case "credit_score" -> PolicyHolderPii.encryptInteger((Integer) value, cipher, context);
-          default -> PolicyHolderPii.encryptString((String) value, cipher, context);
-        });
+    boolean unchanged =
+        existingHolder != null && existingHolder.matches(column, value, cipher, context);
+    byte[] existingCiphertext = existingHolder == null ? null : existingHolder.ciphertext(column);
+    columns.add(encryptedColumn);
+    values.add(unchanged ? copy(existingCiphertext) : encryptHolderValue(column, value, context));
     if (column.equals("tax_id")) {
       columns.add("tax_id_bidx");
-      values.add(blindIndex.of((String) value));
+      byte[] existingIndex = existingHolder == null ? null : existingHolder.taxIdBlindIndex();
+      values.add(
+          unchanged && existingIndex != null ? copy(existingIndex) : blindIndex.of((String) value));
+    }
+  }
+
+  private byte[] encryptHolderValue(String column, Object value, PiiContext context) {
+    return switch (column) {
+      case "date_of_birth" -> PolicyHolderPii.encryptDate((LocalDate) value, cipher, context);
+      case "credit_score" -> PolicyHolderPii.encryptInteger((Integer) value, cipher, context);
+      default -> PolicyHolderPii.encryptString((String) value, cipher, context);
+    };
+  }
+
+  private static byte[] copy(byte[] value) {
+    return value == null ? null : Arrays.copyOf(value, value.length);
+  }
+
+  private record ExistingHolder(Map<String, Object> values) {
+    byte[] ciphertext(String column) {
+      return (byte[]) values.get(column + "_enc");
+    }
+
+    byte[] taxIdBlindIndex() {
+      return (byte[]) values.get("tax_id_bidx");
+    }
+
+    boolean matchesRow(Map<String, Object> sourceRow, PiiCipher cipher, ZoneId sourceZone) {
+      String custId = ((String) sourceRow.get("cust_id")).stripTrailing();
+      for (Map.Entry<String, Object> entry : sourceRow.entrySet()) {
+        String column = entry.getKey();
+        Object sourceValue = entry.getValue();
+        if (isRegulated(column)) {
+          PiiContext context = new PiiContext("policy_holders", column + "_enc", custId);
+          byte[] encrypted = ciphertext(column);
+          Object decrypted =
+              switch (column) {
+                case "date_of_birth" -> PolicyHolderPii.decryptDate(encrypted, cipher, context);
+                case "credit_score" -> PolicyHolderPii.decryptInteger(encrypted, cipher, context);
+                default -> PolicyHolderPii.decryptString(encrypted, cipher, context);
+              };
+          if (!Objects.equals(sourceValue, decrypted)) {
+            return false;
+          }
+        } else if (!sameValue(convertForComparison(sourceValue, sourceZone), values.get(column))) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    private static Object convertForComparison(Object value, ZoneId sourceZone) {
+      return value instanceof LocalDateTime timestamp
+          ? timestamp.atZone(sourceZone).toOffsetDateTime()
+          : value;
+    }
+
+    private static boolean sameValue(Object expected, Object actual) {
+      if (expected instanceof String left && actual instanceof String right) {
+        return left.stripTrailing().equals(right.stripTrailing());
+      }
+      if (expected instanceof LocalDate left && actual instanceof java.sql.Date right) {
+        return left.equals(right.toLocalDate());
+      }
+      if (expected instanceof java.time.OffsetDateTime left
+          && actual instanceof java.time.OffsetDateTime right) {
+        return left.toInstant().equals(right.toInstant());
+      }
+      if (expected instanceof java.time.OffsetDateTime left
+          && actual instanceof java.sql.Timestamp right) {
+        return left.toInstant().equals(right.toInstant());
+      }
+      return Objects.equals(expected, actual);
+    }
+
+    boolean matches(String column, Object sourceValue, PiiCipher cipher, PiiContext context) {
+      byte[] encrypted = ciphertext(column);
+      Object decrypted =
+          switch (column) {
+            case "date_of_birth" -> PolicyHolderPii.decryptDate(encrypted, cipher, context);
+            case "credit_score" -> PolicyHolderPii.decryptInteger(encrypted, cipher, context);
+            default -> PolicyHolderPii.decryptString(encrypted, cipher, context);
+          };
+      return Objects.equals(sourceValue, decrypted);
     }
   }
 

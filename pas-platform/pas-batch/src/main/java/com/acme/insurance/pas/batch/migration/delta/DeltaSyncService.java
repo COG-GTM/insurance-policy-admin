@@ -2,6 +2,7 @@ package com.acme.insurance.pas.batch.migration.delta;
 
 import com.acme.insurance.pas.batch.migration.MigrationProperties;
 import com.acme.insurance.pas.batch.migration.bulk.MigrationRowWriter;
+import com.acme.insurance.pas.batch.migration.recon.CanonicalRow;
 import com.acme.insurance.pas.batch.migration.source.Db2Source;
 import com.acme.insurance.pas.batch.migration.source.MigrationTable;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -17,6 +18,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
@@ -71,6 +73,7 @@ public final class DeltaSyncService {
     for (MigrationTable table : WATERMARKED_TABLES) {
       processTable(table, runStarted, syncedThrough, changedPolicies, changedHolders);
     }
+    runCoverageSweep();
     refreshPolicyDependents(changedPolicies);
     log.atInfo()
         .addKeyValue("event", "pas.migration.delta.completed")
@@ -79,6 +82,84 @@ public final class DeltaSyncService {
         .addKeyValue("holdersChanged", changedHolders.size())
         .addKeyValue("syncedThrough", syncedThrough)
         .log("Forward delta sync completed");
+  }
+
+  private void runCoverageSweep() {
+    int sweepSize = properties.deltaSync().coverageSweepSize();
+    if (sweepSize < 1) {
+      throw new IllegalStateException(
+          "pas.migration.delta-sync.coverage-sweep-size must be positive");
+    }
+    String cursor =
+        jdbc.query(
+            """
+            SELECT coverage_cursor FROM pas_batch.sync_watermark
+            WHERE table_name = 'COVERAGE_SWEEP' AND direction = 'FORWARD'
+            """,
+            resultSet -> resultSet.next() ? resultSet.getString(1) : null);
+    List<String> keys = nextCoverageKeys(cursor, sweepSize);
+    if (keys.isEmpty() && cursor != null) {
+      keys = nextCoverageKeys(null, sweepSize);
+    }
+    for (String policyNumber : keys) {
+      List<Map<String, Object>> sourceRows =
+          source.readByLeadingKeys(MigrationTable.COVERAGES, List.of(policyNumber), 100_000);
+      List<Map<String, Object>> targetRows =
+          jdbc.queryForList(
+              """
+              SELECT policy_number, sequence_num, coverage_type, description, coverage_limit,
+                     deductible, premium, effective_date, expiry_date, status, coinsurance_pct,
+                     rating_territory, class_code
+              FROM pas.coverages WHERE policy_number = ? ORDER BY sequence_num
+              """,
+              policyNumber);
+      List<String> sourceHashes = coverageHashes(sourceRows);
+      List<String> targetHashes = coverageHashes(targetRows);
+      if (!sourceHashes.equals(targetHashes)) {
+        jdbc.update("DELETE FROM pas.coverages WHERE policy_number = ?", policyNumber);
+        sourceRows.forEach(row -> writer.upsert(MigrationTable.COVERAGES, row));
+      }
+    }
+    String nextCursor = keys.isEmpty() ? null : keys.getLast();
+    jdbc.update(
+        """
+        INSERT INTO pas_batch.sync_watermark
+            (table_name, direction, watermark_value, synced_through, coverage_cursor, updated_at)
+        VALUES ('COVERAGE_SWEEP', 'FORWARD', now(), now(), ?, now())
+        ON CONFLICT (table_name, direction) DO UPDATE
+        SET coverage_cursor = EXCLUDED.coverage_cursor,
+            synced_through = EXCLUDED.synced_through,
+            updated_at = now()
+        """,
+        nextCursor);
+  }
+
+  private List<String> nextCoverageKeys(String cursor, int limit) {
+    Set<String> keys = new TreeSet<>(source.readCoveragePolicyKeys(cursor, limit));
+    keys.addAll(
+        jdbc.query(
+            """
+            SELECT DISTINCT rtrim(policy_number) FROM pas.coverages
+            WHERE (?::text IS NULL OR rtrim(policy_number) > ?)
+            ORDER BY 1 LIMIT ?
+            """,
+            (resultSet, rowNum) -> resultSet.getString(1),
+            cursor,
+            cursor,
+            limit));
+    return keys.stream().limit(limit).toList();
+  }
+
+  private List<String> coverageHashes(List<Map<String, Object>> rows) {
+    return rows.stream()
+        .map(
+            row ->
+                CanonicalRow.sha256(
+                    MigrationTable.COVERAGES.sourceName(),
+                    MigrationTable.COVERAGES.columns(),
+                    row,
+                    sourceZone))
+        .toList();
   }
 
   private void processTable(

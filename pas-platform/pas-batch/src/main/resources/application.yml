@@ -50,6 +50,7 @@ pas:
       lag-alert-threshold: ${PAS_MIGRATION_DELTA_SYNC_LAG_ALERT_THRESHOLD:15m}
       scheduler-enabled: ${PAS_MIGRATION_DELTA_SYNC_SCHEDULER_ENABLED:false}
       fixed-delay: ${PAS_MIGRATION_DELTA_SYNC_FIXED_DELAY:1m}
+      coverage-sweep-size: ${PAS_MIGRATION_COVERAGE_SWEEP_SIZE:100}
     reverse-sync:
       enabled: ${PAS_MIGRATION_REVERSE_SYNC_ENABLED:false}
       max-passes: ${PAS_MIGRATION_REVERSE_SYNC_MAX_PASSES:100}

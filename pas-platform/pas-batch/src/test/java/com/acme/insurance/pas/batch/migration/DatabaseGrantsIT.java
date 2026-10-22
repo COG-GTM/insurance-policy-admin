@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.batch.migration;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
@@ -7,9 +8,22 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.UUID;
+import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobParametersBuilder;
+import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
+import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
+import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -20,7 +34,7 @@ class DatabaseGrantsIT {
   static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
   @Test
-  void cutoverGrantsKeepLegacyReadOnlyAndMoveWritesToPostgres() throws IOException {
+  void cutoverGrantsKeepLegacyReadOnlyAndMoveWritesToPostgres() throws Exception {
     Flyway.configure()
         .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
         .locations("classpath:db/pas-migration")
@@ -48,6 +62,8 @@ class DatabaseGrantsIT {
     assertDenied("pas_batch", "UPDATE pas.policies SET policy_status = policy_status");
     assertAllowed("pas_sync", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
     assertAllowed("pas_sync", "UPDATE pas.policies SET policy_status = policy_status");
+    assertAllowed("pas_sync", "SELECT nextval('pas.policy_seq')");
+    assertAllowed("pas_sync", "SELECT nextval('pas.underwriting_decision_seq')");
     assertAllowed("pas_readonly", "SELECT policy_number FROM pas.policies");
 
     executeResource(jdbc, "grants/post-cutover.sql");
@@ -55,9 +71,63 @@ class DatabaseGrantsIT {
     assertAllowed("pas_service", "UPDATE pas.policies SET policy_status = policy_status");
     assertAllowed("pas_batch", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
     assertAllowed("pas_batch", "UPDATE pas.policies SET policy_status = policy_status");
+    assertAllowed(
+        "pas_batch",
+        "INSERT INTO pas_batch.sync_watermark "
+            + "(table_name, direction, watermark_value, synced_through, updated_at) "
+            + "VALUES ('GRANTS_IT', 'REVERSE', now(), now(), now()) "
+            + "ON CONFLICT (table_name, direction) DO NOTHING");
+    assertAllowed("pas_batch", "SELECT nextval('pas_batch.batch_job_seq')");
+    assertBatchLoginCanRunAJob();
     assertDenied("pas_sync", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
     assertDenied("pas_sync", "UPDATE pas.policies SET policy_status = policy_status");
     assertAllowed("pas_readonly", "SELECT policy_number FROM pas.policies");
+  }
+
+  private static void assertBatchLoginCanRunAJob() throws Exception {
+    JdbcTemplate admin =
+        new JdbcTemplate(
+            new DriverManagerDataSource(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword()));
+    String password = UUID.randomUUID().toString().replace("-", "");
+    String createRole =
+        admin.queryForObject(
+            "SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', ?, ?)",
+            String.class, "pas_batch_it_login", password);
+    admin.execute(createRole);
+    admin.execute("GRANT pas_batch TO pas_batch_it_login");
+
+    DataSource dataSource =
+        new DriverManagerDataSource(POSTGRES.getJdbcUrl(), "pas_batch_it_login", password);
+    PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource);
+    JobRepositoryFactoryBean repositoryFactory = new JobRepositoryFactoryBean();
+    repositoryFactory.setDataSource(dataSource);
+    repositoryFactory.setTransactionManager(transactionManager);
+    repositoryFactory.setDatabaseType("POSTGRES");
+    repositoryFactory.setTablePrefix("pas_batch.BATCH_");
+    repositoryFactory.afterPropertiesSet();
+
+    var repository = repositoryFactory.getObject();
+    TaskExecutorJobLauncher launcher = new TaskExecutorJobLauncher();
+    launcher.setJobRepository(repository);
+    launcher.afterPropertiesSet();
+    Job job =
+        new JobBuilder("databaseGrantsBatchJob", repository)
+            .start(
+                new StepBuilder("databaseGrantsBatchStep", repository)
+                    .tasklet(
+                        (contribution, chunkContext) ->
+                            org.springframework.batch.repeat.RepeatStatus.FINISHED,
+                        transactionManager)
+                    .build())
+            .build();
+    JobExecution execution =
+        launcher.run(
+            job,
+            new JobParametersBuilder()
+                .addString("runId", UUID.randomUUID().toString())
+                .toJobParameters());
+    assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
   }
 
   private static void assertAllowed(String role, String sql) {

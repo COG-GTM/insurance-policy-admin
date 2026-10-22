@@ -27,7 +27,7 @@ The supported jobs are:
 |---|---|
 | `bulkLoadJob` | Restartable initial load in FK order: holders, policies, then children |
 | `deltaSyncJob` | Forward watermark-based source synchronization; paused runs exit `DISABLED` |
-| `reverseSyncJob` | Reverse changes using `row_version`; `pas.batch.cli.drain` selects a bounded drain |
+| `reverseSyncJob` | Reverse current rows for trigger-recorded changes in `pas.change_log`; `pas.batch.cli.drain` selects a bounded drain |
 | `reconciliationJob` | Counts, grouped totals, canonical hashes, and safe JSON/Markdown reports |
 | `parallelRunDiffJob` | Premium and legacy-extract comparison for one business date |
 
@@ -41,7 +41,18 @@ Watermarks are based on source change columns and a five-minute overlap by defau
 `pas_sync_lag_seconds{table=...}` and the `PasMigrationDeltaLagHigh` alert. Set
 `PAS_MIGRATION_DELTA_SYNC_PAUSED=true` to pause forwarding; reset it to `false` to resume. The source
 run-start timestamp is persisted as `synced_through`; never manually advance a watermark to hide
-lag.
+lag. Legacy POLNEW/POLRNW are expected to update coverages in the same unit of work as
+POLICIES.LAST_UPDATED; a bounded rolling coverage-set hash sweep and reconciliation hashes detect
+out-of-band writes. The sweep reads the next
+`pas.migration.delta-sync.coverage-sweep-size` policy keys on each side, hashes each coverage set
+with `CanonicalRow`, persists its keyset cursor in `pas_batch.sync_watermark`, wraps when exhausted,
+and re-syncs differing sets. Reverse sync reads `pas.change_log` changes with
+`changed_at >= watermark - overlap ORDER BY id`, groups by policy or holder key, and records its
+watermark with `direction='REVERSE'`. Its six row triggers contain no PII. The
+`pas.capture_change_log` trigger function runs with invoker privileges; pre-cutover `pas_sync` and
+post-cutover `pas_service`/`pas_batch` therefore need INSERT and sequence access on
+`pas.change_log`. For rollback, set modern-write flags to legacy, restart the policy service, drain
+reverse sync, then reconcile.
 
 ## Reconciliation and parallel-run triage
 
@@ -81,14 +92,15 @@ run. After the cutover decision, apply `post-cutover.sql` to make the PostgreSQL
 writer and the legacy runtime read-only. These scripts define NOLOGIN roles; bind actual service
 principals to them through the organization's database identity process.
 
-For an isolated local rehearsal, run `make rollback-rehearsal` from the repository root. It uses
+For an isolated local rehearsal, first run
+`docker compose --profile migration down -v`, then run `make rollback-rehearsal` from the repository root. It uses
 `make dev-env` generated local-only keys, an ephemeral PostgreSQL 16 ACMEINS source and an isolated
 PostgreSQL target. It bulk-loads, runs delta sync, sets new-business, renewal, and endorsement routes
 to `new`, performs authenticated endorsement and renewal API writes, drains reverse sync, and
 requires zero reverse lag and clean reconciliation. It then restores all routes to `legacy`, verifies
 that disabling the migration feature removes migration jobs, and prints the measured RPO 0 / RTO
-≤4-hour verdict with nonzero exit on failure. The timestamped log is stored under
-`~/ab529/rollback-rehearsal-*.log`; no production database or production key is used.
+≤4-hour verdict with nonzero exit on failure. The full log is stored at
+`~/ab529/rollback-rehearsal.log`; no production database or production key is used.
 
 If a rehearsal or production cutover is rolled back, disable `PAS_MIGRATION_ENABLED`, keep online
 routes on the legacy path, stop migration scheduling, and use DB2 as the source of truth. Preserve

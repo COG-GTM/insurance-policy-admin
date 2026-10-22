@@ -4,7 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.batch.migration.source.MigrationTable;
 import com.acme.insurance.pas.batch.testsupport.PasTestDatabase;
+import com.acme.insurance.pas.pii.PiiCipher;
+import com.acme.insurance.pas.pii.PiiContext;
+import com.acme.insurance.pas.pii.PolicyHolderPii;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,6 +61,8 @@ class BulkLoadRestartIT {
   private static JdbcTemplate sourceJdbc;
 
   @Autowired private JdbcTemplate targetJdbc;
+  @Autowired private PiiCipher cipher;
+  @Autowired private MeterRegistry meterRegistry;
   @Autowired private JobLauncher jobLauncher;
   @Autowired private JobExplorer jobExplorer;
 
@@ -163,6 +170,15 @@ class BulkLoadRestartIT {
                 Integer.class))
         .isZero();
 
+    Map<String, Object> holderBeforeRerun =
+        targetJdbc.queryForMap(
+            "SELECT last_updated, date_of_birth_enc, ssn_last4_enc, tax_id_enc, "
+                + "credit_score_enc, tax_id_bidx FROM pas.policy_holders "
+                + "WHERE cust_id = 'C000000001'");
+    double appliedHoldersBeforeRerun =
+        meterRegistry
+            .counter("pas.migration.bulk.rows", "table", "policy_holders", "result", "applied")
+            .count();
     long rowVersion =
         targetJdbc.queryForObject(
             "SELECT row_version FROM pas.policies WHERE policy_number = 'POL000000001'",
@@ -178,6 +194,51 @@ class BulkLoadRestartIT {
                 "SELECT row_version FROM pas.policies WHERE policy_number = 'POL000000001'",
                 Long.class))
         .isEqualTo(rowVersion);
+    Map<String, Object> holderAfterRerun =
+        targetJdbc.queryForMap(
+            "SELECT last_updated, date_of_birth_enc, ssn_last4_enc, tax_id_enc, "
+                + "credit_score_enc, tax_id_bidx FROM pas.policy_holders "
+                + "WHERE cust_id = 'C000000001'");
+    assertThat(holderAfterRerun.get("last_updated"))
+        .isEqualTo(holderBeforeRerun.get("last_updated"));
+    for (String column :
+        new String[] {
+          "date_of_birth_enc", "ssn_last4_enc", "tax_id_enc", "credit_score_enc", "tax_id_bidx"
+        }) {
+      assertThat((byte[]) holderAfterRerun.get(column))
+          .containsExactly((byte[]) holderBeforeRerun.get(column));
+    }
+    assertThat(
+            meterRegistry
+                .counter("pas.migration.bulk.rows", "table", "policy_holders", "result", "applied")
+                .count())
+        .isEqualTo(appliedHoldersBeforeRerun);
+
+    byte[] originalTaxIdCiphertext = (byte[]) holderAfterRerun.get("tax_id_enc");
+    byte[] originalTaxIdIndex = (byte[]) holderAfterRerun.get("tax_id_bidx");
+    sourceJdbc.update(
+        "UPDATE acmeins.policy_holders SET tax_id = ?, "
+            + "last_updated = last_updated + INTERVAL '1' SECOND WHERE cust_id = ?",
+        "TAX0000099",
+        "C000000001");
+    JobExecution changedPii =
+        jobLauncher.run(
+            bulkLoadJob,
+            new JobParametersBuilder().addLong("run.id", 52903L, true).toJobParameters());
+
+    assertThat(changedPii.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+    Map<String, Object> changedHolder =
+        targetJdbc.queryForMap(
+            "SELECT tax_id_enc, tax_id_bidx FROM pas.policy_holders "
+                + "WHERE cust_id = 'C000000001'");
+    assertThat((byte[]) changedHolder.get("tax_id_enc")).isNotEqualTo(originalTaxIdCiphertext);
+    assertThat((byte[]) changedHolder.get("tax_id_bidx")).isNotEqualTo(originalTaxIdIndex);
+    assertThat(
+            PolicyHolderPii.decryptString(
+                (byte[]) changedHolder.get("tax_id_enc"),
+                cipher,
+                new PiiContext("policy_holders", "tax_id_enc", "C000000001")))
+        .isEqualTo("TAX0000099");
     assertThat(
             targetJdbc.queryForObject(
                 "SELECT count(*) FROM pas.policies WHERE policy_number = 'POL000000001'",

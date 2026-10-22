@@ -35,7 +35,7 @@ CREATE TABLE pas_batch.parallel_run_difference (
     triage_note TEXT,
     triaged_by VARCHAR(200),
     triaged_at TIMESTAMPTZ,
-    UNIQUE (business_date, artifact, record_key, field)
+    UNIQUE NULLS NOT DISTINCT (cycle_id, business_date, artifact, record_key, field)
 );
 
 CREATE INDEX ix_parallel_run_diff_date ON pas_batch.parallel_run_difference

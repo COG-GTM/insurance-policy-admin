@@ -18,9 +18,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
@@ -102,7 +105,7 @@ public final class ReverseSyncService {
     ReverseSyncTarget target = targetProvider.getObject();
     int totalApplied = 0;
     for (int pass = 1; pass <= properties.reverseSync().maxPasses(); pass++) {
-      int passApplied = syncPolicyChanges(target) + syncHolderChanges(target);
+      int passApplied = syncChangeLog(target);
       totalApplied += passApplied;
       metrics.counter("pas.migration.reverse.passes").increment();
       log.atInfo()
@@ -125,60 +128,156 @@ public final class ReverseSyncService {
       return 0;
     }
     ReverseSyncTarget target = targetProvider.getObject();
-    return syncPolicyChanges(target) + syncHolderChanges(target);
+    return syncChangeLog(target);
   }
 
-  private int syncPolicyChanges(ReverseSyncTarget target) {
-    int applied = 0;
-    String afterPolicy = "";
+  private int syncChangeLog(ReverseSyncTarget target) {
+    ChangeWatermark watermark = reverseChangeWatermark();
+    LocalDateTime lowerBound = watermark.changedAt().minus(properties.deltaSync().overlap());
+    long afterId = 0;
+    LocalDateTime maximumChangedAt = watermark.changedAt();
+    int newChanges = 0;
     while (true) {
-      List<Map<String, Object>> policies = changedPolicies(afterPolicy);
-      if (policies.isEmpty()) {
-        updateReverseLag("policies", 0);
-        return applied;
+      List<Change> changes =
+          jdbc.query(
+              """
+              SELECT id, table_name, record_key, policy_number, changed_at
+              FROM pas.change_log
+              WHERE changed_at >= ? AND id > ?
+              ORDER BY id
+              FETCH FIRST ? ROWS ONLY
+              """,
+              (resultSet, rowNum) ->
+                  new Change(
+                      resultSet.getLong("id"),
+                      resultSet.getString("table_name"),
+                      resultSet.getString("record_key"),
+                      resultSet.getString("policy_number"),
+                      resultSet
+                          .getObject("changed_at", OffsetDateTime.class)
+                          .withOffsetSameInstant(ZoneOffset.UTC)
+                          .toLocalDateTime()),
+              lowerBound.atZone(ZoneOffset.UTC).toOffsetDateTime(),
+              afterId,
+              PAGE_SIZE);
+      if (changes.isEmpty()) {
+        break;
+      }
+      Set<String> changedPolicies = new LinkedHashSet<>();
+      Set<String> changedHolders = new LinkedHashSet<>();
+      for (Change change : changes) {
+        if (change.changedAt().isAfter(watermark.changedAt())) {
+          newChanges++;
+        }
+        if (change.changedAt().isAfter(maximumChangedAt)) {
+          maximumChangedAt = change.changedAt();
+        }
+        if (change.tableName().equals("POLICY_HOLDERS")) {
+          changedHolders.add(change.recordKey());
+        } else if (change.policyNumber() != null) {
+          changedPolicies.add(change.policyNumber());
+        }
       }
       target.transaction(
           connection -> {
-            for (Map<String, Object> policy : policies) {
-              syncPolicy(connection, policy);
+            for (String policyNumber : changedPolicies) {
+              List<Map<String, Object>> policies =
+                  jdbc.queryForList(
+                      """
+                      SELECT policy_number, policy_type, policy_status, effective_date, expiry_date,
+                             policyholder_id, agent_code, branch_code, total_premium, deductible,
+                             coverage_limit, inception_date, renewal_count, uw_status, risk_score,
+                             web_indicator, api_flag, last_updated, updated_by
+                      FROM pas.policies WHERE policy_number = ?
+                      """,
+                      policyNumber);
+              if (policies.isEmpty()) {
+                deletePolicy(connection, policyNumber);
+              } else {
+                syncPolicy(connection, policies.getFirst());
+              }
+            }
+            for (String custId : changedHolders) {
+              List<Map<String, Object>> holders =
+                  jdbc.queryForList(
+                      """
+                      SELECT cust_id, cust_type, last_name, first_name, middle_init, company_name,
+                             addr_line1, addr_line2, city, state_code, zip_code, country_code, phone,
+                             email, date_of_birth_enc, ssn_last4_enc, tax_id_enc, credit_score_enc,
+                             risk_tier, gdpr_consent, created_date, last_updated
+                      FROM pas.policy_holders WHERE cust_id = ?
+                      """,
+                      custId);
+              if (holders.isEmpty()) {
+                deleteHolder(connection, custId);
+              } else {
+                merge(
+                    connection,
+                    "POLICY_HOLDERS",
+                    MigrationTable.POLICY_HOLDERS.columns(),
+                    "CUST_ID",
+                    normalize(decryptHolder(holders.getFirst())));
+              }
             }
           });
-      for (Map<String, Object> policy : policies) {
-        long rowVersion = ((Number) policy.get("row_version")).longValue();
-        String policyNumber = (String) policy.get("policy_number");
-        jdbc.update(
-            """
-            INSERT INTO pas_batch.reverse_sync_policy_version (policy_number, row_version, synced_at)
-            VALUES (?, ?, now())
-            ON CONFLICT (policy_number) DO UPDATE
-            SET row_version = EXCLUDED.row_version, synced_at = now()
-            """,
-            policyNumber,
-            rowVersion);
-        afterPolicy = policyNumber;
-      }
-      applied += policies.size();
-      metrics.counter("pas.migration.reverse.rows", "table", "policies").increment(policies.size());
+      afterId = changes.getLast().id();
     }
+    if (maximumChangedAt.isAfter(watermark.changedAt())) {
+      jdbc.update(
+          """
+          INSERT INTO pas_batch.sync_watermark
+              (table_name, direction, watermark_value, synced_through, updated_at)
+          VALUES ('CHANGE_LOG', 'REVERSE', ?, now(), now())
+          ON CONFLICT (table_name, direction) DO UPDATE
+          SET watermark_value = GREATEST(pas_batch.sync_watermark.watermark_value,
+                                         EXCLUDED.watermark_value),
+              synced_through = EXCLUDED.synced_through,
+              updated_at = now()
+          """,
+          maximumChangedAt);
+    }
+    metrics.counter("pas.migration.reverse.changes").increment(newChanges);
+    return newChanges;
   }
 
-  private List<Map<String, Object>> changedPolicies(String afterPolicy) {
-    return jdbc.queryForList(
-        """
-        SELECT p.policy_number, p.policy_type, p.policy_status, p.effective_date, p.expiry_date,
-               p.policyholder_id, p.agent_code, p.branch_code, p.total_premium, p.deductible,
-               p.coverage_limit, p.inception_date, p.renewal_count, p.uw_status, p.risk_score,
-               p.web_indicator, p.api_flag, p.last_updated, p.updated_by, p.row_version
-        FROM pas.policies p
-        LEFT JOIN pas_batch.reverse_sync_policy_version v
-          ON v.policy_number = p.policy_number
-        WHERE p.row_version > COALESCE(v.row_version, 0)
-          AND p.policy_number > ?
-        ORDER BY p.policy_number
-        FETCH FIRST ? ROWS ONLY
-        """,
-        afterPolicy,
-        PAGE_SIZE);
+  private ChangeWatermark reverseChangeWatermark() {
+    List<ChangeWatermark> watermarks =
+        jdbc.query(
+            """
+            SELECT watermark_value FROM pas_batch.sync_watermark
+            WHERE table_name = 'CHANGE_LOG' AND direction = 'REVERSE'
+            """,
+            (resultSet, rowNum) -> {
+              LocalDateTime timestamp = resultSet.getObject(1, LocalDateTime.class);
+              return new ChangeWatermark(
+                  timestamp == null ? LocalDateTime.of(1900, 1, 1, 0, 0) : timestamp);
+            });
+    return watermarks.isEmpty()
+        ? new ChangeWatermark(LocalDateTime.of(1900, 1, 1, 0, 0))
+        : watermarks.getFirst();
+  }
+
+  private void deletePolicy(Connection connection, String policyNumber) {
+    for (MigrationTable table :
+        List.of(
+            MigrationTable.COVERAGES,
+            MigrationTable.PREMIUMS,
+            MigrationTable.ENDORSEMENTS,
+            MigrationTable.UNDERWRITING_DECISIONS)) {
+      deleteByPolicy(connection, table.sourceName(), policyNumber);
+    }
+    deleteByPolicy(connection, "POLICIES", policyNumber);
+  }
+
+  private void deleteHolder(Connection connection, String custId) {
+    try (PreparedStatement statement =
+        connection.prepareStatement(
+            "DELETE FROM " + source.schema() + ".POLICY_HOLDERS WHERE CUST_ID = ?")) {
+      statement.setObject(1, custId, Types.CHAR);
+      statement.executeUpdate();
+    } catch (SQLException exception) {
+      throw new IllegalStateException("Unable to delete reverse-sync holder row", exception);
+    }
   }
 
   private void syncPolicy(Connection connection, Map<String, Object> policy) {
@@ -197,6 +296,7 @@ public final class ReverseSyncService {
             MigrationTable.PREMIUMS,
             MigrationTable.ENDORSEMENTS,
             MigrationTable.UNDERWRITING_DECISIONS)) {
+      deleteByPolicy(connection, table.sourceName(), policyNumber);
       mergeRows(connection, table, childRows(table, policyNumber));
     }
   }
@@ -237,93 +337,6 @@ public final class ReverseSyncService {
     }
   }
 
-  private int syncHolderChanges(ReverseSyncTarget target) {
-    LocalDateTime sourceNow = source.currentTimestamp();
-    LocalDateTime watermark = reverseWatermark();
-    String afterCustId = "";
-    int applied = 0;
-    while (true) {
-      List<Map<String, Object>> holders =
-          jdbc.queryForList(
-              """
-              SELECT cust_id, cust_type, last_name, first_name, middle_init, company_name,
-                     addr_line1, addr_line2, city, state_code, zip_code, country_code, phone,
-                     email, date_of_birth_enc, ssn_last4_enc, tax_id_enc, credit_score_enc,
-                     risk_tier, gdpr_consent, created_date, last_updated
-              FROM pas.policy_holders
-              WHERE last_updated > ? AND last_updated <= ? AND cust_id > ?
-              ORDER BY cust_id
-              FETCH FIRST ? ROWS ONLY
-              """,
-              watermark.atZone(sourceZone).toOffsetDateTime(),
-              sourceNow.atZone(sourceZone).toOffsetDateTime(),
-              afterCustId,
-              PAGE_SIZE);
-      if (holders.isEmpty()) {
-        break;
-      }
-      List<Map<String, Object>> plaintextHolders =
-          holders.stream().map(this::decryptHolder).toList();
-      target.transaction(
-          connection -> {
-            for (Map<String, Object> holder : plaintextHolders) {
-              merge(
-                  connection,
-                  "POLICY_HOLDERS",
-                  MigrationTable.POLICY_HOLDERS.columns(),
-                  "CUST_ID",
-                  normalize(holder));
-            }
-          });
-      for (Map<String, Object> holder : holders) {
-        afterCustId = (String) holder.get("cust_id");
-      }
-      applied += holders.size();
-    }
-    if (applied > 0) {
-      LocalDateTime maxUpdated =
-          jdbc.queryForObject(
-              """
-              SELECT MAX(last_updated) AT TIME ZONE ?
-              FROM pas.policy_holders
-              WHERE last_updated > ? AND last_updated <= ?
-              """,
-              (resultSet, rowNum) -> {
-                java.sql.Timestamp timestamp = resultSet.getTimestamp(1);
-                return timestamp == null ? watermark : timestamp.toLocalDateTime();
-              },
-              sourceZone.getId(),
-              watermark.atZone(sourceZone).toOffsetDateTime(),
-              sourceNow.atZone(sourceZone).toOffsetDateTime());
-      jdbc.update(
-          """
-          INSERT INTO pas_batch.sync_watermark
-              (table_name, direction, watermark_value, synced_through, updated_at)
-          VALUES ('POLICY_HOLDERS', 'REVERSE', ?, ?, now())
-          ON CONFLICT (table_name, direction) DO UPDATE
-          SET watermark_value = EXCLUDED.watermark_value,
-              synced_through = EXCLUDED.synced_through,
-              updated_at = now()
-          """,
-          maxUpdated,
-          sourceNow.atZone(sourceZone).toOffsetDateTime());
-    } else {
-      jdbc.update(
-          """
-          INSERT INTO pas_batch.sync_watermark
-              (table_name, direction, watermark_value, synced_through, updated_at)
-          VALUES ('POLICY_HOLDERS', 'REVERSE', ?, ?, now())
-          ON CONFLICT (table_name, direction) DO UPDATE
-          SET synced_through = EXCLUDED.synced_through, updated_at = now()
-          """,
-          watermark,
-          sourceNow.atZone(sourceZone).toOffsetDateTime());
-    }
-    metrics.counter("pas.migration.reverse.rows", "table", "policy_holders").increment(applied);
-    updateReverseLag("policy_holders", 0);
-    return applied;
-  }
-
   private void updateReverseLag(String table, long lagSeconds) {
     AtomicLong gauge =
         reverseLagGauges.computeIfAbsent(
@@ -362,22 +375,6 @@ public final class ReverseSyncService {
             cipher,
             new PiiContext("policy_holders", "credit_score_enc", custId)));
     return result;
-  }
-
-  private LocalDateTime reverseWatermark() {
-    List<LocalDateTime> values =
-        jdbc.query(
-            """
-            SELECT watermark_value FROM pas_batch.sync_watermark
-            WHERE table_name = 'POLICY_HOLDERS' AND direction = 'REVERSE'
-            """,
-            (resultSet, rowNum) -> {
-              java.sql.Timestamp timestamp = resultSet.getTimestamp(1);
-              return timestamp == null
-                  ? LocalDateTime.of(1900, 1, 1, 0, 0)
-                  : timestamp.toLocalDateTime();
-            });
-    return values.isEmpty() ? LocalDateTime.of(1900, 1, 1, 0, 0) : values.getFirst();
   }
 
   private void merge(
@@ -422,7 +419,7 @@ public final class ReverseSyncService {
             .toList();
     String sql =
         "MERGE INTO "
-            + properties.source().schema()
+            + source.schema()
             + "."
             + table
             + " AS target USING (VALUES ("
@@ -463,11 +460,7 @@ public final class ReverseSyncService {
   private void deleteByPolicy(Connection connection, String table, String policyNumber) {
     try (PreparedStatement statement =
         connection.prepareStatement(
-            "DELETE FROM "
-                + properties.source().schema()
-                + "."
-                + table
-                + " WHERE POLICY_NUMBER = ?")) {
+            "DELETE FROM " + source.schema() + "." + table + " WHERE POLICY_NUMBER = ?")) {
       statement.setObject(1, policyNumber, Types.CHAR);
       statement.executeUpdate();
     } catch (SQLException exception) {
@@ -520,4 +513,9 @@ public final class ReverseSyncService {
       default -> Types.CHAR;
     };
   }
+
+  private record Change(
+      long id, String tableName, String recordKey, String policyNumber, LocalDateTime changedAt) {}
+
+  private record ChangeWatermark(LocalDateTime changedAt) {}
 }

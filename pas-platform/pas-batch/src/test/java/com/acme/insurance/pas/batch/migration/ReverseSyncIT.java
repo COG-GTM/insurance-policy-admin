@@ -68,4 +68,85 @@ class ReverseSyncIT extends MigrationIntegrationTestSupport {
         .isEqualTo("TAX0000001");
     reverseTarget.close();
   }
+
+  @Test
+  void premiumOnlyChangeIsDrainedWithoutPolicyVersionChanges() throws Exception {
+    seedSource(1);
+    bulkLoadAll();
+    target.update(
+        "UPDATE pas.premiums SET total_premium = 7777.00 "
+            + "WHERE policy_number = 'POL000000001'");
+    ReverseSyncTarget reverseTarget = newReverseTarget();
+    try {
+      ReverseSyncService service = enabledService(reverseTarget);
+      assertThat(service.drain()).isGreaterThan(0);
+      assertThat(
+              sourceJdbc.queryForObject(
+                  "SELECT total_premium FROM acmeins.premiums "
+                      + "WHERE policy_number = 'POL000000001' ORDER BY calc_date DESC FETCH FIRST 1 ROW ONLY",
+                  java.math.BigDecimal.class))
+          .isEqualByComparingTo("7777.00");
+    } finally {
+      reverseTarget.close();
+    }
+  }
+
+  @Test
+  void sameHolderTimestampAcrossConsecutiveDrainsReplicatesBothRows() throws Exception {
+    seedSource(2);
+    bulkLoadAll();
+    ReverseSyncTarget reverseTarget = newReverseTarget();
+    try {
+      ReverseSyncService service = enabledService(reverseTarget);
+      target.update(
+          "UPDATE pas.policy_holders SET risk_tier = 'U', "
+              + "last_updated = TIMESTAMPTZ '2026-06-01 12:00:00+00' "
+              + "WHERE cust_id = 'C000000001'");
+      assertThat(service.drain()).isGreaterThan(0);
+      target.update(
+          "UPDATE pas.policy_holders SET risk_tier = 'P', "
+              + "last_updated = TIMESTAMPTZ '2026-06-01 12:00:00+00' "
+              + "WHERE cust_id = 'C000000002'");
+      assertThat(service.drain()).isGreaterThan(0);
+
+      assertThat(
+              sourceJdbc.queryForObject(
+                  "SELECT risk_tier FROM acmeins.policy_holders WHERE cust_id = 'C000000001'",
+                  String.class))
+          .isEqualTo("U");
+      assertThat(
+              sourceJdbc.queryForObject(
+                  "SELECT risk_tier FROM acmeins.policy_holders WHERE cust_id = 'C000000002'",
+                  String.class))
+          .isEqualTo("P");
+      assertThat(
+              sourceJdbc.queryForObject(
+                  "SELECT count(*) FROM acmeins.policy_holders "
+                      + "WHERE cust_id IN ('C000000001', 'C000000002') AND last_updated = ?",
+                  Integer.class,
+                  LocalDateTime.of(2026, 6, 1, 8, 0)))
+          .isEqualTo(2);
+    } finally {
+      reverseTarget.close();
+    }
+  }
+
+  private ReverseSyncTarget newReverseTarget() {
+    HikariConfig config = new HikariConfig();
+    config.setJdbcUrl(SOURCE.getJdbcUrl());
+    config.setUsername(SOURCE.getUsername());
+    config.setPassword(SOURCE.getPassword());
+    config.setMaximumPoolSize(1);
+    config.setPoolName("reverse-sync-it");
+    return new ReverseSyncTarget(new HikariDataSource(config));
+  }
+
+  private ReverseSyncService enabledService(ReverseSyncTarget reverseTarget) {
+    StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+    beanFactory.addBean("reverseSyncTarget", reverseTarget);
+    ObjectProvider<ReverseSyncTarget> targetProvider =
+        beanFactory.getBeanProvider(ReverseSyncTarget.class);
+    return new ReverseSyncService(
+        target, source, targetProvider, withReverseSyncEnabled(), cipher, metrics);
+  }
 }

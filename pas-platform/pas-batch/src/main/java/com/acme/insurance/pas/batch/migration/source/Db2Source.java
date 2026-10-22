@@ -17,10 +17,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 public final class Db2Source implements AutoCloseable {
-  private static final Pattern SCHEMA_NAME = Pattern.compile("[A-Za-z][A-Za-z0-9_]{0,127}");
   private final HikariDataSource pool;
   private final MigrationProperties properties;
   private final String schema;
@@ -37,10 +35,7 @@ public final class Db2Source implements AutoCloseable {
     if (source.password() == null || source.password().isBlank()) {
       throw new IllegalStateException("pas.migration.source.password must be configured");
     }
-    schema = source.schema() == null ? "ACMEINS" : source.schema();
-    if (!SCHEMA_NAME.matcher(schema).matches()) {
-      throw new IllegalArgumentException("pas.migration.source.schema is not a valid identifier");
-    }
+    schema = source.schema();
     HikariConfig config = new HikariConfig();
     config.setJdbcUrl(jdbcUrl(source));
     config.setUsername(source.username());
@@ -63,6 +58,41 @@ public final class Db2Source implements AutoCloseable {
               + source.sslTrustStoreLocation();
     }
     return url;
+  }
+
+  public String schema() {
+    return schema;
+  }
+
+  @SuppressFBWarnings(
+      value = "SQL_PREPARED_STATEMENT_GENERATED_FROM_NONCONSTANT_STRING",
+      justification = "The schema comes from the validated MigrationProperties identifier.")
+  public List<String> readCoveragePolicyKeys(String afterKey, int limit) {
+    String sql =
+        "SELECT DISTINCT RTRIM(POLICY_NUMBER) AS POLICY_NUMBER FROM "
+            + schema
+            + ".COVERAGES WHERE (? IS NULL OR RTRIM(POLICY_NUMBER) > ?) "
+            + "ORDER BY POLICY_NUMBER FETCH FIRST ? ROWS ONLY";
+    try (Connection connection = pool.getConnection();
+        PreparedStatement statement = connection.prepareStatement(sql)) {
+      if (afterKey == null) {
+        statement.setNull(1, Types.VARCHAR);
+        statement.setNull(2, Types.VARCHAR);
+      } else {
+        statement.setString(1, afterKey);
+        statement.setString(2, afterKey);
+      }
+      statement.setInt(3, limit);
+      try (ResultSet resultSet = statement.executeQuery()) {
+        List<String> keys = new ArrayList<>();
+        while (resultSet.next()) {
+          keys.add(resultSet.getString("POLICY_NUMBER"));
+        }
+        return keys;
+      }
+    } catch (SQLException exception) {
+      throw new IllegalStateException("Unable to read coverage policy keys", exception);
+    }
   }
 
   @SuppressFBWarnings(

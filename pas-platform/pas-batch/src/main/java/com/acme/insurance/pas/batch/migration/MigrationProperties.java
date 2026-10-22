@@ -21,7 +21,12 @@ public record MigrationProperties(
     deltaSync =
         deltaSync == null
             ? new DeltaSync(
-                Duration.ofMinutes(5), false, Duration.ofMinutes(15), false, Duration.ofMinutes(1))
+                Duration.ofMinutes(5),
+                false,
+                Duration.ofMinutes(15),
+                false,
+                Duration.ofMinutes(1),
+                100)
             : deltaSync;
     reverseSync = reverseSync == null ? new ReverseSync(false, 100, null, null) : reverseSync;
     recon =
@@ -42,7 +47,14 @@ public record MigrationProperties(
       boolean ssl,
       String sslTrustStoreLocation,
       String zone,
-      int fetchSize) {}
+      int fetchSize) {
+    public Source {
+      schema = schema == null ? "ACMEINS" : schema;
+      if (!schema.matches("^[A-Za-z][A-Za-z0-9_]{0,127}$")) {
+        throw new IllegalArgumentException("pas.migration.source.schema is not a valid identifier");
+      }
+    }
+  }
 
   public record Bulk(int gridSize, int chunkSize) {}
 
@@ -51,7 +63,17 @@ public record MigrationProperties(
       boolean paused,
       Duration lagAlertThreshold,
       boolean schedulerEnabled,
-      Duration fixedDelay) {}
+      Duration fixedDelay,
+      int coverageSweepSize) {
+    public DeltaSync(
+        Duration overlap,
+        boolean paused,
+        Duration lagAlertThreshold,
+        boolean schedulerEnabled,
+        Duration fixedDelay) {
+      this(overlap, paused, lagAlertThreshold, schedulerEnabled, fixedDelay, 100);
+    }
+  }
 
   public record ReverseSync(boolean enabled, int maxPasses, String username, String password) {}
 

@@ -9,6 +9,35 @@ import org.junit.jupiter.api.Test;
 
 class DeltaSyncIT extends MigrationIntegrationTestSupport {
   @Test
+  void coverageSweepFindsCoverageOnlyChangesWithoutPolicyTimestampUpdates() throws Exception {
+    seedSource(1);
+    bulkLoadAll();
+    DeltaSyncService service = new DeltaSyncService(source, writer, target, properties, metrics);
+    service.sync();
+    String policyNumber = "POL000000001";
+    sourceJdbc.update(
+        "DELETE FROM acmeins.coverages WHERE policy_number = ? AND sequence_num = 1", policyNumber);
+    sourceJdbc.update(
+        """
+        INSERT INTO acmeins.coverages
+            (policy_number, sequence_num, coverage_type, description, coverage_limit,
+             deductible, premium, effective_date, expiry_date, status)
+        VALUES (?, 9, 'TEST', 'Coverage sweep', 12000, 500, 150.00,
+                DATE '2025-01-01', DATE '2026-01-01', 'AC')
+        """,
+        policyNumber);
+
+    service.sync();
+
+    assertThat(
+            target.queryForList(
+                "SELECT sequence_num FROM pas.coverages WHERE policy_number = ? ORDER BY sequence_num",
+                Integer.class,
+                policyNumber))
+        .containsExactly(2, 9);
+  }
+
+  @Test
   void refreshesCoverageAsASetWhenPolicyWatermarkAdvances() throws Exception {
     seedSource(2);
     bulkLoadAll();

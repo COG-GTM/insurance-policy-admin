@@ -129,7 +129,7 @@ abstract class MigrationIntegrationTestSupport {
         "TRUNCATE pas.underwriting_decisions, pas.endorsements, pas.premiums, pas.coverages, "
             + "pas.policies, pas.policy_holders, pas.territory_factors CASCADE");
     target.execute(
-        "TRUNCATE pas_batch.sync_watermark, pas_batch.reverse_sync_policy_version, "
+        "TRUNCATE pas.change_log, pas_batch.sync_watermark, "
             + "pas_batch.recon_difference, pas_batch.recon_run, "
             + "pas_batch.parallel_run_triage_log, pas_batch.parallel_run_difference, "
             + "pas_batch.parallel_run_date, pas_batch.parallel_run_cycle CASCADE");

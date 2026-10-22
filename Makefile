@@ -35,6 +35,7 @@ test:
 
 dev-env:
 	cd pas-platform && if [ ! -f .env ]; then cp .env.example .env; fi
+	cd pas-platform && if ! rg -q '^PAS_ENV=' .env; then printf 'PAS_ENV=local\n' >> .env; fi
 	cd pas-platform && \
 	for key in PAS_PII_ENCRYPTION_KEY_ID PAS_PII_ENCRYPTION_KEY_VERSION PAS_PII_ENCRYPTION_KEY PAS_PII_BLIND_INDEX_KEY PAS_RECON_FINGERPRINT_KEY PAS_MIGRATION_SOURCE_PASSWORD PAS_MIGRATION_REVERSE_PASSWORD; do \
 		if ! rg -q "^$${key}=" .env; then \
@@ -49,11 +50,12 @@ dev-env:
 	done
 	cd pas-platform && \
 	for key in PAS_MIGRATION_SOURCE_PASSWORD PAS_MIGRATION_REVERSE_PASSWORD; do \
-		if rg -q "^$${key}=changeme$$" .env; then \
+		if ! rg -q "^$${key}=.+" .env || rg -q "^$${key}=changeme$$" .env; then \
 			value="$$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"; \
-			sed -i "s|^$${key}=changeme$$|$${key}=$$value|" .env; \
+			sed -i "s|^$${key}=.*$$|$${key}=$$value|" .env; \
 		fi; \
 	done
+	cd pas-platform && sed -i 's/^PAS_ENV=.*/PAS_ENV=local/' .env
 	cd pas-platform && ./dev/dev-jwt.sh keygen
 
 dev-images:

@@ -12,14 +12,23 @@ GRANT INSERT, UPDATE, DELETE ON TABLE
 GRANT INSERT, UPDATE, DELETE ON TABLE
     pas.outbox, pas.idempotency_keys, pas.policy_audit, pas.policy_renewals
     TO pas_service;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+    pas.consumed_events, pas.consumer_policy_versions
+    TO pas_service;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA pas_shadow
     TO pas_service, pas_batch;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA pas_batch
     TO pas_batch;
 
-GRANT USAGE, SELECT ON SEQUENCE pas.policy_seq, pas.underwriting_decision_seq
-    TO pas_sync;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pas TO pas_sync;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pas
+    TO pas_service;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pas_shadow
+    TO pas_service, pas_batch;
+GRANT INSERT ON TABLE pas.change_log TO pas_sync;
+GRANT USAGE, SELECT ON SEQUENCE pas.change_log_id_seq TO pas_sync;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA pas_batch TO pas_batch;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA pas
     GRANT SELECT ON TABLES TO pas_readonly, pas_service, pas_batch, pas_sync;
@@ -27,3 +36,9 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA pas_shadow
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO pas_service, pas_batch;
 ALTER DEFAULT PRIVILEGES IN SCHEMA pas_batch
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO pas_batch;
+ALTER DEFAULT PRIVILEGES IN SCHEMA pas_batch
+    GRANT USAGE, SELECT ON SEQUENCES TO pas_batch;
+ALTER DEFAULT PRIVILEGES IN SCHEMA pas
+    GRANT USAGE, SELECT ON SEQUENCES TO pas_service;
+ALTER DEFAULT PRIVILEGES IN SCHEMA pas_shadow
+    GRANT USAGE, SELECT ON SEQUENCES TO pas_service, pas_batch;

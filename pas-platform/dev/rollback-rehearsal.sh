@@ -5,8 +5,15 @@ PLATFORM="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT="$(cd "$PLATFORM/.." && pwd)"
 LOG_DIR="$HOME/ab529"
 mkdir -p "$LOG_DIR"
-LOG_FILE="$LOG_DIR/rollback-rehearsal-$(date -u +%Y%m%dT%H%M%SZ).log"
+LOG_FILE="$LOG_DIR/rollback-rehearsal.log"
 exec > >(tee "$LOG_FILE") 2>&1
+
+if [[ -f "$PLATFORM/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$PLATFORM/.env"
+  set +a
+fi
 
 : "${PAS_DB_USERNAME:?run make dev-env}"
 : "${PAS_DB_PASSWORD:?run make dev-env}"
@@ -15,14 +22,25 @@ exec > >(tee "$LOG_FILE") 2>&1
 : "${PAS_PII_ENCRYPTION_KEY:?run make dev-env}"
 : "${PAS_PII_BLIND_INDEX_KEY:?run make dev-env}"
 : "${PAS_RECON_FINGERPRINT_KEY:?run make dev-env}"
-export PAS_MIGRATION_SOURCE_USERNAME="${PAS_MIGRATION_SOURCE_USERNAME:-acmeins_readonly}"
-export PAS_MIGRATION_SOURCE_PASSWORD="${PAS_MIGRATION_SOURCE_PASSWORD:-changeme}"
-export PAS_MIGRATION_REVERSE_USERNAME="${PAS_MIGRATION_REVERSE_USERNAME:-acmeins_reverse}"
+: "${PAS_MIGRATION_SOURCE_PASSWORD:?run make dev-env}"
 : "${PAS_MIGRATION_REVERSE_PASSWORD:?run make dev-env}"
+if [[ "${PAS_ENV:-}" != "local" ]]; then
+  printf 'Refusing rehearsal: PAS_ENV must be local; run make dev-env.\n' >&2
+  exit 1
+fi
+if [[ "$PAS_PII_ENCRYPTION_KEY_ID" != "local-v1" ]]; then
+  printf 'Refusing rehearsal: PAS_PII_ENCRYPTION_KEY_ID must be local-v1; run make dev-env.\n' >&2
+  exit 1
+fi
+if [[ ! "${PAS_MIGRATION_SOURCE_URL:-}" =~ ^jdbc:postgresql://acmeins-source(:[0-9]+)?/ ]]; then
+  printf 'Refusing rehearsal: PAS_MIGRATION_SOURCE_URL must use the Compose acmeins-source host.\n' >&2
+  exit 1
+fi
+export PAS_MIGRATION_SOURCE_USERNAME="${PAS_MIGRATION_SOURCE_USERNAME:-acmeins_readonly}"
+export PAS_MIGRATION_REVERSE_USERNAME="${PAS_MIGRATION_REVERSE_USERNAME:-acmeins_reverse}"
 
 export PAS_DB_URL="jdbc:postgresql://rollback-target:5432/pas"
 export PAS_MIGRATION_ENABLED=true
-export PAS_MIGRATION_SOURCE_URL="jdbc:postgresql://acmeins-source:5432/acmeins"
 export PAS_MIGRATION_SOURCE_SSL=false
 export PAS_MIGRATION_SOURCE_SCHEMA=ACMEINS
 export PAS_MIGRATION_REVERSE_SYNC_ENABLED=true
@@ -36,22 +54,6 @@ cd "$PLATFORM"
 start_time="$(date +%s)"
 printf 'AB-529 rollback rehearsal started at %s\n' "$(date -u +%FT%TZ)"
 printf 'Log: %s\n' "$LOG_FILE"
-policy_effective_date="$(date -u -d 'tomorrow' +%F)"
-endorsement_effective_date="$(
-  docker compose --profile migration exec -T rollback-target \
-    psql -U "$PAS_DB_USERNAME" -d pas -Atqc \
-    "SELECT effective_date FROM pas.coverages WHERE policy_number = 'POL529000001' AND sequence_num = 1"
-)"
-endorsement_new_limit="$(
-  docker compose --profile migration exec -T rollback-target \
-    psql -U "$PAS_DB_USERNAME" -d pas -Atqc \
-    "SELECT coverage_limit + 1000 FROM pas.coverages WHERE policy_number = 'POL529000001' AND sequence_num = 1"
-)"
-renewal_expiry_date="$(
-  docker compose --profile migration exec -T rollback-target \
-    psql -U "$PAS_DB_USERNAME" -d pas -Atqc \
-    "SELECT expiry_date FROM pas.policies WHERE policy_number = 'POL529000001'"
-)"
 
 docker compose --profile migration up -d --wait \
   acmeins-source rollback-target postgres kafka
@@ -68,6 +70,19 @@ run_cli() {
 
 run_cli --pas.batch.cli.job=bulkLoadJob
 run_cli --pas.batch.cli.job=deltaSyncJob
+
+policy_effective_date="$(date -u -d 'tomorrow' +%F)"
+endorsement_effective_date="$(date -u -d 'tomorrow' +%F)"
+endorsement_new_limit="$(
+  docker compose --profile migration exec -T rollback-target \
+    psql -U "$PAS_DB_USERNAME" -d pas -Atqc \
+    "SELECT coverage_limit + 1000 FROM pas.coverages WHERE policy_number = 'POL529000001' AND sequence_num = 1"
+)"
+renewal_expiry_date="$(
+  docker compose --profile migration exec -T rollback-target \
+    psql -U "$PAS_DB_USERNAME" -d pas -Atqc \
+    "SELECT expiry_date FROM pas.policies WHERE policy_number = 'POL529000001'"
+)"
 
 jwt="$("$PLATFORM/dev/dev-jwt.sh" mint \
   --sub ab529-rollback-rehearsal \
@@ -110,6 +125,10 @@ else
 fi
 printf 'Authenticated endorsement and renewal API writes completed.\n'
 
+export PAS_ROUTE_NEW_BUSINESS=legacy
+export PAS_ROUTE_RENEWAL=legacy
+export PAS_ROUTE_ENDORSEMENT=legacy
+docker compose --profile migration up -d --wait --no-deps --force-recreate pas-policy-service
 run_cli --pas.batch.cli.job=reverseSyncJob --pas.batch.cli.drain=true
 run_cli --pas.batch.cli.job=reconciliationJob
 
@@ -165,7 +184,7 @@ elapsed_seconds="$(( $(date +%s) - start_time ))"
 policy_lag="$(
   docker compose --profile migration exec -T rollback-target \
     psql -U "$PAS_DB_USERNAME" -d pas -Atqc \
-    "SELECT count(*) FROM pas.policies p LEFT JOIN pas_batch.reverse_sync_policy_version v ON v.policy_number = p.policy_number WHERE p.row_version > COALESCE(v.row_version, 0)"
+    "SELECT count(*) FROM pas.change_log c WHERE c.changed_at > COALESCE((SELECT watermark_value AT TIME ZONE 'UTC' FROM pas_batch.sync_watermark WHERE table_name = 'CHANGE_LOG' AND direction = 'REVERSE'), TIMESTAMP '1900-01-01 00:00:00' AT TIME ZONE 'UTC')"
 )"
 if [[ "$policy_lag" != "0" ]]; then
   printf 'Reverse-sync lag remains for %s policies.\n' "$policy_lag" >&2

@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(MigrationProperties.class)
@@ -18,6 +19,12 @@ public class MigrationConfiguration {
   @Bean(destroyMethod = "close")
   Db2Source db2Source(MigrationProperties properties) {
     return new Db2Source(properties);
+  }
+
+  @Bean
+  MigrationTlsStartupGuard migrationTlsStartupGuard(
+      MigrationProperties properties, Environment environment) {
+    return new MigrationTlsStartupGuard(properties, environment);
   }
 
   @Bean(destroyMethod = "close")

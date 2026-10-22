@@ -181,3 +181,15 @@ key?
 
 - **Suggested owner:** Underwriting + mainframe team
 - **Related:** AB-529 reverse sync
+
+### OQ-26
+
+COBOL coverage DML was found in `POLNEW.cbl:227` (insert) and `POLRNW.cbl:175` (update);
+`POLNEW.cbl:173` writes `POLICIES.LAST_UPDATED`, and `POLRNW.cbl:162` does likewise before its
+coverage update. No coverage DML was found in `POLEND.cbl` or `UNDWRT.cbl`. Delta sync therefore
+uses a bounded rolling coverage-set hash sweep, persisted in `pas_batch.sync_watermark`, to detect
+coverage changes that do not advance the policy watermark. Confirm there are no other production
+writers or transaction paths that can change coverages independently.
+
+- **Suggested owner:** PAS mainframe team + DBA
+- **Related:** AB-529 delta sync
