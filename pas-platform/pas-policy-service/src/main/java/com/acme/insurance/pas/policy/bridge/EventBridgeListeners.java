@@ -6,6 +6,7 @@ import com.acme.insurance.pas.copybook.CopybookCharset;
 import com.acme.insurance.pas.copybook.LegacyPolicyRecords;
 import com.acme.insurance.pas.copybook.PolicyRecordCodec;
 import com.acme.insurance.pas.domain.Policy;
+import com.acme.insurance.pas.policy.events.EventConsumerGroups;
 import com.acme.insurance.pas.policy.events.EventEnvelope;
 import com.acme.insurance.pas.policy.events.IdempotentEventProcessor;
 import com.acme.insurance.pas.policy.events.OutboxWriter;
@@ -17,15 +18,15 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
 import java.util.Map;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(prefix = "pas.routing", name = "document-events", havingValue = "new")
+@Conditional(DocumentEventsNewCondition.class)
 public class EventBridgeListeners {
-  public static final String DOCUMENT_GROUP = "pas-filenet-document-bridge";
-  public static final String REFERRAL_GROUP = "pas-uw-referral-bridge";
+  public static final String DOCUMENT_GROUP = EventConsumerGroups.DOCUMENT_BRIDGE;
+  public static final String REFERRAL_GROUP = EventConsumerGroups.REFERRAL_BRIDGE;
 
   private final IdempotentEventProcessor processor;
   private final PolicyInquiryRepository inquiry;

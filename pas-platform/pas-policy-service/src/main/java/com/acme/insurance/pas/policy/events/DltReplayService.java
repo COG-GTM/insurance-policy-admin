@@ -2,10 +2,8 @@ package com.acme.insurance.pas.policy.events;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -24,46 +22,45 @@ import org.springframework.stereotype.Service;
 @Service
 public class DltReplayService {
   private static final Logger LOGGER = LoggerFactory.getLogger(DltReplayService.class);
-  private static final Duration POLL_INTERVAL = Duration.ofMillis(250);
-  private static final Duration TIMEOUT = Duration.ofSeconds(10);
-  private static final Set<String> REGISTERED_DLTS =
-      Set.of(
-          OutboxWriter.DOCUMENT_TOPIC + ".pas-filenet-document-bridge.dlt",
-          OutboxWriter.UNDERWRITING_TOPIC + ".pas-uw-referral-bridge.dlt");
 
   private final ConsumerFactory<String, String> consumerFactory;
   private final KafkaTemplate<String, String> kafka;
+  private final EventReplayProperties replayProperties;
 
   @SuppressFBWarnings(
       value = "EI_EXPOSE_REP2",
       justification = "Kafka clients are Spring-managed collaborators.")
   public DltReplayService(
-      ConsumerFactory<String, String> consumerFactory, KafkaTemplate<String, String> kafka) {
+      ConsumerFactory<String, String> consumerFactory,
+      KafkaTemplate<String, String> kafka,
+      EventReplayProperties replayProperties) {
     this.consumerFactory = consumerFactory;
     this.kafka = kafka;
+    this.replayProperties = replayProperties;
   }
 
   public DltReplayResponse replay(DltReplayRequest request, String actor) {
-    int maxRecords = request.maxRecords() == null ? 1000 : request.maxRecords();
-    if (!REGISTERED_DLTS.contains(request.dltTopic())
+    int maxRecords =
+        request.maxRecords() == null ? replayProperties.maxRecords() : request.maxRecords();
+    if (!EventConsumerGroups.deadLetterTopics().contains(request.dltTopic())
         || request.partition() < 0
         || request.fromOffset() < 0
         || request.toOffset() < request.fromOffset()
         || maxRecords < 1
-        || maxRecords > 1000
+        || maxRecords > replayProperties.maxRecords()
         || request.toOffset() - request.fromOffset() >= maxRecords) {
       throw new IllegalArgumentException("Invalid DLT replay range");
     }
     TopicPartition partition = new TopicPartition(request.dltTopic(), request.partition());
     List<Long> replayedOffsets = new ArrayList<>();
     String sourceTopic = null;
-    long deadline = System.nanoTime() + TIMEOUT.toNanos();
+    long deadline = System.nanoTime() + replayProperties.pollTimeout().toNanos();
     try (Consumer<String, String> consumer =
         consumerFactory.createConsumer("pas-dlt-replay", "manual-replay", null)) {
       consumer.assign(List.of(partition));
       consumer.seek(partition, request.fromOffset());
       while (System.nanoTime() < deadline && replayedOffsets.size() < maxRecords) {
-        var records = consumer.poll(POLL_INTERVAL);
+        var records = consumer.poll(replayProperties.pollTimeout());
         boolean pastRange = false;
         for (ConsumerRecord<String, String> record : records.records(partition)) {
           if (record.offset() > request.toOffset()) {
@@ -82,7 +79,7 @@ public class DltReplayService {
                       "x-replayed-from",
                       (request.dltTopic() + ":" + record.partition() + ":" + record.offset())
                           .getBytes(StandardCharsets.UTF_8)));
-          kafka.send(replay).get(10, TimeUnit.SECONDS);
+          kafka.send(replay).get(replayProperties.pollTimeout().toMillis(), TimeUnit.MILLISECONDS);
           replayedOffsets.add(record.offset());
         }
         if (pastRange || (!records.isEmpty() && records.records(partition).isEmpty())) {

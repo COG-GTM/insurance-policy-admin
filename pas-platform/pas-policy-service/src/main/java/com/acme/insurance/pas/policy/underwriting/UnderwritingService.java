@@ -30,6 +30,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * PUWR on the new service. Decision and audit writes commit with their outbox records in the same
+ * transaction. It publishes UnderwritingDecisionRecorded or UnderwritingReferralRequested and
+ * requests the corresponding decision document through the outbox.
+ */
 @Service
 public class UnderwritingService {
   private static final Pattern POLICY_NUMBER = Pattern.compile("[A-Za-z0-9-]{1,12}");

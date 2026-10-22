@@ -1,6 +1,7 @@
 package com.acme.insurance.pas.policy.events;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -11,25 +12,26 @@ import org.springframework.kafka.listener.RetryListener;
 import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
 
 @Configuration
+@EnableConfigurationProperties({ConsumerRetryProperties.class, EventReplayProperties.class})
 public class KafkaConsumerConfiguration {
   @Bean
   CommonErrorHandler kafkaErrorHandler(
-      KafkaTemplate<Object, Object> template, MeterRegistry metrics) {
+      KafkaTemplate<Object, Object> template,
+      MeterRegistry metrics,
+      ConsumerRetryProperties retryProperties) {
     DeadLetterPublishingRecoverer recoverer =
         new DeadLetterPublishingRecoverer(
             template,
             (record, exception) -> {
-              String group =
-                  record.topic().equals(OutboxWriter.DOCUMENT_TOPIC)
-                      ? "pas-filenet-document-bridge"
-                      : "pas-uw-referral-bridge";
+              String group = EventConsumerGroups.groupForTopic(record.topic());
               return new org.apache.kafka.common.TopicPartition(
-                  record.topic() + "." + group + ".dlt", record.partition());
+                  EventConsumerGroups.dltTopic(record.topic(), group), record.partition());
             });
-    ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(2);
-    backOff.setInitialInterval(500);
-    backOff.setMultiplier(2.0);
-    backOff.setMaxInterval(5000);
+    ExponentialBackOffWithMaxRetries backOff =
+        new ExponentialBackOffWithMaxRetries(retryProperties.maxRetries());
+    backOff.setInitialInterval(retryProperties.initialInterval().toMillis());
+    backOff.setMultiplier(retryProperties.multiplier());
+    backOff.setMaxInterval(retryProperties.maxInterval().toMillis());
     DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, backOff);
     handler.addNotRetryableExceptions(PoisonEventException.class);
     handler.setRetryListeners(
@@ -43,7 +45,8 @@ public class KafkaConsumerConfiguration {
           @Override
           public void recovered(
               org.apache.kafka.clients.consumer.ConsumerRecord<?, ?> record, Exception exception) {
-            metrics.counter("pas.events.dlt", "topic", record.topic()).increment();
+            String group = EventConsumerGroups.groupForTopic(record.topic());
+            metrics.counter("pas.events.dlt", "topic", record.topic(), "group", group).increment();
           }
         });
     return handler;

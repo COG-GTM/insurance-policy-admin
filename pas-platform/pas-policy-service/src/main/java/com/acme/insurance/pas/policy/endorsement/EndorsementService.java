@@ -38,7 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
  * POLEND on the new service. The policy row lock ({@code SELECT … FOR UPDATE}) replaces DB2's
  * update lock, so concurrent endorsements on one policy serialise and each sees the other's
  * sequence number and premium. The endorsement row, its effect (Q-13), the policy write and the
- * audit row (Q-15) commit together or not at all (Q-14).
+ * audit row (Q-15) and outbox records commit together or not at all (Q-14). It publishes
+ * PolicyEndorsed and DocumentRequested through the outbox.
  */
 @Service
 public class EndorsementService {

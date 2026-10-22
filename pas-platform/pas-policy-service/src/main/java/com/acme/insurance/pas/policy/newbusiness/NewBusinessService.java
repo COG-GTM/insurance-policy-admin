@@ -39,6 +39,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * POLNEW on the new service. Policy creation, outbox records and the idempotency response are
+ * written in one transaction. It publishes PolicyCreated, UnderwritingReferralRequested with
+ * trigger NEW_BUSINESS, and DocumentRequested through the outbox.
+ */
 @Service
 public class NewBusinessService {
   private final PolicyRepository policies;

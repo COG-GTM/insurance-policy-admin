@@ -25,7 +25,9 @@ public class JmsLegacyQueueAdapter implements LegacyQueuePort {
     jmsTemplate.execute(
         (session, producer) -> {
           Queue queue = session.createQueue(queueName);
-          ((MQQueue) queue).setTargetClient(WMQConstants.WMQ_TARGET_DEST_MQ);
+          if (queue instanceof MQQueue mq) {
+            mq.setTargetClient(WMQConstants.WMQ_TARGET_DEST_MQ);
+          }
           BytesMessage message = session.createBytesMessage();
           message.writeBytes(body);
           properties.forEach(

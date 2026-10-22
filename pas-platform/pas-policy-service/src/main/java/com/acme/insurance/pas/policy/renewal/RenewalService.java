@@ -34,8 +34,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * POLRNW on the new service. One transaction: the policy row lock, the policy and coverage writes,
- * the idempotency row and the audit row commit together or not at all (Q-16). No events are
- * published here.
+ * the idempotency row, the audit row and the outbox records commit together or not at all (Q-16).
+ * It publishes PolicyRenewed, UnderwritingReferralRequested with trigger RENEWAL (Q-17), and
+ * DocumentRequested through the outbox.
  */
 @Service
 public class RenewalService {

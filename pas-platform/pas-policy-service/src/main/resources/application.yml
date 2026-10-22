@@ -42,6 +42,16 @@ pas:
       enabled: ${PAS_KAFKA_TOPICS_ENABLED:true}
       partitions: ${PAS_KAFKA_TOPIC_PARTITIONS:1}
       replicas: ${PAS_KAFKA_TOPIC_REPLICAS:1}
+  events:
+    consumer:
+      retry:
+        max-retries: 2
+        initial-interval: PT0.5S
+        multiplier: 2.0
+        max-interval: PT5S
+    replay:
+      max-records: 1000
+      poll-timeout: PT10S
   rating:
     factor-mode: ${PAS_RATING_FACTOR_MODE:legacy}
   routing:

@@ -3,6 +3,8 @@ package com.acme.insurance.pas.policy.platform;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.policy.bridge.EventBridgeListeners;
+import com.acme.insurance.pas.policy.bridge.JmsLegacyQueueAdapter;
+import com.acme.insurance.pas.policy.bridge.LegacyQueuePort;
 import com.acme.insurance.pas.policy.events.OutboxWriter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.jms.ConnectionFactory;
@@ -132,6 +134,11 @@ class EventBridgeLegacyRouteIT {
     JmsTemplate artemisJmsTemplate(
         @Qualifier("artemisConnectionFactory") ConnectionFactory connectionFactory) {
       return new JmsTemplate(connectionFactory);
+    }
+
+    @Bean
+    LegacyQueuePort artemisLegacyQueuePort(@Qualifier("artemisJmsTemplate") JmsTemplate template) {
+      return new JmsLegacyQueueAdapter(template);
     }
   }
 }

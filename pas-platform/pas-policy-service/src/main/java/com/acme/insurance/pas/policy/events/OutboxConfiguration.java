@@ -59,7 +59,7 @@ public class OutboxConfiguration {
       havingValue = "true",
       matchIfMissing = true)
   NewTopic documentBridgeDeadLetterTopic() {
-    return deadLetterTopic(OutboxWriter.DOCUMENT_TOPIC, "pas-filenet-document-bridge");
+    return deadLetterTopic(OutboxWriter.DOCUMENT_TOPIC);
   }
 
   @Bean
@@ -68,11 +68,12 @@ public class OutboxConfiguration {
       havingValue = "true",
       matchIfMissing = true)
   NewTopic underwritingBridgeDeadLetterTopic() {
-    return deadLetterTopic(OutboxWriter.UNDERWRITING_TOPIC, "pas-uw-referral-bridge");
+    return deadLetterTopic(OutboxWriter.UNDERWRITING_TOPIC);
   }
 
-  private NewTopic deadLetterTopic(String topic, String group) {
-    return TopicBuilder.name(topic + "." + group + ".dlt")
+  private NewTopic deadLetterTopic(String topic) {
+    return TopicBuilder.name(
+            EventConsumerGroups.dltTopic(topic, EventConsumerGroups.groupForTopic(topic)))
         .partitions(partitions)
         .replicas(replicas)
         .build();

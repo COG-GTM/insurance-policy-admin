@@ -6,8 +6,10 @@ import com.acme.insurance.pas.common.security.PasScopes;
 import com.acme.insurance.pas.copybook.CopybookCharset;
 import com.acme.insurance.pas.copybook.LegacyPolicyRecords;
 import com.acme.insurance.pas.copybook.PolicyRecordCodec;
+import com.acme.insurance.pas.policy.bridge.JmsLegacyQueueAdapter;
 import com.acme.insurance.pas.policy.bridge.LegacyQueuePort;
 import com.acme.insurance.pas.policy.events.CorrelationIds;
+import com.acme.insurance.pas.policy.events.EventConsumerGroups;
 import com.acme.insurance.pas.policy.events.OutboxWriter;
 import com.acme.insurance.pas.policy.repository.PolicyRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -66,7 +68,7 @@ import org.testcontainers.utility.DockerImageName;
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
       "pas.routing.new-business=new",
-      "pas.routing.document-events=new",
+      "pas.routing.document-events=modern",
       "pas.bridge.document-queue=TEST.PAS.DOCUMENT",
       "pas.bridge.decision-queue=TEST.PAS.DECISION",
       "pas.bridge.referral-queue=TEST.PAS.REFERRAL",
@@ -213,7 +215,7 @@ class EventBridgeKafkaIT {
             "topic",
             OutboxWriter.DOCUMENT_TOPIC,
             "group",
-            "pas-filenet-document-bridge",
+            EventConsumerGroups.DOCUMENT_BRIDGE,
             "result",
             "duplicate");
 
@@ -225,7 +227,7 @@ class EventBridgeKafkaIT {
                     "topic",
                     OutboxWriter.DOCUMENT_TOPIC,
                     "group",
-                    "pas-filenet-document-bridge",
+                    EventConsumerGroups.DOCUMENT_BRIDGE,
                     "result",
                     "duplicate")
                 > duplicatesBefore);
@@ -240,7 +242,7 @@ class EventBridgeKafkaIT {
             "topic",
             OutboxWriter.DOCUMENT_TOPIC,
             "group",
-            "pas-filenet-document-bridge",
+            EventConsumerGroups.DOCUMENT_BRIDGE,
             "result",
             "stale");
     publishDocumentEvent(policyNumber, MAPPER.writeValueAsString(stale));
@@ -251,23 +253,40 @@ class EventBridgeKafkaIT {
                     "topic",
                     OutboxWriter.DOCUMENT_TOPIC,
                     "group",
-                    "pas-filenet-document-bridge",
+                    EventConsumerGroups.DOCUMENT_BRIDGE,
                     "result",
                     "stale")
                 > staleBefore);
-    assertThat(consumedResult("pas-filenet-document-bridge", staleEventId)).isEqualTo("STALE");
+    assertThat(consumedResult(EventConsumerGroups.DOCUMENT_BRIDGE, staleEventId))
+        .isEqualTo("STALE");
     assertThat(receiveIfAvailable("TEST.PAS.DOCUMENT")).isNull();
   }
 
   @Test
   void deadLettersPoisonAndMissingPolicyEventsAndReplaysAfterPolicyInsert() throws Exception {
-    String dltTopic = OutboxWriter.DOCUMENT_TOPIC + ".pas-filenet-document-bridge.dlt";
-    double dltBefore = counter("pas.events.dlt", "topic", OutboxWriter.DOCUMENT_TOPIC);
+    String dltTopic =
+        EventConsumerGroups.dltTopic(
+            OutboxWriter.DOCUMENT_TOPIC, EventConsumerGroups.DOCUMENT_BRIDGE);
+    double dltBefore =
+        counter(
+            "pas.events.dlt",
+            "topic",
+            OutboxWriter.DOCUMENT_TOPIC,
+            "group",
+            EventConsumerGroups.DOCUMENT_BRIDGE);
     publishDocumentEvent("poison-" + UUID.randomUUID(), "{");
     ConsumerRecord<String, String> poison =
         receiveDltRecord(dltTopic, record -> "{".equals(record.value()));
     assertThat(poison.topic()).isEqualTo(dltTopic);
-    await(() -> counter("pas.events.dlt", "topic", OutboxWriter.DOCUMENT_TOPIC) > dltBefore);
+    await(
+        () ->
+            counter(
+                    "pas.events.dlt",
+                    "topic",
+                    OutboxWriter.DOCUMENT_TOPIC,
+                    "group",
+                    EventConsumerGroups.DOCUMENT_BRIDGE)
+                > dltBefore);
 
     String policyNumber = "M" + UUID.randomUUID().toString().replace("-", "").substring(0, 11);
     String missingEventId = UUID.randomUUID().toString();
@@ -278,10 +297,16 @@ class EventBridgeKafkaIT {
             "topic",
             OutboxWriter.DOCUMENT_TOPIC,
             "group",
-            "pas-filenet-document-bridge",
+            EventConsumerGroups.DOCUMENT_BRIDGE,
             "result",
             "failed");
-    double missingDltBefore = counter("pas.events.dlt", "topic", OutboxWriter.DOCUMENT_TOPIC);
+    double missingDltBefore =
+        counter(
+            "pas.events.dlt",
+            "topic",
+            OutboxWriter.DOCUMENT_TOPIC,
+            "group",
+            EventConsumerGroups.DOCUMENT_BRIDGE);
     publishDocumentEvent(policyNumber, missingEvent);
     ConsumerRecord<String, String> missing =
         receiveDltRecord(dltTopic, record -> record.value().contains(missingEventId));
@@ -293,11 +318,19 @@ class EventBridgeKafkaIT {
                     "topic",
                     OutboxWriter.DOCUMENT_TOPIC,
                     "group",
-                    "pas-filenet-document-bridge",
+                    EventConsumerGroups.DOCUMENT_BRIDGE,
                     "result",
                     "failed")
                 >= failuresBefore + 3);
-    await(() -> counter("pas.events.dlt", "topic", OutboxWriter.DOCUMENT_TOPIC) > missingDltBefore);
+    await(
+        () ->
+            counter(
+                    "pas.events.dlt",
+                    "topic",
+                    OutboxWriter.DOCUMENT_TOPIC,
+                    "group",
+                    EventConsumerGroups.DOCUMENT_BRIDGE)
+                > missingDltBefore);
     assertThat(receiveIfAvailable("TEST.PAS.DOCUMENT")).isNull();
 
     insertPolicy(policyNumber);
@@ -336,7 +369,10 @@ class EventBridgeKafkaIT {
           .isEqualTo(dltTopic + ":" + missing.partition() + ":" + missing.offset());
     }
 
-    await(() -> "PROCESSED".equals(consumedResult("pas-filenet-document-bridge", missingEventId)));
+    await(
+        () ->
+            "PROCESSED"
+                .equals(consumedResult(EventConsumerGroups.DOCUMENT_BRIDGE, missingEventId)));
     Message replayedMessage = receive("TEST.PAS.DOCUMENT");
     assertThat(replayedMessage.getStringProperty("PasEventId")).isEqualTo(missingEventId);
     assertThat(body(replayedMessage)).isEqualTo(policyRecord(policyNumber));
@@ -546,17 +582,7 @@ class EventBridgeKafkaIT {
 
     @Bean
     LegacyQueuePort artemisLegacyQueuePort(@Qualifier("artemisJmsTemplate") JmsTemplate template) {
-      return (queueName, body, properties) ->
-          template.send(
-              queueName,
-              session -> {
-                BytesMessage message = session.createBytesMessage();
-                message.writeBytes(body);
-                for (Map.Entry<String, String> property : properties.entrySet()) {
-                  message.setStringProperty(property.getKey(), property.getValue());
-                }
-                return message;
-              });
+      return new JmsLegacyQueueAdapter(template);
     }
   }
 }
