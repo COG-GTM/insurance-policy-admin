@@ -44,6 +44,11 @@ public record RenewalSettings(
   }
 
   /** Legacy behaviour with the Q-02 open-claims block and no renewal window. */
+  @Override
+  public Map<String, BigDecimal> stateCapPct() {
+    return Map.copyOf(stateCapPct);
+  }
+
   public static RenewalSettings legacyDefaults() {
     return new RenewalSettings(
         LEGACY_UPLIFT_PCT, LEGACY_CAP_PCT, Map.of(), DEFAULT_MAX_OPEN_CLAIMS, null, null);

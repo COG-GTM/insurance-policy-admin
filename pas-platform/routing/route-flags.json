@@ -25,14 +25,14 @@
     "renewal": {
       "route": "legacy",
       "legacy": "legacy PAS processes renewals",
-      "new": "pas-policy-service processes renewals",
+      "new": "pas-policy-service POST /api/v1/policies/{n}/renewals (policy:renew); shadow writes pas_shadow.renewal_results only",
       "ticket": "AB-526",
       "signoff": null
     },
     "endorsement": {
       "route": "legacy",
       "legacy": "legacy PAS processes endorsements",
-      "new": "pas-policy-service processes endorsements",
+      "new": "pas-policy-service POST /api/v1/policies/{n}/endorsements (policy:endorse); shadow writes pas_shadow.endorsement_results only",
       "ticket": "AB-526",
       "signoff": null
     },
