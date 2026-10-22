@@ -14,6 +14,15 @@ spring:
   main:
     banner-mode: "off"
 
+pas:
+  pii:
+    encryption:
+      active-key-id: ${PAS_PII_ENCRYPTION_KEY_ID:local-v1}
+      active-key-version: ${PAS_PII_ENCRYPTION_KEY_VERSION:1}
+      active-key: ${PAS_PII_ENCRYPTION_KEY:}
+    blind-index:
+      key: ${PAS_PII_BLIND_INDEX_KEY:}
+
 server:
   port: 8080
 
@@ -49,3 +58,6 @@ logging:
   structured:
     format:
       console: ecs
+    json:
+      customizer:
+        - com.acme.insurance.pas.pii.logging.PiiMaskingJsonCustomizer
