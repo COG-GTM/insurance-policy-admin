@@ -100,3 +100,501 @@
   quirk: Q-45
   reason: The legacy MOVE into unsigned CUST-CREDIT-SCORE drops the negative sign.
   javaValue: 400
+- program: POLRNW
+  fixture: leap-year-expiry
+  field: "outputs.policyUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: leap-year-expiry
+  field: "outputs.coverageUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: policy-type-aut
+  field: "outputs.policyUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: policy-type-aut
+  field: "outputs.coverageUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: policy-type-com
+  field: "outputs.policyUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: policy-type-com
+  field: "outputs.coverageUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: policy-type-hlt
+  field: "outputs.policyUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: policy-type-hlt
+  field: "outputs.coverageUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: policy-type-hom
+  field: "outputs.policyUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: policy-type-hom
+  field: "outputs.coverageUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: policy-type-lif
+  field: "outputs.policyUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: policy-type-lif
+  field: "outputs.coverageUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: premium-minimum
+  field: "outputs.policyUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: premium-minimum
+  field: "outputs.coverageUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: premium-truncation
+  field: "outputs.policyUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: premium-truncation
+  field: "outputs.coverageUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: status-ac
+  field: "outputs.policyUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: status-ac
+  field: "outputs.coverageUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: status-ex
+  field: "outputs.policyUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: status-ex
+  field: "outputs.coverageUpdate[0].expiryDate"
+  quirk: Q-01
+  reason: "COBOL adds 10000 to YYYYMMDD, producing the invalid date 20250229; Java uses plusYears(1)."
+  javaValue: "20250228"
+- program: POLRNW
+  fixture: receive-failure
+  field: "outputs.policyUpdate"
+  quirk: Q-44
+  reason: "COBOL falls through after the failed RECEIVE and renews garbage; Java stops."
+  javaValue: []
+- program: POLRNW
+  fixture: receive-failure
+  field: "outputs.coverageUpdate"
+  quirk: Q-44
+  reason: "COBOL falls through after the failed RECEIVE and re-dates coverages; Java stops."
+  javaValue: []
+- program: POLRNW
+  fixture: receive-failure
+  field: "outputs.error[0].message"
+  quirk: Q-44
+  reason: "The eligibility error overwrites the RECEIVE error in COBOL; Java returns the RECEIVE error."
+  javaValue: "ERROR RECEIVING RENEWAL DATA"
+- program: POLRNW
+  fixture: open-claims
+  field: "outputs.policyUpdate"
+  quirk: Q-02
+  reason: "COBOL never checks open claims; Java blocks renewal above pas.renewal.max-open-claims (3)."
+  javaValue: []
+- program: POLRNW
+  fixture: open-claims
+  field: "outputs.coverageUpdate"
+  quirk: Q-02
+  reason: "COBOL never checks open claims; Java blocks renewal above pas.renewal.max-open-claims (3)."
+  javaValue: []
+- program: POLRNW
+  fixture: open-claims
+  field: "outputs.error"
+  quirk: Q-02
+  reason: "COBOL never checks open claims; Java blocks renewal above pas.renewal.max-open-claims (3)."
+  javaValue: [{"message": "TOO MANY OPEN CLAIMS FOR RENEWAL"}]
+- program: POLRNW
+  fixture: renewal-count-999
+  field: "outputs.policyUpdate"
+  quirk: Q-18
+  reason: "COBOL wraps the PIC 9(03) renewal count to 000; Java rejects the renewal."
+  javaValue: []
+- program: POLRNW
+  fixture: renewal-count-999
+  field: "outputs.coverageUpdate"
+  quirk: Q-18
+  reason: "COBOL wraps the PIC 9(03) renewal count to 000; Java rejects the renewal."
+  javaValue: []
+- program: POLRNW
+  fixture: renewal-count-999
+  field: "outputs.error"
+  quirk: Q-18
+  reason: "COBOL wraps the PIC 9(03) renewal count to 000; Java rejects the renewal."
+  javaValue: [{"message": "RENEWAL COUNT LIMIT REACHED"}]
+- program: POLRNW
+  fixture: zero-premium-leap-year
+  field: "outputs.policyUpdate"
+  quirk: Q-47
+  reason: "COBOL divides by a zero premium and renews at 0.00; Java rejects the renewal."
+  javaValue: []
+- program: POLRNW
+  fixture: zero-premium-leap-year
+  field: "outputs.coverageUpdate"
+  quirk: Q-47
+  reason: "COBOL divides by a zero premium and renews at 0.00; Java rejects the renewal."
+  javaValue: []
+- program: POLRNW
+  fixture: zero-premium-leap-year
+  field: "outputs.error"
+  quirk: Q-47
+  reason: "COBOL divides by a zero premium and renews at 0.00; Java rejects the renewal."
+  javaValue: [{"message": "RENEWAL PREMIUM CANNOT BE CALCULATED"}]
+- program: POLRNW
+  fixture: premium-maximum
+  field: "outputs.policyUpdate"
+  quirk: Q-47
+  reason: "COBOL loses the high-order digit of the uplifted premium; Java rejects the renewal."
+  javaValue: []
+- program: POLRNW
+  fixture: premium-maximum
+  field: "outputs.coverageUpdate"
+  quirk: Q-47
+  reason: "COBOL loses the high-order digit of the uplifted premium; Java rejects the renewal."
+  javaValue: []
+- program: POLRNW
+  fixture: premium-maximum
+  field: "outputs.error"
+  quirk: Q-47
+  reason: "COBOL loses the high-order digit of the uplifted premium; Java rejects the renewal."
+  javaValue: [{"message": "RENEWAL PREMIUM CANNOT BE CALCULATED"}]
+- program: POLRNW
+  fixture: policy-update-failure
+  field: "outputs.coverageUpdate"
+  quirk: Q-16
+  reason: "COBOL re-dates coverages after the policy update failed; Java rolls the whole renewal back."
+  javaValue: []
+- program: POLRNW
+  fixture: coverage-update-failure
+  field: "outputs.policyUpdate"
+  quirk: Q-16
+  reason: "COBOL keeps the policy update when the coverage update fails; Java rolls the whole renewal back."
+  javaValue: []
+- program: POLRNW
+  fixture: coverage-update-failure
+  field: "outputs.error"
+  quirk: Q-16
+  reason: "COBOL does not check the coverage UPDATE; Java returns the failure."
+  javaValue: [{"message": "DB2 ERROR UPDATING COVERAGES"}]
+- program: POLEND
+  fixture: current-after-expiry
+  field: "outputs.endorsement"
+  quirk: Q-48
+  reason: "COBOL endorses after expiry using an unsigned day count; Java rejects dates outside the term."
+  javaValue: []
+- program: POLEND
+  fixture: current-after-expiry
+  field: "outputs.policyUpdate"
+  quirk: Q-48
+  reason: "COBOL endorses after expiry using an unsigned day count; Java rejects dates outside the term."
+  javaValue: []
+- program: POLEND
+  fixture: current-after-expiry
+  field: "outputs.audit"
+  quirk: Q-48
+  reason: "COBOL endorses after expiry using an unsigned day count; Java rejects dates outside the term."
+  javaValue: []
+- program: POLEND
+  fixture: current-after-expiry
+  field: "outputs.error"
+  quirk: Q-48
+  reason: "COBOL endorses after expiry using an unsigned day count; Java rejects dates outside the term."
+  javaValue: [{"message": "ENDORSEMENT DATE OUTSIDE POLICY TERM"}]
+- program: POLEND
+  fixture: effective-equals-expiry
+  field: "outputs.endorsement"
+  quirk: Q-48
+  reason: "COBOL endorses a zero-length term; Java rejects it."
+  javaValue: []
+- program: POLEND
+  fixture: effective-equals-expiry
+  field: "outputs.policyUpdate"
+  quirk: Q-48
+  reason: "COBOL endorses a zero-length term; Java rejects it."
+  javaValue: []
+- program: POLEND
+  fixture: effective-equals-expiry
+  field: "outputs.audit"
+  quirk: Q-48
+  reason: "COBOL endorses a zero-length term; Java rejects it."
+  javaValue: []
+- program: POLEND
+  fixture: effective-equals-expiry
+  field: "outputs.error"
+  quirk: Q-48
+  reason: "COBOL endorses a zero-length term; Java rejects it."
+  javaValue: [{"message": "POLICY TERM HAS ZERO LENGTH"}]
+- program: POLEND
+  fixture: endorsement-seq-max
+  field: "outputs.endorsement"
+  quirk: Q-47
+  reason: "COBOL wraps ENDORSEMENT_SEQ 99999 to 0; Java rejects the endorsement."
+  javaValue: []
+- program: POLEND
+  fixture: endorsement-seq-max
+  field: "outputs.policyUpdate"
+  quirk: Q-47
+  reason: "COBOL wraps ENDORSEMENT_SEQ 99999 to 0; Java rejects the endorsement."
+  javaValue: []
+- program: POLEND
+  fixture: endorsement-seq-max
+  field: "outputs.audit"
+  quirk: Q-47
+  reason: "COBOL wraps ENDORSEMENT_SEQ 99999 to 0; Java rejects the endorsement."
+  javaValue: []
+- program: POLEND
+  fixture: endorsement-seq-max
+  field: "outputs.error"
+  quirk: Q-47
+  reason: "COBOL wraps ENDORSEMENT_SEQ 99999 to 0; Java rejects the endorsement."
+  javaValue: [{"message": "ENDORSEMENT SEQUENCE LIMIT REACHED"}]
+- program: POLEND
+  fixture: endorsement-types-cov
+  field: "outputs.endorsement"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: []
+- program: POLEND
+  fixture: endorsement-types-cov
+  field: "outputs.policyUpdate"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: []
+- program: POLEND
+  fixture: endorsement-types-cov
+  field: "outputs.audit"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: []
+- program: POLEND
+  fixture: endorsement-types-cov
+  field: "outputs.error"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: [{"message": "INVALID ENDORSEMENT TYPE"}]
+- program: POLEND
+  fixture: endorsement-types-rei
+  field: "outputs.endorsement"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: []
+- program: POLEND
+  fixture: endorsement-types-rei
+  field: "outputs.policyUpdate"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: []
+- program: POLEND
+  fixture: endorsement-types-rei
+  field: "outputs.audit"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: []
+- program: POLEND
+  fixture: endorsement-types-rei
+  field: "outputs.error"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: [{"message": "INVALID ENDORSEMENT TYPE"}]
+- program: POLEND
+  fixture: seed-premium-decrease
+  field: "outputs.endorsement"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: []
+- program: POLEND
+  fixture: seed-premium-decrease
+  field: "outputs.policyUpdate"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: []
+- program: POLEND
+  fixture: seed-premium-decrease
+  field: "outputs.audit"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: []
+- program: POLEND
+  fixture: seed-premium-decrease
+  field: "outputs.error"
+  quirk: Q-12
+  reason: "COBOL stores whatever WS-ENDORSEMENT-TYPE holds; Java validates the type against CAD/CRM/LCH/ACH/CAN."
+  javaValue: [{"message": "INVALID ENDORSEMENT TYPE"}]
+- program: POLEND
+  fixture: insert-collision
+  field: "outputs.policyUpdate"
+  quirk: Q-14
+  reason: "COBOL updates the premium and writes the audit after a failed insert; Java rolls back."
+  javaValue: []
+- program: POLEND
+  fixture: insert-collision
+  field: "outputs.audit"
+  quirk: Q-14
+  reason: "COBOL updates the premium and writes the audit after a failed insert; Java rolls back."
+  javaValue: []
+- program: POLEND
+  fixture: insert-collision
+  field: "outputs.error"
+  quirk: Q-14
+  reason: "COBOL updates the premium and writes the audit after a failed insert; Java rolls back."
+  javaValue: [{"message": "DB2 ERROR INSERTING ENDORSEMENT"}]
+- program: POLEND
+  fixture: policy-update-failure
+  field: "outputs.endorsement"
+  quirk: Q-14
+  reason: "COBOL keeps the endorsement and audit after a failed policy update; Java rolls back."
+  javaValue: []
+- program: POLEND
+  fixture: policy-update-failure
+  field: "outputs.audit"
+  quirk: Q-14
+  reason: "COBOL keeps the endorsement and audit after a failed policy update; Java rolls back."
+  javaValue: []
+- program: POLEND
+  fixture: policy-update-failure
+  field: "outputs.error"
+  quirk: Q-14
+  reason: "COBOL keeps the endorsement and audit after a failed policy update; Java rolls back."
+  javaValue: [{"message": "DB2 ERROR UPDATING POLICY"}]
+- program: POLEND
+  fixture: seed-ach
+  field: "outputs.endorsement[0].premiumAdjustment"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 0.00
+- program: POLEND
+  fixture: seed-ach
+  field: "outputs.policyUpdate[0].totalPremium"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 1200.00
+- program: POLEND
+  fixture: seed-ach
+  field: "outputs.audit[0].totalPremium"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 1200.00
+- program: POLEND
+  fixture: seed-crm
+  field: "outputs.endorsement[0].premiumAdjustment"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 0.00
+- program: POLEND
+  fixture: seed-crm
+  field: "outputs.policyUpdate[0].totalPremium"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 1200.00
+- program: POLEND
+  fixture: seed-crm
+  field: "outputs.audit[0].totalPremium"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 1200.00
+- program: POLEND
+  fixture: seed-lch
+  field: "outputs.endorsement[0].premiumAdjustment"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 0.00
+- program: POLEND
+  fixture: seed-lch
+  field: "outputs.policyUpdate[0].totalPremium"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 1200.00
+- program: POLEND
+  fixture: seed-lch
+  field: "outputs.audit[0].totalPremium"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 1200.00
+- program: POLEND
+  fixture: seed-cad-adjustment
+  field: "outputs.endorsement[0].premiumAdjustment"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 0.00
+- program: POLEND
+  fixture: seed-cad-adjustment
+  field: "outputs.policyUpdate[0].totalPremium"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 1200.00
+- program: POLEND
+  fixture: seed-cad-adjustment
+  field: "outputs.audit[0].totalPremium"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 1200.00
+- program: POLEND
+  fixture: seed-cancel
+  field: "outputs.endorsement[0].premiumAdjustment"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 0.00
+- program: POLEND
+  fixture: seed-cancel
+  field: "outputs.policyUpdate[0].totalPremium"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 1200.00
+- program: POLEND
+  fixture: seed-cancel
+  field: "outputs.audit[0].totalPremium"
+  quirk: Q-49
+  reason: "COBOL posts uninitialised WS-PREMIUM-ADJUST; Java always posts 0.00."
+  javaValue: 1200.00
