@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: pas-batch
+  datasource:
+    url: ${PAS_DB_URL:jdbc:postgresql://localhost:5432/pas}
+    username: ${PAS_DB_USERNAME}
+    password: ${PAS_DB_PASSWORD}
+  kafka:
+    bootstrap-servers: ${PAS_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  flyway:
+    schemas: pas_batch
+    default-schema: pas_batch
+    locations: classpath:db/migration/batch
+  batch:
+    jdbc:
+      initialize-schema: never
+      table-prefix: pas_batch.BATCH_
+    job:
+      enabled: false
+  main:
+    banner-mode: "off"
+
+server:
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState
+    prometheus:
+      access: unrestricted
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  observations:
+    key-values:
+      application: ${spring.application.name}
+
+logging:
+  structured:
+    format:
+      console: ecs

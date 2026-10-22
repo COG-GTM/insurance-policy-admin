@@ -1,0 +1,98 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: pas
+      POSTGRES_USER: ${PAS_DB_USERNAME:?set in .env}
+      POSTGRES_PASSWORD: ${PAS_DB_PASSWORD:?set in .env (copy .env.example)}
+    ports:
+      - "${PAS_DB_HOST_PORT:-5432}:5432"
+    volumes:
+      - pas-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:3.9.1
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:29093,HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,HOST://localhost:${PAS_KAFKA_HOST_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 1
+    ports:
+      - "${PAS_KAFKA_HOST_PORT:-9092}:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  pas-policy-service:
+    image: pas-policy-service:local
+    build:
+      context: .
+      dockerfile: pas-policy-service/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PAS_DB_URL: jdbc:postgresql://postgres:5432/pas
+      PAS_DB_USERNAME: ${PAS_DB_USERNAME:?set in .env}
+      PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:?set in .env (copy .env.example)}
+      PAS_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      PAS_DEV_JWT_PUBLIC_KEY: /run/pas-keys/public.pem
+    volumes:
+      - ./.dev-keys/public.pem:/run/pas-keys/public.pem:ro
+    ports:
+      - "${PAS_POLICY_HTTP_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  pas-batch:
+    image: pas-batch:local
+    build:
+      context: .
+      dockerfile: pas-batch/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PAS_DB_URL: jdbc:postgresql://postgres:5432/pas
+      PAS_DB_USERNAME: ${PAS_DB_USERNAME:?set in .env}
+      PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:?set in .env (copy .env.example)}
+      PAS_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      PAS_DEV_JWT_PUBLIC_KEY: /run/pas-keys/public.pem
+    volumes:
+      - ./.dev-keys/public.pem:/run/pas-keys/public.pem:ro
+    ports:
+      - "${PAS_BATCH_HTTP_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pas-policy-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+volumes:
+  pas-postgres-data:
