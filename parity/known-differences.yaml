@@ -100,3 +100,144 @@
   quirk: Q-45
   reason: The legacy MOVE into unsigned CUST-CREDIT-SCORE drops the negative sign.
   javaValue: 400
+- program: PREMBAT
+  scope: job
+  fixture: insert-collision
+  field: "outputs.premium[1]"
+  quirk: Q-05
+  reason: The job upserts the colliding term and continues writing every active policy.
+  javaValue:
+    policyNumber: POL000000402
+    coverageSeq: 1
+    termEffectiveDate: "20240101"
+    termExpiryDate: "20250101"
+    baseRate: 1200
+    taxAmount: 42
+    surchargeAmount: 25
+    totalPremium: 1267
+    calcDate: "20241015"
+    calcBy: PREMBAT
+- program: PREMBAT
+  scope: job
+  fixture: insert-collision
+  field: "outputs.premium[2]"
+  quirk: Q-05
+  reason: The job continues to the third active policy after the legacy insert collision.
+  javaValue:
+    policyNumber: POL000000403
+    coverageSeq: 1
+    termEffectiveDate: "20240101"
+    termExpiryDate: "20250101"
+    baseRate: 5000
+    taxAmount: 175
+    surchargeAmount: 25
+    totalPremium: 5200
+    calcDate: "20241015"
+    calcBy: PREMBAT
+- program: PREMBAT
+  scope: job
+  fixture: insert-collision
+  field: "outputs.premium[3]"
+  quirk: Q-05
+  reason: The job continues to the fourth active policy after the legacy insert collision.
+  javaValue:
+    policyNumber: POL000000404
+    coverageSeq: 1
+    termEffectiveDate: "20240101"
+    termExpiryDate: "20250101"
+    baseRate: 400
+    taxAmount: 14
+    surchargeAmount: 25
+    totalPremium: 439
+    calcDate: "20241015"
+    calcBy: PREMBAT
+- program: PREMBAT
+  scope: job
+  fixture: insert-collision
+  field: "outputs.jobEnd[0].returnCode"
+  quirk: Q-05
+  reason: A per-policy collision is recovered by upsert and the job completes successfully.
+  javaValue: 0
+- program: PREMBAT
+  scope: job
+  fixture: insert-collision
+  field: "outputs.jobEnd[0].policiesRead"
+  quirk: Q-05
+  reason: The job reads the complete policy fixture rather than stopping at the collision.
+  javaValue: 4
+- program: PREMBAT
+  scope: job
+  fixture: insert-collision
+  field: "outputs.jobEnd[0].policiesUpdated"
+  quirk: Q-05
+  reason: The job writes all four policy premium rows by idempotent upsert.
+  javaValue: 4
+- program: PREMBAT
+  scope: job
+  fixture: insert-collision
+  field: "outputs.jobEnd[0].policiesError"
+  quirk: Q-05
+  reason: The collision is not an item error under idempotent upsert semantics.
+  javaValue: 0
+- program: PREMBAT
+  scope: job
+  fixture: positive-insert-sqlcode
+  field: "outputs.premium[0]"
+  quirk: Q-05
+  reason: The job persists the policy despite the legacy fixture's positive insert SQLCODE.
+  javaValue:
+    policyNumber: POL000000603
+    coverageSeq: 1
+    termEffectiveDate: "20240101"
+    termExpiryDate: "20250101"
+    baseRate: 850
+    taxAmount: 29.75
+    surchargeAmount: 25
+    totalPremium: 904.75
+    calcDate: "20241015"
+    calcBy: PREMBAT
+- program: PREMBAT
+  scope: job
+  fixture: positive-insert-sqlcode
+  field: "outputs.premium[1]"
+  quirk: Q-05
+  reason: The job continues to the second active policy after the legacy SQLCODE.
+  javaValue:
+    policyNumber: POL000000604
+    coverageSeq: 1
+    termEffectiveDate: "20240101"
+    termExpiryDate: "20250101"
+    baseRate: 1200
+    taxAmount: 42
+    surchargeAmount: 25
+    totalPremium: 1267
+    calcDate: "20241015"
+    calcBy: PREMBAT
+- program: PREMBAT
+  scope: job
+  fixture: positive-insert-sqlcode
+  field: "outputs.jobEnd[0].returnCode"
+  quirk: Q-05
+  reason: The job completes rather than failing on the fixture's positive insert SQLCODE.
+  javaValue: 0
+- program: PREMBAT
+  scope: job
+  fixture: positive-insert-sqlcode
+  field: "outputs.jobEnd[0].policiesRead"
+  quirk: Q-05
+  reason: The job processes every active policy despite the legacy SQLCODE.
+  javaValue: 2
+- program: PREMBAT
+  scope: job
+  fixture: positive-insert-sqlcode
+  field: "outputs.jobEnd[0].policiesUpdated"
+  quirk: Q-05
+  reason: The job writes both active policy rows.
+  javaValue: 2
+- program: PREMBAT
+  scope: job
+  fixture: positive-insert-sqlcode
+  field: "outputs.jobEnd[0].policiesError"
+  quirk: Q-05
+  reason: The SQLCODE fixture does not create an item error in the new job.
+  javaValue: 0

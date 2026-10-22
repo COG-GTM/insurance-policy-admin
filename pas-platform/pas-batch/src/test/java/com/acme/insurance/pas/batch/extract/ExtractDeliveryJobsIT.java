@@ -2,6 +2,7 @@ package com.acme.insurance.pas.batch.extract;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.acme.insurance.pas.batch.testsupport.PasTestDatabase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

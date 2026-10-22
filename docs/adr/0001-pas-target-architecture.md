@@ -637,5 +637,5 @@ Binding for the AB-516 tickets (gaps are fine; never reuse a version).
 
 | Schema / location | Ticket → versions |
 | --- | --- |
-| `pas` (+ `pas_shadow`) — `pas-policy-service/src/main/resources/db/migration` | AB-519 V1; AB-521 V2–V9; AB-522 V10–V19; AB-524 V20–V29; AB-525 V30–V39; AB-526 V40–V49; AB-528 V50–V59; AB-529 V60–V69; AB-530 V70–V79 |
+| `pas` (+ `pas_shadow`) — `pas-policy-service/src/main/resources/db/migration` | AB-519 V1; AB-521 V2–V9; AB-522 V10–V19; AB-524 V20–V29; AB-525 V30–V39; AB-526 V40–V49; AB-528 V50–V59; AB-529 V60–V69; AB-530 V70–V79; AB-523 V80–V89 |
 | `pas_batch` — `pas-batch/src/main/resources/db/migration/batch` | AB-519 V1; AB-527 V10–V19; AB-523 V20–V29; AB-529 V30–V39 |
