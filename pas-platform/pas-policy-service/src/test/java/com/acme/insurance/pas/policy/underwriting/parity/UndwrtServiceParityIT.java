@@ -2,6 +2,8 @@ package com.acme.insurance.pas.policy.underwriting.parity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.acme.insurance.pas.copybook.CopybookCharset;
+import com.acme.insurance.pas.copybook.LegacyPolicyRecords;
 import com.acme.insurance.pas.domain.Coded;
 import com.acme.insurance.pas.domain.CustomerType;
 import com.acme.insurance.pas.domain.Policy;
@@ -33,6 +35,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -136,9 +139,7 @@ class UndwrtServiceParityIT {
           "parity-test",
           false);
 
-      assertThat(actualOutput(input.policy().policyNumber()))
-          .as(fixturePath.getFileName().toString())
-          .isEqualTo(expected);
+      assertThat(actualOutput(input)).as(fixturePath.getFileName().toString()).isEqualTo(expected);
     }
   }
 
@@ -212,7 +213,8 @@ class UndwrtServiceParityIT {
             "parity"));
   }
 
-  private UndwrtParityAdapter.Output actualOutput(String policyNumber) {
+  private UndwrtParityAdapter.Output actualOutput(UndwrtParityAdapter.Input input) {
+    String policyNumber = input.policy().policyNumber();
     UndwrtParityAdapter.DecisionRow decision =
         jdbc.queryForObject(
             """
@@ -240,6 +242,7 @@ class UndwrtServiceParityIT {
         "RS".equals(decision.decisionCode()) || "RM".equals(decision.decisionCode())
             ? "UnderwritingReferralRequested"
             : "UnderwritingDecisionRecorded";
+    Policy updatedPolicy = policies.findByPolicyNumber(policyNumber).orElseThrow();
     UndwrtParityAdapter.NotificationRow notification =
         jdbc.queryForObject(
             """
@@ -252,11 +255,40 @@ class UndwrtServiceParityIT {
                 new UndwrtParityAdapter.NotificationRow(
                     policyNumber,
                     row.getString("decision_code"),
-                    Integer.parseInt(row.getString("risk_score"))),
+                    Integer.parseInt(row.getString("risk_score")),
+                    HexFormat.of()
+                        .formatHex(
+                            LegacyPolicyRecords.undwrtDecisionRecord(
+                                parityPolicy(input, updatedPolicy), CopybookCharset.ASCII))
+                        .toUpperCase(java.util.Locale.ROOT)),
             policyNumber,
             eventType);
     return new UndwrtParityAdapter.Output(
         List.of(decision), List.of(policyUpdate), List.of(notification), List.of());
+  }
+
+  private static Policy parityPolicy(UndwrtParityAdapter.Input input, Policy updatedPolicy) {
+    UndwrtParityAdapter.Policy source = input.policy();
+    return new Policy(
+        source.policyNumber(),
+        Coded.of(PolicyType.class, source.policyType()),
+        null,
+        null,
+        null,
+        null,
+        null,
+        source.branchCode(),
+        source.totalPremium(),
+        BigDecimal.ZERO,
+        source.coverageLimit(),
+        null,
+        0,
+        updatedPolicy.uwStatus(),
+        updatedPolicy.riskScore(),
+        null,
+        null,
+        null,
+        null);
   }
 
   private void assertNoPolicyWrites() {

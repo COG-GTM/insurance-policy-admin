@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class OutboxWriter {
   public static final String POLICY_TOPIC = "pas.policy.events.v1";
   public static final String UNDERWRITING_TOPIC = "pas.underwriting.events.v1";
+  public static final String DOCUMENT_TOPIC = "pas.document.requests.v1";
 
   private final JdbcClient jdbc;
   private final ObjectMapper objectMapper;

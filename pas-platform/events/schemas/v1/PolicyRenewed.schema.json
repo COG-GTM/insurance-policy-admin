@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {"$ref": "envelope.schema.json"},
+    {
+      "properties": {
+        "eventType": {"const": "PolicyRenewed"},
+        "data": {
+          "type": "object",
+          "required": ["priorExpiryDate", "effectiveDate", "expiryDate", "renewalCount", "policyStatus", "uwStatus", "oldPremium", "newPremium", "rateChangePct", "capped"],
+          "properties": {
+            "priorExpiryDate": {"type": "string", "format": "date"},
+            "effectiveDate": {"type": "string", "format": "date"},
+            "expiryDate": {"type": "string", "format": "date"},
+            "renewalCount": {"type": "integer", "minimum": 1},
+            "policyStatus": {"type": "string", "const": "AC"},
+            "uwStatus": {"type": "string", "const": "PN"},
+            "oldPremium": {"type": "number"},
+            "newPremium": {"type": "number"},
+            "rateChangePct": {"type": "number"},
+            "capped": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

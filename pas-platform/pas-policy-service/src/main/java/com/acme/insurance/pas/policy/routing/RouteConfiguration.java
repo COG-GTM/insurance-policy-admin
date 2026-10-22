@@ -1,6 +1,7 @@
 package com.acme.insurance.pas.policy.routing;
 
 import com.acme.insurance.pas.common.routing.RouteFlags;
+import com.acme.insurance.pas.common.routing.RouteState;
 import io.swagger.v3.oas.models.OpenAPI;
 import java.util.List;
 import org.springdoc.core.customizers.OpenApiCustomizer;
@@ -15,7 +16,14 @@ import org.springframework.context.annotation.Configuration;
 public class RouteConfiguration {
   @Bean
   RouteFlags routeFlags(RouteProperties properties) {
-    return RouteFlags.of(properties.getRouting());
+    RouteFlags routeFlags = RouteFlags.of(properties.getRouting());
+    RouteState brokerPortalRead = routeFlags.state(RouteFlags.BROKER_PORTAL_READ);
+    if ((brokerPortalRead == RouteState.NEW || brokerPortalRead == RouteState.SHADOW)
+        && !routeFlags.servesTraffic(RouteFlags.POLICY_INQUIRY)) {
+      throw new IllegalStateException(
+          "Route flag broker-portal-read requires policy-inquiry to serve traffic");
+    }
+    return routeFlags;
   }
 
   @Bean

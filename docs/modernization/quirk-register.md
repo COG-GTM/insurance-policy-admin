@@ -272,7 +272,7 @@ differences must cite the Q-id.
 - **Impact:** a double submission extends the term twice. Renewed policies sit in UW pending.
 - **Owner:** PAS product owner.
 - **Decision:** **Fix.** Renewal is allowed only within a configurable window around expiry, idempotent per term (repeat request → same result), rejected for UW `DC`, and it emits an underwriting request event.
-- **Implemented by:** AB-526 (rules), AB-528 (event).
+- **Implemented by:** AB-526 (rules), AB-528 (`UnderwritingReferralRequested`, trigger `RENEWAL`).
 
 ### Q-18
 
@@ -306,7 +306,7 @@ differences must cite the Q-id.
 - **Impact:** consumers of the queue message see a low-risk score on a declined policy.
 - **Owner:** Underwriting.
 - **Decision:** **Fix.** Events and APIs carry the full score. If AB-528's legacy bridge rebuilds the 125-byte record, it has to truncate the score to 3 digits there, and must document that.
-- **Implemented by:** AB-525 (`UnderwritingOutcome`, `UnderwritingService`); AB-528.
+- **Implemented by:** AB-525 (`UnderwritingOutcome`, `UnderwritingService`); AB-528 (legacy bridge truncates only the copybook risk score).
 
 ### Q-21
 

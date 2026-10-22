@@ -2,6 +2,7 @@ package com.acme.insurance.pas.policy.renewal;
 
 import com.acme.insurance.pas.common.routing.RouteFlags;
 import com.acme.insurance.pas.common.routing.RouteState;
+import com.acme.insurance.pas.policy.events.CorrelationIds;
 import com.acme.insurance.pas.policy.inquiry.CallerEntitlements;
 import com.acme.insurance.pas.policy.lifecycle.RouteNotServingException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +19,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -77,7 +79,8 @@ public class RenewalController {
   public ResponseEntity<RenewalResponse> renew(
       @PathVariable String policyNumber,
       @Valid @RequestBody RenewalRequest request,
-      @AuthenticationPrincipal Jwt jwt) {
+      @AuthenticationPrincipal Jwt jwt,
+      @RequestAttribute(CorrelationIds.REQUEST_ATTRIBUTE) String correlationId) {
     RouteState state = routeFlags.state(RouteFlags.RENEWAL);
     CallerEntitlements caller = CallerEntitlements.from(jwt);
     return switch (state) {
@@ -87,7 +90,7 @@ public class RenewalController {
               .body(service.shadow(policyNumber, request, caller));
       case NEW, RETIRED ->
           ResponseEntity.status(HttpStatus.CREATED)
-              .body(service.renew(policyNumber, request, caller, jwt.getSubject()));
+              .body(service.renew(policyNumber, request, caller, jwt.getSubject(), correlationId));
     };
   }
 }

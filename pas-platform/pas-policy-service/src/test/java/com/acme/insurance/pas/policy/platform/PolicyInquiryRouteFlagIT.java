@@ -46,6 +46,7 @@ class PolicyInquiryRouteFlagIT {
     String jwt = PolicyJwtTestSupport.mint(PasScopes.POLICY_READ, Map.of("book", "ALL"));
     for (String path :
         java.util.List.of(
+            "/api/v1/policies",
             "/api/v1/policies/POL-00000001",
             "/api/v1/policies/POL-00000001/coverages",
             "/api/v1/policies/POL-00000001/policyholder")) {

@@ -31,7 +31,8 @@ tests and automated tests select `PAS_CLAIMS_ADAPTER=fixture`.
 Policy creation and underwriting write events in the same database transaction as the policy and
 audit changes. The relay publishes in outbox ID order to `pas.policy.events.v1` and
 `pas.underwriting.events.v1`, and marks rows only after Kafka acknowledges. Each topic contains at
-most one event for a policy version. A create emits `PolicyCreated` to the policy topic and a
+most one event for a policy version. A create emits `PolicyCreated` to the policy topic,
+`DocumentRequested` with type `NEW_BUSINESS` to the document topic, and a
 `UnderwritingReferralRequested` with trigger `NEW_BUSINESS` to the underwriting topic. A decision
 or override with code RS/RM emits only `UnderwritingReferralRequested` with trigger `DECISION`;
 its data contains the complete decision payload. AP/DC decisions emit only
