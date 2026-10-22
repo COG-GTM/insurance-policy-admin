@@ -74,6 +74,7 @@ class DatabaseGrantsIT {
         "pas_sync",
         "INSERT INTO pas.change_log (table_name, record_key) VALUES ('GRANTS_IT', 'DIRECT')");
     assertDenied("pas_sync", "SELECT nextval('pas.change_log_id_seq')");
+    assertDenied("pas_batch", "DELETE FROM pas.change_log WHERE record_key = 'BATCH'");
     assertDenied(
         "pas_sync",
         "UPDATE pas.policies SET policy_status = 'AC' WHERE policy_number = 'GRANT0000001'");
@@ -106,7 +107,7 @@ class DatabaseGrantsIT {
         "pas_batch",
         "INSERT INTO pas.change_log (table_name, record_key) VALUES ('GRANTS_IT', 'BATCH')");
     assertAllowed("pas_batch", "SELECT nextval('pas.change_log_id_seq')");
-    assertBatchLoginCanRunAJob();
+    assertBatchLoginCanRunAJobAndPruneChangeLog();
     assertDenied(
         "pas_sync",
         "INSERT INTO pas.change_log (table_name, record_key) VALUES ('GRANTS_IT', 'POST')");
@@ -116,7 +117,7 @@ class DatabaseGrantsIT {
     assertAllowed("pas_readonly", "SELECT policy_number FROM pas.policies");
   }
 
-  private static void assertBatchLoginCanRunAJob() throws Exception {
+  private static void assertBatchLoginCanRunAJobAndPruneChangeLog() throws Exception {
     JdbcTemplate admin =
         new JdbcTemplate(
             new DriverManagerDataSource(
@@ -160,6 +161,12 @@ class DatabaseGrantsIT {
                 .addString("runId", UUID.randomUUID().toString())
                 .toJobParameters());
     assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+    assertThat(
+            new JdbcTemplate(dataSource)
+                .update(
+                    "DELETE FROM pas.change_log "
+                        + "WHERE table_name = 'GRANTS_IT' AND record_key = 'BATCH'"))
+        .isEqualTo(1);
   }
 
   private static void assertAllowed(String role, String sql) {

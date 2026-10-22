@@ -3,6 +3,7 @@ CREATE TABLE pas_batch.sync_watermark (
     direction VARCHAR(8) NOT NULL CHECK (direction IN ('FORWARD', 'REVERSE')),
     watermark_value TIMESTAMP,
     reverse_xmin xid8,
+    reverse_snapshot pg_snapshot,
     synced_through TIMESTAMPTZ,
     coverage_cursor VARCHAR(12),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

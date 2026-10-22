@@ -55,12 +55,14 @@ replay its own changes back to DB2; service and owner writes without the tag rem
 trigger stays `SECURITY INVOKER`, and pre-cutover `pas_sync` has no INSERT or sequence privilege on
 `pas.change_log`, so an untagged sync write fails closed.
 
-Reverse sync reads `pas.change_log` by transaction ID: each pass captures
-`pg_snapshot_xmin(pg_current_snapshot())`, reads eligible `tx_id` values with an ID keyset, applies
-idempotent MERGEs, then stores the captured `reverse_xmin`. Rows from transactions still in flight
-at pass start are eligible on a later pass after they commit. `changed_at` is retained for lag
-reporting, not as the change cursor. After the drain, `pruneChangeLogStep` deletes rows whose
-`tx_id` is older than the stored reverse xmin in bounded batches; monitor
+Reverse sync reads `pas.change_log` in one read-only `REPEATABLE READ` target transaction per pass
+and captures `pg_current_snapshot()`. The first pass reads all rows; later passes select
+`tx_id >= pg_snapshot_xmin(previous_snapshot)` rows that were not visible in that snapshot, using
+an ID keyset. After applying idempotent MERGEs, each pass stores the captured snapshot and its xmin.
+A transaction that commits late is applied once on the next pass, and drain stops when a pass
+applies zero new rows. `changed_at` is retained for lag reporting, not as the change cursor. After
+the drain, `pruneChangeLogStep` deletes rows whose `tx_id` is older than the stored reverse xmin in
+bounded batches; monitor
 `pas.sync.reverse.change_log.pruned` for the number of rows removed. The six row triggers record no
 PII. For rollback, set modern-write flags to legacy, restart the policy service, drain reverse sync,
 then reconcile.

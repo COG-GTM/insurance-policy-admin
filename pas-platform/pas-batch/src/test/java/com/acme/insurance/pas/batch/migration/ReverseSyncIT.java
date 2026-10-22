@@ -11,9 +11,12 @@ import java.sql.DriverManager;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.PlatformTransactionManager;
 
 class ReverseSyncIT extends MigrationIntegrationTestSupport {
   @Test
@@ -34,8 +37,10 @@ class ReverseSyncIT extends MigrationIntegrationTestSupport {
     ObjectProvider<ReverseSyncTarget> emptyProvider =
         emptyFactory.getBeanProvider(ReverseSyncTarget.class);
     ReverseSyncService disabled =
-        new ReverseSyncService(target, source, emptyProvider, properties, cipher, metrics);
+        new ReverseSyncService(
+            target, source, emptyProvider, properties, cipher, metrics, targetTransactionManager());
     assertThat(disabled.drain()).isZero();
+    assertThat(disabled.pruneChangeLog()).isZero();
 
     target.update(
         "UPDATE pas.policies SET total_premium = 8000.00, row_version = row_version + 1, "
@@ -54,7 +59,13 @@ class ReverseSyncIT extends MigrationIntegrationTestSupport {
         beanFactory.getBeanProvider(ReverseSyncTarget.class);
     ReverseSyncService enabled =
         new ReverseSyncService(
-            target, source, targetProvider, withReverseSyncEnabled(), cipher, metrics);
+            target,
+            source,
+            targetProvider,
+            withReverseSyncEnabled(),
+            cipher,
+            metrics,
+            targetTransactionManager());
 
     assertThat(enabled.drain()).isEqualTo(1);
     assertThat(enabled.drain()).isZero();
@@ -211,6 +222,67 @@ class ReverseSyncIT extends MigrationIntegrationTestSupport {
   }
 
   @Test
+  void drainDoesNotReplayCommittedRowsWhileAnOlderTransactionRemainsOpen() throws Exception {
+    seedSource(2);
+    bulkLoadAll();
+    java.math.BigDecimal originalA =
+        sourceJdbc.queryForObject(
+            "SELECT total_premium FROM acmeins.policies WHERE policy_number = 'POL000000001'",
+            java.math.BigDecimal.class);
+    ReverseSyncTarget reverseTarget = newReverseTarget();
+    try {
+      ReverseSyncService service = enabledService(reverseTarget);
+      try (Connection transactionA =
+              DriverManager.getConnection(
+                  TARGET.getJdbcUrl(), TARGET.getUsername(), TARGET.getPassword());
+          var statement = transactionA.createStatement()) {
+        transactionA.setAutoCommit(false);
+        statement.execute(
+            "UPDATE pas.policies SET total_premium = 7000.00, "
+                + "row_version = row_version + 1, "
+                + "last_updated = TIMESTAMPTZ '2026-06-02 12:00:00+00' "
+                + "WHERE policy_number = 'POL000000001'");
+        target.update(
+            "UPDATE pas.policies SET total_premium = 8000.00, "
+                + "row_version = row_version + 1, "
+                + "last_updated = TIMESTAMPTZ '2026-06-02 12:00:01+00' "
+                + "WHERE policy_number = 'POL000000002'");
+
+        assertThat(service.drain()).isEqualTo(1);
+        assertThat(
+                sourceJdbc.queryForObject(
+                    "SELECT total_premium FROM acmeins.policies "
+                        + "WHERE policy_number = 'POL000000001'",
+                    java.math.BigDecimal.class))
+            .isEqualByComparingTo(originalA);
+        assertThat(
+                sourceJdbc.queryForObject(
+                    "SELECT total_premium FROM acmeins.policies "
+                        + "WHERE policy_number = 'POL000000002'",
+                    java.math.BigDecimal.class))
+            .isEqualByComparingTo("8000.00");
+
+        transactionA.commit();
+        assertThat(service.drain()).isEqualTo(1);
+        assertThat(
+                sourceJdbc.queryForObject(
+                    "SELECT total_premium FROM acmeins.policies "
+                        + "WHERE policy_number = 'POL000000001'",
+                    java.math.BigDecimal.class))
+            .isEqualByComparingTo("7000.00");
+        assertThat(
+                sourceJdbc.queryForObject(
+                    "SELECT total_premium FROM acmeins.policies "
+                        + "WHERE policy_number = 'POL000000002'",
+                    java.math.BigDecimal.class))
+            .isEqualByComparingTo("8000.00");
+      }
+    } finally {
+      reverseTarget.close();
+    }
+  }
+
+  @Test
   void pruningDeletesOnlyRowsOlderThanTheReverseXmin() throws Exception {
     seedSource(1);
     bulkLoadAll();
@@ -257,6 +329,16 @@ class ReverseSyncIT extends MigrationIntegrationTestSupport {
     ObjectProvider<ReverseSyncTarget> targetProvider =
         beanFactory.getBeanProvider(ReverseSyncTarget.class);
     return new ReverseSyncService(
-        target, source, targetProvider, withReverseSyncEnabled(), cipher, metrics);
+        target,
+        source,
+        targetProvider,
+        withReverseSyncEnabled(),
+        cipher,
+        metrics,
+        targetTransactionManager());
+  }
+
+  private PlatformTransactionManager targetTransactionManager() {
+    return new DataSourceTransactionManager(Objects.requireNonNull(target.getDataSource()));
   }
 }

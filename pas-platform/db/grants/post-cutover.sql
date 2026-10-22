@@ -9,6 +9,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
     pas.outbox, pas.idempotency_keys, pas.policy_audit, pas.policy_renewals
     TO pas_service;
 GRANT INSERT ON TABLE pas.change_log TO pas_service, pas_batch;
+GRANT DELETE ON TABLE pas.change_log TO pas_batch;
 GRANT USAGE, SELECT ON SEQUENCE pas.change_log_id_seq TO pas_service, pas_batch;
 GRANT SELECT ON ALL TABLES IN SCHEMA pas TO pas_readonly, pas_sync, pas_service, pas_batch;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA pas_batch TO pas_batch;
