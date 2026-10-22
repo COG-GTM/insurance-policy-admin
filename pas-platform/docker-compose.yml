@@ -51,6 +51,10 @@ services:
       PAS_DB_USERNAME: ${PAS_DB_USERNAME:?set in .env}
       PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:?set in .env (copy .env.example)}
       PAS_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      PAS_PII_ENCRYPTION_KEY_ID: ${PAS_PII_ENCRYPTION_KEY_ID:?run make dev-env}
+      PAS_PII_ENCRYPTION_KEY_VERSION: ${PAS_PII_ENCRYPTION_KEY_VERSION:-1}
+      PAS_PII_ENCRYPTION_KEY: ${PAS_PII_ENCRYPTION_KEY:?run make dev-env}
+      PAS_PII_BLIND_INDEX_KEY: ${PAS_PII_BLIND_INDEX_KEY:?run make dev-env}
       PAS_DEV_JWT_PUBLIC_KEY: /run/pas-keys/public.pem
     volumes:
       - ./.dev-keys/public.pem:/run/pas-keys/public.pem:ro

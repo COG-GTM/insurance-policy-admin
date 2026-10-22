@@ -1,0 +1,2 @@
+org.springframework.test.context.ContextCustomizerFactory=\
+com.acme.insurance.pas.policy.platform.PiiTestContextCustomizerFactory
