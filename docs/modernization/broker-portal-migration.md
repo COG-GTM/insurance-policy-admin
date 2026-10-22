@@ -1,9 +1,35 @@
 # Broker Portal migration (AB-528)
 
-## Current-state discovery and API mapping
+## What the linked server reads today
 
-The linked-server tables, SQL queries, refresh cadence, and SQL Server principal are not recorded
-in this repository (OQ-16). The portal team must inventory them and sign off on this mapping:
+The repository confirms the connection path, but not the linked-server query contract:
+
+- The README describes the Broker Portal integration as a SQL Server linked server to DB2 using
+  read-only ODBC.
+- `sql/ddl/create-tables.sql` defines `POLICIES`, `COVERAGES`, and `POLICY_HOLDERS`. These are
+  plausible source tables for portal policy, coverage, and holder data, but they are hypotheses;
+  the repository does not confirm that the linked-server queries read them.
+- The README describes `DAILY-EXTRACT` as a daily 23:00 extract for Claims/Broker. The JCL header
+  mentions a Broker Portal linked-server refresh, but no JCL step performs that refresh (Q-39).
+  The linked-server refresh frequency is therefore unknown.
+
+## Open questions
+
+1. Which DB2 tables or views does the linked server read? `POLICIES`, `COVERAGES`, and
+   `POLICY_HOLDERS` are hypotheses only.
+2. What SQL queries, joins, filters, and projected columns does the portal use?
+3. How often does the portal refresh or query the linked server, and is that separate from the
+   documented daily extract?
+4. Which SQL Server principal and DB2 auth ID are used, and what grants do they have?
+5. Which PII columns are read? The DDL includes `DATE_OF_BIRTH`, `SSN_LAST4`, `TAX_ID`, and
+   `CREDIT_SCORE` on `POLICY_HOLDERS`; actual linked-server access is unverified.
+
+These unknowns are tracked as M-08/OQ-16 and must be inventoried with the Broker Portal team before
+cutover.
+
+## API mapping
+
+The portal team must inventory its current queries and sign off on this mapping:
 
 | Portal use | Replacement |
 | --- | --- |
@@ -17,9 +43,19 @@ from the portal is not part of the replacement.
 
 ## OAuth2 client credentials
 
-Register a Broker Portal client for the policy API and request `policy:read`. Tokens must include
-the portal's authorized `book`, `agent_id`, and/or `branch_codes` claims. The broker's object-level
-entitlement must be verified before cutover; unentitled policies intentionally appear as 404.
+Register the portal as an OAuth2 client using the client-credentials grant, with the PAS IdP as the
+issuer and `policy:read` as the scope. Tokens carry the portal's authorized `agent_id`,
+`branch_codes`, and `book` claims. Store client credentials in the portal's secret store. Verify
+the broker's object-level entitlement before cutover; unentitled policies intentionally appear as
+404.
+
+## Read-replica alternative
+
+A direct read replica is rejected unless the portal team requests it. It would bypass the SQL
+entitlement checks in Q-32 and the API's object-level authorization, response masking, and PII
+encryption controls in ADR 0001 D7; it would couple the portal to the `pas` schema, the database
+polling alternative rejected in ADR 0001 D6 (which identifies Broker Portal problem P6), and retain
+a direct database connection. The API path and its sign-off gates follow ADR 0001 D9.
 
 ## Cutover
 
@@ -28,6 +64,3 @@ entitlement must be verified before cutover; unentitled policies intentionally a
 3. Set `PAS_ROUTE_BROKER_PORTAL_READ=new` after portal-team acceptance; the route defaults to legacy.
 4. Monitor API authorization errors and latency, then retire the linked-server dependency only after
    consumer sign-off.
-
-The read-replica alternative is rejected per ADR P6: it duplicates authorization and consistency
-responsibility and does not remove the linked-server integration. Portal-team sign-off is pending.

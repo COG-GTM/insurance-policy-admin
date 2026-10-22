@@ -60,16 +60,18 @@
     "document-events": {
       "route": "legacy",
       "legacy": "legacy PAS document events are delivered through the mainframe",
-      "new": "pas-policy-service publishes document events",
+      "new": "Kafka document/referral events bridged to legacy MQ queues by pas-policy-service (IBM037 POLICY-RECORD)",
       "ticket": "AB-528",
-      "signoff": null
+      "signoff": null,
+      "precondition": "Keep legacy until bridge consumers, operations, and owners sign off; retire only after the queue-decommission preconditions are met."
     },
     "broker-portal-read": {
       "route": "legacy",
       "legacy": "Broker Portal reads through the legacy linked server",
-      "new": "Broker Portal reads through pas-policy-service",
+      "new": "Broker Portal uses GET /api/v1/policies list/get/coverages; no DB2 connection",
       "ticket": "AB-528",
-      "signoff": null
+      "signoff": null,
+      "precondition": "Keep legacy until portal-team acceptance and entitlement, masking, and operational sign-off are recorded."
     }
   }
 }
