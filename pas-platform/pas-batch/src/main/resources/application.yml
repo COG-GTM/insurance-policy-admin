@@ -20,6 +20,44 @@ spring:
   main:
     banner-mode: "off"
 
+pas:
+  batch:
+    extract:
+      zone: ${PAS_BATCH_EXTRACT_ZONE:America/New_York}
+      work-dir: ${PAS_BATCH_EXTRACT_WORK_DIR:/var/lib/pas-batch/extracts}
+      schedule:
+        enabled: ${PAS_BATCH_EXTRACT_SCHEDULE_ENABLED:false}
+        daily-cron: ${PAS_BATCH_EXTRACT_DAILY_CRON:0 0 23 * * *}
+        monthly-cron: ${PAS_BATCH_EXTRACT_MONTHLY_CRON:0 0 2 1 * *}
+      retry:
+        max-attempts: ${PAS_BATCH_EXTRACT_RETRY_MAX_ATTEMPTS:3}
+        initial-backoff: ${PAS_BATCH_EXTRACT_RETRY_INITIAL_BACKOFF:5s}
+        multiplier: ${PAS_BATCH_EXTRACT_RETRY_MULTIPLIER:2}
+        max-backoff: ${PAS_BATCH_EXTRACT_RETRY_MAX_BACKOFF:60s}
+    sftp:
+      targets:
+        claims:
+          host: ${PAS_SFTP_CLAIMS_HOST:}
+          port: ${PAS_SFTP_CLAIMS_PORT:22}
+          username: ${PAS_SFTP_CLAIMS_USER:}
+          private-key-file: ${PAS_SFTP_CLAIMS_PRIVATE_KEY_FILE:}
+          key-passphrase-file: ${PAS_SFTP_CLAIMS_KEY_PASSPHRASE_FILE:}
+          known-hosts-file: ${PAS_SFTP_CLAIMS_KNOWN_HOSTS_FILE:}
+          remote-dir: /claims/import
+          connect-timeout: 30s
+        actuarial:
+          host: ${PAS_SFTP_ACTUARIAL_HOST:}
+          port: ${PAS_SFTP_ACTUARIAL_PORT:22}
+          username: ${PAS_SFTP_ACTUARIAL_USER:}
+          private-key-file: ${PAS_SFTP_ACTUARIAL_PRIVATE_KEY_FILE:}
+          key-passphrase-file: ${PAS_SFTP_ACTUARIAL_KEY_PASSPHRASE_FILE:}
+          known-hosts-file: ${PAS_SFTP_ACTUARIAL_KNOWN_HOSTS_FILE:}
+          remote-dir: /actuarial/data
+          connect-timeout: 30s
+  routing:
+    daily-extract: ${PAS_ROUTING_DAILY_EXTRACT:legacy}
+    monthly-exposure: ${PAS_ROUTING_MONTHLY_EXPOSURE:legacy}
+
 server:
   port: 8081
 

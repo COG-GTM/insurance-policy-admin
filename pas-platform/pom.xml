@@ -35,10 +35,21 @@
         <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
         <google-java-format.version>1.24.0</google-java-format.version>
         <springdoc-openapi.version>2.8.17</springdoc-openapi.version>
+        <sshd.version>2.20.0</sshd.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.apache.sshd</groupId>
+                <artifactId>sshd-core</artifactId>
+                <version>${sshd.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.sshd</groupId>
+                <artifactId>sshd-sftp</artifactId>
+                <version>${sshd.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.acme.insurance.pas</groupId>
                 <artifactId>pas-common</artifactId>
