@@ -19,6 +19,7 @@
 
     <modules>
         <module>pas-common</module>
+        <module>pas-rating</module>
         <module>pas-parity</module>
         <module>pas-policy-service</module>
         <module>pas-batch</module>
@@ -41,6 +42,11 @@
             <dependency>
                 <groupId>com.acme.insurance.pas</groupId>
                 <artifactId>pas-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme.insurance.pas</groupId>
+                <artifactId>pas-rating</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

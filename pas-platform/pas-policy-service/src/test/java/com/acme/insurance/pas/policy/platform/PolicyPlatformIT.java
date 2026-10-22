@@ -3,6 +3,10 @@ package com.acme.insurance.pas.policy.platform;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.common.security.PasScopes;
+import com.acme.insurance.pas.rating.FactorMode;
+import com.acme.insurance.pas.rating.PremiumCalculator;
+import com.acme.insurance.pas.rating.RatingRequest;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +37,8 @@ class PolicyPlatformIT {
   @Autowired private TestRestTemplate restTemplate;
 
   @Autowired private JdbcTemplate jdbcTemplate;
+
+  @Autowired private PremiumCalculator premiumCalculator;
 
   @LocalServerPort private int port;
 
@@ -96,12 +102,21 @@ class PolicyPlatformIT {
             "SELECT version FROM pas.flyway_schema_history WHERE version IS NOT NULL",
             String.class);
 
-    assertThat(versions).containsExactly("1", "2", "3", "4", "5");
+    assertThat(versions).containsExactly("1", "2", "3", "4", "5", "10");
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'pas'",
                 Integer.class))
         .isEqualTo(1);
+  }
+
+  @Test
+  void ratesLegacyAutomaticPoliciesFromTheMigratedParameters() {
+    var breakdown =
+        premiumCalculator.calculate(
+            new RatingRequest("AUT", LocalDate.of(2024, 10, 15), null, null));
+    assertThat(breakdown.factorMode()).isEqualTo(FactorMode.LEGACY);
+    assertThat(breakdown.totalPremium()).isEqualByComparingTo("904.75");
   }
 
   private ResponseEntity<String> get(String path, String jwt) {

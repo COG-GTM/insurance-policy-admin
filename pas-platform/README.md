@@ -8,13 +8,15 @@ legacy COBOL, JCL, DB2 DDL, and Java facade; it does not replace or modify those
 | Module | Package | Port | Purpose |
 |--------|---------|------|---------|
 | `pas-common` | `com.acme.insurance.pas.common` | — | Shared domain, copybook, PII, security, and schema types; optional Boot/Logback adapters with no mandatory Spring dependency |
+| `pas-rating` | `com.acme.insurance.pas.rating` | — | PREMBAT-compatible premium calculation, rating parameter access, and configurable factor sets |
 | `pas-parity` | `com.acme.insurance.pas.parity` | — | Test-scope COBOL golden-file runner, comparators, and known-difference validation |
 | `pas-policy-service` | `com.acme.insurance.pas.policy` | `8080` | Policy HTTP service and policy schema ownership |
 | `pas-batch` | `com.acme.insurance.pas.batch` | `8081` | Spring Batch HTTP service and batch metadata schema ownership |
 
-`pas-rating` remains planned. The parity module is used from test scope by consumers. Run
+The parity module is used from test scope by consumers. Run
 `make parity` from the repository root to check COBOL fixtures and exercise the Java parity
-adapters.
+adapters. See [PREMBAT rating](../docs/modernization/rating.md) for calculation and factor-mode
+semantics.
 
 ## Configuration
 
@@ -24,6 +26,7 @@ adapters.
 | `PAS_DB_USERNAME` | Both | Required | Database user |
 | `PAS_DB_PASSWORD` | Both | Required | Database password |
 | `PAS_KAFKA_BOOTSTRAP_SERVERS` | Both | `localhost:9092` | Kafka bootstrap address, reserved for future messaging |
+| `PAS_RATING_FACTOR_MODE` | Both | `legacy` | `legacy` always uses the LEGACY factor set; `tables` uses the active rating factor set |
 | `PAS_JWT_JWK_SET_URI` | Default profile | Required | Remote JWT JWK set |
 | `PAS_DEV_JWT_PUBLIC_KEY` | `local` profile only | Required | Public key file path for local RS256 JWT validation |
 

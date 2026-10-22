@@ -20,6 +20,10 @@ spring:
   main:
     banner-mode: "off"
 
+pas:
+  rating:
+    factor-mode: ${PAS_RATING_FACTOR_MODE:legacy}
+
 server:
   port: 8081
 

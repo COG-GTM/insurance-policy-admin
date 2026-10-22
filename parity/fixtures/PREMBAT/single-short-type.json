@@ -1,0 +1,1 @@
+{"description":"A two-character policy type uses the PREMBAT WHEN OTHER premium.","input":{"policies":[{"policyNumber":"POL000000602","policyType":"AU","totalPremium":1000.00,"deductible":500.00,"coverageLimit":100000.00,"effectiveDate":"20240101","expiryDate":"20250101","insertSqlcode":0}]}}
