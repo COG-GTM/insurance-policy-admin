@@ -76,11 +76,16 @@ For a completed date, set a new `rerun` value to create a distinct job instance:
 --pas.batch.cli.rerun=2
 ```
 
-Reruns upsert the premium row and are idempotent for the policy term (Q-05). The PAS primary key is
-`(policy_number, coverage_seq, term_effective_date)` and excludes calculation date: a later business
-date in the same term also replaces the existing PAS row. A failed execution resumes by launching
-the same parameters; Spring Batch reuses completed partitions and resumes the failed partition from
-its last committed chunk. Do not assign a new `rerun` value when restarting a failed instance.
+Reruns upsert the premium row and are idempotent for the policy term (Q-05). In `shadow`, a new
+rerun first deletes only that business date's rows from `pas_shadow.premiums`, then writes the
+currently active policies; rows for other business dates remain. This cleanup is performed by the
+route-guard step, so a restart of the same failed instance does not repeat it and preserves
+committed shadow rows. In `new`, reruns remain upsert-only: the PAS primary key
+`(policy_number, coverage_seq, term_effective_date)` excludes calculation date, so a later business
+date in the same term replaces an existing PAS row, while rows for policies no longer active remain.
+PREMBAT does not delete prior rows either. A failed execution resumes by launching the same
+parameters; Spring Batch reuses completed partitions and resumes the failed partition from its last
+committed chunk. Do not assign a new `rerun` value when restarting a failed instance.
 
 PREMRPT is written to
 `<report-dir>/premiumRecalculationJob/<businessDate>/<jobExecutionId>/PREMRPT.D<yyMMdd>.txt`.

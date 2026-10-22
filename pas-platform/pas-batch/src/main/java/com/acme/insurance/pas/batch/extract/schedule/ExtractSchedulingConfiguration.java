@@ -1,6 +1,7 @@
 package com.acme.insurance.pas.batch.extract.schedule;
 
 import com.acme.insurance.pas.common.routing.RouteFlags;
+import com.acme.insurance.pas.common.routing.RouteState;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import org.slf4j.Logger;
@@ -48,17 +49,25 @@ public class ExtractSchedulingConfiguration {
       cron = "${pas.batch.extract.schedule.daily-cron:0 0 23 * * *}",
       zone = "${pas.batch.extract.zone:America/New_York}")
   public void launchDailyExtract() {
-    launch(dailyExtractJob);
+    launch(dailyExtractJob, RouteFlags.DAILY_EXTRACT);
   }
 
   @Scheduled(
       cron = "${pas.batch.extract.schedule.monthly-cron:0 0 2 1 * *}",
       zone = "${pas.batch.extract.zone:America/New_York}")
   public void launchMonthlyExposure() {
-    launch(monthlyExposureJob);
+    launch(monthlyExposureJob, RouteFlags.MONTHLY_EXPOSURE);
   }
 
-  private void launch(Job job) {
+  private void launch(Job job, String routeCapability) {
+    if (routes.state(routeCapability) == RouteState.RETIRED) {
+      log.atInfo()
+          .addKeyValue("event", "pas.batch.extract.schedule.skipped")
+          .addKeyValue("job", job.getName())
+          .addKeyValue("route", routeCapability)
+          .log("Scheduled extract skipped for retired route");
+      return;
+    }
     try {
       LocalDate businessDate = LocalDate.now(zone);
       JobParameters parameters =

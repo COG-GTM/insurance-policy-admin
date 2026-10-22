@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.batch.testsupport.PasTestDatabase;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.Job;
@@ -60,21 +62,46 @@ class PremiumShadowRouteIT {
   @Test
   void writesShadowPremiumAndReportOnlyAndReplacesBusinessDate() throws Exception {
     insertPolicy("POL000000401");
+    insertPolicy("POL000000402");
     LocalDate date = LocalDate.of(2024, 10, 15);
+    LocalDate otherDate = date.minusDays(1);
 
     JobExecution first = launch(date, 1);
-    JobExecution second = launch(date, 2);
-
-    assertThat(first.getStatus().name()).isEqualTo("COMPLETED");
-    assertThat(second.getStatus().name()).isEqualTo("COMPLETED");
-    assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pas.premiums", Integer.class))
-        .isZero();
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM pas_shadow.premiums WHERE business_date = ?",
                 Integer.class,
                 date))
-        .isEqualTo(1);
+        .isEqualTo(2);
+
+    JobExecution otherDateExecution = launch(otherDate, 1);
+    List<Map<String, Object>> otherDateRowsBefore =
+        jdbcTemplate.queryForList(
+            "SELECT policy_number, total_premium, job_instance_id FROM pas_shadow.premiums "
+                + "WHERE business_date = ? ORDER BY policy_number",
+            otherDate);
+    jdbcTemplate.update(
+        "UPDATE pas.policies SET policy_status = 'CN' WHERE policy_number = ?", "POL000000402");
+    JobExecution second = launch(date, 2);
+
+    assertThat(first.getStatus().name()).isEqualTo("COMPLETED");
+    assertThat(otherDateExecution.getStatus().name()).isEqualTo("COMPLETED");
+    assertThat(second.getStatus().name()).isEqualTo("COMPLETED");
+    assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pas.premiums", Integer.class))
+        .isZero();
+    assertThat(
+            jdbcTemplate.queryForList(
+                "SELECT policy_number FROM pas_shadow.premiums WHERE business_date = ? "
+                    + "ORDER BY policy_number",
+                date))
+        .extracting(row -> row.get("policy_number"))
+        .containsExactly("POL000000401");
+    assertThat(
+            jdbcTemplate.queryForList(
+                "SELECT policy_number, total_premium, job_instance_id FROM pas_shadow.premiums "
+                    + "WHERE business_date = ? ORDER BY policy_number",
+                otherDate))
+        .isEqualTo(otherDateRowsBefore);
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM pas_shadow.premium_run_report WHERE business_date = ?",

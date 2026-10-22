@@ -64,7 +64,8 @@ public class PremiumJobConfiguration {
       JobRepository repository,
       @Qualifier("premiumTransactionManager") PlatformTransactionManager premiumTransactionManager,
       RouteFlags routes,
-      JobExplorer jobExplorer) {
+      JobExplorer jobExplorer,
+      JdbcTemplate jdbcTemplate) {
     return new StepBuilder("premiumRouteGuardStep", repository)
         .tasklet(
             (contribution, chunkContext) -> {
@@ -81,6 +82,12 @@ public class PremiumJobConfiguration {
                 contribution.setExitStatus(
                     new org.springframework.batch.core.ExitStatus("DISABLED"));
               } else {
+                if (state == RouteState.SHADOW) {
+                  LocalDate businessDate =
+                      LocalDate.parse(current.getJobParameters().getString("businessDate"));
+                  jdbcTemplate.update(
+                      "DELETE FROM pas_shadow.premiums WHERE business_date = ?", businessDate);
+                }
                 current
                     .getExecutionContext()
                     .putString("premiumWriteTarget", state == RouteState.SHADOW ? "SHADOW" : "PAS");
