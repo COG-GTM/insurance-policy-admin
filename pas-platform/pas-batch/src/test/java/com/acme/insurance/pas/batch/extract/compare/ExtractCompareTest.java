@@ -36,6 +36,49 @@ class ExtractCompareTest {
   }
 
   @Test
+  void pairsDatedMonthlyLocalNameWithCanonicalExpectedName() throws Exception {
+    Path expected = Files.createDirectory(directory.resolve("monthly-expected"));
+    Path actual = Files.createDirectory(directory.resolve("monthly-actual"));
+    String content = "HOM,B001,FIRE,,A,2,10.00,1.00,0.00\r\n";
+    Files.writeString(
+        expected.resolve("exposure_monthly.csv"), content, StandardCharsets.ISO_8859_1);
+    Files.writeString(
+        actual.resolve("exposure_monthly.D251001.csv"), content, StandardCharsets.ISO_8859_1);
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+    int exit =
+        ExtractCompare.compare(
+            new String[] {expected.toString(), actual.toString()},
+            new PrintStream(output),
+            System.err);
+
+    assertThat(exit).isZero();
+    assertThat(output.toString(StandardCharsets.UTF_8))
+        .contains("MATCH exposure_monthly.csv sha256=");
+  }
+
+  @Test
+  void rejectsMultipleFilesMappedToTheSameMonthlyName() throws Exception {
+    Path expected = Files.createDirectory(directory.resolve("monthly-duplicate"));
+    Path actual = Files.createDirectory(directory.resolve("monthly-unambiguous"));
+    Files.writeString(expected.resolve("exposure_monthly.csv"), "first");
+    Files.writeString(expected.resolve("exposure_monthly.D251001.csv"), "second");
+    Files.writeString(actual.resolve("exposure_monthly.csv"), "first");
+    ByteArrayOutputStream error = new ByteArrayOutputStream();
+
+    int exit =
+        ExtractCompare.compare(
+            new String[] {expected.toString(), actual.toString()},
+            System.out,
+            new PrintStream(error));
+
+    assertThat(exit).isEqualTo(2);
+    assertThat(error.toString(StandardCharsets.UTF_8))
+        .contains("exposure_monthly.csv")
+        .contains("exposure_monthly.D251001.csv");
+  }
+
+  @Test
   void fixedWidthDifferenceReportsFieldWithoutPrintingValues() throws Exception {
     Path expected = Files.createDirectory(directory.resolve("fixed-expected"));
     Path actual = Files.createDirectory(directory.resolve("fixed-actual"));

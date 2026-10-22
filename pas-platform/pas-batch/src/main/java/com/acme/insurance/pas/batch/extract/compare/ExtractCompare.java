@@ -9,10 +9,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HexFormat;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 public final class ExtractCompare {
+  private static final Pattern DATED_MONTHLY_NAME =
+      Pattern.compile("exposure_monthly\\.D\\d{6}\\.csv");
+
   private ExtractCompare() {}
 
   public static void main(String[] args) {
@@ -34,17 +38,17 @@ public final class ExtractCompare {
       return 2;
     }
     try {
-      Set<String> expectedFiles = names(expected);
-      Set<String> actualFiles = names(actual);
+      Map<String, String> expectedFiles = names(expected);
+      Map<String, String> actualFiles = names(actual);
       boolean different = false;
-      for (String name : expectedFiles.stream().sorted().toList()) {
-        if (!actualFiles.contains(name)) {
+      for (String name : expectedFiles.keySet().stream().sorted().toList()) {
+        if (!actualFiles.containsKey(name)) {
           out.println("MISSING " + name);
           different = true;
           continue;
         }
-        byte[] left = Files.readAllBytes(expected.resolve(name));
-        byte[] right = Files.readAllBytes(actual.resolve(name));
+        byte[] left = Files.readAllBytes(expected.resolve(expectedFiles.get(name)));
+        byte[] right = Files.readAllBytes(actual.resolve(actualFiles.get(name)));
         ExtractLayout layout = layoutOrNull(name);
         if (layout != null && hasLayoutMismatch(left, layout)) {
           out.println("LAYOUT MISMATCH expected " + name + ": record length or separator differs");
@@ -61,29 +65,47 @@ public final class ExtractCompare {
           reportDifference(name, left, right, layout, out);
         }
       }
-      for (String name : actualFiles.stream().sorted().toList()) {
-        if (!expectedFiles.contains(name)) {
+      for (String name : actualFiles.keySet().stream().sorted().toList()) {
+        if (!expectedFiles.containsKey(name)) {
           out.println("EXTRA " + name);
           different = true;
         }
       }
       return different ? 1 : 0;
+    } catch (DuplicateFileNameException exception) {
+      error.println("Ambiguous extract file names: " + exception.getMessage());
+      return 2;
     } catch (IOException | RuntimeException exception) {
       error.println("Unable to compare extract files: " + exception.getClass().getSimpleName());
       return 2;
     }
   }
 
-  private static Set<String> names(Path directory) throws IOException {
-    Set<String> names = new LinkedHashSet<>();
+  private static Map<String, String> names(Path directory) throws IOException {
+    Map<String, String> names = new LinkedHashMap<>();
+    java.util.List<String> fileNames;
     try (var files = Files.list(directory)) {
-      files
-          .filter(Files::isRegularFile)
-          .map(path -> path.getFileName().toString())
-          .filter(name -> !name.endsWith(".sha256") && !name.endsWith(".done"))
-          .forEach(names::add);
+      fileNames =
+          files
+              .filter(Files::isRegularFile)
+              .map(path -> path.getFileName().toString())
+              .filter(name -> !name.endsWith(".sha256") && !name.endsWith(".done"))
+              .sorted()
+              .toList();
+    }
+    for (String fileName : fileNames) {
+      String comparisonName = comparisonName(fileName);
+      String previous = names.putIfAbsent(comparisonName, fileName);
+      if (previous != null) {
+        throw new DuplicateFileNameException(
+            "'" + previous + "' and '" + fileName + "' both map to '" + comparisonName + "'");
+      }
     }
     return names;
+  }
+
+  private static String comparisonName(String fileName) {
+    return DATED_MONTHLY_NAME.matcher(fileName).matches() ? "exposure_monthly.csv" : fileName;
   }
 
   private static void reportDifference(
@@ -232,6 +254,12 @@ public final class ExtractCompare {
       return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
     } catch (NoSuchAlgorithmException exception) {
       throw new IllegalStateException(exception);
+    }
+  }
+
+  private static final class DuplicateFileNameException extends IOException {
+    private DuplicateFileNameException(String message) {
+      super(message);
     }
   }
 

@@ -18,8 +18,9 @@ does not deliver them or create delivery rows.
    the endpoint.
 3. The v1 layout is confirmed against production samples. Complete five consecutive byte-matching
    runs for each consumer; record and approve any Q-46 ordering differences.
-4. Both consumer owners confirm they wait for `.done`, validate `.sha256`, and can accept an atomic
-   overwrite of the unchanged remote file names.
+4. Both consumer owners confirm they validate `.sha256` and can accept an atomic overwrite of the
+   unchanged remote file names. Claims must wait for both policy and coverage `.done` markers
+   before ingesting either file; Actuarial waits for the exposure marker.
 5. Confirm `pas.routing.daily-extract=new` and/or
    `pas.routing.monthly-exposure=new` for the approved capability. `retired` prevents launch;
    `legacy` generates comparison output without delivery.

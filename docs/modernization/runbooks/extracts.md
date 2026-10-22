@@ -75,8 +75,13 @@ the same fixed remote names.
 
 Consumers must ignore a file until its matching `<file>.done` marker exists. Verify its `layout`,
 `records`, `bytes`, `sha256`, `businessDate`, and `jobExecutionId`; verify `<file>.sha256` using
-sha256sum-compatible format before importing. The marker is written last. A fixed remote file is
-replaced via a temporary upload and rename, so readers should open only after the marker is present.
+sha256sum-compatible format before importing. For the daily Claims file set, require both the policy
+and coverage `.done` markers before ingesting either file; one marker alone is not set completion.
+Each attempt clears both markers, transfers and checksums every file, then publishes the markers.
+Monthly exposure is a one-file set. A fixed remote file is replaced via a temporary upload and
+rename, so readers should open only after every marker for its set is present.
 
 Do not use the local filenames as consumer contracts. Daily local files are `policy_extract.dat`
 and `coverage_extract.dat`; local monthly output is date-qualified.
+The comparator pairs `exposure_monthly.D<yyMMdd>.csv` with `exposure_monthly.csv`; multiple files
+in one directory that map to the canonical monthly name are an error.

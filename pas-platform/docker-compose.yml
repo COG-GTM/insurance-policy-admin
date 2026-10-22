@@ -58,6 +58,7 @@ services:
       PAS_DEV_JWT_PUBLIC_KEY: /run/pas-keys/public.pem
     volumes:
       - ./.dev-keys/public.pem:/run/pas-keys/public.pem:ro
+      - pas-batch-extracts:/var/lib/pas-batch/extracts
     ports:
       - "${PAS_POLICY_HTTP_PORT:-8080}:8080"
     depends_on:
@@ -100,3 +101,4 @@ services:
 
 volumes:
   pas-postgres-data:
+  pas-batch-extracts:

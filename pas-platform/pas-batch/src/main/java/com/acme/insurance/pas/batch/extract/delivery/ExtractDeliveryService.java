@@ -12,7 +12,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -84,6 +86,11 @@ public class ExtractDeliveryService {
     SftpProperties.Target target = properties.getTargets().get(targetName);
     validateTarget(target);
     List<PreparedFile> prepared = files.stream().map(this::prepare).toList();
+    List<String> donePaths =
+        prepared.stream()
+            .map(file -> remotePath(target.remoteDir(), file.remoteName()) + ".done")
+            .toList();
+    Set<String> temporaryPaths = new LinkedHashSet<>();
     int attempts = 0;
     Instant started = clock.instant();
     IOException finalFailure = null;
@@ -91,8 +98,18 @@ public class ExtractDeliveryService {
     for (int attempt = 1; attempt <= retryProperties.maxAttempts(); attempt++) {
       attempts = attempt;
       try (RemoteFileStore.Session session = remoteFileStore.connect(target)) {
-        for (PreparedFile file : prepared) {
-          deliverOne(session, target.remoteDir(), file, jobExecutionId, businessDate);
+        try {
+          deleteAll(session, donePaths);
+          for (PreparedFile file : prepared) {
+            transferFile(session, target.remoteDir(), file, jobExecutionId, temporaryPaths);
+          }
+          for (PreparedFile file : prepared) {
+            publishDoneMarker(
+                session, target.remoteDir(), file, jobExecutionId, businessDate, temporaryPaths);
+          }
+        } catch (IOException | RuntimeException failure) {
+          deleteBestEffort(session, donePaths);
+          throw failure;
         }
         Instant completed = clock.instant();
         for (PreparedFile file : prepared) {
@@ -129,6 +146,9 @@ public class ExtractDeliveryService {
         }
       }
     }
+    if (!(finalFailure instanceof TransferSecurityException)) {
+      cleanupRemoteArtifacts(target, donePaths, temporaryPaths);
+    }
     Instant completed = clock.instant();
     String failureType =
         finalFailure == null
@@ -150,17 +170,16 @@ public class ExtractDeliveryService {
     throw finalFailure == null ? new IOException("SFTP delivery failed") : finalFailure;
   }
 
-  private void deliverOne(
+  private void transferFile(
       RemoteFileStore.Session session,
       String remoteDir,
       PreparedFile file,
       long jobExecutionId,
-      LocalDate businessDate)
+      Set<String> temporaryPaths)
       throws IOException {
     String remotePath = remotePath(remoteDir, file.remoteName());
-    String donePath = remotePath + ".done";
     String temporary = remotePath + "." + jobExecutionId + ".tmp";
-    session.delete(donePath);
+    temporaryPaths.add(temporary);
     session.delete(temporary);
     session.upload(file.file().path(), temporary);
     if (session.size(temporary) != file.byteCount()) {
@@ -169,11 +188,24 @@ public class ExtractDeliveryService {
     session.rename(temporary, remotePath);
     String checksumPath = remotePath + ".sha256";
     String checksumTemporary = checksumPath + "." + jobExecutionId + ".tmp";
+    temporaryPaths.add(checksumTemporary);
     session.delete(checksumTemporary);
     session.write(
         (file.sha256() + "  " + file.remoteName() + "\n").getBytes(StandardCharsets.US_ASCII),
         checksumTemporary);
     session.rename(checksumTemporary, checksumPath);
+  }
+
+  private void publishDoneMarker(
+      RemoteFileStore.Session session,
+      String remoteDir,
+      PreparedFile file,
+      long jobExecutionId,
+      LocalDate businessDate,
+      Set<String> temporaryPaths)
+      throws IOException {
+    String remotePath = remotePath(remoteDir, file.remoteName());
+    String donePath = remotePath + ".done";
     String marker =
         "layout="
             + file.file().layoutVersion()
@@ -189,9 +221,48 @@ public class ExtractDeliveryService {
             + jobExecutionId
             + "\n";
     String markerTemporary = donePath + "." + jobExecutionId + ".tmp";
+    temporaryPaths.add(markerTemporary);
     session.delete(markerTemporary);
     session.write(marker.getBytes(StandardCharsets.US_ASCII), markerTemporary);
     session.rename(markerTemporary, donePath);
+  }
+
+  private void cleanupRemoteArtifacts(
+      SftpProperties.Target target, List<String> donePaths, Set<String> temporaryPaths) {
+    Set<String> paths = new LinkedHashSet<>(donePaths);
+    paths.addAll(temporaryPaths);
+    try (RemoteFileStore.Session session = remoteFileStore.connect(target)) {
+      deleteBestEffort(session, paths);
+    } catch (IOException | RuntimeException ignored) {
+      // Preserve the original delivery failure if cleanup cannot connect.
+    }
+  }
+
+  private static void deleteAll(RemoteFileStore.Session session, List<String> paths)
+      throws IOException {
+    IOException firstFailure = null;
+    for (String path : paths) {
+      try {
+        session.delete(path);
+      } catch (IOException exception) {
+        if (firstFailure == null) {
+          firstFailure = exception;
+        }
+      }
+    }
+    if (firstFailure != null) {
+      throw firstFailure;
+    }
+  }
+
+  private static void deleteBestEffort(RemoteFileStore.Session session, Iterable<String> paths) {
+    for (String path : paths) {
+      try {
+        session.delete(path);
+      } catch (IOException | RuntimeException ignored) {
+        // Continue best-effort cleanup without masking the delivery failure.
+      }
+    }
   }
 
   private PreparedFile prepare(DeliveryFile file) {

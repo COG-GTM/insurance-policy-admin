@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
@@ -12,10 +13,12 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class ExtractDeliveryServiceTest {
@@ -49,6 +52,60 @@ class ExtractDeliveryServiceTest {
     assertThat(store.contents.get("/claims/import/extract.dat"))
         .isEqualTo("sample data".getBytes(java.nio.charset.StandardCharsets.UTF_8));
     verify(jdbc).update(any(String.class), any(Object[].class));
+  }
+
+  @Test
+  void removesSetMarkersAndTemporaryFilesAfterTerminalFileFailure() throws Exception {
+    Path policy = Files.writeString(directory.resolve("policy.dat"), "policy");
+    Path coverage = Files.writeString(directory.resolve("coverage.dat"), "coverage");
+    AtomicInteger connections = new AtomicInteger();
+    FakeStore store = new FakeStore(connections, false);
+    store.transientFailure = false;
+    JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    ExtractDeliveryService service =
+        new ExtractDeliveryService(
+            store,
+            properties(),
+            new ExtractRetryProperties(3, Duration.ZERO, 2, Duration.ZERO),
+            jdbc,
+            java.time.Clock.systemUTC(),
+            ignored -> {});
+    List<ExtractDeliveryService.DeliveryFile> files =
+        List.of(
+            new ExtractDeliveryService.DeliveryFile(
+                policy, "policy_extract.dat", "daily-policy/v1", 1),
+            new ExtractDeliveryService.DeliveryFile(
+                coverage, "coverage_extract.dat", "daily-coverage/v1", 1));
+
+    service.deliver("claims", "dailyExtractJob", 41, LocalDate.of(2025, 2, 10), files);
+
+    assertThat(store.contents)
+        .containsKeys(
+            "/claims/import/policy_extract.dat.done", "/claims/import/coverage_extract.dat.done");
+    store.failUploadPath = "/claims/import/coverage_extract.dat.42.tmp";
+
+    assertThatThrownBy(
+            () ->
+                service.deliver("claims", "dailyExtractJob", 42, LocalDate.of(2025, 2, 10), files))
+        .isInstanceOf(IOException.class);
+
+    assertThat(store.contents)
+        .doesNotContainKeys(
+            "/claims/import/policy_extract.dat.done",
+            "/claims/import/coverage_extract.dat.done",
+            "/claims/import/coverage_extract.dat.42.tmp")
+        .doesNotContainKey("/claims/import/policy_extract.dat.42.tmp");
+    assertThat(store.contents.keySet()).noneMatch(path -> path.endsWith(".tmp"));
+
+    ArgumentCaptor<Object[]> updates = ArgumentCaptor.forClass(Object[].class);
+    verify(jdbc, times(4)).update(any(String.class), updates.capture());
+    assertThat(updates.getAllValues().subList(2, 4))
+        .allSatisfy(
+            values -> {
+              assertThat(values[9]).isEqualTo("FAILED");
+              assertThat(values[10]).isEqualTo(3);
+              assertThat(values[11]).isEqualTo("IOException");
+            });
   }
 
   @Test
@@ -104,6 +161,7 @@ class ExtractDeliveryServiceTest {
     private final boolean securityFailure;
     private final Map<String, byte[]> contents = new HashMap<>();
     private boolean transientFailure = true;
+    private String failUploadPath;
 
     private FakeStore(AtomicInteger connections, boolean securityFailure) {
       this.connections = connections;
@@ -128,7 +186,11 @@ class ExtractDeliveryServiceTest {
             transientFailure = false;
             throw new IOException("transient");
           }
-          contents.put(remotePath, Files.readAllBytes(localFile));
+          byte[] content = Files.readAllBytes(localFile);
+          contents.put(remotePath, content);
+          if (remotePath.equals(failUploadPath)) {
+            throw new IOException("simulated partial upload");
+          }
         }
 
         @Override
