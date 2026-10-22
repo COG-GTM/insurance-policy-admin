@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class UnderwritingDecisionRepository {
+  private static final int LEGACY_DECISION_REASON_MAX_LENGTH = 100;
+
   private static final String SELECT =
       """
       SELECT decision_id, policy_number, decision_date, decision_code, risk_score, decision_reason,
@@ -39,7 +41,7 @@ public class UnderwritingDecisionRepository {
         .param("decisionDate", decision.decisionDate())
         .param("decisionCode", decision.decisionCode().raw())
         .param("riskScore", decision.riskScore())
-        .param("decisionReason", decision.decisionReason())
+        .param("decisionReason", legacyDecisionReason(decision.decisionReason()))
         .param("underwriterId", decision.underwriterId())
         .param("overrideReason", decision.overrideReason())
         .param("overrideBy", decision.overrideBy())
@@ -65,7 +67,7 @@ public class UnderwritingDecisionRepository {
         .param("decisionDate", decision.decisionDate())
         .param("decisionCode", decision.decisionCode())
         .param("riskScore", decision.riskScore())
-        .param("decisionReason", decision.decisionReason())
+        .param("decisionReason", legacyDecisionReason(decision.decisionReason()))
         .param("reasons", decision.reasons().toArray(String[]::new))
         .param("lossRatio", decision.lossRatio())
         .param("underwriterId", decision.underwriterId())
@@ -157,5 +159,11 @@ public class UnderwritingDecisionRepository {
         row.getObject("overrides_decision_id", Long.class),
         row.getString("override_reason"),
         JdbcValues.charValue(row, "override_by"));
+  }
+
+  private static String legacyDecisionReason(String reason) {
+    return reason != null && reason.length() > LEGACY_DECISION_REASON_MAX_LENGTH
+        ? reason.substring(0, LEGACY_DECISION_REASON_MAX_LENGTH)
+        : reason;
   }
 }

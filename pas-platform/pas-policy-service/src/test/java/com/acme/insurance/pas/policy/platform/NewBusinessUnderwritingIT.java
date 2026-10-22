@@ -265,6 +265,7 @@ class NewBusinessUnderwritingIT {
                 overrideBody.path("decisionId").asLong()))
         .isEqualTo("Referral override reason");
 
+    String longOverrideReason = "r".repeat(150);
     ResponseEntity<String> recordedOverride =
         post(
             "/api/v1/policies/"
@@ -272,13 +273,12 @@ class NewBusinessUnderwritingIT {
                 + "/underwriting-decisions/"
                 + overrideBody.path("decisionId").asLong()
                 + "/override",
-            "{\"decisionCode\":\"AP\",\"reason\":\"Approval override reason\"}",
+            "{\"decisionCode\":\"AP\",\"reason\":\"" + longOverrideReason + "\"}",
             overrideJwt,
             null);
     assertThat(recordedOverride.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     JsonNode recordedOverrideBody = MAPPER.readTree(recordedOverride.getBody());
-    assertThat(recordedOverrideBody.path("reasons").get(0).asText())
-        .isEqualTo("Approval override reason");
+    assertThat(recordedOverrideBody.path("reasons").get(0).asText()).isEqualTo(longOverrideReason);
     assertThat(
             jdbc.queryForObject(
                 """
@@ -288,7 +288,25 @@ class NewBusinessUnderwritingIT {
                 """,
                 String.class,
                 policyNumber))
-        .isEqualTo("Approval override reason");
+        .isEqualTo(longOverrideReason);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT override_reason FROM pas.underwriting_decisions WHERE decision_id = ?",
+                String.class,
+                recordedOverrideBody.path("decisionId").asLong()))
+        .isEqualTo(longOverrideReason);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT decision_reasons[1] FROM pas.underwriting_decisions WHERE decision_id = ?",
+                String.class,
+                recordedOverrideBody.path("decisionId").asLong()))
+        .isEqualTo(longOverrideReason);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT decision_reason FROM pas.underwriting_decisions WHERE decision_id = ?",
+                String.class,
+                recordedOverrideBody.path("decisionId").asLong()))
+        .isEqualTo(longOverrideReason.substring(0, 100));
     assertThat(
             post(
                     "/api/v1/policies/"
