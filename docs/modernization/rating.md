@@ -37,7 +37,8 @@ controlled tests. Migration V10 adds `pas.rating_parameters` and seeds the PREMB
 experience/schedule modifiers, tax, and surcharge transcribed from `3200-CALCULATE-PREMIUM`
 (Q-07). Exact policy-type parameters win over `*` independent of date; within that specificity,
 the latest effective date not after the rating date wins. Territory and class factor resolution use
-the same exact/wildcard and effective-date precedence as `RatingFactorRepository`.
+the same exact/wildcard and effective-date precedence as `RatingFactorRepository`. Class-factor
+lookup uses the requested policy type even when parameters resolve through `*`.
 
 | Setting | Behavior |
 |---------|----------|

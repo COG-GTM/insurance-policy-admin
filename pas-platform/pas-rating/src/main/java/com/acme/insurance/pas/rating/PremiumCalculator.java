@@ -42,10 +42,7 @@ public final class PremiumCalculator {
         CobolPic.store(
             repository
                 .findClassFactor(
-                    factorSet,
-                    parameters.policyTypeKey(),
-                    request.classCode(),
-                    request.ratingDate())
+                    factorSet, request.policyType(), request.classCode(), request.ratingDate())
                 .orElseThrow(
                     () ->
                         new RatingConfigurationException(

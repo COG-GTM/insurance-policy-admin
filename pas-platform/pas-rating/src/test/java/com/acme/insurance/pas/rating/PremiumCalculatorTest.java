@@ -218,6 +218,24 @@ class PremiumCalculatorTest {
   }
 
   @Test
+  void resolvesClassFactorByRequestedTypeWhenParametersUseFallbackRow() {
+    InMemoryRatingTableRepository repository = new InMemoryRatingTableRepository();
+    repository.activeFactorSet = "ILLUSTRATIVE";
+    repository.parameters.add(
+        parameters("*", BASE_DATE, "100.00", "1.0000", "1.0000", "0.0000", "0.00"));
+    repository.territoryFactors.add(factor("ILLUSTRATIVE", "*", "1.0000"));
+    repository.classFactors.add(classFactor("ILLUSTRATIVE", "XYZ", "PPA01", "1.2000"));
+    repository.classFactors.add(classFactor("ILLUSTRATIVE", "*", "PPA01", "1.1000"));
+
+    PremiumBreakdown result =
+        calculator(repository, FactorMode.TABLES)
+            .calculate(new RatingRequest("XYZ", TODAY, null, "PPA01"));
+
+    assertThat(result.classFactor()).isEqualByComparingTo("1.2000");
+    assertThat(result.policyTypeKey()).isEqualTo("*");
+  }
+
+  @Test
   void failsClosedForMissingConfigurationAndInvalidPolicyType() {
     InMemoryRatingTableRepository repository = seededRepository();
     PremiumCalculator tables = calculator(repository, FactorMode.TABLES);
