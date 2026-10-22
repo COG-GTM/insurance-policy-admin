@@ -1,3 +1,5 @@
 pas:
   routing:
     policy-inquiry: new
+    renewal: new
+    endorsement: new

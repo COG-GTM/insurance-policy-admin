@@ -12,3 +12,9 @@ springdoc:
 pas:
   routing:
     policy-inquiry: new
+    renewal: new
+    endorsement: new
+  dev:
+    claims-stub:
+      enabled: true
+      open-claims: 0

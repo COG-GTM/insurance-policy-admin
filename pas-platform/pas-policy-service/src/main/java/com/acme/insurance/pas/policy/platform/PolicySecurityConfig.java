@@ -7,6 +7,7 @@ import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -29,6 +30,10 @@ public class PolicySecurityConfig {
                 authorize
                     .requestMatchers(EndpointRequest.to(HealthEndpoint.class))
                     .permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/renewals")
+                    .hasAuthority(PasScopes.authority(PasScopes.POLICY_RENEW))
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/endorsements")
+                    .hasAuthority(PasScopes.authority(PasScopes.POLICY_ENDORSE))
                     .requestMatchers("/api/v1/policies/**")
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_READ))
                     .anyRequest()

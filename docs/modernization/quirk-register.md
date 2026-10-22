@@ -591,3 +591,39 @@ differences must cite the Q-id.
 - **Owner:** Mainframe team (batch).
 - **Decision:** **Fix.** Render the amount as nine integer digits, a decimal point, and two fractional digits using locale-independent formatting, for example `000000904.75`.
 - **Implemented by:** AB-523 (`PremiumReportFormatter`).
+
+### Q-49
+
+**POLRNW and POLEND arithmetic wraps instead of failing**
+
+- **Location:** `cobol/programs/POLRNW.cbl` 4000-CALCULATE-NEW-PREMIUM (`COMPUTE` without `ON SIZE ERROR`, rate change divides by the old premium); `cobol/programs/POLEND.cbl` 5000 (`MAX(ENDORSEMENT_SEQ) + 1` into `PIC 9(05)`).
+- **Observed:** the AB-520 goldens show a 999,999,999.99 premium renewing at 49,999,999.98 (the uplift loses its high-order digit), a zero premium renewing at 0.00 after a division by zero, and endorsement sequence 99,999 wrapping to 0.
+- **Impact:** a renewal can silently cut the premium, and an endorsement can collide with an existing ENDORSEMENTS key.
+- **Owner:** PAS product owner.
+- **Decision:** **Fix.** The renewal and endorsement APIs reject these cases with 422 (`RENEWAL_PREMIUM_INVALID`, `ENDORSEMENT_SEQUENCE_LIMIT`) instead of writing a wrapped value.
+- **Found by:** AB-526.
+- **Implemented by:** AB-526.
+
+### Q-50
+
+**POLEND accepts zero-length terms and dates outside the term**
+
+- **Location:** `cobol/programs/POLEND.cbl:114-129` (days in term and days remaining, unsigned, divided without a zero check).
+- **Observed:** when the effective date equals the expiry date the factor divides by zero, and a date after expiry loses the sign of the negative day count (AB-520 fixtures `effective-equals-expiry`, `current-after-expiry`). The endorsement is still written.
+- **Impact:** endorsements are recorded against terms that do not exist or have ended.
+- **Owner:** PAS product owner.
+- **Decision:** **Fix.** A zero-length or inverted term and an endorsement date outside [effective, expiry] are rejected with 422. The first and last days of the term are inside it.
+- **Found by:** AB-526.
+- **Implemented by:** AB-526.
+
+### Q-51
+
+**POLEND posts whatever WS-PREMIUM-ADJUST holds**
+
+- **Location:** `WS-PREMIUM-ADJUST` at `cobol/programs/POLEND.cbl:32` is never initialised or assigned; it is inserted and added to `TOTAL_PREMIUM` (`cobol/programs/POLEND.cbl:140-166`).
+- **Observed:** the harness seeds working storage to show that any residue (10.00, 125.50, -1200.00) reaches ENDORSEMENTS and POLICIES.
+- **Impact:** a stale value changes the premium. Q-11 already decides the intended adjustment is 0.00.
+- **Owner:** PAS product owner.
+- **Decision:** **Fix.** The adjustment is always initialised to 0.00, as Q-11 requires, whatever the request or prior state holds.
+- **Found by:** AB-526.
+- **Implemented by:** AB-526.
