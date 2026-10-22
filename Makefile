@@ -19,7 +19,7 @@ compat-api-modern:
 parity:
 	python3 parity/tools/harness.py check
 	python3 -m unittest discover -s parity/tools
-	cd pas-platform && ./mvnw -B -ntp -pl pas-parity -am test
+	cd pas-platform && ./mvnw -B -ntp -pl pas-policy-service -am test
 
 parity-golden:
 	python3 parity/tools/harness.py golden

@@ -1,3 +1,13 @@
 pas:
   routing:
     policy-inquiry: new
+    new-business: new
+    underwriting: new
+  claims:
+    adapter: fixture
+  outbox:
+    relay:
+      enabled: false
+  kafka:
+    topics:
+      enabled: false

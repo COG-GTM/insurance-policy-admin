@@ -365,6 +365,9 @@ differences must cite the Q-id.
 
 **Nullable columns selected without indicator variables**
 
+- **AB-525 implementation note:** Null or nonpositive credit scores use the base score 400, as
+  recorded for Q-26/Q-45 in the quirk register.
+
 - **Location:** `cobol/programs/UNDWRT.cbl:96-110` selects `CREDIT_SCORE` and `RISK_TIER`, both nullable (`sql/ddl/create-tables.sql:167-168`). `cobol/programs/POLQRY.cbl:107-119` selects nullable `LAST_NAME`, `FIRST_NAME`, `COMPANY_NAME`, `PHONE` and `EMAIL`. Neither uses indicator variables.
 - **Observed:** a NULL value gives SQLCODE -305. In UNDWRT this produces "POLICY/CUSTOMER DATA NOT FOUND" (`cobol/programs/UNDWRT.cbl:111-114`), so the "no credit score → 400" branch (`cobol/programs/UNDWRT.cbl:121-126`) only runs for 0. In POLQRY the error is not checked. Individual customers have NULL `COMPANY_NAME` and commercial customers have NULL names, so the customer read fails every time.
 - **Impact:** underwriting can't decide on a policy whose holder has no credit score.

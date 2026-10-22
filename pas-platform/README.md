@@ -86,6 +86,28 @@ required only for unsafe cookie-authenticated requests; bearer-token APIs remain
 For local development, use `dev/dev-jwt.sh keygen` and `dev/dev-jwt.sh mint`. Keep `.dev-keys/` and
 `.env` local; they are ignored by Git.
 
+## New business and underwriting (AB-525)
+
+`POST /api/v1/policies` requires `policy:write`. Underwriting decisions use
+`POST /api/v1/policies/{policyNumber}/underwriting-decisions` with
+`underwriting:decide`; listing uses the same path with `GET` and `policy:read`; overrides use
+`POST /api/v1/policies/{policyNumber}/underwriting-decisions/{decisionId}/override` with
+`underwriting:override`. All routes also enforce the caller's `book`, `agent_id`, and
+`branch_codes` entitlements.
+
+The `new-business` and `underwriting` route flags default to `legacy`; legacy and retired routes
+return 503. The `local` profile enables new mode and selects fixture claims history. In REST mode,
+configure `PAS_CLAIMS_REST_BASE_URL`, `PAS_CLAIMS_TOKEN_URL`, `PAS_CLAIMS_CLIENT_ID`, and
+`PAS_CLAIMS_CLIENT_SECRET`; a missing claims base URL is a startup error. Local tokens can be
+minted with `./dev/dev-jwt.sh mint --scope "policy:write underwriting:decide
+underwriting:override policy:read" --claim book=AGENT --claim agent_id=AGT001
+--claim branch_codes=B001`.
+
+The transactional outbox publishes to `pas.policy.events.v1` and
+`pas.underwriting.events.v1`. Set `PAS_KAFKA_TOPIC_PARTITIONS` and `PAS_KAFKA_TOPIC_REPLICAS` to
+configure topic creation. The API, claims adapter and outbox operational guidance is in
+[`docs/modernization/runbooks/new-business-underwriting.md`](../docs/modernization/runbooks/new-business-underwriting.md).
+
 ## Policy inquiry API (AB-524)
 
 `GET /api/v1/policies/{policyNumber}` and

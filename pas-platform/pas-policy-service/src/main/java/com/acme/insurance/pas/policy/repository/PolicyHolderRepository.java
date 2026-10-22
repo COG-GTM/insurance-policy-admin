@@ -94,6 +94,13 @@ public class PolicyHolderRepository {
         .optional();
   }
 
+  public boolean existsByCustId(String custId) {
+    return jdbc.sql("SELECT EXISTS (SELECT 1 FROM pas.policy_holders WHERE cust_id = :custId)")
+        .param("custId", custId)
+        .query(Boolean.class)
+        .single();
+  }
+
   public List<PolicyHolder> findByTaxId(String taxId) {
     return jdbc.sql(SELECT + " WHERE tax_id_bidx = :taxIdIndex ORDER BY cust_id")
         .param("taxIdIndex", blindIndex.of(taxId))

@@ -1,5 +1,8 @@
 package com.acme.insurance.pas.underwriting;
 
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@ConfigurationProperties(prefix = "pas.underwriting")
 public record UnderwritingThresholds(
     int seniorReferral,
     int managerReferral,
@@ -20,6 +23,18 @@ public record UnderwritingThresholds(
     int secondLimitAdjustment,
     long accumulationThreshold,
     int accumulationAdjustment) {
+
+  public UnderwritingThresholds {
+    if (!(seniorReferral < managerReferral && managerReferral < autoDecline)) {
+      throw new IllegalArgumentException("Underwriting score bands must be strictly ascending");
+    }
+    if (!(firstClaimThreshold < secondClaimThreshold)) {
+      throw new IllegalArgumentException("Claim thresholds must be strictly ascending");
+    }
+    if (!(firstLimitThreshold < secondLimitThreshold)) {
+      throw new IllegalArgumentException("Limit thresholds must be strictly ascending");
+    }
+  }
 
   public static UnderwritingThresholds legacyDefaults() {
     return new UnderwritingThresholds(

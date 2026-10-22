@@ -7,6 +7,7 @@ import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -29,6 +30,19 @@ public class PolicySecurityConfig {
                 authorize
                     .requestMatchers(EndpointRequest.to(HealthEndpoint.class))
                     .permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies")
+                    .hasAuthority(PasScopes.authority(PasScopes.POLICY_WRITE))
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/underwriting-decisions")
+                    .hasAuthority(PasScopes.authority(PasScopes.UNDERWRITING_DECIDE))
+                    .requestMatchers(
+                        HttpMethod.POST, "/api/v1/policies/*/underwriting-decisions/*/override")
+                    .hasAuthority(PasScopes.authority(PasScopes.UNDERWRITING_OVERRIDE))
+                    .requestMatchers(
+                        request ->
+                            (request.getServletPath().equals("/api/v1/policies")
+                                    || request.getServletPath().startsWith("/api/v1/policies/"))
+                                && !"GET".equals(request.getMethod()))
+                    .denyAll()
                     .requestMatchers("/api/v1/policies/**")
                     .hasAuthority(PasScopes.authority(PasScopes.POLICY_READ))
                     .anyRequest()

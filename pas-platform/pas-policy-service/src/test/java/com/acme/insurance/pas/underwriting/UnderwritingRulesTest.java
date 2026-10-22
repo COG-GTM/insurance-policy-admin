@@ -43,7 +43,37 @@ class UnderwritingRulesTest {
     UnderwritingDecision decision = decide(302, "S", 0, "10500.00", "100000.00", "500000000.01");
     assertThat(decision.lossRatio()).isEqualByComparingTo("1050.00");
     assertThat(decision.reasons())
-        .containsExactly("REFERRED TO UW MANAGER", "ACCUMULATION LIMIT EXCEEDED FOR BRANCH B001");
+        .containsExactly(
+            "REFERRED TO UW MANAGER",
+            "LOSS RATIO > 80",
+            "ACCUMULATION LIMIT EXCEEDED FOR BRANCH B001");
+  }
+
+  @Test
+  void accumulatesReasonsForEveryAppliedAdjustment() {
+    UnderwritingDecision decision =
+        UnderwritingRules.decide(
+            new UnderwritingInput(
+                100,
+                "U",
+                new BigDecimal("1000.00"),
+                new BigDecimal("10000000.01"),
+                new BigDecimal("800.10"),
+                new BigDecimal("500000000.01"),
+                6,
+                "B001"),
+            thresholds);
+
+    assertThat(decision.reasons())
+        .containsExactly(
+            "AUTO-DECLINED: HIGH RISK",
+            "SUBSTANDARD RISK TIER",
+            "CLAIMS IN 5 YEARS > 3",
+            "CLAIMS IN 5 YEARS > 5",
+            "LOSS RATIO > 80",
+            "COVERAGE LIMIT > 5000000",
+            "COVERAGE LIMIT > 10000000",
+            "ACCUMULATION LIMIT EXCEEDED FOR BRANCH B001");
   }
 
   private UnderwritingDecision decide(

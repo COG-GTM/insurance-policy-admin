@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["eventId", "eventType", "schemaVersion", "policyNumber", "policyVersion", "occurredAt", "correlationId", "data"],
+  "properties": {
+    "eventId": {"type": "string", "format": "uuid"},
+    "eventType": {"enum": ["PolicyCreated", "UnderwritingReferralRequested", "UnderwritingDecisionRecorded"]},
+    "schemaVersion": {"const": 1},
+    "policyNumber": {"type": "string", "pattern": "^POL[0-9]{9}$"},
+    "policyVersion": {"type": "integer", "minimum": 1},
+    "occurredAt": {"type": "string", "format": "date-time"},
+    "correlationId": {"type": "string", "minLength": 1, "maxLength": 64},
+    "data": {"type": "object"}
+  },
+  "additionalProperties": false
+}

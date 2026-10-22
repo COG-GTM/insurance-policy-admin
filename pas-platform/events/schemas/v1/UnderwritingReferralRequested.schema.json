@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {"$ref": "envelope.schema.json"},
+    {
+      "properties": {
+        "eventType": {"const": "UnderwritingReferralRequested"},
+        "data": {
+          "type": "object",
+          "required": ["trigger", "decisionId", "decisionCode", "riskScore"],
+          "properties": {
+            "trigger": {"enum": ["NEW_BUSINESS", "DECISION"]},
+            "decisionId": {"type": ["integer", "null"], "minimum": 1},
+            "decisionCode": {"type": ["string", "null"], "enum": ["AP", "RS", "RM", "DC", null]},
+            "riskScore": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

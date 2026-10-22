@@ -12,3 +12,7 @@ springdoc:
 pas:
   routing:
     policy-inquiry: new
+    new-business: new
+    underwriting: new
+  claims:
+    adapter: fixture

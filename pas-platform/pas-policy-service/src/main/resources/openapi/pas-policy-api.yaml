@@ -4,6 +4,124 @@ info:
   version: v0
 servers: []
 paths:
+  /api/v1/policies:
+    post:
+      tags:
+      - new-business-controller
+      summary: Create a new-business policy
+      description: Requires policy:write and entitlement to the requested agent or
+        branch. Shadow mode records only PII-free validation results.
+      operationId: create
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewBusinessRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - bearerAuth: []
+  /api/v1/policies/{policyNumber}/underwriting-decisions:
+    get:
+      tags:
+      - underwriting-controller
+      summary: List underwriting decisions for a policy
+      operationId: list
+      parameters:
+      - name: policyNumber
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - underwriting-controller
+      summary: Run underwriting for a policy
+      operationId: decide
+      parameters:
+      - name: policyNumber
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - bearerAuth: []
+  /api/v1/policies/{policyNumber}/underwriting-decisions/{decisionId}/override:
+    post:
+      tags:
+      - underwriting-controller
+      summary: Override the latest underwriting decision
+      operationId: override
+      parameters:
+      - name: policyNumber
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: decisionId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OverrideRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+      security:
+      - bearerAuth: []
   /api/v1/policies/{policyNumber}:
     get:
       tags:
@@ -113,6 +231,33 @@ paths:
                 $ref: "#/components/schemas/WhoamiResponse"
 components:
   schemas:
+    NewBusinessRequest:
+      type: object
+      properties:
+        policyType:
+          type: string
+        policyholderId:
+          type: string
+        effectiveDate:
+          type: string
+          format: date
+        agentCode:
+          type: string
+        branchCode:
+          type: string
+        coverageLimit:
+          type: number
+        deductible:
+          type: number
+        totalPremium:
+          type: number
+    OverrideRequest:
+      type: object
+      properties:
+        decisionCode:
+          type: string
+        reason:
+          type: string
     PolicyResponse:
       type: object
       properties:

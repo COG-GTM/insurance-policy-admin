@@ -97,7 +97,11 @@ public class PolicyInquiryRepository {
     return policyholderId.flatMap(policyHolderRepository::findByCustId);
   }
 
-  private static java.util.Map<String, Object> entitlementParameters(
+  public static String entitlementPredicate(String policyAlias) {
+    return ENTITLEMENT_PREDICATE.replace("p.", policyAlias + ".");
+  }
+
+  public static java.util.Map<String, Object> entitlementParameters(
       CallerEntitlements entitlements) {
     return java.util.Map.of(
         "wholeBook", entitlements.wholeBook(),
