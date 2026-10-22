@@ -94,23 +94,42 @@ class ShadowRoutesIT {
             invalidPolicyTypeBody.replace(custId, otherCustId),
             createJwt,
             null);
+    String invalidPolicyTypeWithMissingHolder = invalidPolicyTypeBody.replace(custId, "C999999999");
+    ResponseEntity<String> invalidPolicyTypeAndMissingHolder =
+        post("/api/v1/policies", invalidPolicyTypeWithMissingHolder, createJwt, null);
+    String unentitledJwt =
+        PolicyJwtTestSupport.mint(
+            PasScopes.POLICY_WRITE,
+            "unentitled-shadow-agent",
+            Map.of("book", "AGENT", "agent_id", "AGT999", "branch_codes", List.of("X999")));
+    ResponseEntity<String> hiddenMissingHolder =
+        post("/api/v1/policies", invalidPolicyTypeWithMissingHolder, unentitledJwt, null);
     assertThat(invalidPolicyType.getStatusCode().value()).isEqualTo(202);
     assertThat(invalidPolicyTypeWithOtherHolder.getStatusCode().value()).isEqualTo(202);
+    assertThat(invalidPolicyTypeAndMissingHolder.getStatusCode().value()).isEqualTo(202);
+    assertThat(invalidPolicyTypeAndMissingHolder.getBody())
+        .contains("policyType")
+        .contains("policyholderId")
+        .contains("POLICYHOLDER NOT FOUND");
+    assertThat(hiddenMissingHolder.getStatusCode().value()).isEqualTo(403);
+    assertThat(hiddenMissingHolder.getBody()).doesNotContain("POLICYHOLDER NOT FOUND");
     List<String> invalidHashes =
         jdbc.queryForList(
             "SELECT request_hash FROM pas_shadow.new_business_results WHERE id > ? ORDER BY id",
             String.class,
             shadowResultMarker);
-    assertThat(invalidHashes).hasSize(2);
+    assertThat(invalidHashes).hasSize(3);
     assertThat(invalidHashes.get(0)).isEqualTo(invalidHashes.get(1));
+    assertThat(invalidHashes.get(0)).isEqualTo(invalidHashes.get(2));
     List<String> invalidPolicyTypes =
         jdbc.queryForList(
             "SELECT policy_type FROM pas_shadow.new_business_results WHERE id > ? ORDER BY id",
             String.class,
             shadowResultMarker);
-    assertThat(invalidPolicyTypes).hasSize(2);
+    assertThat(invalidPolicyTypes).hasSize(3);
     assertThat(invalidPolicyTypes.get(0)).isNull();
     assertThat(invalidPolicyTypes.get(1)).isNull();
+    assertThat(invalidPolicyTypes.get(2)).isNull();
 
     String policyNumber = "POL000000021";
     jdbc.update(

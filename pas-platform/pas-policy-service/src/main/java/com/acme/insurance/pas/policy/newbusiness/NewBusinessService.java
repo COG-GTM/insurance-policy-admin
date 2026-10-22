@@ -99,61 +99,25 @@ public class NewBusinessService {
       }
     }
 
-    List<NewBusinessError> errors = validate(request);
-    if (!errors.isEmpty()) {
-      if (shadow) {
-        if (!entitledToWrite(entitlements, request)) {
-          return problem(
-              HttpStatus.FORBIDDEN, "Caller is not entitled to write this agent or branch");
-        }
-        shadowResults.insert(
-            shadowRequestHash,
-            validatedPolicyType(request.policyType(), errors),
-            defaultCoverageTypes(request.policyType()),
-            errors.stream().map(NewBusinessError::field).distinct().toList());
-        return new CreatePolicyResult(
-            HttpStatus.ACCEPTED.value(), null, new ShadowResponse(true, "INVALID", errors), false);
-      }
-      return new CreatePolicyResult(
-          HttpStatus.UNPROCESSABLE_ENTITY.value(),
-          null,
-          new ApiProblem(
-              "about:blank",
-              "Unprocessable Entity",
-              422,
-              "Policy request validation failed",
-              errors),
-          true);
+    List<NewBusinessError> errors = new ArrayList<>(validate(request));
+    boolean entitlementFieldsValid =
+        errors.stream()
+            .noneMatch(
+                error -> "agentCode".equals(error.field()) || "branchCode".equals(error.field()));
+    if (!entitlementFieldsValid) {
+      return validationFailure(request, shadow, shadowRequestHash, errors);
     }
 
     if (!entitledToWrite(entitlements, request)) {
       return problem(HttpStatus.FORBIDDEN, "Caller is not entitled to write this agent or branch");
     }
 
-    if (!holders.existsByCustId(request.policyholderId().trim())) {
-      NewBusinessError error = new NewBusinessError("policyholderId", "POLICYHOLDER NOT FOUND");
-      if (shadow) {
-        shadowResults.insert(
-            shadowRequestHash,
-            request.policyType(),
-            defaultCoverageTypes(request.policyType()),
-            List.of(error.field()));
-        return new CreatePolicyResult(
-            HttpStatus.ACCEPTED.value(),
-            null,
-            new ShadowResponse(true, "INVALID", List.of(error)),
-            false);
-      }
-      return new CreatePolicyResult(
-          HttpStatus.UNPROCESSABLE_ENTITY.value(),
-          null,
-          new ApiProblem(
-              "about:blank",
-              "Unprocessable Entity",
-              422,
-              "Policy request validation failed",
-              List.of(error)),
-          true);
+    if (errors.stream().noneMatch(error -> "policyholderId".equals(error.field()))
+        && !holders.existsByCustId(request.policyholderId().trim())) {
+      errors.add(new NewBusinessError("policyholderId", "POLICYHOLDER NOT FOUND"));
+    }
+    if (!errors.isEmpty()) {
+      return validationFailure(request, shadow, shadowRequestHash, errors);
     }
 
     if (shadow) {
@@ -222,6 +186,35 @@ public class NewBusinessService {
           subject, idempotencyKey, HttpStatus.CREATED.value(), location, toJson(response));
     }
     return new CreatePolicyResult(HttpStatus.CREATED.value(), location, response, false);
+  }
+
+  private CreatePolicyResult validationFailure(
+      NewBusinessRequest request,
+      boolean shadow,
+      String shadowRequestHash,
+      List<NewBusinessError> errors) {
+    if (shadow) {
+      shadowResults.insert(
+          shadowRequestHash,
+          validatedPolicyType(request.policyType(), errors),
+          defaultCoverageTypes(request.policyType()),
+          errors.stream().map(NewBusinessError::field).distinct().toList());
+      return new CreatePolicyResult(
+          HttpStatus.ACCEPTED.value(),
+          null,
+          new ShadowResponse(true, "INVALID", List.copyOf(errors)),
+          false);
+    }
+    return new CreatePolicyResult(
+        HttpStatus.UNPROCESSABLE_ENTITY.value(),
+        null,
+        new ApiProblem(
+            "about:blank",
+            "Unprocessable Entity",
+            422,
+            "Policy request validation failed",
+            List.copyOf(errors)),
+        true);
   }
 
   List<NewBusinessError> validate(NewBusinessRequest request) {

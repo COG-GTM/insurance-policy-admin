@@ -233,12 +233,62 @@ class NewBusinessUnderwritingIT {
                 + "/underwriting-decisions/"
                 + second.path("decisionId").asLong()
                 + "/override",
-            "{\"decisionCode\":\"AP\",\"reason\":\"Reviewed and approved\"}",
+            "{\"decisionCode\":\"RS\",\"reason\":\"Referral override reason\"}",
             overrideJwt,
             null);
     assertThat(override.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-    assertThat(MAPPER.readTree(override.getBody()).path("overridesDecisionId").asLong())
+    JsonNode overrideBody = MAPPER.readTree(override.getBody());
+    assertThat(overrideBody.path("overridesDecisionId").asLong())
         .isEqualTo(second.path("decisionId").asLong());
+    assertThat(overrideBody.path("reasons").get(0).asText()).isEqualTo("Referral override reason");
+    assertThat(
+            jdbc.queryForObject(
+                """
+                SELECT payload -> 'data' -> 'reasons' ->> 0 FROM pas.outbox
+                WHERE aggregate_id = ? AND event_type = 'UnderwritingReferralRequested'
+                  AND payload -> 'data' ->> 'trigger' = 'DECISION'
+                ORDER BY id DESC LIMIT 1
+                """,
+                String.class,
+                policyNumber))
+        .isEqualTo("Referral override reason");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT decision_reason FROM pas.underwriting_decisions WHERE decision_id = ?",
+                String.class,
+                overrideBody.path("decisionId").asLong()))
+        .isEqualTo("Referral override reason");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT decision_reasons[1] FROM pas.underwriting_decisions WHERE decision_id = ?",
+                String.class,
+                overrideBody.path("decisionId").asLong()))
+        .isEqualTo("Referral override reason");
+
+    ResponseEntity<String> recordedOverride =
+        post(
+            "/api/v1/policies/"
+                + policyNumber
+                + "/underwriting-decisions/"
+                + overrideBody.path("decisionId").asLong()
+                + "/override",
+            "{\"decisionCode\":\"AP\",\"reason\":\"Approval override reason\"}",
+            overrideJwt,
+            null);
+    assertThat(recordedOverride.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    JsonNode recordedOverrideBody = MAPPER.readTree(recordedOverride.getBody());
+    assertThat(recordedOverrideBody.path("reasons").get(0).asText())
+        .isEqualTo("Approval override reason");
+    assertThat(
+            jdbc.queryForObject(
+                """
+                SELECT payload -> 'data' -> 'reasons' ->> 0 FROM pas.outbox
+                WHERE aggregate_id = ? AND event_type = 'UnderwritingDecisionRecorded'
+                ORDER BY id DESC LIMIT 1
+                """,
+                String.class,
+                policyNumber))
+        .isEqualTo("Approval override reason");
     assertThat(
             post(
                     "/api/v1/policies/"
@@ -275,20 +325,26 @@ class NewBusinessUnderwritingIT {
             jdbc.queryForObject(
                 "SELECT overrides_decision_id FROM pas.underwriting_decisions WHERE decision_id = ?",
                 Long.class,
-                MAPPER.readTree(override.getBody()).path("decisionId").asLong()))
+                overrideBody.path("decisionId").asLong()))
         .isEqualTo(second.path("decisionId").asLong());
     assertThat(
             jdbc.queryForObject(
                 "SELECT loss_ratio FROM pas.underwriting_decisions WHERE decision_id = ?",
                 BigDecimal.class,
-                MAPPER.readTree(override.getBody()).path("decisionId").asLong()))
+                overrideBody.path("decisionId").asLong()))
         .isEqualByComparingTo(originalLossRatio);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT overrides_decision_id FROM pas.underwriting_decisions WHERE decision_id = ?",
+                Long.class,
+                recordedOverrideBody.path("decisionId").asLong()))
+        .isEqualTo(overrideBody.path("decisionId").asLong());
     assertThat(
             jdbc.queryForObject(
                 "SELECT row_version FROM pas.policies WHERE policy_number = ?",
                 Long.class,
                 policyNumber))
-        .isEqualTo(4L);
+        .isEqualTo(5L);
     String readJwt =
         PolicyJwtTestSupport.mint(
             PasScopes.POLICY_READ,
@@ -305,7 +361,7 @@ class NewBusinessUnderwritingIT {
             new HttpEntity<>(headers(readJwt)),
             String.class);
     assertThat(listed.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(MAPPER.readTree(listed.getBody())).hasSize(3);
+    assertThat(MAPPER.readTree(listed.getBody())).hasSize(4);
     String fallbackReason =
         jdbc.queryForObject(
                 "SELECT decision_reason FROM pas.underwriting_decisions WHERE decision_id = ?",
@@ -355,7 +411,8 @@ class NewBusinessUnderwritingIT {
   void validatesAllPolnewFieldsAndEnforcesAgentBranchEntitlement() throws Exception {
     String badRequest =
         """
-        {"policyType":"","policyholderId":"","effectiveDate":"%s","coverageLimit":0}
+        {"policyType":"","policyholderId":"","effectiveDate":"%s","agentCode":"AGT001",
+         "branchCode":"B001","coverageLimit":0}
         """
             .formatted(LocalDate.now().minusDays(1));
     String writeJwt =
@@ -371,6 +428,14 @@ class NewBusinessUnderwritingIT {
         .contains("POLICY TYPE IS REQUIRED")
         .contains("EFFECTIVE DATE CANNOT BE IN PAST")
         .contains("POLICY LIMIT MUST BE GREATER THAN ZERO");
+    String invalidEntitlementFields =
+        """
+        {"policyType":"AUT","policyholderId":"C999999999","effectiveDate":"%s",
+         "agentCode":"TOO-LONG","branchCode":"B0001","coverageLimit":100000}
+        """
+            .formatted(LocalDate.now().plusDays(1));
+    assertThat(post("/api/v1/policies", invalidEntitlementFields, writeJwt, null).getStatusCode())
+        .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
 
     String custId = "C" + UUID.randomUUID().toString().replace("-", "").substring(0, 9);
     jdbc.update("INSERT INTO pas.policy_holders (cust_id, cust_type) VALUES (?, 'I')", custId);
@@ -410,11 +475,25 @@ class NewBusinessUnderwritingIT {
     ResponseEntity<String> hiddenMissingHolder =
         post(
             "/api/v1/policies",
-            missingHolderRequest.replace("AGT001", "OTHER1").replace("B001", "X001"),
+            missingHolderRequest
+                .replace("\"policyType\":\"AUT\"", "\"policyType\":\"AUTOMOBILE\"")
+                .replace("AGT001", "OTHER1")
+                .replace("B001", "X001"),
             writeJwt,
             null);
     assertThat(hiddenMissingHolder.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(hiddenMissingHolder.getBody()).doesNotContain("POLICYHOLDER NOT FOUND");
+    ResponseEntity<String> combinedErrors =
+        post(
+            "/api/v1/policies",
+            missingHolderRequest.replace("\"policyType\":\"AUT\"", "\"policyType\":\"AUTOMOBILE\""),
+            writeJwt,
+            null);
+    assertThat(combinedErrors.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    assertThat(combinedErrors.getBody())
+        .contains("policyType")
+        .contains("policyholderId")
+        .contains("POLICYHOLDER NOT FOUND");
     String todayRequest =
         unentitledRequest
             .replace("OTHER1", "AGT001")

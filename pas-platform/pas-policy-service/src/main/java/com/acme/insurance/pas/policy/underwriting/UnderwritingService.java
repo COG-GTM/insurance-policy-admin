@@ -221,7 +221,7 @@ public class UnderwritingService {
             LocalDate.now(clock),
             code,
             original.riskScore(),
-            "MANUAL OVERRIDE",
+            reason,
             List.of(reason),
             original.lossRatio(),
             shortSubject,
@@ -244,7 +244,7 @@ public class UnderwritingService {
               newDecisionId,
               code,
               original.riskScore(),
-              List.of("MANUAL OVERRIDE"),
+              List.of(reason),
               original.lossRatio(),
               true,
               original.decisionId()));
@@ -255,7 +255,7 @@ public class UnderwritingService {
           policyNumber,
           policyVersion,
           correlationId,
-          overrideData(newDecisionId, code, original));
+          overrideData(newDecisionId, code, original, reason));
     }
     return response(
         newDecisionId,
@@ -367,12 +367,12 @@ public class UnderwritingService {
   }
 
   private static Map<String, Object> overrideData(
-      long decisionId, String code, UnderwritingDecisionAudit original) {
+      long decisionId, String code, UnderwritingDecisionAudit original, String reason) {
     Map<String, Object> data = new LinkedHashMap<>();
     data.put("decisionId", decisionId);
     data.put("decisionCode", code);
     data.put("riskScore", original.riskScore());
-    data.put("reasons", List.of("MANUAL OVERRIDE"));
+    data.put("reasons", List.of(reason));
     data.put("lossRatio", original.lossRatio());
     data.put("override", true);
     data.put("overridesDecisionId", original.decisionId());
