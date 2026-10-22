@@ -67,7 +67,7 @@ class PremiumJobRestartIT {
   }
 
   @Test
-  void restartsFailedPartitionAfterRemovingTransientDatabaseFailure() throws Exception {
+  void restartsFailedShadowRerunAfterClearingPriorReport() throws Exception {
     for (String number :
         new String[] {"POL000000501", "POL000000502", "POL000000503", "POL000000504"}) {
       jdbcTemplate.update(
@@ -76,6 +76,21 @@ class PremiumJobRestartIT {
               + "VALUES (?, 'AUT', 'AC', DATE '2024-01-01', DATE '2025-01-01', 'HOLDER0001')",
           number);
     }
+    LocalDate businessDate = LocalDate.of(2024, 10, 20);
+    JobParameters completedRunParameters =
+        new JobParametersBuilder()
+            .addString("businessDate", businessDate.toString(), true)
+            .addLong("rerun", 5003L, true)
+            .toJobParameters();
+    JobExecution completedRun = jobLauncher.run(premiumJob, completedRunParameters);
+    assertThat(completedRun.getStatus().name()).isEqualTo("COMPLETED");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pas_shadow.premium_run_report WHERE business_date = ?",
+                Integer.class,
+                businessDate))
+        .isGreaterThan(3);
+
     jdbcTemplate.execute(
         "CREATE FUNCTION pas.reject_restart_policy() RETURNS trigger LANGUAGE plpgsql AS $$ "
             + "BEGIN IF NEW.policy_number = 'POL000000504' THEN "
@@ -85,12 +100,14 @@ class PremiumJobRestartIT {
             + "FOR EACH ROW EXECUTE FUNCTION pas.reject_restart_policy()");
     JobParameters parameters =
         new JobParametersBuilder()
-            .addString("businessDate", LocalDate.of(2024, 10, 20).toString(), true)
+            .addString("businessDate", businessDate.toString(), true)
             .addLong("rerun", 5004L, true)
             .toJobParameters();
 
     JobExecution failed = jobLauncher.run(premiumJob, parameters);
     assertThat(failed.getStatus().name()).isEqualTo("FAILED");
+    assertThat(failed.getJobInstance().getInstanceId())
+        .isNotEqualTo(completedRun.getJobInstance().getInstanceId());
     Set<String> completedPartitions =
         failed.getStepExecutions().stream()
             .filter(step -> step.getStepName().startsWith("premiumWorkerStep"))
@@ -102,13 +119,18 @@ class PremiumJobRestartIT {
         .filteredOn(step -> step.getStepName().equals("premiumRouteGuardStep"))
         .singleElement()
         .satisfies(step -> assertThat(step.getStatus()).isEqualTo(BatchStatus.COMPLETED));
-    LocalDate businessDate = LocalDate.of(2024, 10, 20);
     assertThat(
             jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM pas_shadow.premiums WHERE business_date = ?",
                 Integer.class,
                 businessDate))
         .isEqualTo(3);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pas_shadow.premium_run_report WHERE business_date = ?",
+                Integer.class,
+                businessDate))
+        .isZero();
 
     jdbcTemplate.execute("DROP TRIGGER premium_restart_failure ON pas_shadow.premiums");
     JobExecution restarted = jobLauncher.run(premiumJob, parameters);
@@ -122,6 +144,12 @@ class PremiumJobRestartIT {
                 Integer.class,
                 businessDate))
         .isEqualTo(4);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pas_shadow.premium_run_report WHERE business_date = ?",
+                Integer.class,
+                businessDate))
+        .isGreaterThan(3);
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pas.premiums", Integer.class))
         .isZero();
     assertThat(
@@ -133,8 +161,10 @@ class PremiumJobRestartIT {
         .isEqualTo(1);
     assertThat(
             jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM pas_batch.premium_run_item WHERE status = 'UPDATED'",
-                Integer.class))
+                "SELECT COUNT(*) FROM pas_batch.premium_run_item "
+                    + "WHERE job_instance_id = ? AND status = 'UPDATED'",
+                Integer.class,
+                failed.getJobInstance().getInstanceId()))
         .isEqualTo(4);
     assertThat(restarted.getStepExecutions())
         .filteredOn(step -> completedPartitions.contains(step.getStepName()))

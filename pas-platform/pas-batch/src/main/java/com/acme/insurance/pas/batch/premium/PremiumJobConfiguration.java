@@ -87,6 +87,9 @@ public class PremiumJobConfiguration {
                       LocalDate.parse(current.getJobParameters().getString("businessDate"));
                   jdbcTemplate.update(
                       "DELETE FROM pas_shadow.premiums WHERE business_date = ?", businessDate);
+                  jdbcTemplate.update(
+                      "DELETE FROM pas_shadow.premium_run_report WHERE business_date = ?",
+                      businessDate);
                 }
                 current
                     .getExecutionContext()

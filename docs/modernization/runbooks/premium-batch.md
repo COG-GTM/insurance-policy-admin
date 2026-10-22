@@ -51,6 +51,10 @@ rule remains in force.
 Run exactly one schedule: the in-app scheduler or the example Kubernetes CronJob. Do not enable
 both. The example manifest is not applied by this change. The legacy header says daily 01:00 EST;
 the configured IANA zone observes daylight saving time, so confirm the intended summer behavior.
+The image provisions `/var/lib/pas-batch/reports` for UID 10001. Compose mounts the named
+`pas-batch-reports` volume there; the CronJob example mounts the `pas-batch-reports` PVC and sets
+`PAS_BATCH_PREMIUM_REPORT_DIR` to that path. Durable storage writable by the batch UID/GID is
+required if reports must survive the CronJob pod.
 
 ## Start and stop
 
@@ -109,9 +113,12 @@ read, updated, skipped, and error totals. Item errors increment
 structured `alert=PREMIUM_BATCH_FAILED`; alert delivery is **Pending ops wiring** (I-08).
 
 Use the Spring Batch metadata and run summary before deciding whether to restart. For an item error,
-inspect the source row and exception type, correct the data/configuration, then restart the same
-failed instance. A completed-with-errors run returns CLI code 4 and should be reviewed before
-cutover.
+inspect the source row and exception type. A restart re-executes failed partitions only, so an
+`ERROR` item from a completed partition remains an error and is still counted in that instance's
+summary and report. After correcting a skipped policy, launch a fresh rerun with a new
+`rerun=<n>` value to scan every active policy again; restarting the same instance will not retry
+that completed partition. A completed-with-errors run returns CLI code 4 and should be reviewed
+before cutover.
 
 ## Backout and retention
 
