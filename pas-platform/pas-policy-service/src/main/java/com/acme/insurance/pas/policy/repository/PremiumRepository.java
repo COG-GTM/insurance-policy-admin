@@ -52,7 +52,9 @@ public class PremiumRepository {
         .param("surchargeAmt", premium.surchargeAmt())
         .param("taxAmt", premium.taxAmt())
         .param("totalPremium", premium.totalPremium())
-        .param("installmentCode", premium.installmentCode().raw())
+        .param(
+            "installmentCode",
+            premium.installmentCode() == null ? null : premium.installmentCode().raw())
         .param("installmentAmt", premium.installmentAmt())
         .param("calcDate", premium.calcDate())
         .param("calcBy", premium.calcBy())

@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
+import java.util.Locale;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -278,6 +279,44 @@ class RecordCodecTest {
       assertThat(codec.reader(encoded).decimal("SIGNED")).isEqualTo(new BigDecimal("-12.3"));
       assertThat(codec.reader(encoded).integer("UNSIGNED")).isEqualTo(456);
     }
+  }
+
+  @Test
+  void numericEncodingAndDecodingIgnoreTheDefaultLocale() {
+    Locale original = Locale.getDefault();
+    try {
+      Locale.setDefault(Locale.forLanguageTag("ar-EG"));
+      RecordLayout layout =
+          RecordLayout.builder("LOCALE")
+              .signedDisplay("DISPLAY", 4, 2)
+              .packed("PACKED", 4, 2, true)
+              .build(7);
+      CopybookCodec codec = new CopybookCodec(layout, CopybookCharset.ASCII);
+      byte[] encoded =
+          codec
+              .writer()
+              .putDecimal("DISPLAY", new BigDecimal("-12.34"))
+              .putDecimal("PACKED", new BigDecimal("98.76"))
+              .toByteArray();
+
+      assertThat(codec.reader(encoded).decimal("DISPLAY")).isEqualTo(new BigDecimal("-12.34"));
+      assertThat(codec.reader(encoded).decimal("PACKED")).isEqualTo(new BigDecimal("98.76"));
+    } finally {
+      Locale.setDefault(original);
+    }
+  }
+
+  @Test
+  void rejectsNonDecimalNibbleInEbcdicSignedDisplay() {
+    RecordLayout layout =
+        RecordLayout.builder("SIGNED-DISPLAY").signedDisplay("VALUE", 1, 0).build(1);
+
+    assertThatThrownBy(
+            () ->
+                new CopybookCodec(layout, CopybookCharset.EBCDIC)
+                    .reader(new byte[] {(byte) 0xca})
+                    .decimal("VALUE"))
+        .isInstanceOf(CopybookDataException.class);
   }
 
   @Test

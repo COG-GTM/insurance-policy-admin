@@ -82,6 +82,7 @@ class DataModelIT {
     Endorsement endorsement = endorsement();
     UnderwritingDecision decision = decision();
     PolicyHolder holder = holder();
+    PolicyHolder duplicateTaxIdHolder = holder("CUST000004", "987654320");
 
     policies.insert(policy);
     coverages.insert(coverage);
@@ -89,6 +90,7 @@ class DataModelIT {
     endorsements.insert(endorsement);
     decisions.insert(decision);
     holders.insert(holder);
+    holders.insert(duplicateTaxIdHolder);
 
     assertThat(policies.findByPolicyNumber(POLICY_NUMBER)).contains(policy);
     assertThat(coverages.findByKey(POLICY_NUMBER, 1)).contains(coverage);
@@ -96,7 +98,7 @@ class DataModelIT {
     assertThat(endorsements.findByKey(POLICY_NUMBER, 1)).contains(endorsement);
     assertThat(decisions.findByKey(POLICY_NUMBER, EFFECTIVE_DATE)).contains(decision);
     assertThat(holders.findByCustId(holder.custId())).contains(holder);
-    assertThat(holders.findByTaxId("987-654-320")).contains(holder);
+    assertThat(holders.findByTaxId("987-654-320")).containsExactly(holder, duplicateTaxIdHolder);
     assertThat(coverages.findByPolicyNumber(POLICY_NUMBER)).containsExactly(coverage);
     assertThat(endorsements.findByPolicyNumber(POLICY_NUMBER)).containsExactly(endorsement);
     assertThat(decisions.findByPolicyNumber(POLICY_NUMBER)).containsExactly(decision);
@@ -323,10 +325,15 @@ class DataModelIT {
   }
 
   private static PolicyHolder holder() {
-    return holder("CUST000001", "987654320");
+    return holder("CUST000001", "987654320", null, null);
   }
 
   private static PolicyHolder holder(String custId, String taxId) {
+    return holder(custId, taxId, Coded.of(RiskTier.STANDARD), Coded.of(YesNo.NO));
+  }
+
+  private static PolicyHolder holder(
+      String custId, String taxId, Coded<RiskTier> riskTier, Coded<YesNo> gdprConsent) {
     return new PolicyHolder(
         custId,
         Coded.of(CustomerType.INDIVIDUAL),
@@ -346,8 +353,8 @@ class DataModelIT {
         "4831",
         taxId,
         713,
-        Coded.of(RiskTier.STANDARD),
-        Coded.of(YesNo.NO),
+        riskTier,
+        gdprConsent,
         EFFECTIVE_DATE,
         UPDATED);
   }

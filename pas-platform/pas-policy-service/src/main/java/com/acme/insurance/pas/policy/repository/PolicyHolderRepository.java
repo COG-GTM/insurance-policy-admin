@@ -8,6 +8,7 @@ import com.acme.insurance.pas.pii.BlindIndex;
 import com.acme.insurance.pas.pii.PiiCipher;
 import com.acme.insurance.pas.pii.PiiContext;
 import com.acme.insurance.pas.pii.PolicyHolderPii;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -79,8 +80,8 @@ public class PolicyHolderRepository {
             PolicyHolderPii.encryptInteger(
                 holder.creditScore(), cipher, context(custId, "credit_score_enc")))
         .param("taxIdIndex", blindIndex.of(holder.taxId()))
-        .param("riskTier", holder.riskTier().raw())
-        .param("gdprConsent", holder.gdprConsent().raw())
+        .param("riskTier", holder.riskTier() == null ? null : holder.riskTier().raw())
+        .param("gdprConsent", holder.gdprConsent() == null ? null : holder.gdprConsent().raw())
         .param("createdDate", holder.createdDate())
         .param("lastUpdated", holder.lastUpdated())
         .update();
@@ -93,11 +94,11 @@ public class PolicyHolderRepository {
         .optional();
   }
 
-  public Optional<PolicyHolder> findByTaxId(String taxId) {
-    return jdbc.sql(SELECT + " WHERE tax_id_bidx = :taxIdIndex")
+  public List<PolicyHolder> findByTaxId(String taxId) {
+    return jdbc.sql(SELECT + " WHERE tax_id_bidx = :taxIdIndex ORDER BY cust_id")
         .param("taxIdIndex", blindIndex.of(taxId))
         .query((row, rowNumber) -> map(row))
-        .optional();
+        .list();
   }
 
   private PolicyHolder map(java.sql.ResultSet row) throws java.sql.SQLException {

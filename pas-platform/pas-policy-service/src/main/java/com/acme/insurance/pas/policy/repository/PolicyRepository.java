@@ -54,10 +54,10 @@ public class PolicyRepository {
         .param("coverageLimit", policy.coverageLimit())
         .param("inceptionDate", policy.inceptionDate())
         .param("renewalCount", policy.renewalCount())
-        .param("uwStatus", policy.uwStatus().raw())
+        .param("uwStatus", policy.uwStatus() == null ? null : policy.uwStatus().raw())
         .param("riskScore", policy.riskScore())
-        .param("webIndicator", policy.webIndicator().raw())
-        .param("apiFlag", policy.apiFlag().raw())
+        .param("webIndicator", policy.webIndicator() == null ? null : policy.webIndicator().raw())
+        .param("apiFlag", policy.apiFlag() == null ? null : policy.apiFlag().raw())
         .param("lastUpdated", policy.lastUpdated())
         .param("updatedBy", policy.updatedBy())
         .update();

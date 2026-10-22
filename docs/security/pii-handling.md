@@ -49,8 +49,10 @@ platform secrets store. The batch application is not given PII keys.
 Set the new ID, version, and encryption key as active and retain old key material under
 `pas.pii.encryption.previous-keys` until every envelope written with it has been re-encrypted or
 otherwise retired. Keep the blind-index key stable when exact tax-ID lookup continuity is required;
-rotating it requires a controlled index rebuild. Do not remove old key material while ciphertext
-still depends on it.
+rotating it requires a full recomputation of every `tax_id_bidx` value using the new key in a
+follow-up job. Keep the existing blind-index key configured until that recomputation is complete;
+do not activate the new blind-index key before the new index values are ready. Do not remove old
+encryption key material while ciphertext still depends on it.
 
 ## Tax-ID lookup
 

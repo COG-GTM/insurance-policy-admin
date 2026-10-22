@@ -8,6 +8,9 @@ class PiiLogScrubberTest {
   @Test
   void masksSensitiveAssignmentsAndIdentifiers() {
     assertThat(PiiLogScrubber.scrub("{\"taxId\":\"123456789\"}")).isEqualTo("{\"taxId\":\"****\"}");
+    assertThat(PiiLogScrubber.scrub("{\"lastName\":\"O\\\"Brien-Smith\"}"))
+        .isEqualTo("{\"lastName\":\"****\"}")
+        .doesNotContain("Brien");
     assertThat(PiiLogScrubber.scrub("{\"email\":\"jane doe@example.test\"}"))
         .isEqualTo("{\"email\":\"****\"}");
     assertThat(PiiLogScrubber.scrub("addrLine1=123 Main Street")).isEqualTo("addrLine1=****");

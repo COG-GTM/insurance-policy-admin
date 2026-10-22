@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 public final class PiiLogScrubber {
   private static final Pattern SENSITIVE_VALUE =
       Pattern.compile(
-          "(?i)([\"']?(?:dob|date_?of_?birth|ssn(?:_?last_?4)?|tax_?id|credit_?score|last_?name|first_?name|middle_?(?:name|init)|company_?name|addr(?:ess)?_?line[12]|city|state_?code|zip_?code|phone|email)[\"']?\\s*[:=]\\s*)(\"[^\"]*\"|'[^']*'|[^\"',;}]+)");
+          "(?i)([\"']?(?:dob|date_?of_?birth|ssn(?:_?last_?4)?|tax_?id|credit_?score|last_?name|first_?name|middle_?(?:name|init)|company_?name|addr(?:ess)?_?line[12]|city|state_?code|zip_?code|phone|email)[\"']?\\s*[:=]\\s*)(\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|[^\"',;}]+)");
   private static final Pattern SSN = Pattern.compile("\\b\\d{3}-\\d{2}-\\d{4}\\b");
   private static final Pattern EIN = Pattern.compile("\\b\\d{2}-\\d{7}\\b");
 

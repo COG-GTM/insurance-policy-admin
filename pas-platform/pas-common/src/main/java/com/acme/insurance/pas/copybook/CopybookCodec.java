@@ -128,7 +128,9 @@ public final class CopybookCodec {
           if (charset == CopybookCharset.EBCDIC) {
             int zone = (value >>> 4) & 0xf;
             digit = value & 0xf;
-            if (zone == 0xd) {
+            if (digit > 9) {
+              throw typeError(field, "invalid signed display digit");
+            } else if (zone == 0xd) {
               negative = true;
             } else if (zone != 0xc && zone != 0xf) {
               throw typeError(field, "invalid signed display digit");
@@ -153,8 +155,16 @@ public final class CopybookCodec {
         }
         number.append((char) ('0' + digit));
       }
-      BigDecimal result = new BigDecimal(new BigInteger(number.toString()), scale);
+      BigDecimal result = decimalFromDigits(field, number.toString(), scale);
       return negative ? result.negate() : result;
+    }
+
+    private BigDecimal decimalFromDigits(FieldDescriptor field, String digits, int scale) {
+      try {
+        return new BigDecimal(new BigInteger(digits), scale);
+      } catch (NumberFormatException ex) {
+        throw typeError(field, "invalid numeric value");
+      }
     }
 
     private int decodeDigit(int value, FieldDescriptor field) {
@@ -196,7 +206,7 @@ public final class CopybookCodec {
             case 0xc, 0xa, 0xe, 0xf -> false;
             default -> throw typeError(field, "invalid packed-decimal sign");
           };
-      BigDecimal result = new BigDecimal(new BigInteger(digits.toString()), type.scale());
+      BigDecimal result = decimalFromDigits(field, digits.toString(), type.scale());
       return negative ? result.negate() : result;
     }
   }
@@ -298,7 +308,8 @@ public final class CopybookCodec {
         BigInteger modulus = BigInteger.TEN.pow(digits);
         unscaled = unscaled.remainder(modulus);
       }
-      String magnitude = String.format("%0" + digits + "d", unscaled);
+      String unscaledDigits = unscaled.toString();
+      String magnitude = "0".repeat(digits - unscaledDigits.length()) + unscaledDigits;
       boolean negative = signed && value != null && value.signum() < 0 && unscaled.signum() != 0;
       if (field.type() instanceof FieldType.PackedDecimal packed) {
         encodePacked(field, magnitude, negative, packed.signed());

@@ -33,6 +33,7 @@ final class JdbcValues {
 
   static <E extends Enum<E> & com.acme.insurance.pas.domain.CobolCode> Coded<E> coded(
       ResultSet row, String column, Class<E> type) throws SQLException {
-    return Coded.of(type, charValue(row, column));
+    String value = charValue(row, column);
+    return value == null ? null : Coded.of(type, value);
   }
 }
