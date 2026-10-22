@@ -21,6 +21,8 @@ spring:
     banner-mode: "off"
 
 pas:
+  rating:
+    factor-mode: ${PAS_RATING_FACTOR_MODE:legacy}
   batch:
     extract:
       zone: ${PAS_BATCH_EXTRACT_ZONE:America/New_York}

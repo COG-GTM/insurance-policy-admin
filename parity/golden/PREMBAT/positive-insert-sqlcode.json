@@ -1,0 +1,36 @@
+{
+  "program": "PREMBAT",
+  "fixture": "positive-insert-sqlcode",
+  "description": "A positive insert SQLCODE counts as a failed insert and stops the legacy loop.",
+  "outputs": {
+    "premium": [],
+    "jobEnd": [
+      {
+        "returnCode": 4,
+        "policiesRead": 1,
+        "policiesUpdated": 0,
+        "policiesError": 1
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": [],
+      "report": [
+        "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20241015",
+        "------------------------------------------------------------------------------------------------------------------------------------",
+        "POL000000603 PREMIUM: \u0000\u0000\u0000G\\",
+        "====================================================================================================================================",
+        "TOTAL POLICIES READ:    0000001",
+        "TOTAL POLICIES UPDATED: 0000000",
+        "TOTAL ERRORS:           0000001"
+      ]
+    },
+    "state": {
+      "policiesRead": 1,
+      "policiesUpdated": 0,
+      "policiesError": 1
+    },
+    "returnCode": 4
+  }
+}

@@ -19,6 +19,7 @@
 
     <modules>
         <module>pas-common</module>
+        <module>pas-rating</module>
         <module>pas-parity</module>
         <module>pas-policy-service</module>
         <module>pas-batch</module>
@@ -59,6 +60,11 @@
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
                 <version>${springdoc-openapi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme.insurance.pas</groupId>
+                <artifactId>pas-rating</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.acme.insurance.pas</groupId>

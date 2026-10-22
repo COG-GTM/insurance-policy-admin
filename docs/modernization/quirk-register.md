@@ -106,7 +106,7 @@ differences must cite the Q-id.
 - **Owner:** Actuarial.
 - **Decision:** **Fix (flagged).** The default (`legacy`) reproduces factor 1.00 for parity. With the flag on, factors come from `TERRITORY_FACTORS` (latest `EFFECTIVE_DATE <=` the run date) and the class table. Actuarial turns the flag on after a parallel run.
 - **Rationale:** turning real factors on changes every premium, so it is a rate change that needs filing. Parity must first prove the migration itself is neutral.
-- **Implemented by:** AB-522 (rating component and flag); AB-523 uses it in the batch job.
+- **Implemented by:** AB-522 (rating component and flag); AB-523 uses it in the batch job. Implemented in PR #65.
 
 ### Q-04
 
@@ -154,7 +154,7 @@ differences must cite the Q-id.
 - **Owner:** Actuarial.
 - **Decision:** **Preserve (configurable).** The rate tables become configuration (or reference data) with these values as the defaults. No literals in code.
 - **Rationale:** parity. Changing a rate is a filing decision.
-- **Implemented by:** AB-522.
+- **Implemented by:** AB-522. Implemented in PR #65.
 
 ### Q-08
 

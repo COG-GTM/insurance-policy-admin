@@ -51,6 +51,9 @@ still exercised by the named fixture.
 5. Remove the program's disabled parity-test stub after its adapter is implemented and run the
    relevant parity and Maven verification commands.
 
-Later program integrations should follow the planned AB-522 premium-rating and AB-526 renewal/
-endorsement work, and should replace the AB-525 underwriting placeholder with the service
-implementation.
+PREMBAT is enabled through the `pas-rating` component. Its parity adapter starts a PostgreSQL 16
+Testcontainers instance, applies the policy-service migrations, and exercises the rating repository
+and calculator in legacy factor mode; running `make parity` for PREMBAT requires Docker.
+
+AB-526 renewal/endorsement work should replace the remaining planned integration, and the AB-525
+underwriting placeholder should be replaced with the service implementation.

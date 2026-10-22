@@ -3,6 +3,7 @@ package com.acme.insurance.pas.batch.platform;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.common.security.PasScopes;
+import com.acme.insurance.pas.rating.PremiumCalculator;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.core.explore.JobExplorer;
@@ -36,6 +37,8 @@ class BatchPlatformIT {
   @Autowired private JdbcTemplate jdbcTemplate;
 
   @Autowired private JobExplorer jobExplorer;
+
+  @Autowired private PremiumCalculator premiumCalculator;
 
   @LocalServerPort private int port;
 
@@ -111,6 +114,7 @@ class BatchPlatformIT {
     assertThat(metadataTables).isEqualTo(6);
     assertThat(pasSchema).isZero();
     assertThat(jobExplorer.getJobNames()).isEmpty();
+    assertThat(premiumCalculator).isNotNull();
   }
 
   private ResponseEntity<String> get(String path, String jwt) {

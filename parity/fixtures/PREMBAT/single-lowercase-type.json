@@ -1,0 +1,1 @@
+{"description":"Lowercase policy type does not match an uppercase COBOL 88-level and uses OTHER.","input":{"policies":[{"policyNumber":"POL000000601","policyType":"aut","totalPremium":1000.00,"deductible":500.00,"coverageLimit":100000.00,"effectiveDate":"20240101","expiryDate":"20250101","insertSqlcode":0}]}}
