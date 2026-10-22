@@ -12,10 +12,10 @@ springdoc:
 pas:
   routing:
     policy-inquiry: new
-    new-business: new
-    underwriting: new
-    renewal: new
-    endorsement: new
+    new-business: ${PAS_ROUTE_NEW_BUSINESS:new}
+    underwriting: ${PAS_ROUTE_UNDERWRITING:new}
+    renewal: ${PAS_ROUTE_RENEWAL:new}
+    endorsement: ${PAS_ROUTE_ENDORSEMENT:new}
   claims:
     adapter: fixture
   dev:

@@ -23,6 +23,46 @@ spring:
     banner-mode: "off"
 
 pas:
+  pii:
+    encryption:
+      active-key-id: ${PAS_PII_ENCRYPTION_KEY_ID:}
+      active-key-version: ${PAS_PII_ENCRYPTION_KEY_VERSION:1}
+      active-key: ${PAS_PII_ENCRYPTION_KEY:}
+    blind-index:
+      key: ${PAS_PII_BLIND_INDEX_KEY:}
+  migration:
+    enabled: ${PAS_MIGRATION_ENABLED:false}
+    source:
+      url: ${PAS_MIGRATION_SOURCE_URL:}
+      username: ${PAS_MIGRATION_SOURCE_USERNAME:}
+      password: ${PAS_MIGRATION_SOURCE_PASSWORD:}
+      schema: ${PAS_MIGRATION_SOURCE_SCHEMA:ACMEINS}
+      ssl: ${PAS_MIGRATION_SOURCE_SSL:true}
+      ssl-trust-store-location: ${PAS_MIGRATION_SOURCE_SSL_TRUST_STORE_LOCATION:}
+      zone: ${PAS_MIGRATION_SOURCE_ZONE:America/New_York}
+      fetch-size: ${PAS_MIGRATION_SOURCE_FETCH_SIZE:500}
+    bulk:
+      grid-size: ${PAS_MIGRATION_BULK_GRID_SIZE:8}
+      chunk-size: ${PAS_MIGRATION_BULK_CHUNK_SIZE:500}
+    delta-sync:
+      overlap: ${PAS_MIGRATION_DELTA_SYNC_OVERLAP:5m}
+      paused: ${PAS_MIGRATION_DELTA_SYNC_PAUSED:false}
+      lag-alert-threshold: ${PAS_MIGRATION_DELTA_SYNC_LAG_ALERT_THRESHOLD:15m}
+      scheduler-enabled: ${PAS_MIGRATION_DELTA_SYNC_SCHEDULER_ENABLED:false}
+      fixed-delay: ${PAS_MIGRATION_DELTA_SYNC_FIXED_DELAY:1m}
+    reverse-sync:
+      enabled: ${PAS_MIGRATION_REVERSE_SYNC_ENABLED:false}
+      max-passes: ${PAS_MIGRATION_REVERSE_SYNC_MAX_PASSES:100}
+      username: ${PAS_MIGRATION_REVERSE_USERNAME:}
+      password: ${PAS_MIGRATION_REVERSE_PASSWORD:}
+    recon:
+      scheduler-enabled: ${PAS_MIGRATION_RECON_SCHEDULER_ENABLED:false}
+      schedule: ${PAS_MIGRATION_RECON_SCHEDULE:0 0 3 * * *}
+      report-dir: ${PAS_MIGRATION_RECON_REPORT_DIR:/var/lib/pas-batch/reports/recon}
+      fingerprint-key: ${PAS_RECON_FINGERPRINT_KEY:}
+    parallel-run:
+      legacy-extract-dir: ${PAS_MIGRATION_PARALLEL_RUN_LEGACY_EXTRACT_DIR:/var/lib/pas-batch/legacy-extracts}
+      extract-work-dir: ${PAS_BATCH_EXTRACT_WORK_DIR:/var/lib/pas-batch/extracts}
   rating:
     factor-mode: ${PAS_RATING_FACTOR_MODE:legacy}
   batch:

@@ -164,3 +164,20 @@ What is the actual production count of active policies and coverages, and what p
 
 - **Suggested owner:** PAS operations + DBA
 - **Related:** AB-523 premium batch load test
+
+### OQ-24
+
+Should migration bulk-load and delta-sync writes publish the same policy outbox events as online
+transactions, or remain silent data-copy operations? AB-529 intentionally does not emit outbox events.
+
+- **Suggested owner:** PAS product owner + integration owners
+- **Related:** AB-529 migration cutover
+
+### OQ-25
+
+When reverse-syncing multiple underwriting decisions for one policy on the same business date, is
+collapsing them to the latest `decision_id` acceptable for the DB2 `(policy_number, decision_date)`
+key?
+
+- **Suggested owner:** Underwriting + mainframe team
+- **Related:** AB-529 reverse sync

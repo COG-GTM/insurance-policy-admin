@@ -96,6 +96,8 @@ class ExtractCompareTest {
     assertThat(exit).isEqualTo(1);
     assertThat(text).contains("record 1").contains("POLICY_NUMBER");
     assertThat(text).doesNotContain("POLICY001").doesNotContain("CLAIM9999");
+    assertThat(ExtractCompare.differences(expected, actual))
+        .anySatisfy(line -> assertThat(line).contains("DIFF policy_extract.dat", "POLICY_NUMBER"));
   }
 
   @Test

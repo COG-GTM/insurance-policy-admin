@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-api-modern compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local extract-compare load-premium-batch
+.PHONY: compat compat-static compat-api compat-api-modern compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local extract-compare load-premium-batch rollback-rehearsal
 
 POLICIES ?= 250000
 
@@ -36,27 +36,34 @@ test:
 dev-env:
 	cd pas-platform && if [ ! -f .env ]; then cp .env.example .env; fi
 	cd pas-platform && \
-	for key in PAS_PII_ENCRYPTION_KEY_ID PAS_PII_ENCRYPTION_KEY_VERSION PAS_PII_ENCRYPTION_KEY PAS_PII_BLIND_INDEX_KEY; do \
+	for key in PAS_PII_ENCRYPTION_KEY_ID PAS_PII_ENCRYPTION_KEY_VERSION PAS_PII_ENCRYPTION_KEY PAS_PII_BLIND_INDEX_KEY PAS_RECON_FINGERPRINT_KEY PAS_MIGRATION_SOURCE_PASSWORD PAS_MIGRATION_REVERSE_PASSWORD; do \
 		if ! rg -q "^$${key}=" .env; then \
 			case "$$key" in \
 				PAS_PII_ENCRYPTION_KEY_ID) value=local-v1 ;; \
 				PAS_PII_ENCRYPTION_KEY_VERSION) value=1 ;; \
+				PAS_MIGRATION_SOURCE_PASSWORD|PAS_MIGRATION_REVERSE_PASSWORD) value="$$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" ;; \
 				*) value="$$(python3 -c 'import base64,secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())')" ;; \
 			esac; \
 			printf '%s=%s\n' "$$key" "$$value" >> .env; \
 		fi; \
 	done
+	cd pas-platform && \
+	for key in PAS_MIGRATION_SOURCE_PASSWORD PAS_MIGRATION_REVERSE_PASSWORD; do \
+		if rg -q "^$${key}=changeme$$" .env; then \
+			value="$$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"; \
+			sed -i "s|^$${key}=changeme$$|$${key}=$$value|" .env; \
+		fi; \
+	done
 	cd pas-platform && ./dev/dev-jwt.sh keygen
 
 dev-images:
-	cd pas-platform && \
 	BUILD_ARGS=""; \
 	if [ -n "$(MVNW_REPOURL)" ]; then BUILD_ARGS="$$BUILD_ARGS --build-arg MVNW_REPOURL=$(MVNW_REPOURL)"; fi; \
 	if [ -n "$(MAVEN_SETTINGS)" ] && [ -f "$(MAVEN_SETTINGS)" ]; then \
-		BUILD_ARGS="$$BUILD_ARGS --secret id=maven_settings,src=$(MAVEN_SETTINGS)"; \
+		BUILD_ARGS="$$BUILD_ARGS --secret id=maven_settings,src=$(abspath $(MAVEN_SETTINGS))"; \
 	fi; \
-	docker build $$BUILD_ARGS -f pas-policy-service/Dockerfile -t pas-policy-service:local . && \
-	docker build $$BUILD_ARGS -f pas-batch/Dockerfile -t pas-batch:local .
+	docker build $$BUILD_ARGS -f pas-platform/pas-policy-service/Dockerfile -t pas-policy-service:local . && \
+	docker build $$BUILD_ARGS -f pas-platform/pas-batch/Dockerfile -t pas-batch:local .
 
 dev: dev-env dev-images
 	cd pas-platform && docker compose up -d --wait
@@ -97,3 +104,6 @@ load-premium-batch:
 		-Dit.test=PremiumJobLoadIT -Dpas.load.policies=$(POLICIES) \
 		-Dpas.batch.it.excluded-groups= \
 		-Dspotless.check.skip=true -Dspotbugs.skip=true verify
+
+rollback-rehearsal: dev-env
+	cd pas-platform && set -a && . ./.env && set +a && ./dev/rollback-rehearsal.sh

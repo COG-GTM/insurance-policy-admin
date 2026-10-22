@@ -61,8 +61,31 @@ migration, rating-reference, and coexistence details.
 
 The policy service requires `PAS_PII_ENCRYPTION_KEY_ID`, `PAS_PII_ENCRYPTION_KEY_VERSION`,
 `PAS_PII_ENCRYPTION_KEY`, and `PAS_PII_BLIND_INDEX_KEY`. Use `make dev-env` to generate separate
-local-only keys; production keys must come from the platform secrets store. Batch does not receive
-PII keys. See [PII handling](../docs/security/pii-handling.md).
+local-only keys; production keys must come from the platform secrets store. Batch receives the PII
+keys only when its migration feature is enabled so holder data can be encrypted/decrypted during
+bulk, delta, and reverse sync. The reconciliation fingerprint key
+(`PAS_RECON_FINGERPRINT_KEY`) is a separate base64-encoded 32-byte key. See
+[PII handling](../docs/security/pii-handling.md).
+
+## DB2-to-PostgreSQL migration (AB-529)
+
+Migration jobs are absent unless `PAS_MIGRATION_ENABLED=true`; delta and reconciliation schedulers
+and reverse sync are disabled by default. Configure the read-only DB2 source through
+`PAS_MIGRATION_SOURCE_*`. Reverse sync uses the separate
+`PAS_MIGRATION_REVERSE_USERNAME`/`PAS_MIGRATION_REVERSE_PASSWORD` credentials and is enabled only
+with `PAS_MIGRATION_REVERSE_SYNC_ENABLED=true`. Do not copy production credentials into local
+`.env` files.
+
+The CLI jobs are `bulkLoadJob`, `deltaSyncJob`, `reverseSyncJob`, `reconciliationJob`, and
+`parallelRunDiffJob`. Use `PAS_BATCH_CLI_BUSINESS_DATE`, `PAS_BATCH_CLI_CYCLE_ID`, and
+`PAS_BATCH_CLI_DRAIN` for the relevant run parameters. Reconciliation writes reports under
+`PAS_MIGRATION_RECON_REPORT_DIR`; its holder fingerprints use the dedicated fingerprint key and
+reports/difference rows do not include holder plaintext. The `batch:operate` scope protects the
+`/api/batch/migration/**` cycle and triage APIs.
+
+See the [AB-529 migration runbook](../docs/runbooks/migration.md) for
+cutover, triage, grants, observability, and rollback rehearsal procedures. The local rehearsal
+starts isolated PostgreSQL 16 source and target containers with `make rollback-rehearsal`.
 
 ## Observability
 
