@@ -98,7 +98,7 @@ step() {
     return 0
   fi
 
-  if [[ -f "$(done_file)" ]] && rg -Fxq "$id" "$(done_file)"; then
+  if [[ -f "$(done_file)" ]] && grep -Fxq -- "$id" "$(done_file)"; then
     log "SKIP step $id $description: already completed for run id $PAS_CUTOVER_RUN_ID"
     return 0
   fi
