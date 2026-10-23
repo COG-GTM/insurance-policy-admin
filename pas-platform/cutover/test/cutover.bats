@@ -59,6 +59,27 @@ setup() {
   [[ "$output" == *"PAS_CUTOVER_BATCH_URL"* ]]
 }
 
+@test "non-local cutover refuses missing smoke customer before running any step" {
+  hook_dir="$(mktemp -d "$BATS_TMPDIR/cutover-smoke-gate.XXXXXX")"
+  hook="$hook_dir/fake-hook"
+  invoked="$hook_dir/invoked"
+  printf '#!/usr/bin/env bash\n: >"$HOOK_MARKER"\n' >"$hook"
+  chmod +x "$hook"
+
+  run env PAS_CUTOVER_ENV=staging PAS_CUTOVER_STATE_DIR="$hook_dir/state" \
+    PAS_CUTOVER_PSQL_CMD="$hook" PAS_CUTOVER_BATCH_CMD="$hook" \
+    PAS_CUTOVER_APPLY_ROUTES_CMD="$hook" PAS_CUTOVER_LEGACY_FREEZE_CMD="$hook" \
+    PAS_CUTOVER_LEGACY_UNFREEZE_CMD="$hook" PAS_CUTOVER_MIGRATION_CONFIG_CMD="$hook" \
+    PAS_CUTOVER_POLICY_URL=https://policy.example PAS_CUTOVER_BATCH_URL=https://batch.example \
+    PAS_SMOKE_POLICY=POLICY PAS_SMOKE_CUSTOMER= PAS_SMOKE_JWT=placeholder \
+    HOOK_MARKER="$invoked" "$CUTOVER_DIR/cutover.sh" --execute
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"PAS_SMOKE_CUSTOMER"* ]]
+  [[ "$output" != *"PAS_CUTOVER_PSQL_CMD"* ]]
+  [[ "$output" != *"START step c01"* ]]
+  [ ! -e "$invoked" ]
+}
+
 @test "production hook command prefixes receive job, route, and config arguments" {
   hook_dir="$BATS_TMPDIR/hooks-$BATS_TEST_NUMBER"
   mkdir -p "$hook_dir"
@@ -104,20 +125,22 @@ setup() {
 }
 
 @test "completed steps are skipped when resumed with the same run id" {
-  state="$BATS_TMPDIR/resume-state-$BATS_TEST_NUMBER"
-  count_file="$BATS_TMPDIR/resume-count-$BATS_TEST_NUMBER"
+  state="$(mktemp -d "$BATS_TMPDIR/resume-state.XXXXXX")"
+  count_file="$state/count"
+  log_file="$state/cutover.log"
   run bash -c '
     set -Eeuo pipefail
     export PAS_CUTOVER_ENV=local PAS_CUTOVER_STATE_DIR="$1" PAS_CUTOVER_RUN_ID=test-run
+    export PAS_CUTOVER_LOG="$4"
     source "$2/lib.sh"
     count_file="$3"
     count_step() { printf x >>"$count_file"; }
     PAS_CUTOVER_EXECUTE=true
     step c01 counted count_step "count"
     step c01 counted count_step "count"
-  ' _ "$state" "$CUTOVER_DIR" "$count_file"
+  ' _ "$state" "$CUTOVER_DIR" "$count_file" "$log_file"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"already completed"* ]]
+  [[ "$(cat "$log_file")" == *"already completed"* ]]
   [ "$(cat "$count_file")" = "x" ]
 }
 
@@ -230,6 +253,8 @@ elif [[ "$sql" == *coverage_cursor* ]]; then
   cat "$COVERAGE_CURSOR_FILE"
 elif [[ "$sql" == *"SELECT count(*) FROM (VALUES"* ]]; then
   cat "$COVERAGE_LAG_FILE"
+elif [[ "$sql" == *"SELECT count(*) FROM pas.policies"* ]]; then
+  printf '1\n'
 else
   printf 'Unexpected SQL: %s\n' "$sql" >&2
   exit 2
@@ -273,6 +298,82 @@ CONFIG
   [ "$(cat "$passes")" = "3" ]
   [[ "$output" == *"PASS forward delta watermark"* ]]
   [ "$(cat "$config_args")" = "PAS_MIGRATION_DELTA_SYNC_PAUSED=true" ]
+}
+
+@test "coverage drain completes after a fresh sweep when the source has no policies" {
+  state="$(mktemp -d "$BATS_TMPDIR/empty-coverage-state.XXXXXX")"
+  coverage_passes_file="$state/passes"
+  config_args="$state/config-args"
+  printf '0\n' >"$coverage_passes_file"
+  printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$state/freeze-empty.timestamp"
+
+  run bash -c '
+    set -Eeuo pipefail
+    export PAS_CUTOVER_ENV=local PAS_CUTOVER_STATE_DIR="$1" PAS_CUTOVER_RUN_ID=empty
+    source "$2/cutover.sh"
+    coverage_passes_file="$3"
+    config_args="$4"
+    cutover_sql() {
+      if [[ "$1" == *coverage_cursor* && "$1" == *"||"* ]]; then
+        printf "|true\n"
+      elif [[ "$1" == *coverage_cursor* ]]; then
+        printf "\n"
+      elif [[ "$1" == *"SELECT count(*) FROM pas.policies"* ]]; then
+        printf "0\n"
+      elif [[ "$1" == *"VALUES"* ]]; then
+        printf "0\n"
+      else
+        return 2
+      fi
+    }
+    cutover_batch() {
+      pass_count="$(<"$coverage_passes_file")"
+      printf "%s\n" "$((pass_count + 1))" >"$coverage_passes_file"
+    }
+    cutover_migration_config() { printf "%s\n" "$@" >"$config_args"; }
+    c05_drain_delta
+  ' _ "$state" "$CUTOVER_DIR" "$coverage_passes_file" "$config_args"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$coverage_passes_file")" = "1" ]
+  [[ "$output" == *"PASS forward delta watermark"* ]]
+  [ "$(cat "$config_args")" = "PAS_MIGRATION_DELTA_SYNC_PAUSED=true" ]
+}
+
+@test "coverage drain does not treat a null cursor as complete when policies exist" {
+  state="$(mktemp -d "$BATS_TMPDIR/null-coverage-state.XXXXXX")"
+  coverage_passes_file="$state/passes"
+  printf '0\n' >"$coverage_passes_file"
+  printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$state/freeze-null.timestamp"
+
+  run bash -c '
+    set -Eeuo pipefail
+    export PAS_CUTOVER_ENV=local PAS_CUTOVER_STATE_DIR="$1" PAS_CUTOVER_RUN_ID=null \
+      PAS_CUTOVER_DRAIN_MAX_PASSES=2
+    source "$2/cutover.sh"
+    coverage_passes_file="$3"
+    cutover_sql() {
+      if [[ "$1" == *coverage_cursor* && "$1" == *"||"* ]]; then
+        printf "|true\n"
+      elif [[ "$1" == *coverage_cursor* ]]; then
+        printf "\n"
+      elif [[ "$1" == *"SELECT count(*) FROM pas.policies"* ]]; then
+        printf "1\n"
+      elif [[ "$1" == *"VALUES"* ]]; then
+        printf "0\n"
+      else
+        return 2
+      fi
+    }
+    cutover_batch() {
+      pass_count="$(<"$coverage_passes_file")"
+      printf "%s\n" "$((pass_count + 1))" >"$coverage_passes_file"
+    }
+    c05_drain_delta
+  ' _ "$state" "$CUTOVER_DIR" "$coverage_passes_file"
+  [ "$status" -ne 0 ]
+  [ "$(cat "$coverage_passes_file")" = "2" ]
+  [[ "$output" == *"2-pass limit"* ]]
+  [[ "$output" == *"full coverage pass=false"* ]]
 }
 
 @test "cutover applies read routes in order and groups all write routes" {

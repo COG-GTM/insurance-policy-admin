@@ -102,6 +102,7 @@ c04_freeze_legacy() {
 c05_drain_delta() {
   local freeze_time pass lag max_passes
   local coverage_start_cursor previous_cursor coverage_state coverage_cursor sweep_after_freeze
+  local target_policy_count
   local coverage_wrapped=false
   local coverage_pass_complete=false
   freeze_time="$(<"$PAS_CUTOVER_STATE_DIR/freeze-${PAS_CUTOVER_RUN_ID}.timestamp")"
@@ -134,6 +135,11 @@ c05_drain_delta() {
       coverage_pass_complete=true
     fi
     lag="$(cutover_sql "SELECT count(*) FROM (VALUES ('POLICY_HOLDERS'), ('POLICIES'), ('PREMIUMS'), ('ENDORSEMENTS'), ('UNDERWRITING_DECISIONS'), ('COVERAGE_SWEEP')) AS expected(table_name) LEFT JOIN pas_batch.sync_watermark watermark ON watermark.table_name = expected.table_name AND watermark.direction = 'FORWARD' AND watermark.synced_through >= '$freeze_time'::timestamptz WHERE watermark.table_name IS NULL")"
+    target_policy_count="$(cutover_sql "SELECT count(*) FROM pas.policies")"
+    # c06 reconciliation rejects an empty target if the source still has policies.
+    if [[ "$target_policy_count" == "0" && "$sweep_after_freeze" == "true" && "$lag" == "0" ]]; then
+      coverage_pass_complete=true
+    fi
     if [[ "$lag" == "0" && "$coverage_pass_complete" == true && "$sweep_after_freeze" == true ]]; then
       break
     fi

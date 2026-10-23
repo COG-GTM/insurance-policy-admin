@@ -146,10 +146,17 @@ assert_execute_environment() {
   fi
   local hook
   local missing=()
-  for hook in \
+  local required_hooks=(
     PAS_CUTOVER_PSQL_CMD PAS_CUTOVER_BATCH_CMD PAS_CUTOVER_APPLY_ROUTES_CMD \
     PAS_CUTOVER_LEGACY_FREEZE_CMD PAS_CUTOVER_LEGACY_UNFREEZE_CMD \
-    PAS_CUTOVER_MIGRATION_CONFIG_CMD PAS_CUTOVER_POLICY_URL PAS_CUTOVER_BATCH_URL; do
+    PAS_CUTOVER_MIGRATION_CONFIG_CMD PAS_CUTOVER_POLICY_URL PAS_CUTOVER_BATCH_URL
+  )
+  if [[ "$PAS_CUTOVER_RUN_KIND" == "cutover" ]]; then
+    required_hooks+=(
+      PAS_SMOKE_POLICY PAS_SMOKE_CUSTOMER PAS_SMOKE_JWT
+    )
+  fi
+  for hook in "${required_hooks[@]}"; do
     if [[ -z "${!hook:-}" ]]; then
       missing+=("$hook")
     fi

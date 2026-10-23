@@ -201,11 +201,14 @@ jobs:
           cache: maven
       - name: Prepare empty Maven settings secret
         run: |
-          settings_file="$RUNNER_TEMP/empty-maven-settings.xml"
+          settings_file="$GITHUB_WORKSPACE/.ci-empty-maven-settings.xml"
           : > "$settings_file"
           echo "MAVEN_SETTINGS=$settings_file" >> "$GITHUB_ENV"
       - name: Run local cutover and rollback rehearsal
         run: make cutover-rehearsal
+      - name: Remove empty Maven settings
+        if: always()
+        run: rm -f "$GITHUB_WORKSPACE/.ci-empty-maven-settings.xml"
       - name: Stop migration stack
         if: always()
         working-directory: pas-platform
