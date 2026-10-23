@@ -114,7 +114,7 @@ class BatchPlatformIT {
             "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'pas_shadow'",
             Integer.class);
 
-    assertThat(versions).containsExactly("1", "10", "20");
+    assertThat(versions).containsExactly("1", "10", "20", "30", "31", "32");
     assertThat(metadataTables).isEqualTo(6);
     assertThat(pasSchema).isZero();
     assertThat(pasShadowSchema).isZero();

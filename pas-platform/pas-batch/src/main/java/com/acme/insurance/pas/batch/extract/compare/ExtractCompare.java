@@ -2,7 +2,9 @@ package com.acme.insurance.pas.batch.extract.compare;
 
 import com.acme.insurance.pas.batch.extract.layout.ExtractLayout;
 import com.acme.insurance.pas.batch.extract.layout.ExtractLayouts;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -79,6 +81,26 @@ public final class ExtractCompare {
       error.println("Unable to compare extract files: " + exception.getClass().getSimpleName());
       return 2;
     }
+  }
+
+  public static java.util.List<String> differences(Path expected, Path actual) {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    ByteArrayOutputStream error = new ByteArrayOutputStream();
+    int exit =
+        compare(
+            new String[] {expected.toString(), actual.toString()},
+            new PrintStream(output, true, java.nio.charset.StandardCharsets.UTF_8),
+            new PrintStream(error, true, java.nio.charset.StandardCharsets.UTF_8));
+    if (exit == 2) {
+      throw new IllegalArgumentException(
+          "Unable to compare extract directories: "
+              + error.toString(java.nio.charset.StandardCharsets.UTF_8).strip());
+    }
+    return output
+        .toString(java.nio.charset.StandardCharsets.UTF_8)
+        .lines()
+        .filter(line -> !(line.startsWith("MATCH ") || line.isBlank()))
+        .toList();
   }
 
   private static Map<String, String> names(Path directory) throws IOException {

@@ -3,7 +3,9 @@ WORKDIR /workspace
 ARG MVNW_REPOURL=
 ENV MVNW_REPOURL=${MVNW_REPOURL}
 RUN apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/*
-COPY . .
+COPY pas-platform/ /workspace/pas-platform/
+COPY docs/modernization/quirk-register.md /workspace/docs/modernization/quirk-register.md
+WORKDIR /workspace/pas-platform
 RUN --mount=type=cache,target=/root/.m2 --mount=type=secret,id=maven_settings,required=false \
     SETTINGS_ARGS=""; \
     if [ -f /run/secrets/maven_settings ]; then SETTINGS_ARGS="-s /run/secrets/maven_settings"; fi; \
@@ -15,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home appuser
 WORKDIR /app
-COPY --from=build --chown=10001:10001 /workspace/pas-policy-service/target/pas-policy-service-0.1.0-SNAPSHOT.jar /app/app.jar
+COPY --from=build --chown=10001:10001 /workspace/pas-platform/pas-policy-service/target/pas-policy-service-0.1.0-SNAPSHOT.jar /app/app.jar
 USER 10001:10001
 EXPOSE 8080
 HEALTHCHECK --interval=20s --timeout=3s --start-period=30s --retries=5 \

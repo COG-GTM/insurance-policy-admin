@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.batch.platform;
 
+import com.acme.insurance.pas.common.security.PasScopes;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.actuate.autoconfigure.security.servlet.EndpointRequest;
 import org.springframework.boot.actuate.health.HealthEndpoint;
@@ -25,6 +26,8 @@ public class BatchSecurityConfig {
                 authorize
                     .requestMatchers(EndpointRequest.to(HealthEndpoint.class))
                     .permitAll()
+                    .requestMatchers("/api/batch/migration/**")
+                    .hasAuthority(PasScopes.authority(PasScopes.BATCH_OPERATE))
                     .anyRequest()
                     .authenticated())
         .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()));

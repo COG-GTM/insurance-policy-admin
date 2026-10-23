@@ -164,3 +164,32 @@ What is the actual production count of active policies and coverages, and what p
 
 - **Suggested owner:** PAS operations + DBA
 - **Related:** AB-523 premium batch load test
+
+### OQ-24
+
+Should migration bulk-load and delta-sync writes publish the same policy outbox events as online
+transactions, or remain silent data-copy operations? AB-529 intentionally does not emit outbox events.
+
+- **Suggested owner:** PAS product owner + integration owners
+- **Related:** AB-529 migration cutover
+
+### OQ-25
+
+When reverse-syncing multiple underwriting decisions for one policy on the same business date, is
+collapsing them to the latest `decision_id` acceptable for the DB2 `(policy_number, decision_date)`
+key?
+
+- **Suggested owner:** Underwriting + mainframe team
+- **Related:** AB-529 reverse sync
+
+### OQ-26
+
+COBOL coverage DML was found in `POLNEW.cbl:227` (insert) and `POLRNW.cbl:175` (update);
+`POLNEW.cbl:173` writes `POLICIES.LAST_UPDATED`, and `POLRNW.cbl:162` does likewise before its
+coverage update. No coverage DML was found in `POLEND.cbl` or `UNDWRT.cbl`. Delta sync therefore
+uses a bounded rolling coverage-set hash sweep, persisted in `pas_batch.sync_watermark`, to detect
+coverage changes that do not advance the policy watermark. Confirm there are no other production
+writers or transaction paths that can change coverages independently.
+
+- **Suggested owner:** PAS mainframe team + DBA
+- **Related:** AB-529 delta sync

@@ -135,6 +135,6 @@ jobs:
           java-version: "21"
           cache: maven
       - name: Build policy service image
-        run: docker build -f pas-platform/pas-policy-service/Dockerfile -t pas-policy-service:ci pas-platform
+        run: docker build -f pas-platform/pas-policy-service/Dockerfile -t pas-policy-service:ci .
       - name: Build batch image
-        run: docker build -f pas-platform/pas-batch/Dockerfile -t pas-batch:ci pas-platform
+        run: docker build -f pas-platform/pas-batch/Dockerfile -t pas-batch:ci .

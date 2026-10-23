@@ -11,6 +11,7 @@ uses them to migrate PAS off COBOL/CICS/DB2. They are derived from the source in
 | [quirk-register.md](quirk-register.md) | Quirks and defects with location, impact, owner, Preserve / Fix / Fix (flagged) decision and implementing ticket | `Q-NN` |
 | [missing-artifacts.md](missing-artifacts.md) | Things referenced but not in this repo (CLAIMS DDL, BMS maps, CSD, TDQ/MQ, CA-7, RACF, …) | `M-NN` |
 | [open-questions.md](open-questions.md) | Questions for the mainframe team, product owner and system owners | `OQ-NN` |
+| [migration runbook](../runbooks/migration.md) | AB-529 bulk/delta/reverse sync, reconciliation, parallel-run triage and rollback rehearsal | `AB-529` |
 
 How the IDs are used across the epic:
 

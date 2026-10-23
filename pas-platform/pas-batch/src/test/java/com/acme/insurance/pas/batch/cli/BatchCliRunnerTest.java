@@ -2,6 +2,7 @@ package com.acme.insurance.pas.batch.cli;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.acme.insurance.pas.common.routing.RouteFlags;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.Job;
@@ -18,6 +20,32 @@ import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.launch.JobLauncher;
 
 class BatchCliRunnerTest {
+  @Test
+  void assignsFreshIdentifyingRunIdToBulkLoad() throws Exception {
+    JobLauncher launcher = mock(JobLauncher.class);
+    Job job = mock(Job.class);
+    JobExecution execution = completed(ExitStatus.COMPLETED);
+    when(launcher.run(any(Job.class), any(JobParameters.class))).thenReturn(execution);
+    BatchCliRunner runner =
+        new BatchCliRunner(
+            launcher,
+            Map.of("bulkLoadJob", job),
+            RouteFlags.of(Map.of()),
+            "bulkLoadJob",
+            "",
+            "",
+            "",
+            "true",
+            "America/New_York",
+            "America/New_York");
+
+    runner.run();
+
+    ArgumentCaptor<JobParameters> parameters = ArgumentCaptor.forClass(JobParameters.class);
+    verify(launcher).run(eq(job), parameters.capture());
+    assertThat(parameters.getValue().getLong("runId")).isGreaterThan(1L);
+  }
+
   @Test
   void returnsZeroForCompletedJob() throws Exception {
     JobLauncher launcher = mock(JobLauncher.class);
@@ -43,6 +71,19 @@ class BatchCliRunnerTest {
     runner.run();
 
     assertThat(runner.getExitCode()).isEqualTo(4);
+  }
+
+  @Test
+  void returnsFiveForMigrationDifferences() throws Exception {
+    JobLauncher launcher = mock(JobLauncher.class);
+    Job job = mock(Job.class);
+    JobExecution execution = completed(new ExitStatus("COMPLETED_WITH_DIFFERENCES"));
+    when(launcher.run(any(Job.class), any(JobParameters.class))).thenReturn(execution);
+    BatchCliRunner runner = runner(launcher, Map.of("reconciliationJob", job), "reconciliationJob");
+
+    runner.run();
+
+    assertThat(runner.getExitCode()).isEqualTo(5);
   }
 
   @Test
@@ -99,6 +140,8 @@ class BatchCliRunnerTest {
             "dailyExtractJob",
             "2025-02-10",
             "",
+            "",
+            "true",
             "America/New_York",
             "America/New_York");
 
@@ -129,6 +172,8 @@ class BatchCliRunnerTest {
         jobName,
         "2025-02-10",
         "1",
+        "",
+        "true",
         "America/New_York",
         "America/New_York");
   }

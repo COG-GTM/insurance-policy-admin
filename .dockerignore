@@ -1,0 +1,6 @@
+**/.git
+**/.dev-keys
+**/.env
+**/logs
+**/reports
+**/target

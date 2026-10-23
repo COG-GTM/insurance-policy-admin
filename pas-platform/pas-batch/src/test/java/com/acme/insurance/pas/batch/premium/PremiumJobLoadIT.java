@@ -52,6 +52,21 @@ class PremiumJobLoadIT {
 
   @Test
   void calculatesDefaultBookAtLoad() throws Exception {
+    boolean changeLogTriggersEnabled =
+        Boolean.parseBoolean(System.getProperty("pas.load.change-log-triggers", "true"));
+    if (!changeLogTriggersEnabled) {
+      for (String table :
+          new String[] {
+            "policies",
+            "policy_holders",
+            "coverages",
+            "premiums",
+            "endorsements",
+            "underwriting_decisions"
+          }) {
+        jdbcTemplate.execute("DROP TRIGGER IF EXISTS trg_change_log_" + table + " ON pas." + table);
+      }
+    }
     jdbcTemplate.update("DELETE FROM pas.premiums");
     jdbcTemplate.update("DELETE FROM pas.policies");
     jdbcTemplate.update("DELETE FROM pas.coverages");
@@ -84,12 +99,14 @@ class PremiumJobLoadIT {
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pas.premiums", Long.class))
         .isEqualTo((long) activePolicies);
     log.info(
-        "premium-load policies={} active={} gridSize={} chunkSize={} concurrency={} elapsedMs={}",
+        "premium-load policies={} active={} gridSize={} chunkSize={} concurrency={} "
+            + "changeLogTriggersEnabled={} elapsedMs={}",
         POLICY_COUNT,
         activePolicies,
         8,
         500,
         8,
+        changeLogTriggersEnabled,
         elapsedMs);
   }
 }
