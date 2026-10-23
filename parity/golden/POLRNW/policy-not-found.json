@@ -1,0 +1,26 @@
+{
+  "program": "POLRNW",
+  "fixture": "policy-not-found",
+  "description": "The renewal SELECT returns no row.",
+  "outputs": {
+    "policyUpdate": [],
+    "coverageUpdate": [],
+    "error": [
+      {
+        "message": "POLICY NOT FOUND FOR RENEWAL"
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": []
+    },
+    "state": {
+      "oldPremium": 0.00,
+      "newPremium": 0.00,
+      "rateChangePct": 0.00,
+      "errorMsg": "POLICY NOT FOUND FOR RENEWAL"
+    },
+    "returnCode": 0
+  }
+}

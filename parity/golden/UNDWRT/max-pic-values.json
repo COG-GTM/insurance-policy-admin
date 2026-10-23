@@ -1,0 +1,46 @@
+{
+  "program": "UNDWRT",
+  "fixture": "max-pic-values",
+  "description": "Maximum premium, limit, incurred amount, and claim count fit the fixture layouts.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "DC",
+        "riskScore": 1249,
+        "decisionReason": "AUTO-DECLINED: HIGH RISK"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "DC",
+        "riskScore": 1249
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "DC",
+        "riskScore": 249,
+        "recordHex": "504F4C303030303030303031415554202030303030303030303030303030303030202020202020202020202020202020204230303199999999999C000000000C9999999999999C303030303030303030303044433234392020303030303030303020202020202020202020202020202020202020202020202020202020"
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 1249,
+      "lossRatio": 0.00,
+      "claimCount": 99999,
+      "accumLimit": 9999999999999.99,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

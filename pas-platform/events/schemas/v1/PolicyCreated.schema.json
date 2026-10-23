@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {"$ref": "envelope.schema.json"},
+    {
+      "properties": {
+        "eventType": {"const": "PolicyCreated"},
+        "data": {
+          "type": "object",
+          "required": ["policyType", "policyStatus", "uwStatus", "effectiveDate", "expiryDate", "agentCode", "branchCode", "coverageLimit", "deductible", "totalPremium", "coverages"],
+          "properties": {
+            "policyType": {"type": "string", "maxLength": 3},
+            "policyStatus": {"type": "string", "const": "PN"},
+            "uwStatus": {"type": "string", "const": "PN"},
+            "effectiveDate": {"type": "string", "format": "date"},
+            "expiryDate": {"type": "string", "format": "date"},
+            "agentCode": {"type": ["string", "null"], "maxLength": 6},
+            "branchCode": {"type": ["string", "null"], "maxLength": 4},
+            "coverageLimit": {"type": "number"},
+            "deductible": {"type": "number"},
+            "totalPremium": {"type": "number"},
+            "coverages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["sequenceNum", "coverageType"],
+                "properties": {
+                  "sequenceNum": {"type": "integer", "minimum": 1},
+                  "coverageType": {"type": "string", "maxLength": 4}
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

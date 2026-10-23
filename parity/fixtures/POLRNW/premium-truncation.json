@@ -1,0 +1,1 @@
+{"description":"The legacy percentage arithmetic truncates 1234.57 to 1296.29.","input":{"policy":{"totalPremium":1234.57}},"expectLegacy":{"outputs.policyUpdate[0].totalPremium":1296.29}}

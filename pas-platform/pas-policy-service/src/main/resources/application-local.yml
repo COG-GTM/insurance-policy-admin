@@ -1,0 +1,24 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          public-key-location: file:${PAS_DEV_JWT_PUBLIC_KEY}
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+pas:
+  routing:
+    policy-inquiry: ${PAS_ROUTE_POLICY_INQUIRY:new}
+    new-business: ${PAS_ROUTE_NEW_BUSINESS:new}
+    underwriting: ${PAS_ROUTE_UNDERWRITING:new}
+    renewal: ${PAS_ROUTE_RENEWAL:new}
+    endorsement: ${PAS_ROUTE_ENDORSEMENT:new}
+  claims:
+    adapter: fixture
+  dev:
+    claims-stub:
+      enabled: false
+      open-claims: 0

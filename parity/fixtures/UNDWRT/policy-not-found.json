@@ -1,0 +1,1 @@
+{"description":"The policy and customer SELECT returns no row.","input":{"policySqlcode":100},"expectLegacy":{"outputs.error[0].message":"POLICY/CUSTOMER DATA NOT FOUND"}}

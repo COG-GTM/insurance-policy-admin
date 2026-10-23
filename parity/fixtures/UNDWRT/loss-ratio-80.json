@@ -1,0 +1,1 @@
+{"description":"An exact 80 percent loss ratio does not add a surcharge.","input":{"claims":{"totalIncurred":800.00}},"expectLegacy":{"outputs.decision[0].riskScore":299}}

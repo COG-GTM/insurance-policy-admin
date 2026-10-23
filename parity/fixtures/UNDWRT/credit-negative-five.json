@@ -1,0 +1,1 @@
+{"description":"The signed host value is moved into an unsigned credit field.","input":{"customer":{"creditScore":-5}},"expectLegacy":{"outputs.decision[0].riskScore":447}}

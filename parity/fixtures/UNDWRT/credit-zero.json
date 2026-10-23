@@ -1,0 +1,1 @@
+{"description":"A zero credit score uses the no-score base of 400.","input":{"customer":{"creditScore":0}},"expectLegacy":{"outputs.decision[0].riskScore":400}}

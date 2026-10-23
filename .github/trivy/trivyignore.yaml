@@ -1,0 +1,18 @@
+# Critical findings may only be waived when no managed dependency update can fix them.
+vulnerabilities:
+  - id: CVE-2026-47884
+    purls:
+      - pkg:maven/org.springframework/spring-webmvc@6.2.19
+    statement: >-
+      AB-519: Spring Boot 3.5.16 is the latest public 3.5 patch and manages the final
+      public Spring Framework 6.2.19 release. The 6.2.20 fix is enterprise-only; 7.0.9
+      requires a Boot 4 migration. This service does not use XsltView catch-all mappings.
+    expired_at: "2026-11-21T00:00:00Z"
+  - id: CVE-2026-47890
+    purls:
+      - pkg:maven/org.springframework/spring-webmvc@6.2.19
+    statement: >-
+      AB-519: Spring Boot 3.5.16 is the latest public 3.5 patch and manages the final
+      public Spring Framework 6.2.19 release. The 6.2.20 fix is enterprise-only; 7.0.9
+      requires a Boot 4 migration. This service does not use SSE view fragments.
+    expired_at: "2026-11-21T00:00:00Z"

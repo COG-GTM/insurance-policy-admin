@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "capabilities": {
+    "policy-inquiry": {
+      "route": "legacy",
+      "legacy": "java-facade serves policy and coverage inquiry",
+      "new": "pas-policy-service serves policy and coverage inquiry",
+      "ticket": "AB-524",
+      "signoff": null
+    },
+    "new-business": {
+      "route": "legacy",
+      "legacy": "legacy PAS processes new business",
+      "new": "pas-policy-service processes new business",
+      "ticket": "AB-525",
+      "signoff": null
+    },
+    "underwriting": {
+      "route": "legacy",
+      "legacy": "legacy PAS processes underwriting decisions",
+      "new": "pas-policy-service processes underwriting decisions",
+      "ticket": "AB-525",
+      "signoff": null
+    },
+    "renewal": {
+      "route": "legacy",
+      "legacy": "legacy PAS processes renewals",
+      "new": "pas-policy-service POST /api/v1/policies/{n}/renewals (policy:renew); shadow writes pas_shadow.renewal_results only",
+      "ticket": "AB-526",
+      "signoff": null
+    },
+    "endorsement": {
+      "route": "legacy",
+      "legacy": "legacy PAS processes endorsements",
+      "new": "pas-policy-service POST /api/v1/policies/{n}/endorsements (policy:endorse); shadow writes pas_shadow.endorsement_results only",
+      "ticket": "AB-526",
+      "signoff": null
+    },
+    "premium-batch": {
+      "route": "legacy",
+      "legacy": "mainframe premium batch calculates premiums",
+      "new": "pas-batch calculates premiums in pas; shadow writes to pas_shadow",
+      "ticket": "AB-523",
+      "signoff": null
+    },
+    "daily-extract": {
+      "route": "legacy",
+      "legacy": "mainframe job creates the daily claims extract",
+      "new": "pas-batch creates the daily claims extract",
+      "ticket": "AB-527",
+      "signoff": null
+    },
+    "monthly-exposure": {
+      "route": "legacy",
+      "legacy": "mainframe job creates the monthly actuarial exposure",
+      "new": "pas-batch creates the monthly actuarial exposure",
+      "ticket": "AB-527",
+      "signoff": null
+    },
+    "document-events": {
+      "route": "legacy",
+      "legacy": "legacy PAS document events are delivered through the mainframe",
+      "new": "Kafka document/referral events bridged to legacy MQ queues by pas-policy-service (IBM037 POLICY-RECORD)",
+      "ticket": "AB-528",
+      "signoff": null,
+      "precondition": "Keep legacy until bridge consumers, operations, and owners sign off; non-local/test deployments require an MQ TLS cipher suite before setting new; retire only after the queue-decommission preconditions are met."
+    },
+    "broker-portal-read": {
+      "route": "legacy",
+      "legacy": "Broker Portal reads through the legacy linked server",
+      "new": "Broker Portal uses GET /api/v1/policies list/get/coverages; no DB2 connection",
+      "ticket": "AB-528",
+      "signoff": null,
+      "precondition": "Keep legacy until portal-team acceptance and entitlement, masking, and operational sign-off are recorded; broker-portal-read cannot be shadow or new unless policy-inquiry serves traffic."
+    }
+  }
+}

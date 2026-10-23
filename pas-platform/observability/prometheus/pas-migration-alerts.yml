@@ -1,0 +1,59 @@
+groups:
+  - name: pas-migration
+    rules:
+      - alert: PasMigrationDeltaLagHigh
+        expr: max(pas_sync_lag_seconds) > 900
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: PAS DB2-to-PostgreSQL delta sync lag is above 15 minutes
+      - alert: PasMigrationReconciliationDifferences
+        expr: sum(pas_recon_differences) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: PAS migration reconciliation found differences
+      - alert: PasMigrationDeltaLagAlerts
+        expr: sum(increase(pas_sync_lag_alerts_total[15m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: PAS delta sync has crossed its configured lag threshold
+      - alert: PasMigrationReverseSyncLagHigh
+        expr: max(pas_sync_reverse_lag_seconds) > 900
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: PAS reverse sync lag is above 15 minutes
+      - alert: PasMigrationParallelRunUntriaged
+        expr: sum(pas_parallel_run_untriaged) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: PAS parallel-run differences remain untriaged
+      - alert: PasMigrationParallelRunBugs
+        expr: sum(pas_parallel_run_bugs) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: PAS parallel-run has present BUG differences
+      - alert: PasMigrationBatchJobFailures
+        expr: increase(pas_batch_job_failures_total[15m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: A PAS batch job failed
+      - alert: PasMigrationParallelRunDifferences
+        expr: sum(increase(pas_parallel_run_differences_total[15m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: PAS parallel run recorded a premium or extract difference

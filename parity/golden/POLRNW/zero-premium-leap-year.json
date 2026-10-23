@@ -1,0 +1,38 @@
+{
+  "program": "POLRNW",
+  "fixture": "zero-premium-leap-year",
+  "description": "Zero premium and leap-year expiry are handled by the renewal calculation.",
+  "outputs": {
+    "policyUpdate": [
+      {
+        "status": "AC",
+        "effectiveDate": "20240229",
+        "expiryDate": "20250229",
+        "totalPremium": 0.00,
+        "renewalCount": 2,
+        "uwStatus": "PN"
+      }
+    ],
+    "coverageUpdate": [
+      {
+        "effectiveDate": "20240229",
+        "expiryDate": "20250229"
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "POLRCONF"
+      ]
+    },
+    "state": {
+      "oldPremium": 0.00,
+      "newPremium": 0.00,
+      "rateChangePct": 0.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

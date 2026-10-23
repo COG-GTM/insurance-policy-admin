@@ -1,0 +1,230 @@
+name: pas-platform
+
+on:
+  pull_request:
+    branches:
+      - main
+      - devin/ab-516-v2
+  push:
+    branches:
+      - main
+      - devin/ab-516-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pas-platform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: pas-platform / build-test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pas-platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Build and test
+        run: ./mvnw -B -ntp verify -Dspotless.check.skip=true -Dspotbugs.skip=true
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pas-platform-test-reports
+          path: |
+            pas-platform/**/target/surefire-reports/**
+            pas-platform/**/target/failsafe-reports/**
+            pas-platform/**/target/site/jacoco/**
+            pas-platform/**/target/site/jacoco-it/**
+
+  static-analysis:
+    name: pas-platform / static-analysis
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pas-platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Spotless and SpotBugs
+        run: ./mvnw -B -ntp -DskipTests -DskipITs verify
+
+  vulnerability-scan:
+    name: pas-platform / vulnerability-scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pas-platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Package application dependencies
+        run: ./mvnw -B -ntp -DskipTests -DskipITs -Dspotless.check.skip=true -Dspotbugs.skip=true package
+      - name: Scan critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1
+          scan-type: fs
+          scan-ref: pas-platform
+          scanners: vuln
+          severity: CRITICAL
+          exit-code: "1"
+          ignore-unfixed: "false"
+          trivyignores: .github/trivy/trivyignore.yaml
+
+  parity:
+    name: pas-platform / parity
+    runs-on: ubuntu-latest
+    env:
+      MVNW_REPOURL: https://maven-central.storage-download.googleapis.com/maven2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Install GnuCOBOL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnucobol
+          cobc --version
+      - name: Check COBOL goldens
+        run: make parity-golden-check
+      - name: Run parity checks
+        run: make parity
+      - name: Add parity report to summary
+        if: always()
+        run: |
+          if [ -f pas-platform/pas-policy-service/target/parity-report.md ]; then
+            cat pas-platform/pas-policy-service/target/parity-report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload parity report and test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pas-platform-parity-reports
+          path: |
+            pas-platform/pas-policy-service/target/parity-report.md
+            pas-platform/pas-policy-service/target/surefire-reports/**
+
+  cutover-scripts:
+    name: pas-platform / cutover-scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Bats and ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats shellcheck
+      - name: Check shell scripts
+        run: shellcheck -x pas-platform/cutover/*.sh pas-platform/dev/rehearsal-lib.sh pas-platform/dev/rollback-rehearsal.sh
+      - name: Run cutover tests
+        run: make cutover-test
+
+  changes:
+    name: pas-platform / changed-components
+    runs-on: ubuntu-latest
+    outputs:
+      cutover: ${{ steps.detect.outputs.cutover }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        name: Detect cutover-related changes
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ]]; then
+            echo "cutover=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch origin "$BASE_REF"
+          changed="$(git diff --name-only "origin/$BASE_REF...HEAD")"
+          if printf '%s\n' "$changed" | grep -Eq '^(pas-platform/cutover/|pas-platform/dev/|pas-platform/db/grants/|pas-platform/docker-compose\.yml$|Makefile$|compat/|parity/|\.github/workflows/)'; then
+            echo "cutover=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cutover=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  decommission-rehearsal:
+    name: pas-platform / decommission-rehearsal
+    needs: changes
+    if: needs.changes.outputs.cutover == 'true'
+    runs-on: ubuntu-latest
+    env:
+      MVNW_REPOURL: https://maven-central.storage-download.googleapis.com/maven2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Rehearse decommission in a detached worktree
+        run: make decommission-check
+
+  cutover-rehearsal:
+    name: pas-platform / cutover-rehearsal
+    needs: changes
+    if: needs.changes.outputs.cutover == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MVNW_REPOURL: https://maven-central.storage-download.googleapis.com/maven2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Prepare empty Maven settings secret
+        run: |
+          settings_file="$GITHUB_WORKSPACE/.ci-empty-maven-settings.xml"
+          : > "$settings_file"
+          echo "MAVEN_SETTINGS=$settings_file" >> "$GITHUB_ENV"
+      - name: Run local cutover and rollback rehearsal
+        run: make cutover-rehearsal
+      - name: Remove empty Maven settings
+        if: always()
+        run: rm -f "$GITHUB_WORKSPACE/.ci-empty-maven-settings.xml"
+      - name: Stop migration stack
+        if: always()
+        working-directory: pas-platform
+        run: docker compose --profile migration down -v
+
+  container-build:
+    name: pas-platform / container-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Build policy service image
+        run: docker build -f pas-platform/pas-policy-service/Dockerfile -t pas-policy-service:ci .
+      - name: Build batch image
+        run: docker build -f pas-platform/pas-batch/Dockerfile -t pas-batch:ci .

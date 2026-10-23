@@ -1,0 +1,187 @@
+services:
+  acmeins-source:
+    image: postgres:16
+    profiles: ["migration"]
+    environment:
+      POSTGRES_DB: acmeins
+      POSTGRES_USER: acmeins
+      POSTGRES_PASSWORD: ${PAS_MIGRATION_SOURCE_PASSWORD:?run make dev-env}
+      PAS_MIGRATION_SOURCE_PASSWORD: ${PAS_MIGRATION_SOURCE_PASSWORD:?run make dev-env}
+      PAS_MIGRATION_REVERSE_PASSWORD: ${PAS_MIGRATION_REVERSE_PASSWORD:?run make dev-env}
+      PAS_MIGRATION_SOURCE_USERNAME: ${PAS_MIGRATION_SOURCE_USERNAME:-acmeins_readonly}
+      PAS_MIGRATION_REVERSE_USERNAME: ${PAS_MIGRATION_REVERSE_USERNAME:-acmeins_reverse}
+    ports:
+      - "127.0.0.1:${PAS_MIGRATION_SOURCE_HOST_PORT:-5433}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./pas-batch/src/test/resources/migration/acmeins-ddl.sql:/docker-entrypoint-initdb.d/001-acmeins-ddl.sql:ro
+      - ./dev/migration/acmeins-seed.sql:/docker-entrypoint-initdb.d/002-acmeins-seed.sql:ro
+      - ./dev/migration/acmeins-grants.sh:/docker-entrypoint-initdb.d/003-acmeins-grants.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rollback-target:
+    image: postgres:16
+    profiles: ["migration"]
+    environment:
+      POSTGRES_DB: pas
+      POSTGRES_USER: ${PAS_DB_USERNAME:?set in .env}
+      POSTGRES_PASSWORD: ${PAS_DB_PASSWORD:?set in .env (copy .env.example)}
+    ports:
+      - "127.0.0.1:${PAS_MIGRATION_TARGET_HOST_PORT:-5434}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: pas
+      POSTGRES_USER: ${PAS_DB_USERNAME:?set in .env}
+      POSTGRES_PASSWORD: ${PAS_DB_PASSWORD:?set in .env (copy .env.example)}
+    ports:
+      - "${PAS_DB_HOST_PORT:-5432}:5432"
+    volumes:
+      - pas-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:3.9.1
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:29093,HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,HOST://localhost:${PAS_KAFKA_HOST_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 1
+    ports:
+      - "${PAS_KAFKA_HOST_PORT:-9092}:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  pas-policy-service:
+    image: pas-policy-service:local
+    build:
+      context: ..
+      dockerfile: pas-platform/pas-policy-service/Dockerfile
+      args:
+        MVNW_REPOURL: ${MVNW_REPOURL:-}
+      secrets:
+        - maven_settings
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PAS_DB_URL: ${PAS_DB_URL:-jdbc:postgresql://postgres:5432/pas}
+      PAS_DB_USERNAME: ${PAS_DB_USERNAME:?set in .env}
+      PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:?set in .env (copy .env.example)}
+      PAS_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      PAS_PII_ENCRYPTION_KEY_ID: ${PAS_PII_ENCRYPTION_KEY_ID:?run make dev-env}
+      PAS_PII_ENCRYPTION_KEY_VERSION: ${PAS_PII_ENCRYPTION_KEY_VERSION:-1}
+      PAS_PII_ENCRYPTION_KEY: ${PAS_PII_ENCRYPTION_KEY:?run make dev-env}
+      PAS_PII_BLIND_INDEX_KEY: ${PAS_PII_BLIND_INDEX_KEY:?run make dev-env}
+      PAS_ROUTE_NEW_BUSINESS: ${PAS_ROUTE_NEW_BUSINESS:-legacy}
+      PAS_ROUTE_RENEWAL: ${PAS_ROUTE_RENEWAL:-legacy}
+      PAS_ROUTE_ENDORSEMENT: ${PAS_ROUTE_ENDORSEMENT:-legacy}
+      PAS_ROUTE_UNDERWRITING: ${PAS_ROUTE_UNDERWRITING:-legacy}
+      PAS_ROUTE_POLICY_INQUIRY: ${PAS_ROUTE_POLICY_INQUIRY:-new}
+      PAS_ROUTE_DOCUMENT_EVENTS: ${PAS_ROUTE_DOCUMENT_EVENTS:-legacy}
+      PAS_ROUTE_BROKER_PORTAL_READ: ${PAS_ROUTE_BROKER_PORTAL_READ:-legacy}
+      PAS_DEV_JWT_PUBLIC_KEY: /run/pas-keys/public.pem
+    volumes:
+      - ./.dev-keys/public.pem:/run/pas-keys/public.pem:ro
+    ports:
+      - "${PAS_POLICY_HTTP_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  pas-batch:
+    image: pas-batch:local
+    build:
+      context: ..
+      dockerfile: pas-platform/pas-batch/Dockerfile
+      args:
+        MVNW_REPOURL: ${MVNW_REPOURL:-}
+      secrets:
+        - maven_settings
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PAS_DB_URL: ${PAS_DB_URL:-jdbc:postgresql://postgres:5432/pas}
+      PAS_DB_USERNAME: ${PAS_DB_USERNAME:?set in .env}
+      PAS_DB_PASSWORD: ${PAS_DB_PASSWORD:?set in .env (copy .env.example)}
+      PAS_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      PAS_DEV_JWT_PUBLIC_KEY: /run/pas-keys/public.pem
+      PAS_PII_ENCRYPTION_KEY_ID: ${PAS_PII_ENCRYPTION_KEY_ID:?run make dev-env}
+      PAS_PII_ENCRYPTION_KEY_VERSION: ${PAS_PII_ENCRYPTION_KEY_VERSION:-1}
+      PAS_PII_ENCRYPTION_KEY: ${PAS_PII_ENCRYPTION_KEY:?run make dev-env}
+      PAS_PII_BLIND_INDEX_KEY: ${PAS_PII_BLIND_INDEX_KEY:?run make dev-env}
+      PAS_MIGRATION_ENABLED: ${PAS_MIGRATION_ENABLED:-false}
+      PAS_MIGRATION_SOURCE_URL: ${PAS_MIGRATION_SOURCE_URL:-}
+      PAS_MIGRATION_SOURCE_USERNAME: ${PAS_MIGRATION_SOURCE_USERNAME:-acmeins_readonly}
+      PAS_MIGRATION_SOURCE_PASSWORD: ${PAS_MIGRATION_SOURCE_PASSWORD:?run make dev-env}
+      PAS_MIGRATION_SOURCE_SSL: ${PAS_MIGRATION_SOURCE_SSL:-true}
+      PAS_MIGRATION_SOURCE_SSL_TRUST_STORE_LOCATION: ${PAS_MIGRATION_SOURCE_SSL_TRUST_STORE_LOCATION:-}
+      PAS_MIGRATION_SOURCE_SCHEMA: ${PAS_MIGRATION_SOURCE_SCHEMA:-ACMEINS}
+      PAS_MIGRATION_REVERSE_SYNC_ENABLED: ${PAS_MIGRATION_REVERSE_SYNC_ENABLED:-false}
+      PAS_MIGRATION_REVERSE_USERNAME: ${PAS_MIGRATION_REVERSE_USERNAME:-acmeins_reverse}
+      PAS_MIGRATION_REVERSE_PASSWORD: ${PAS_MIGRATION_REVERSE_PASSWORD:?run make dev-env}
+      PAS_MIGRATION_DELTA_SYNC_PAUSED: ${PAS_MIGRATION_DELTA_SYNC_PAUSED:-false}
+      PAS_RECON_FINGERPRINT_KEY: ${PAS_RECON_FINGERPRINT_KEY:-}
+      PAS_MIGRATION_PARALLEL_RUN_LEGACY_EXTRACT_DIR: ${PAS_MIGRATION_PARALLEL_RUN_LEGACY_EXTRACT_DIR:-/var/lib/pas-batch/legacy-extracts}
+      PAS_ROUTING_PREMIUM_BATCH: ${PAS_ROUTING_PREMIUM_BATCH:-legacy}
+      PAS_ROUTING_DAILY_EXTRACT: ${PAS_ROUTING_DAILY_EXTRACT:-legacy}
+      PAS_ROUTING_MONTHLY_EXPOSURE: ${PAS_ROUTING_MONTHLY_EXPOSURE:-legacy}
+    volumes:
+      - ./.dev-keys/public.pem:/run/pas-keys/public.pem:ro
+      - pas-batch-extracts:/var/lib/pas-batch/extracts
+      - pas-batch-reports:/var/lib/pas-batch/reports
+    ports:
+      - "${PAS_BATCH_HTTP_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pas-policy-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+volumes:
+  pas-postgres-data:
+  pas-batch-extracts:
+  pas-batch-reports:
+
+secrets:
+  maven_settings:
+    file: ${MAVEN_SETTINGS:-/dev/null}

@@ -1,0 +1,46 @@
+{
+  "program": "UNDWRT",
+  "fixture": "claims-4",
+  "description": "Four claims add the first claims surcharge.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "RS",
+        "riskScore": 449,
+        "decisionReason": "REFERRED TO SENIOR UNDERWRITER"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "RS",
+        "riskScore": 449
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "RS",
+        "riskScore": 449,
+        "recordHex": "504F4C303030303030303031415554202030303030303030303030303030303030202020202020202020202020202020204230303100000100000C000000000C0000010000000C303030303030303030303052533434392020303030303030303020202020202020202020202020202020202020202020202020202020"
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 449,
+      "lossRatio": 0.00,
+      "claimCount": 4,
+      "accumLimit": 1000000.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

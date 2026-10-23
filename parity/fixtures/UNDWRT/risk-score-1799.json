@@ -1,0 +1,1 @@
+{"description":"Multiple surcharges exercise the three-digit policy risk-score field.","input":{"customer":{"creditScore":1,"riskTier":"U"},"claims":{"count":6,"totalIncurred":801.00},"policy":{"coverageLimit":10000001.00},"branchAccumulatedLimit":500000000.01},"expectLegacy":{"outputs.decision[0].riskScore":1799,"outputs.notification[0].riskScore":799}}

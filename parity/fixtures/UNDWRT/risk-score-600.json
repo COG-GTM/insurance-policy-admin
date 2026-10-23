@@ -1,0 +1,1 @@
+{"description":"Substandard tier reaches risk score 600.","input":{"customer":{"creditScore":100,"riskTier":"U"}},"expectLegacy":{"outputs.decision[0].riskScore":600}}

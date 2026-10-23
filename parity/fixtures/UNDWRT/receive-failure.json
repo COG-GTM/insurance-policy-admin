@@ -1,0 +1,1 @@
+{"description":"The CICS RECEIVE fails and records the legacy error path.","input":{"receiveResp":13},"expectLegacy":{"outputs.error[0].message":"ERROR RECEIVING UNDERWRITING DATA"}}

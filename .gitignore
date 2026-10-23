@@ -1,2 +1,8 @@
 compat-api.log
 __pycache__/
+pas-platform/.dev-keys/
+pas-platform/.env
+target/
+logs/
+*.log
+parity/build/

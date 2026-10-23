@@ -1,0 +1,46 @@
+{
+  "program": "UNDWRT",
+  "fixture": "risk-score-299",
+  "description": "Base credit score produces risk score 299.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "AP",
+        "riskScore": 299,
+        "decisionReason": "AUTO-ACCEPTED: LOW RISK"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "AP",
+        "riskScore": 299
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "AP",
+        "riskScore": 299,
+        "recordHex": "504F4C303030303030303031415554202030303030303030303030303030303030202020202020202020202020202020204230303100000100000C000000000C0000010000000C303030303030303030303041503239392020303030303030303020202020202020202020202020202020202020202020202020202020"
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 299,
+      "lossRatio": 0.00,
+      "claimCount": 0,
+      "accumLimit": 1000000.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

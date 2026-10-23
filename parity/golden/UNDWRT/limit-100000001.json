@@ -1,0 +1,46 @@
+{
+  "program": "UNDWRT",
+  "fixture": "limit-100000001",
+  "description": "A limit above ten million adds both limit surcharges.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "RS",
+        "riskScore": 599,
+        "decisionReason": "REFERRED TO SENIOR UNDERWRITER"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "RS",
+        "riskScore": 599
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "RS",
+        "riskScore": 599,
+        "recordHex": "504F4C303030303030303031415554202030303030303030303030303030303030202020202020202020202020202020204230303100000100000C000000000C0001000000001C303030303030303030303052533539392020303030303030303020202020202020202020202020202020202020202020202020202020"
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 599,
+      "lossRatio": 0.00,
+      "claimCount": 0,
+      "accumLimit": 1000000.00,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

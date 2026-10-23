@@ -1,0 +1,49 @@
+{
+  "program": "PREMBAT",
+  "fixture": "single-lowercase-type",
+  "description": "Lowercase policy type does not match an uppercase COBOL 88-level and uses OTHER.",
+  "outputs": {
+    "premium": [
+      {
+        "policyNumber": "POL000000601",
+        "coverageSeq": 1,
+        "termEffectiveDate": "20240101",
+        "termExpiryDate": "20250101",
+        "baseRate": 1000.0000,
+        "taxAmount": 35.00,
+        "surchargeAmount": 25.00,
+        "totalPremium": 1060.00,
+        "calcDate": "20241015",
+        "calcBy": "PREMBAT"
+      }
+    ],
+    "jobEnd": [
+      {
+        "returnCode": 0,
+        "policiesRead": 1,
+        "policiesUpdated": 1,
+        "policiesError": 0
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": [],
+      "report": [
+        "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20241015",
+        "------------------------------------------------------------------------------------------------------------------------------------",
+        "POL000000601 PREMIUM: \u0000\u0000\u0001\u0006\u0000\f",
+        "====================================================================================================================================",
+        "TOTAL POLICIES READ:    0000001",
+        "TOTAL POLICIES UPDATED: 0000001",
+        "TOTAL ERRORS:           0000000"
+      ]
+    },
+    "state": {
+      "policiesRead": 1,
+      "policiesUpdated": 1,
+      "policiesError": 0
+    },
+    "returnCode": 0
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {"$ref": "envelope.schema.json"},
+    {
+      "properties": {
+        "eventType": {"const": "UnderwritingDecisionRecorded"},
+        "data": {
+          "type": "object",
+          "required": ["decisionId", "decisionCode", "riskScore", "reasons", "lossRatio", "override", "overridesDecisionId"],
+          "properties": {
+            "decisionId": {"type": "integer", "minimum": 1},
+            "decisionCode": {"enum": ["AP", "RS", "RM", "DC"]},
+            "riskScore": {"type": "integer", "minimum": 0},
+            "reasons": {"type": "array", "items": {"type": "string"}},
+            "lossRatio": {"type": ["number", "null"]},
+            "override": {"type": "boolean"},
+            "overridesDecisionId": {"type": ["integer", "null"], "minimum": 1}
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

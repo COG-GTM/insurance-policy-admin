@@ -1,0 +1,50 @@
+{
+  "program": "PREMBAT",
+  "fixture": "insert-collision",
+  "description": "An insert collision on the second of four policies stops the loop with return code four.",
+  "outputs": {
+    "premium": [
+      {
+        "policyNumber": "POL000000401",
+        "coverageSeq": 1,
+        "termEffectiveDate": "20240101",
+        "termExpiryDate": "20250101",
+        "baseRate": 850.0000,
+        "taxAmount": 29.75,
+        "surchargeAmount": 25.00,
+        "totalPremium": 904.75,
+        "calcDate": "20241015",
+        "calcBy": "PREMBAT"
+      }
+    ],
+    "jobEnd": [
+      {
+        "returnCode": 4,
+        "policiesRead": 2,
+        "policiesUpdated": 1,
+        "policiesError": 1
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": [],
+      "report": [
+        "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20241015",
+        "------------------------------------------------------------------------------------------------------------------------------------",
+        "POL000000401 PREMIUM: \u0000\u0000\u0000G\\",
+        "POL000000402 PREMIUM: \u0000\u0000\u0001&p\f",
+        "====================================================================================================================================",
+        "TOTAL POLICIES READ:    0000002",
+        "TOTAL POLICIES UPDATED: 0000001",
+        "TOTAL ERRORS:           0000001"
+      ]
+    },
+    "state": {
+      "policiesRead": 2,
+      "policiesUpdated": 1,
+      "policiesError": 1
+    },
+    "returnCode": 4
+  }
+}

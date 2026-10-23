@@ -1,0 +1,1 @@
+{"description":"Life policy premium calculation.","input":{"policies":[{"policyNumber":"POL000000104","policyType":"LIF","totalPremium":500.00,"deductible":0.00,"coverageLimit":500000.00,"effectiveDate":"20240101","expiryDate":"20250101","insertSqlcode":0}]},"expectLegacy":{"outputs.premium[0].totalPremium":439.00}}

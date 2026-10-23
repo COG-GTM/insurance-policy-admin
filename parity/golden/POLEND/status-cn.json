@@ -1,0 +1,27 @@
+{
+  "program": "POLEND",
+  "fixture": "status-cn",
+  "description": "Cancelled policy status is rejected.",
+  "outputs": {
+    "endorsement": [],
+    "policyUpdate": [],
+    "audit": [],
+    "error": [
+      {
+        "message": "ONLY ACTIVE POLICIES CAN BE ENDORSED"
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": []
+    },
+    "state": {
+      "daysInTerm": 0,
+      "daysRemaining": 0,
+      "proRataFactor": 0.000000,
+      "errorMsg": "ONLY ACTIVE POLICIES CAN BE ENDORSED"
+    },
+    "returnCode": 0
+  }
+}

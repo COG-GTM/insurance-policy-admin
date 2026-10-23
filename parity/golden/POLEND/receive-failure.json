@@ -1,0 +1,27 @@
+{
+  "program": "POLEND",
+  "fixture": "receive-failure",
+  "description": "The CICS RECEIVE returns an error response.",
+  "outputs": {
+    "endorsement": [],
+    "policyUpdate": [],
+    "audit": [],
+    "error": [
+      {
+        "message": "ERROR RECEIVING ENDORSEMENT DATA"
+      }
+    ]
+  },
+  "trace": {
+    "events": {
+      "screen": []
+    },
+    "state": {
+      "daysInTerm": 0,
+      "daysRemaining": 0,
+      "proRataFactor": 0.000000,
+      "errorMsg": "ERROR RECEIVING ENDORSEMENT DATA"
+    },
+    "returnCode": 0
+  }
+}

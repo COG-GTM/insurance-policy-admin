@@ -1,0 +1,46 @@
+{
+  "program": "UNDWRT",
+  "fixture": "risk-score-1799",
+  "description": "Multiple surcharges exercise the three-digit policy risk-score field.",
+  "outputs": {
+    "decision": [
+      {
+        "policyNumber": "POL000000001",
+        "decisionDate": "20241015",
+        "decisionCode": "DC",
+        "riskScore": 1799,
+        "decisionReason": "AUTO-DECLINED: HIGH RISK"
+      }
+    ],
+    "policyUpdate": [
+      {
+        "uwStatus": "DC",
+        "riskScore": 1799
+      }
+    ],
+    "notification": [
+      {
+        "policyNumber": "POL000000001",
+        "uwStatus": "DC",
+        "riskScore": 799,
+        "recordHex": "504F4C303030303030303031415554202030303030303030303030303030303030202020202020202020202020202020204230303100000100000C000000000C0001000000100C303030303030303030303044433739392020303030303030303020202020202020202020202020202020202020202020202020202020"
+      }
+    ],
+    "error": []
+  },
+  "trace": {
+    "events": {
+      "screen": [
+        "UWRTRES"
+      ]
+    },
+    "state": {
+      "wsRiskScore": 1799,
+      "lossRatio": 80.10,
+      "claimCount": 6,
+      "accumLimit": 500000000.01,
+      "errorMsg": ""
+    },
+    "returnCode": 0
+  }
+}

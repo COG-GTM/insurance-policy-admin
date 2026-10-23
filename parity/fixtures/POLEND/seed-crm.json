@@ -1,0 +1,1 @@
+{"description":"CRM endorsement type seed.","seed":{"endorsementType":"CRM","premiumAdjust":10.00},"expectLegacy":{"outputs.endorsement[0].endorsementType":"CRM"}}

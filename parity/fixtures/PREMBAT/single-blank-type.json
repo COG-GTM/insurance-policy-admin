@@ -1,0 +1,1 @@
+{"description":"Blank policy type uses the legacy default premium rate.","input":{"policies":[{"policyNumber":"POL000000107","policyType":"","totalPremium":1000.00,"deductible":500.00,"coverageLimit":100000.00,"effectiveDate":"20240101","expiryDate":"20250101","insertSqlcode":0}]}}

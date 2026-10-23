@@ -1,0 +1,1 @@
+{"description":"Maximum premium, limit, incurred amount, and claim count fit the fixture layouts.","input":{"policy":{"totalPremium":999999999.99,"coverageLimit":99999999999.99},"claims":{"count":99999,"totalIncurred":99999999999.99},"branchAccumulatedLimit":9999999999999.99}}

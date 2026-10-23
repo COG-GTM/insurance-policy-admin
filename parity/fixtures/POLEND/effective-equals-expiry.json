@@ -1,0 +1,1 @@
+{"description":"Policy effective and expiry dates are equal.","input":{"currentDate":"20240101","policy":{"effectiveDate":"20240101","expiryDate":"20240101"}},"expectLegacy":{"trace.state.daysInTerm":0,"trace.state.proRataFactor":1.0}}

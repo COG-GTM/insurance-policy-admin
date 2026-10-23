@@ -1,0 +1,141 @@
+package com.acme.insurance.pas.policy.underwriting.parity;
+
+import com.acme.insurance.pas.copybook.CopybookCharset;
+import com.acme.insurance.pas.copybook.LegacyPolicyRecords;
+import com.acme.insurance.pas.domain.Coded;
+import com.acme.insurance.pas.domain.PolicyType;
+import com.acme.insurance.pas.domain.UnderwritingStatus;
+import com.acme.insurance.pas.parity.ParityAdapter;
+import com.acme.insurance.pas.policy.underwriting.UnderwritingInput;
+import com.acme.insurance.pas.policy.underwriting.UnderwritingOutcome;
+import com.acme.insurance.pas.policy.underwriting.UnderwritingRules;
+import com.acme.insurance.pas.policy.underwriting.UnderwritingThresholds;
+import java.math.BigDecimal;
+import java.util.HexFormat;
+import java.util.List;
+
+final class UndwrtParityAdapter
+    implements ParityAdapter<UndwrtParityAdapter.Input, UndwrtParityAdapter.Output> {
+  private static final String POLICY_NOT_FOUND = "POLICY/CUSTOMER DATA NOT FOUND";
+  private static final String RECEIVE_ERROR = "ERROR RECEIVING UNDERWRITING DATA";
+
+  @Override
+  public String program() {
+    return "UNDWRT";
+  }
+
+  @Override
+  public Class<Input> inputType() {
+    return Input.class;
+  }
+
+  @Override
+  public Output run(Input input) {
+    if (input.policySqlcode() != 0) {
+      return Output.error(POLICY_NOT_FOUND);
+    }
+    if (input.receiveResp() != 0) {
+      return Output.error(RECEIVE_ERROR);
+    }
+    UnderwritingOutcome decision =
+        UnderwritingRules.decide(
+            new UnderwritingInput(
+                input.customer().creditScore(),
+                input.customer().riskTier(),
+                input.policy().totalPremium(),
+                input.policy().coverageLimit(),
+                input.claims().totalIncurred(),
+                input.branchAccumulatedLimit(),
+                input.claims().count(),
+                input.policy().branchCode()),
+            UnderwritingThresholds.legacyDefaults());
+    String status = decision.code().name();
+    return new Output(
+        List.of(
+            new DecisionRow(
+                input.policy().policyNumber(),
+                input.currentDate(),
+                status,
+                decision.riskScore(),
+                decision.reasons().get(0))),
+        List.of(new PolicyUpdateRow(status, decision.riskScore())),
+        List.of(
+            new NotificationRow(
+                input.policy().policyNumber(),
+                status,
+                decision.riskScore(),
+                recordHex(input, status, decision.riskScore()))),
+        List.of());
+  }
+
+  private static String recordHex(Input input, String status, int riskScore) {
+    Policy source = input.policy();
+    com.acme.insurance.pas.domain.Policy record =
+        new com.acme.insurance.pas.domain.Policy(
+            source.policyNumber(),
+            Coded.of(PolicyType.class, source.policyType()),
+            null,
+            null,
+            null,
+            null,
+            null,
+            source.branchCode(),
+            source.totalPremium(),
+            BigDecimal.ZERO,
+            source.coverageLimit(),
+            null,
+            0,
+            Coded.of(UnderwritingStatus.class, status),
+            riskScore,
+            null,
+            null,
+            null,
+            null);
+    return HexFormat.of()
+        .formatHex(LegacyPolicyRecords.undwrtDecisionRecord(record, CopybookCharset.ASCII))
+        .toUpperCase(java.util.Locale.ROOT);
+  }
+
+  record Input(
+      String currentDate,
+      int receiveResp,
+      int policySqlcode,
+      Policy policy,
+      Customer customer,
+      Claims claims,
+      BigDecimal branchAccumulatedLimit) {}
+
+  record Policy(
+      String policyNumber,
+      String policyType,
+      BigDecimal totalPremium,
+      BigDecimal coverageLimit,
+      String branchCode) {}
+
+  record Customer(String custType, Integer creditScore, String riskTier) {}
+
+  record Claims(int count, BigDecimal totalIncurred) {}
+
+  record Output(
+      List<DecisionRow> decision,
+      List<PolicyUpdateRow> policyUpdate,
+      List<NotificationRow> notification,
+      List<ErrorRow> error) {
+    static Output error(String message) {
+      return new Output(List.of(), List.of(), List.of(), List.of(new ErrorRow(message)));
+    }
+  }
+
+  record DecisionRow(
+      String policyNumber,
+      String decisionDate,
+      String decisionCode,
+      int riskScore,
+      String decisionReason) {}
+
+  record PolicyUpdateRow(String uwStatus, int riskScore) {}
+
+  record NotificationRow(String policyNumber, String uwStatus, int riskScore, String recordHex) {}
+
+  record ErrorRow(String message) {}
+}
