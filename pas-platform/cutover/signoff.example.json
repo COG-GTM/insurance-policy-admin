@@ -1,0 +1,16 @@
+{
+  "arbTicket": "ARB-TBD",
+  "parallelRunCycleId": "TBD",
+  "capabilities": {
+    "policy-inquiry": {"signoff": false, "d9": false},
+    "new-business": {"signoff": false, "d9": false},
+    "underwriting": {"signoff": false, "d9": false},
+    "renewal": {"signoff": false, "d9": false},
+    "endorsement": {"signoff": false, "d9": false},
+    "premium-batch": {"signoff": false, "d9": false},
+    "daily-extract": {"signoff": false, "d9": false},
+    "monthly-exposure": {"signoff": false, "d9": false},
+    "document-events": {"signoff": false, "d9": false},
+    "broker-portal-read": {"signoff": false, "d9": false}
+  }
+}

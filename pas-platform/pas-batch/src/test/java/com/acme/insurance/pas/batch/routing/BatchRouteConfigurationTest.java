@@ -38,6 +38,23 @@ class BatchRouteConfigurationTest {
   }
 
   @Test
+  void bindsEnvironmentStyleRouteKeys() {
+    contextRunner
+        .withPropertyValues(
+            "pas.routing.premium.batch=modern",
+            "pas.routing.daily.extract=shadow",
+            "pas.routing.monthly.exposure=retired")
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              RouteFlags routes = context.getBean(RouteFlags.class);
+              assertThat(routes.state(RouteFlags.PREMIUM_BATCH)).isEqualTo(RouteState.NEW);
+              assertThat(routes.state(RouteFlags.DAILY_EXTRACT)).isEqualTo(RouteState.SHADOW);
+              assertThat(routes.state(RouteFlags.MONTHLY_EXPOSURE)).isEqualTo(RouteState.RETIRED);
+            });
+  }
+
+  @Test
   void rejectsUnknownRouteCapabilities() {
     contextRunner
         .withPropertyValues("pas.routing.unknown-capability=new")

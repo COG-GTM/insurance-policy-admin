@@ -49,6 +49,11 @@ estimated) → `ARB_REQUIRED`.
 
 ## Decision
 
+Operational cutover and rollback sequencing is maintained in
+[`docs/runbooks/cutover.md`](../runbooks/cutover.md) and
+[`docs/runbooks/rollback.md`](../runbooks/rollback.md). Legacy source removal is governed by
+[`docs/modernization/decommission.md`](../modernization/decommission.md).
+
 We will replace the PAS mainframe workload with **two deployables in a new `pas-platform/`
 Maven build** — one online **policy service** covering inquiry, policy lifecycle (new business,
 renewal, endorsement), underwriting and event publication, and one **Spring Batch application**

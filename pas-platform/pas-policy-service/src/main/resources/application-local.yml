@@ -11,7 +11,7 @@ springdoc:
 
 pas:
   routing:
-    policy-inquiry: new
+    policy-inquiry: ${PAS_ROUTE_POLICY_INQUIRY:new}
     new-business: ${PAS_ROUTE_NEW_BUSINESS:new}
     underwriting: ${PAS_ROUTE_UNDERWRITING:new}
     renewal: ${PAS_ROUTE_RENEWAL:new}

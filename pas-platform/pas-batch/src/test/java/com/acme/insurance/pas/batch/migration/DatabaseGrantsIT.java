@@ -115,6 +115,16 @@ class DatabaseGrantsIT {
     assertDenied("pas_sync", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
     assertDenied("pas_sync", "UPDATE pas.policies SET policy_status = policy_status");
     assertAllowed("pas_readonly", "SELECT policy_number FROM pas.policies");
+
+    executeResource(jdbc, "grants/rollback-revoke.sql");
+    executeResource(jdbc, "grants/pre-cutover.sql");
+    assertDenied("pas_service", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
+    assertDenied("pas_service", "UPDATE pas.policies SET policy_status = policy_status");
+    assertAllowed("pas_sync", "INSERT INTO pas.policies SELECT * FROM pas.policies WHERE false");
+    assertAllowed("pas_service", "INSERT INTO pas.outbox SELECT * FROM pas.outbox WHERE false");
+    assertAllowed(
+        "pas_service",
+        "INSERT INTO pas.policy_renewals SELECT * FROM pas.policy_renewals WHERE false");
   }
 
   private static void assertBatchLoginCanRunAJobAndPruneChangeLog() throws Exception {

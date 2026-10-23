@@ -52,7 +52,8 @@ public final class ReconciliationService {
           MigrationTable.POLICIES,
           MigrationTable.COVERAGES,
           MigrationTable.PREMIUMS,
-          MigrationTable.POLICY_HOLDERS);
+          MigrationTable.POLICY_HOLDERS,
+          MigrationTable.UNDERWRITING_DECISIONS);
   private final Db2Source source;
   private final JdbcTemplate jdbc;
   private final MigrationProperties properties;
@@ -233,9 +234,7 @@ public final class ReconciliationService {
 
   private List<Db2Source.KeyRange> targetKeyRanges(MigrationTable table) {
     StringBuilder filter = new StringBuilder();
-    if (table == MigrationTable.UNDERWRITING_DECISIONS) {
-      filter.append(" WHERE source_system = 'DB2'");
-    } else if (table == MigrationTable.TERRITORY_FACTORS) {
+    if (table == MigrationTable.TERRITORY_FACTORS) {
       filter.append(" WHERE factor_set = 'DB2'");
     }
     String sql =
@@ -243,8 +242,8 @@ public final class ReconciliationService {
             + "SELECT source_key, NTILE(?) OVER (ORDER BY source_key) AS partition_no "
             + "FROM (SELECT DISTINCT "
             + table.leadingKey().toLowerCase(Locale.ROOT)
-            + " AS source_key FROM pas."
-            + table.targetName()
+            + " AS source_key FROM "
+            + targetRelation(table)
             + filter
             + ") distinct_keys) sampled "
             + "GROUP BY partition_no ORDER BY partition_no FETCH FIRST ? ROWS ONLY";
@@ -305,17 +304,15 @@ public final class ReconciliationService {
     parameters.add(range.minimum());
     predicates.add(table.leadingKey().toLowerCase(Locale.ROOT) + " <= ?");
     parameters.add(range.maximum());
-    if (table == MigrationTable.UNDERWRITING_DECISIONS) {
-      predicates.add("source_system = 'DB2'");
-    } else if (table == MigrationTable.TERRITORY_FACTORS) {
+    if (table == MigrationTable.TERRITORY_FACTORS) {
       predicates.add("factor_set = 'DB2'");
     }
     appendKeyset(table, afterKey, predicates, parameters);
     String sql =
         "SELECT "
             + columns
-            + " FROM pas."
-            + table.targetName()
+            + " FROM "
+            + targetRelation(table)
             + " WHERE "
             + String.join(" AND ", predicates)
             + " ORDER BY "
@@ -343,6 +340,20 @@ public final class ReconciliationService {
           return result;
         },
         parameters.toArray());
+  }
+
+  private String targetRelation(MigrationTable table) {
+    if (table == MigrationTable.UNDERWRITING_DECISIONS) {
+      // OQ-25: keep reconciliation's per-key projection aligned with reverse sync.
+      return "(SELECT "
+          + targetColumns(table)
+          + " FROM (SELECT "
+          + targetColumns(table)
+          + ", decision_id, row_number() OVER (PARTITION BY policy_number, decision_date "
+          + "ORDER BY decision_id DESC) AS source_rank FROM pas.underwriting_decisions) decisions "
+          + "WHERE source_rank = 1) latest_underwriting_decisions";
+    }
+    return "pas." + table.targetName();
   }
 
   private String targetColumns(MigrationTable table) {

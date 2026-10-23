@@ -181,6 +181,7 @@ key?
 
 - **Suggested owner:** Underwriting + mainframe team
 - **Related:** AB-529 reverse sync
+AB-530: reconciliation compares the same latest-per-key projection; collapse still open
 
 ### OQ-26
 

@@ -8,7 +8,7 @@ COPY docs/modernization/quirk-register.md /workspace/docs/modernization/quirk-re
 WORKDIR /workspace/pas-platform
 RUN --mount=type=cache,target=/root/.m2 --mount=type=secret,id=maven_settings,required=false \
     SETTINGS_ARGS=""; \
-    if [ -f /run/secrets/maven_settings ]; then SETTINGS_ARGS="-s /run/secrets/maven_settings"; fi; \
+    if [ -s /run/secrets/maven_settings ]; then SETTINGS_ARGS="-s /run/secrets/maven_settings"; fi; \
     ./mvnw ${SETTINGS_ARGS} -B -ntp -DskipTests -Dspotless.check.skip=true -Dspotbugs.skip=true \
     -pl pas-policy-service -am package
 

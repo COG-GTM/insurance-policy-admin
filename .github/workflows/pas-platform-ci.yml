@@ -124,6 +124,96 @@ jobs:
             pas-platform/pas-policy-service/target/parity-report.md
             pas-platform/pas-policy-service/target/surefire-reports/**
 
+  cutover-scripts:
+    name: pas-platform / cutover-scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Bats and ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats shellcheck
+      - name: Check shell scripts
+        run: shellcheck -x pas-platform/cutover/*.sh pas-platform/dev/rehearsal-lib.sh pas-platform/dev/rollback-rehearsal.sh
+      - name: Run cutover tests
+        run: make cutover-test
+
+  changes:
+    name: pas-platform / changed-components
+    runs-on: ubuntu-latest
+    outputs:
+      cutover: ${{ steps.detect.outputs.cutover }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        name: Detect cutover-related changes
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ]]; then
+            echo "cutover=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch origin "$BASE_REF"
+          changed="$(git diff --name-only "origin/$BASE_REF...HEAD")"
+          if printf '%s\n' "$changed" | grep -Eq '^(pas-platform/cutover/|pas-platform/dev/|pas-platform/db/grants/|pas-platform/docker-compose\.yml$|Makefile$|compat/|parity/|\.github/workflows/)'; then
+            echo "cutover=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cutover=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  decommission-rehearsal:
+    name: pas-platform / decommission-rehearsal
+    needs: changes
+    if: needs.changes.outputs.cutover == 'true'
+    runs-on: ubuntu-latest
+    env:
+      MVNW_REPOURL: https://maven-central.storage-download.googleapis.com/maven2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Rehearse decommission in a detached worktree
+        run: make decommission-check
+
+  cutover-rehearsal:
+    name: pas-platform / cutover-rehearsal
+    needs: changes
+    if: needs.changes.outputs.cutover == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MVNW_REPOURL: https://maven-central.storage-download.googleapis.com/maven2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Prepare empty Maven settings secret
+        run: |
+          settings_file="$GITHUB_WORKSPACE/.ci-empty-maven-settings.xml"
+          : > "$settings_file"
+          echo "MAVEN_SETTINGS=$settings_file" >> "$GITHUB_ENV"
+      - name: Run local cutover and rollback rehearsal
+        run: make cutover-rehearsal
+      - name: Remove empty Maven settings
+        if: always()
+        run: rm -f "$GITHUB_WORKSPACE/.ci-empty-maven-settings.xml"
+      - name: Stop migration stack
+        if: always()
+        working-directory: pas-platform
+        run: docker compose --profile migration down -v
+
   container-build:
     name: pas-platform / container-build
     runs-on: ubuntu-latest

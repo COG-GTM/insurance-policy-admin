@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public final class RouteFlags {
@@ -41,7 +42,7 @@ public final class RouteFlags {
   }
 
   public static RouteFlags of(Map<String, String> configured) {
-    Map<String, String> values = configured == null ? Map.of() : configured;
+    Map<String, String> values = normalizeCapabilities(configured);
     Set<String> invalid = new LinkedHashSet<>(values.keySet());
     invalid.removeAll(CAPABILITIES);
     if (!invalid.isEmpty()) {
@@ -60,6 +61,23 @@ public final class RouteFlags {
       }
     }
     return new RouteFlags(states);
+  }
+
+  private static Map<String, String> normalizeCapabilities(Map<String, String> configured) {
+    Map<String, String> values = new LinkedHashMap<>();
+    if (configured == null) {
+      return values;
+    }
+    configured.forEach(
+        (capability, state) -> {
+          String hyphenated = capability.replace('.', '-');
+          String normalized = CAPABILITIES.contains(hyphenated) ? hyphenated : capability;
+          if (values.containsKey(normalized) && !Objects.equals(values.get(normalized), state)) {
+            throw new IllegalArgumentException("Conflicting route flags for " + normalized);
+          }
+          values.put(normalized, state);
+        });
+    return values;
   }
 
   public RouteState state(String capability) {
