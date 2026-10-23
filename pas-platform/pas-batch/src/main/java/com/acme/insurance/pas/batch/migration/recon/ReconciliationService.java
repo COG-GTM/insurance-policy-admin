@@ -52,7 +52,8 @@ public final class ReconciliationService {
           MigrationTable.POLICIES,
           MigrationTable.COVERAGES,
           MigrationTable.PREMIUMS,
-          MigrationTable.POLICY_HOLDERS);
+          MigrationTable.POLICY_HOLDERS,
+          MigrationTable.UNDERWRITING_DECISIONS);
   private final Db2Source source;
   private final JdbcTemplate jdbc;
   private final MigrationProperties properties;

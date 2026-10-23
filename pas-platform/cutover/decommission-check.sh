@@ -13,7 +13,11 @@ trap cleanup EXIT
 
 rmdir "$WORKTREE"
 git -C "$REPO_ROOT" worktree add --detach "$WORKTREE" HEAD
-"$SCRIPT_DIR/decommission-legacy-trees.sh" --execute --commit --skip-tag-check --repo "$WORKTREE"
+GIT_AUTHOR_NAME="AB-530 Decommission Check" \
+  GIT_AUTHOR_EMAIL="ab530-decommission-check@example.invalid" \
+  GIT_COMMITTER_NAME="AB-530 Decommission Check" \
+  GIT_COMMITTER_EMAIL="ab530-decommission-check@example.invalid" \
+  "$SCRIPT_DIR/decommission-legacy-trees.sh" --execute --commit --skip-tag-check --repo "$WORKTREE"
 
 (
   cd "$WORKTREE"

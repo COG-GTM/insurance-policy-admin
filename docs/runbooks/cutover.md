@@ -7,6 +7,11 @@
 - The AB-529 parallel-run cycle is clean; no present `UNTRIAGED` or `BUG` differences remain.
 - Latest reconciliation is `CLEAN`; rollback and smoke checks have passed in rehearsal
   (`make cutover-rehearsal`, `make rollback-rehearsal`).
+- Provision a dedicated smoke policy (`PAS_SMOKE_POLICY`) and customer
+  (`PAS_SMOKE_CUSTOMER`) whose create/underwriting/renewal/endorsement writes are
+  explicitly agreed with the business owner; do not use rehearsal fixtures in production.
+- Set `PAS_CUTOVER_POLICY_URL` and `PAS_CUTOVER_BATCH_URL` to the approved service
+  endpoints, and provide the reviewed production hooks and operator JWT.
 - Business, Security, Capability owners, Cutover lead, and Mainframe operations approve.
 - Flyway c02 check passes. On the integration branch, pas V80–V89 must be merged before
   V50/V60–V61. Fresh databases are unaffected; a pre-existing environment migrated before
@@ -26,9 +31,9 @@ Re-use the run ID to resume completed steps.
 | --- | --- |
 | c01 | Verify ARB ticket, all capability sign-offs, D9 evidence, and route flags |
 | c02 | Compare `pas` and `pas_batch` Flyway histories to repository migrations |
-| c03 | Verify the latest parallel-run cycle has no untriaged or BUG differences |
+| c03 | Verify the latest parallel-run cycle is `CLEAN` and has no untriaged or BUG differences |
 | c04 | Freeze legacy writes and hold CA-7 schedules |
-| c05 | Drain forward delta through the freeze timestamp and pause delta |
+| c05 | Drain forward delta through the freeze timestamp, including a full post-freeze coverage-sweep pass, then pause delta |
 | c06 | Run reconciliation; require `CLEAN` and retain report location |
 | c07 | Apply `roles.sql` then `post-cutover.sql`; verify service/sync grants |
 | c08 | Move policy inquiry, broker portal read, daily extract, and monthly exposure—in that order |

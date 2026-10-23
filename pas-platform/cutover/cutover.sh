@@ -80,6 +80,10 @@ c03_parallel_run() {
   local untriaged status
   status="$(cutover_sql "SELECT status FROM pas_batch.parallel_run_cycle WHERE cycle_id = '$cycle_id'")"
   [[ -n "$status" ]] || { printf 'Parallel-run cycle %s was not found.\n' "$cycle_id" >&2; return 1; }
+  if [[ "$status" != "CLEAN" ]]; then
+    printf 'Parallel-run cycle %s has status %s; expected CLEAN.\n' "$cycle_id" "$status" >&2
+    return 1
+  fi
   untriaged="$(cutover_sql "SELECT count(*) FROM pas_batch.parallel_run_difference WHERE cycle_id = '$cycle_id' AND present AND classification IN ('UNTRIAGED', 'BUG')")"
   if [[ "$untriaged" != "0" ]]; then
     printf 'Parallel-run cycle %s has %s untriaged/BUG differences.\n' "$cycle_id" "$untriaged" >&2
@@ -96,19 +100,47 @@ c04_freeze_legacy() {
 }
 
 c05_drain_delta() {
-  local freeze_time pass lag
+  local freeze_time pass lag max_passes
+  local coverage_start_cursor previous_cursor coverage_state coverage_cursor sweep_after_freeze
+  local coverage_wrapped=false
+  local coverage_pass_complete=false
   freeze_time="$(<"$PAS_CUTOVER_STATE_DIR/freeze-${PAS_CUTOVER_RUN_ID}.timestamp")"
+  max_passes="${PAS_CUTOVER_DRAIN_MAX_PASSES:-10000}"
+  if [[ ! "$max_passes" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'PAS_CUTOVER_DRAIN_MAX_PASSES must be a positive integer.\n' >&2
+    return 2
+  fi
+  coverage_start_cursor="$(cutover_sql "SELECT COALESCE(coverage_cursor, '') FROM pas_batch.sync_watermark WHERE table_name = 'COVERAGE_SWEEP' AND direction = 'FORWARD'")"
+  previous_cursor="$coverage_start_cursor"
   lag=1
-  for ((pass = 1; pass <= ${PAS_CUTOVER_DRAIN_MAX_PASSES:-5}; pass++)); do
+  sweep_after_freeze=false
+  for ((pass = 1; pass <= max_passes; pass++)); do
     log "Forward delta drain pass $pass"
     cutover_batch --pas.batch.cli.job=deltaSyncJob
+    coverage_state="$(
+      cutover_sql "SELECT COALESCE(coverage_cursor, '') || '|' || CASE WHEN synced_through >= '$freeze_time'::timestamptz THEN 'true' ELSE 'false' END FROM pas_batch.sync_watermark WHERE table_name = 'COVERAGE_SWEEP' AND direction = 'FORWARD'"
+    )"
+    IFS='|' read -r coverage_cursor sweep_after_freeze <<<"$coverage_state"
+    if [[ -n "$coverage_cursor" ]]; then
+      if [[ -n "$previous_cursor" ]] \
+        && { [[ "$coverage_cursor" < "$previous_cursor" ]] || [[ "$coverage_cursor" == "$previous_cursor" ]]; }; then
+        coverage_wrapped=true
+      fi
+      previous_cursor="$coverage_cursor"
+    fi
+    if [[ "$coverage_wrapped" == true ]] \
+      && { [[ -z "$coverage_start_cursor" ]] || [[ "$coverage_cursor" > "$coverage_start_cursor" ]] \
+        || [[ "$coverage_cursor" == "$coverage_start_cursor" ]]; }; then
+      coverage_pass_complete=true
+    fi
     lag="$(cutover_sql "SELECT count(*) FROM (VALUES ('POLICY_HOLDERS'), ('POLICIES'), ('PREMIUMS'), ('ENDORSEMENTS'), ('UNDERWRITING_DECISIONS'), ('COVERAGE_SWEEP')) AS expected(table_name) LEFT JOIN pas_batch.sync_watermark watermark ON watermark.table_name = expected.table_name AND watermark.direction = 'FORWARD' AND watermark.synced_through >= '$freeze_time'::timestamptz WHERE watermark.table_name IS NULL")"
-    if [[ "$lag" == "0" ]]; then
+    if [[ "$lag" == "0" && "$coverage_pass_complete" == true && "$sweep_after_freeze" == true ]]; then
       break
     fi
   done
-  if [[ "$lag" != "0" ]]; then
-    printf 'Forward delta did not reach the freeze timestamp for %s table(s).\n' "$lag" >&2
+  if [[ "$lag" != "0" || "$coverage_pass_complete" != true || "$sweep_after_freeze" != true ]]; then
+    printf 'Forward delta drain reached the %s-pass limit (watermark lag=%s, full coverage pass=%s, sweep after freeze=%s).\n' \
+      "$max_passes" "$lag" "$coverage_pass_complete" "$sweep_after_freeze" >&2
     return 1
   fi
   cutover_migration_config PAS_MIGRATION_DELTA_SYNC_PAUSED=true

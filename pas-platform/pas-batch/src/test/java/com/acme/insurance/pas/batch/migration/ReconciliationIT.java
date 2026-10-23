@@ -121,6 +121,39 @@ class ReconciliationIT extends MigrationIntegrationTestSupport {
   }
 
   @Test
+  void fingerprintsUnsyncedModernDecisionWithExistingDb2Key() throws Exception {
+    seedSource(1);
+    bulkLoadAll();
+    LocalDate decisionDate =
+        sourceJdbc.queryForObject(
+            "SELECT decision_date FROM acmeins.underwriting_decisions "
+                + "WHERE policy_number = 'POL000000001'",
+            LocalDate.class);
+
+    target.update(
+        """
+        INSERT INTO pas.underwriting_decisions (
+            policy_number, decision_date, decision_code, risk_score, decision_reason, underwriter_id
+        ) VALUES (?, ?, 'DC', 42, 'Newer unsynced decision', 'MODERN')
+        """,
+        "POL000000001",
+        decisionDate);
+
+    ReconciliationService.Result unsynced = newReconciliationService().reconcile();
+    assertThat(unsynced.status()).isEqualTo("DIFFERENCES");
+    assertThat(countKinds(unsynced.runId())).contains("HASH");
+
+    ReverseSyncTarget reverseTarget = newReverseTarget();
+    try {
+      assertThat(enabledReverseSync(reverseTarget).drain()).isGreaterThan(0);
+      ReconciliationService.Result synced = newReconciliationService().reconcile();
+      assertThat(synced.status()).isEqualTo("CLEAN");
+    } finally {
+      reverseTarget.close();
+    }
+  }
+
+  @Test
   void reportsUnsyncedModernDecisionAsMissingInSource() throws Exception {
     seedSource(1);
     bulkLoadAll();

@@ -15,6 +15,10 @@ export PAS_CUTOVER_INCLUDE_READS=false
 PAS_CUTOVER_DECISION_TIME="${PAS_CUTOVER_DECISION_TIME:-}"
 PAS_CUTOVER_CURRENT_STEP=''
 PAS_CUTOVER_STEP_STARTED=''
+if [[ "$PAS_CUTOVER_ENV" == "local" ]]; then
+  export PAS_CUTOVER_POLICY_URL="${PAS_CUTOVER_POLICY_URL:-http://localhost:${PAS_POLICY_HTTP_PORT:-18080}}"
+  export PAS_CUTOVER_BATCH_URL="${PAS_CUTOVER_BATCH_URL:-http://localhost:${PAS_BATCH_HTTP_PORT:-18081}}"
+fi
 
 if [[ ! "$PAS_CUTOVER_RUN_ID" =~ ^[A-Za-z0-9_.-]+$ ]]; then
   printf 'Invalid run id; use letters, numbers, dot, underscore, or hyphen.\n' >&2
@@ -88,7 +92,7 @@ done_file() {
 
 step() {
   local id="$1" description="$2" function_name="$3" display_command="$4"
-  local started ended elapsed
+  local started ended elapsed status
   if [[ "$PAS_CUTOVER_EXECUTE" != "true" ]]; then
     log "DRY-RUN step $id $description: would run $display_command"
     return 0
@@ -104,12 +108,30 @@ step() {
   PAS_CUTOVER_STEP_STARTED="$started"
   log "START step $id $description"
   "$function_name"
+  status=$?
+  trap cutover_error ERR
+  set -e
+  if ((status == 99)); then
+    log "SKIP step $id $description: not applicable"
+    PAS_CUTOVER_CURRENT_STEP=''
+    PAS_CUTOVER_STEP_STARTED=''
+    return 0
+  fi
+  if ((status != 0)); then
+    return "$status"
+  fi
   ended="$(date +%s)"
   elapsed=$((ended - started))
   printf '%s\n' "$id" >>"$(done_file)"
   log "OK step $id $description duration=${elapsed}s"
   PAS_CUTOVER_CURRENT_STEP=''
   PAS_CUTOVER_STEP_STARTED=''
+}
+
+step_not_applicable() {
+  trap - ERR
+  set +e
+  return 99
 }
 
 assert_execute_environment() {
@@ -127,7 +149,7 @@ assert_execute_environment() {
   for hook in \
     PAS_CUTOVER_PSQL_CMD PAS_CUTOVER_BATCH_CMD PAS_CUTOVER_APPLY_ROUTES_CMD \
     PAS_CUTOVER_LEGACY_FREEZE_CMD PAS_CUTOVER_LEGACY_UNFREEZE_CMD \
-    PAS_CUTOVER_MIGRATION_CONFIG_CMD; do
+    PAS_CUTOVER_MIGRATION_CONFIG_CMD PAS_CUTOVER_POLICY_URL PAS_CUTOVER_BATCH_URL; do
     if [[ -z "${!hook:-}" ]]; then
       missing+=("$hook")
     fi
@@ -162,17 +184,23 @@ cutover_sql_file() {
   fi
 }
 
+run_hook() {
+  local command_prefix="$1"
+  shift
+  bash -c "$command_prefix \"\$@\"" pas-cutover-hook "$@"
+}
+
 cutover_batch() {
   if [[ "$PAS_CUTOVER_ENV" == "local" ]]; then
     run_cli "$@"
   else
-    bash -c "$PAS_CUTOVER_BATCH_CMD" -- "$@"
+    run_hook "$PAS_CUTOVER_BATCH_CMD" "$@"
   fi
 }
 
 cutover_apply_routes() {
   if [[ "$PAS_CUTOVER_ENV" != "local" ]]; then
-    bash -c "$PAS_CUTOVER_APPLY_ROUTES_CMD" -- "$@"
+    run_hook "$PAS_CUTOVER_APPLY_ROUTES_CMD" "$@"
     return
   fi
   local assignment
@@ -193,7 +221,7 @@ cutover_apply_routes() {
 
 cutover_migration_config() {
   if [[ "$PAS_CUTOVER_ENV" != "local" ]]; then
-    bash -c "$PAS_CUTOVER_MIGRATION_CONFIG_CMD" -- "$@"
+    run_hook "$PAS_CUTOVER_MIGRATION_CONFIG_CMD" "$@"
     return
   fi
   local assignment
@@ -230,19 +258,23 @@ cutover_legacy_unfreeze() {
 }
 
 route_value() {
-  local service="$1" key="$2" file="$PAS_CUTOVER_STATE_DIR/${service}-actuator-info.json"
+  local service="$1" key="$2" file url
+  file="$PAS_CUTOVER_STATE_DIR/${service}-actuator-info.json"
   local jwt="${PAS_SMOKE_JWT:-}"
   if [[ -z "$jwt" && "$PAS_CUTOVER_ENV" == "local" ]]; then
     jwt="$(mint_rehearsal_jwt ab530-route-check)"
   fi
-  local port
   if [[ "$service" == "policy" ]]; then
-    port="${PAS_POLICY_HTTP_PORT:-18080}"
+    url="${PAS_CUTOVER_POLICY_URL:-}"
   else
-    port="${PAS_BATCH_HTTP_PORT:-18081}"
+    url="${PAS_CUTOVER_BATCH_URL:-}"
+  fi
+  if [[ -z "$url" ]]; then
+    printf 'Route checks require the %s service URL.\n' "$service" >&2
+    return 2
   fi
   curl -fsS -H "Authorization: Bearer $jwt" \
-    "http://localhost:${port}/actuator/info" -o "$file"
+    "$url/actuator/info" -o "$file"
   python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["routes"][sys.argv[2]])' \
     "$file" "$key"
 }

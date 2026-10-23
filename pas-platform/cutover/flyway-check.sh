@@ -18,7 +18,7 @@ check_versions() {
   while IFS='|' read -r version success; do
     [[ -n "$version" ]] || continue
     applied["$version"]="$success"
-    if [[ "$success" != "true" ]]; then
+    if [[ "$success" != "t" && "$success" != "true" ]]; then
       log "FAIL Flyway version $version has success=false"
       failed=1
     fi

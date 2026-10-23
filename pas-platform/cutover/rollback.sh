@@ -67,8 +67,8 @@ r04_restore_grants() {
 
 r05_read_routes_legacy() {
   if [[ "$PAS_CUTOVER_INCLUDE_READS" != true ]]; then
-    log 'WARN read routes left on the modern service; rerun with --include-reads to roll them back'
-    return
+    step_not_applicable
+    return $?
   fi
   cutover_apply_routes PAS_ROUTE_BROKER_PORTAL_READ=legacy
   assert_route policy broker-portal-read legacy

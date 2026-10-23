@@ -5,8 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib.sh"
 
-base_url="http://localhost:${PAS_POLICY_HTTP_PORT:-18080}"
-batch_url="http://localhost:${PAS_BATCH_HTTP_PORT:-18081}"
+base_url="${PAS_CUTOVER_POLICY_URL:-}"
+batch_url="${PAS_CUTOVER_BATCH_URL:-}"
+if [[ "$PAS_CUTOVER_ENV" == "local" ]]; then
+  base_url="${base_url:-http://localhost:${PAS_POLICY_HTTP_PORT:-18080}}"
+  batch_url="${batch_url:-http://localhost:${PAS_BATCH_HTTP_PORT:-18081}}"
+fi
 extract_cmd=false
 while (($#)); do
   case "$1" in
@@ -37,6 +41,15 @@ while (($#)); do
   esac
   shift
 done
+
+if [[ -z "$base_url" ]]; then
+  printf 'Refusing smoke test: PAS_CUTOVER_POLICY_URL or --base-url is required.\n' >&2
+  exit 2
+fi
+if [[ -z "$batch_url" ]]; then
+  printf 'Refusing smoke test: PAS_CUTOVER_BATCH_URL or --batch-url is required.\n' >&2
+  exit 2
+fi
 
 artifacts="${PAS_CUTOVER_STATE_DIR}/smoke"
 mkdir -p "$artifacts"
@@ -81,7 +94,20 @@ else
   jwt="$PAS_SMOKE_JWT"
 fi
 
-policy_number="${PAS_SMOKE_POLICY:-POL529000001}"
+if [[ "$PAS_CUTOVER_ENV" == "local" ]]; then
+  policy_number="${PAS_SMOKE_POLICY:-POL529000001}"
+  customer_id="${PAS_SMOKE_CUSTOMER:-C529000001}"
+else
+  local_missing=()
+  [[ -n "${PAS_SMOKE_POLICY:-}" ]] || local_missing+=(PAS_SMOKE_POLICY)
+  [[ -n "${PAS_SMOKE_CUSTOMER:-}" ]] || local_missing+=(PAS_SMOKE_CUSTOMER)
+  if ((${#local_missing[@]})); then
+    printf 'Refusing smoke test: missing required variables: %s\n' "${local_missing[*]}" >&2
+    exit 2
+  fi
+  policy_number="$PAS_SMOKE_POLICY"
+  customer_id="$PAS_SMOKE_CUSTOMER"
+fi
 for service_url in "$base_url" "$batch_url"; do
   service_name='policy'
   [[ "$service_url" == "$batch_url" ]] && service_name='batch'
@@ -113,7 +139,7 @@ status="$(curl -sS -o "$response_file" -w '%{http_code}' \
   -H 'Content-Type: application/json' \
   -H "Idempotency-Key: $idempotency_key" \
   -H "X-Correlation-Id: $(python3 -c 'import uuid; print(uuid.uuid4())')" \
-  --data "{\"policyType\":\"AUT\",\"policyholderId\":\"C529000001\",\"effectiveDate\":\"$effective_date\",\"agentCode\":\"AGT001\",\"branchCode\":\"B001\",\"coverageLimit\":100000.00,\"deductible\":500.00,\"totalPremium\":1200.00}")"
+  --data "{\"policyType\":\"AUT\",\"policyholderId\":\"$customer_id\",\"effectiveDate\":\"$effective_date\",\"agentCode\":\"AGT001\",\"branchCode\":\"B001\",\"coverageLimit\":100000.00,\"deductible\":500.00,\"totalPremium\":1200.00}")"
 if [[ "$status" != 201 ]]; then
   smoke_fail "new-business create returned HTTP $status"
 fi
