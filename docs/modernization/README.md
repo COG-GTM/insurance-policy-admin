@@ -12,12 +12,16 @@ uses them to migrate PAS off COBOL/CICS/DB2. They are derived from the source in
 | [missing-artifacts.md](missing-artifacts.md) | Things referenced but not in this repo (CLAIMS DDL, BMS maps, CSD, TDQ/MQ, CA-7, RACF, …) | `M-NN` |
 | [open-questions.md](open-questions.md) | Questions for the mainframe team, product owner and system owners | `OQ-NN` |
 | [migration runbook](../runbooks/migration.md) | AB-529 bulk/delta/reverse sync, reconciliation, parallel-run triage and rollback rehearsal | `AB-529` |
+| [cutover runbook](../runbooks/cutover.md) | AB-530 route cutover, go/no-go, hypercare and rollback | `AB-530` |
+| [decommission runbook](decommission.md) | Guarded retirement of source trees and mainframe resources | `AB-530` |
 
 How the IDs are used across the epic:
 
 - Code, tests and parity "known differences" that preserve or fix a legacy behaviour cite its `Q-NN`.
 - Q-ids are stable. A quirk that turns out to be wrong is marked withdrawn, not renumbered.
 - New quirks found by later tickets are appended with the next free number.
+
+See the [AB-530 cutover, rollback, and decommission overview](cutover.md).
 
 ## Review & sign-off
 

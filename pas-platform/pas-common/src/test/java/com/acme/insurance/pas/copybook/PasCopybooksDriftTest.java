@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class PasCopybooksDriftTest {
@@ -19,6 +20,9 @@ class PasCopybooksDriftTest {
   @Test
   void layoutsStayInSyncWithLegacyCopybooks() throws IOException {
     Path root = repositoryRoot(Path.of("").toAbsolutePath());
+    Assumptions.assumeTrue(
+        Files.isDirectory(root.resolve("cobol/copybooks")),
+        "legacy copybooks decommissioned (AB-530); layouts frozen in PasCopybooks");
     verify(root.resolve("cobol/copybooks/POLICY-RECORD.cpy"), PasCopybooks.POLICY_RECORD);
     verify(root.resolve("cobol/copybooks/COVERAGE-RECORD.cpy"), PasCopybooks.COVERAGE_RECORD);
     verify(root.resolve("cobol/copybooks/CUSTOMER-RECORD.cpy"), PasCopybooks.CUSTOMER_RECORD);
@@ -72,7 +76,8 @@ class PasCopybooksDriftTest {
   private static Path repositoryRoot(Path start) {
     Path current = start;
     while (current != null) {
-      if (Files.isDirectory(current.resolve("cobol/copybooks"))) {
+      if (Files.exists(current.resolve(".git"))
+          || Files.isDirectory(current.resolve("pas-platform"))) {
         return current;
       }
       current = current.getParent();

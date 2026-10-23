@@ -30,6 +30,27 @@ class RouteFlagsTest {
   }
 
   @Test
+  void normalizesMapKeysProducedByEnvironmentVariables() {
+    RouteFlags flags =
+        RouteFlags.of(
+            Map.of(
+                "daily.extract", "new",
+                "monthly.exposure", "shadow",
+                "premium.batch", "legacy"));
+
+    assertThat(flags.state(RouteFlags.DAILY_EXTRACT)).isEqualTo(RouteState.NEW);
+    assertThat(flags.state(RouteFlags.MONTHLY_EXPOSURE)).isEqualTo(RouteState.SHADOW);
+    assertThat(flags.state(RouteFlags.PREMIUM_BATCH)).isEqualTo(RouteState.LEGACY);
+  }
+
+  @Test
+  void rejectsConflictingCanonicalAndEnvironmentKeys() {
+    assertThatThrownBy(
+            () -> RouteFlags.of(Map.of("daily-extract", "legacy", "daily.extract", "new")))
+        .hasMessage("Conflicting route flags for daily-extract");
+  }
+
+  @Test
   void rejectsUnknownCapabilitiesAndValuesWithTheCapabilityName() {
     assertThatThrownBy(() -> RouteFlags.of(Map.of("unknown", "new")))
         .hasMessageContaining("unknown");

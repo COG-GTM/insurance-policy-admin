@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-api-modern compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local extract-compare load-premium-batch rollback-rehearsal
+.PHONY: compat compat-static compat-api compat-api-modern compat-build parity parity-golden parity-golden-check test dev-env dev-images dev dev-down dev-clean local extract-compare load-premium-batch rollback-rehearsal cutover-rehearsal cutover-test decommission-check
 
 POLICIES ?= 250000
 
@@ -109,3 +109,12 @@ load-premium-batch:
 
 rollback-rehearsal: dev-env
 	cd pas-platform && set -a && . ./.env && set +a && ./dev/rollback-rehearsal.sh
+
+cutover-rehearsal: dev-env
+	cd pas-platform && set -a && . ./.env && set +a && ./cutover/rehearsal.sh
+
+cutover-test:
+	bats pas-platform/cutover/test
+
+decommission-check:
+	./pas-platform/cutover/decommission-check.sh
