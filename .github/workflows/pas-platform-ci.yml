@@ -159,7 +159,7 @@ jobs:
           fi
           git fetch origin "$BASE_REF"
           changed="$(git diff --name-only "origin/$BASE_REF...HEAD")"
-          if printf '%s\n' "$changed" | rg -q '^(pas-platform/cutover/|pas-platform/dev/|pas-platform/db/grants/|pas-platform/docker-compose\.yml$|Makefile$|compat/|parity/|\.github/workflows/)'; then
+          if printf '%s\n' "$changed" | grep -Eq '^(pas-platform/cutover/|pas-platform/dev/|pas-platform/db/grants/|pas-platform/docker-compose\.yml$|Makefile$|compat/|parity/|\.github/workflows/)'; then
             echo "cutover=true" >> "$GITHUB_OUTPUT"
           else
             echo "cutover=false" >> "$GITHUB_OUTPUT"
