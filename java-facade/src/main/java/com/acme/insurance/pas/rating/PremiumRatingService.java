@@ -45,12 +45,22 @@ public class PremiumRatingService {
     }
 
     private BigDecimal validateFactor(BigDecimal factor) {
-        if (factor == null || factor.scale() > 4
-                || factor.abs().compareTo(new BigDecimal("1000")) >= 0) {
+        if (factor == null) {
             throw new IllegalArgumentException(
                     "Factors must fit S9(03)V9999 without truncation");
         }
-        return factor.setScale(4);
+        BigDecimal scaled;
+        try {
+            scaled = factor.setScale(4, RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException(
+                    "Factors must fit S9(03)V9999 without truncation", e);
+        }
+        if (scaled.abs().compareTo(new BigDecimal("1000")) >= 0) {
+            throw new IllegalArgumentException(
+                    "Factors must fit S9(03)V9999 without truncation");
+        }
+        return scaled;
     }
 
     private String normalizePolicyType(String policyType) {

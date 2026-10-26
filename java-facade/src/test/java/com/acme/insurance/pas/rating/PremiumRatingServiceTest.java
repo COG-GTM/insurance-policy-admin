@@ -46,10 +46,15 @@ public class PremiumRatingServiceTest {
 
     @Test
     public void acceptsLargestRepresentablePositiveAndNegativeFactors() {
+        PremiumRating redundantTrailingZero = service.rate("AUT",
+                new BigDecimal("1.00000"), new BigDecimal("1.0000"),
+                new BigDecimal("1.0000"));
         PremiumRating positive = service.rate("AUT", new BigDecimal("999.9999"),
                 new BigDecimal("1.0000"), new BigDecimal("1.0000"));
         PremiumRating negative = service.rate("AUT", new BigDecimal("-999.9999"),
                 new BigDecimal("1.0000"), new BigDecimal("1.0000"));
+        assertEquals(new BigDecimal("1.0000"),
+                redundantTrailingZero.getTerritoryFactor());
         assertEquals(new BigDecimal("999.9999"), positive.getTerritoryFactor());
         assertEquals(new BigDecimal("-999.9999"), negative.getTerritoryFactor());
     }
