@@ -2,6 +2,8 @@ package com.acme.insurance.pas.controller;
 
 import com.acme.insurance.pas.model.Coverage;
 import com.acme.insurance.pas.model.Policy;
+import com.acme.insurance.pas.rating.PremiumRating;
+import com.acme.insurance.pas.rating.PremiumRatingService;
 import com.acme.insurance.pas.repository.PolicyRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -36,6 +38,9 @@ public class PolicyController {
     @Autowired
     private PolicyRepository policyRepository;
 
+    @Autowired
+    private PremiumRatingService premiumRatingService;
+
     @GetMapping("/{policyNumber}")
     public ResponseEntity<Policy> getPolicy(@PathVariable String policyNumber) {
         Policy policy = policyRepository.findByPolicyNumber(policyNumber);
@@ -56,5 +61,16 @@ public class PolicyController {
         List<Coverage> coverages = policyRepository.findCoveragesByPolicyNumber(
                 policyNumber);
         return new ResponseEntity<List<Coverage>>(coverages, HttpStatus.OK);
+    }
+
+    @GetMapping("/{policyNumber}/premium")
+    public ResponseEntity<PremiumRating> getPremium(
+            @PathVariable String policyNumber) {
+        Policy policy = policyRepository.findByPolicyNumber(policyNumber);
+        if (policy == null) {
+            return new ResponseEntity<PremiumRating>(HttpStatus.NOT_FOUND);
+        }
+        PremiumRating premium = premiumRatingService.rate(policy.getPolicyType());
+        return new ResponseEntity<PremiumRating>(premium, HttpStatus.OK);
     }
 }
