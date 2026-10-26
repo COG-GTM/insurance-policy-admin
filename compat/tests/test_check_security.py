@@ -125,8 +125,8 @@ def test_pii_field_is_note_only_and_skipped_in_schema(repo, capsys):
 
 
 def test_only_added_lines_are_scanned(repo, capsys):
-    secret = DB_SECRET
-    rc, _out = run(repo, capsys, {"app.properties": secret + "server.port=8080\n"}, base={"app.properties": secret})
+    base_line = DB_SECRET
+    rc, _out = run(repo, capsys, {"app.properties": base_line + "server.port=8080\n"}, base={"app.properties": base_line})
     assert rc == 0
 
 
