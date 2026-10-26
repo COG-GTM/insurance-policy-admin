@@ -53,6 +53,7 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 ```
 GET /api/v1/policies/{policyNumber}            - Policy details (JSON)
 GET /api/v1/policies/{policyNumber}/coverages   - Coverage list (JSON)
+GET /api/v1/policies/{policyNumber}/premium     - Premium rating (JSON)
 GET /manage/health                              - Health check
 ```
 

@@ -55,6 +55,38 @@ public class PolicyControllerTests {
     }
 
     @Test
+    public void getPremium_returnsHomePremium() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000001/premium"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.policyType", is("HOM")))
+                .andExpect(jsonPath("$.basePremium", is(1200.0)))
+                .andExpect(jsonPath("$.taxAmount", is(42.0)))
+                .andExpect(jsonPath("$.finalPremium", is(1267.0)));
+    }
+
+    @Test
+    public void getPremium_returnsAutoPremium() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000002/premium"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.finalPremium", is(904.75)));
+    }
+
+    @Test
+    public void getPremium_returnsDefaultPremiumForUnknownPolicyType()
+            throws Exception {
+        mockMvc.perform(get("/api/v1/policies/POL-00000003/premium"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.basePremium", is(1000.0)))
+                .andExpect(jsonPath("$.finalPremium", is(1060.0)));
+    }
+
+    @Test
+    public void getPremium_policyNotFound() throws Exception {
+        mockMvc.perform(get("/api/v1/policies/NONEXISTENT/premium"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     public void healthCheck_returnsUp() throws Exception {
         mockMvc.perform(get("/manage/health"))
                 .andExpect(status().isOk())
