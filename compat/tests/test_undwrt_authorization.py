@@ -63,8 +63,10 @@ class UndwrtAuthorizationTest(unittest.TestCase):
     def test_final_or_overridden_decision_needs_override_role(self):
         prior = self.p["2600-CHECK-PRIOR-DECISION"]
         self.assertIn("FROM UNDERWRITING_DECISIONS", prior)
-        self.assertIn("PRIOR-UW-FINAL OR WS-PRIOR-OVERRIDE-BY NOT = SPACES",
+        self.assertIn("PRIOR-UW-FINAL OR (WS-PRIOR-OVERRIDE-BY NOT = SPACES"
+                      " AND WS-PRIOR-DECISION-CODE = WS-PRIOR-UW-STATUS)",
                       prior)
+        self.assertIn(":WS-PRIOR-DECISION-TS", prior)
         self.assertIn("RESID(WS-UW-OVERRIDE-RESID)", prior)
         self.assertRegex(self.src, r"88\s+PRIOR-UW-FINAL\s+VALUE 'AP' 'DC'")
 
@@ -88,10 +90,25 @@ class UndwrtAuthorizationTest(unittest.TestCase):
         self.assertLess(read.index("INITIALIZE POLICY-RECORD"),
                         read.index("EXEC SQL SELECT"))
 
+    def test_dates_read_as_iso_char(self):
+        read = self.p["2000-READ-POLICY-DATA"]
+        sql = read[read.index("EXEC SQL SELECT"):read.index("END-EXEC",
+                                                       read.index("EXEC SQL SELECT"))]
+        for col in ("EFFECTIVE_DATE", "EXPIRY_DATE", "INCEPTION_DATE"):
+            self.assertIn(f"CHAR(P.{col}, ISO)", sql)
+        for field in ("EFFECTIVE", "EXPIRY", "INCEPTION"):
+            self.assertNotIn(f":POLICY-{field}-DATE", sql)
+            self.assertIn(f"TO POLICY-{field}-DATE", read)
+
     def test_write_is_atomic_and_concurrency_safe(self):
         write = self.p["6000-WRITE-DECISION"]
         self.assertIn("COALESCE(UW_STATUS, ' ') = :WS-PRIOR-UW-STATUS",
                       write)
+        self.assertIn("AND BRANCH_CODE = :POLICY-BRANCH-CODE", write)
+        self.assertIn("AND NOT EXISTS (SELECT 1 FROM UNDERWRITING_DECISIONS",
+                      write)
+        self.assertIn("TIMESTAMP(:WS-PRIOR-DECISION-TS)", write)
+        self.assertIn("IF SQLCODE NOT = 0 OR SQLERRD(3) NOT = 1", write)
         self.assertIn("SQLCODE = -803", write)
         self.assertIn("EXEC CICS SYNCPOINT ROLLBACK", write)
 

@@ -28,10 +28,11 @@
       * AUTHORIZATION (fails closed):
       *   - Operator must hold RACF UPDATE on FACILITY profile
       *     ACME.PAS.UW.DECIDE.<branch> of the target policy.
-      *   - If UW_STATUS is already final (AP/DC) or the latest
-      *     decision row carries OVERRIDE_BY, the operator must also
-      *     hold UPDATE on ACME.PAS.UW.OVERRIDE; the new row then
-      *     records OVERRIDE_BY/OVERRIDE_REASON.
+      *   - If UW_STATUS is already final (AP/DC), or the latest
+      *     decision row carries OVERRIDE_BY and is still the policy's
+      *     UW_STATUS, the operator must also hold UPDATE on
+      *     ACME.PAS.UW.OVERRIDE; the new row then records
+      *     OVERRIDE_BY/OVERRIDE_REASON.
       ******************************************************************
        ENVIRONMENT DIVISION.
        DATA DIVISION.
@@ -62,6 +63,17 @@
            88  PRIOR-UW-FINAL         VALUE 'AP' 'DC'.
        01  WS-PRIOR-DECISION-CODE    PIC X(02).
        01  WS-PRIOR-OVERRIDE-BY      PIC X(08).
+       01  WS-PRIOR-DECISION-TS      PIC X(26).
+       01  WS-DB-DATES.
+           05  WS-DB-EFFECTIVE-DATE  PIC X(10).
+           05  WS-DB-EXPIRY-DATE     PIC X(10).
+           05  WS-DB-INCEPTION-DATE  PIC X(10).
+       01  WS-ISO-DATE               PIC X(10).
+       01  WS-YMD-DATE.
+           05  WS-YMD-YYYY           PIC X(04).
+           05  WS-YMD-MM             PIC X(02).
+           05  WS-YMD-DD             PIC X(02).
+       01  WS-YMD-DATE-N REDEFINES WS-YMD-DATE PIC 9(08).
        01  WS-OVERRIDE-SW            PIC X(01).
            88  OVERRIDE-REQUIRED      VALUE 'Y'.
            88  OVERRIDE-NOT-REQUIRED  VALUE 'N'.
@@ -171,22 +183,23 @@
            END-IF
            EXEC SQL
                SELECT P.POLICY_NUMBER, P.POLICY_TYPE, P.POLICY_STATUS,
-                      P.EFFECTIVE_DATE, P.EXPIRY_DATE,
+                      CHAR(P.EFFECTIVE_DATE, ISO),
+                      CHAR(P.EXPIRY_DATE, ISO),
                       P.POLICYHOLDER_ID, P.AGENT_CODE, P.BRANCH_CODE,
                       P.TOTAL_PREMIUM, P.DEDUCTIBLE, P.COVERAGE_LIMIT,
-                      P.INCEPTION_DATE, P.RENEWAL_COUNT,
+                      CHAR(P.INCEPTION_DATE, ISO), P.RENEWAL_COUNT,
                       P.UW_STATUS, P.RISK_SCORE,
                       P.WEB_INDICATOR, P.API_FLAG,
                       C.CUST_TYPE, C.CREDIT_SCORE, C.RISK_TIER
                INTO :POLICY-NUMBER, :POLICY-TYPE, :POLICY-STATUS,
-                    :POLICY-EFFECTIVE-DATE, :POLICY-EXPIRY-DATE,
+                    :WS-DB-EFFECTIVE-DATE, :WS-DB-EXPIRY-DATE,
                     :POLICY-HOLDER-ID,
                     :POLICY-AGENT-CODE :WS-IND-AGENT-CODE,
                     :POLICY-BRANCH-CODE :WS-IND-BRANCH-CODE,
                     :POLICY-TOTAL-PREMIUM,
                     :POLICY-DEDUCTIBLE :WS-IND-DEDUCTIBLE,
                     :POLICY-LIMIT,
-                    :POLICY-INCEPTION-DATE :WS-IND-INCEPTION-DATE,
+                    :WS-DB-INCEPTION-DATE :WS-IND-INCEPTION-DATE,
                     :POLICY-RENEWAL-COUNT :WS-IND-RENEWAL-COUNT,
                     :POLICY-UW-STATUS :WS-IND-UW-STATUS,
                     :POLICY-RISK-SCORE :WS-IND-RISK-SCORE,
@@ -211,9 +224,27 @@
                MOVE SPACES TO POLICY-UW-STATUS
            END-IF
            MOVE POLICY-UW-STATUS TO WS-PRIOR-UW-STATUS
+           MOVE WS-DB-EFFECTIVE-DATE TO WS-ISO-DATE
+           PERFORM 2100-ISO-TO-YMD
+           MOVE WS-YMD-DATE-N TO POLICY-EFFECTIVE-DATE
+           MOVE WS-DB-EXPIRY-DATE TO WS-ISO-DATE
+           PERFORM 2100-ISO-TO-YMD
+           MOVE WS-YMD-DATE-N TO POLICY-EXPIRY-DATE
+           IF WS-IND-INCEPTION-DATE >= 0
+               MOVE WS-DB-INCEPTION-DATE TO WS-ISO-DATE
+               PERFORM 2100-ISO-TO-YMD
+               MOVE WS-YMD-DATE-N TO POLICY-INCEPTION-DATE
+           END-IF
            .
        2000-EXIT.
            EXIT.
+
+       2100-ISO-TO-YMD.
+      *    DB2 ISO date YYYY-MM-DD -> copybook YYYYMMDD
+           MOVE WS-ISO-DATE(1:4) TO WS-YMD-YYYY
+           MOVE WS-ISO-DATE(6:2) TO WS-YMD-MM
+           MOVE WS-ISO-DATE(9:2) TO WS-YMD-DD
+           .
 
        2500-AUTHORIZE-BRANCH.
       *    Operator must hold UPDATE on ACME.PAS.UW.DECIDE.<branch>
@@ -239,11 +270,16 @@
       *    A final status or a recorded human override may only be
       *    superseded by an operator holding ACME.PAS.UW.OVERRIDE.
            MOVE SPACES TO WS-PRIOR-DECISION-CODE
+      *    An OVERRIDE_BY only locks while that decision is still the
+      *    policy's UW_STATUS (POLRNW resets UW_STATUS to PN).
            MOVE SPACES TO WS-PRIOR-OVERRIDE-BY
+           MOVE '0001-01-01-00.00.00.000000' TO WS-PRIOR-DECISION-TS
            EXEC SQL
-               SELECT DECISION_CODE, OVERRIDE_BY
+               SELECT DECISION_CODE, OVERRIDE_BY,
+                      CHAR(CREATED_TIMESTAMP)
                INTO :WS-PRIOR-DECISION-CODE,
-                    :WS-PRIOR-OVERRIDE-BY :WS-IND-PRIOR-OVR-BY
+                    :WS-PRIOR-OVERRIDE-BY :WS-IND-PRIOR-OVR-BY,
+                    :WS-PRIOR-DECISION-TS
                FROM UNDERWRITING_DECISIONS
                WHERE POLICY_NUMBER = :POLICY-NUMBER
                ORDER BY DECISION_DATE DESC, CREATED_TIMESTAMP DESC
@@ -262,7 +298,8 @@
            END-EVALUATE
            IF WS-ERROR-MSG = SPACES
               AND (PRIOR-UW-FINAL
-                   OR WS-PRIOR-OVERRIDE-BY NOT = SPACES)
+                   OR (WS-PRIOR-OVERRIDE-BY NOT = SPACES
+                       AND WS-PRIOR-DECISION-CODE = WS-PRIOR-UW-STATUS))
                SET OVERRIDE-REQUIRED TO TRUE
                EXEC CICS QUERY SECURITY
                    RESCLASS(WS-SEC-RESCLASS)
@@ -396,8 +433,10 @@
            .
 
        6000-WRITE-DECISION.
-      *    UW_STATUS predicate rejects a status changed by someone
-      *    else since 2000; both rows commit together or not at all.
+      *    Predicates re-check what 2000-2600 authorized against: the
+      *    UPDATE matches no row if UW_STATUS or BRANCH_CODE changed or
+      *    a newer decision was recorded since. Both writes commit
+      *    together or not at all.
            EXEC SQL
                UPDATE POLICIES
                SET UW_STATUS = :WS-DECISION,
@@ -406,8 +445,14 @@
                    UPDATED_BY = :WS-OPERATOR-ID
                WHERE POLICY_NUMBER = :POLICY-NUMBER
                  AND COALESCE(UW_STATUS, '  ') = :WS-PRIOR-UW-STATUS
+                 AND BRANCH_CODE = :POLICY-BRANCH-CODE
+                 AND NOT EXISTS
+                     (SELECT 1 FROM UNDERWRITING_DECISIONS D
+                       WHERE D.POLICY_NUMBER = :POLICY-NUMBER
+                         AND D.CREATED_TIMESTAMP >
+                             TIMESTAMP(:WS-PRIOR-DECISION-TS))
            END-EXEC
-           IF SQLCODE NOT = 0
+           IF SQLCODE NOT = 0 OR SQLERRD(3) NOT = 1
                MOVE 'POLICY CHANGED BY ANOTHER USER - RETRY'
                    TO WS-ERROR-MSG
            ELSE
