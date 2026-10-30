@@ -9,6 +9,8 @@
       * Modified: 2003-06-15 - Added terrorism coverage check
       *           2010-09-20 - Added cyber liability option
       *           2022-03-01 - Added API flag for REST facade
+      *           2026-10-30 - UW referral via MQPUT1; failure is
+      *                        fatal and backs out the new policy
       *
       * This program handles creation of new insurance policies
       * via CICS terminal or BMS map input. Validates customer
@@ -31,6 +33,28 @@
        01  WS-MQ-QUEUE               PIC X(48)
            VALUE 'ACME.PAS.UNDERWRITING.REQUEST'.
        01  WS-MQ-MSG-LENGTH          PIC S9(08) COMP.
+       01  WS-MQ-HCONN               PIC S9(09) BINARY VALUE 0.
+       01  WS-MQ-COMPCODE            PIC S9(09) BINARY.
+       01  WS-MQ-REASON              PIC S9(09) BINARY.
+       01  WS-LOG-QUEUE              PIC X(04) VALUE 'CSMT'.
+       01  WS-LOG-MSG.
+           05  FILLER                PIC X(08) VALUE 'POLNEW: '.
+           05  WS-LOG-POLICY         PIC X(12).
+           05  FILLER                PIC X(30)
+               VALUE ' UW REFERRAL MQPUT1 FAILED CC='.
+           05  WS-LOG-COMPCODE       PIC 9(04).
+           05  FILLER                PIC X(04) VALUE ' RC='.
+           05  WS-LOG-REASON         PIC 9(04).
+       01  WS-LOG-LENGTH             PIC S9(04) COMP.
+
+       01  MQM-OBJECT-DESCRIPTOR.
+           COPY CMQODV.
+       01  MQM-MESSAGE-DESCRIPTOR.
+           COPY CMQMDV.
+       01  MQM-PUT-MESSAGE-OPTIONS.
+           COPY CMQPMOV.
+       01  MQM-CONSTANTS.
+           COPY CMQV.
 
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
@@ -238,18 +262,50 @@
            .
 
        7000-SEND-MQ-MESSAGE.
-      *    Send underwriting referral message to MQ queue
+      *    Put the underwriting referral on the MQ request queue in
+      *    the task's unit of work. A policy must not exist without
+      *    its referral, so any failure backs out the new policy.
+           MOVE WS-MQ-QUEUE        TO MQOD-OBJECTNAME
+           MOVE MQOT-Q             TO MQOD-OBJECTTYPE
+           MOVE MQMT-DATAGRAM      TO MQMD-MSGTYPE
+           MOVE MQFMT-NONE         TO MQMD-FORMAT
+           MOVE MQPER-PERSISTENT   TO MQMD-PERSISTENCE
+           COMPUTE MQPMO-OPTIONS = MQPMO-SYNCPOINT
+                                 + MQPMO-FAIL-IF-QUIESCING
+                                 + MQPMO-NEW-MSG-ID
+                                 + MQPMO-NEW-CORREL-ID
            MOVE LENGTH OF POLICY-RECORD TO WS-MQ-MSG-LENGTH
+           CALL 'MQPUT1' USING WS-MQ-HCONN
+                               MQM-OBJECT-DESCRIPTOR
+                               MQM-MESSAGE-DESCRIPTOR
+                               MQM-PUT-MESSAGE-OPTIONS
+                               WS-MQ-MSG-LENGTH
+                               POLICY-RECORD
+                               WS-MQ-COMPCODE
+                               WS-MQ-REASON
+           IF WS-MQ-COMPCODE NOT = MQCC-OK
+               PERFORM 7100-REFERRAL-FAILED
+           END-IF
+           .
+
+       7100-REFERRAL-FAILED.
+           MOVE POLICY-NUMBER      TO WS-LOG-POLICY
+           MOVE WS-MQ-COMPCODE     TO WS-LOG-COMPCODE
+           MOVE WS-MQ-REASON       TO WS-LOG-REASON
+           MOVE LENGTH OF WS-LOG-MSG TO WS-LOG-LENGTH
            EXEC CICS WRITEQ TD
-               QUEUE(WS-MQ-QUEUE)
-               FROM(POLICY-RECORD)
-               LENGTH(WS-MQ-MSG-LENGTH)
+               QUEUE(WS-LOG-QUEUE)
+               FROM(WS-LOG-MSG)
+               LENGTH(WS-LOG-LENGTH)
                RESP(WS-RESPONSE-CODE)
            END-EXEC
-           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
-      *        Non-fatal: log error but continue
-               CONTINUE
-           END-IF
+           EXEC CICS SYNCPOINT ROLLBACK
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           MOVE 'UNDERWRITING REFERRAL FAILED - POLICY NOT CREATED'
+               TO WS-ERROR-MSG
+           PERFORM 9000-SEND-ERROR
+           PERFORM 9999-RETURN
            .
 
        8000-SEND-CONFIRMATION.
