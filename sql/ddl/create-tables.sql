@@ -7,6 +7,7 @@
 --             2010-04-22 - Added cyber coverage types
 --             2018-05-25 - Added GDPR fields to POLICY_HOLDERS
 --             2022-01-15 - Added API_FLAG to POLICIES
+--             2026-10-30 - Added USER_ENTITLEMENTS, POLICY_AUDIT_LOG
 --
 -- Database:   DBPD (Production)
 -- Schema:     ACMEINS
@@ -188,6 +189,70 @@ CREATE SEQUENCE ACMEINS.POLICY_SEQ
     NO MAXVALUE
     NO CYCLE
     CACHE 50;
+
+------------------------------------------------------------------------
+-- USER_ENTITLEMENTS - Book-of-business scope per signed-on RACF user
+--   SCOPE_LEVEL: 'A' = enterprise wide, 'B' = single branch,
+--                'G' = single agent code
+--   PII_ACCESS : 'Y' = may see policyholder phone/email
+-- Users without an active row (including the CICS default user)
+-- may not create, endorse, renew or underwrite any policy.
+------------------------------------------------------------------------
+CREATE TABLE ACMEINS.USER_ENTITLEMENTS (
+    USER_ID             CHAR(8)         NOT NULL,
+    SCOPE_LEVEL         CHAR(1)         NOT NULL DEFAULT 'G',
+    AGENT_CODE          CHAR(6),
+    BRANCH_CODE         CHAR(4),
+    PII_ACCESS          CHAR(1)         NOT NULL DEFAULT 'N',
+    ACTIVE_IND          CHAR(1)         NOT NULL DEFAULT 'Y',
+    LAST_UPDATED        TIMESTAMP       NOT NULL DEFAULT CURRENT TIMESTAMP,
+    UPDATED_BY          CHAR(8)         NOT NULL DEFAULT 'SYSTEM',
+    CONSTRAINT PK_USER_ENTITLEMENTS PRIMARY KEY (USER_ID),
+    CONSTRAINT CK_UE_SCOPE_LEVEL CHECK (SCOPE_LEVEL IN ('A', 'B', 'G')),
+    CONSTRAINT CK_UE_PII_ACCESS CHECK (PII_ACCESS IN ('Y', 'N')),
+    CONSTRAINT CK_UE_ACTIVE_IND CHECK (ACTIVE_IND IN ('Y', 'N')),
+    CONSTRAINT CK_UE_SCOPE_KEYS CHECK (
+        (SCOPE_LEVEL = 'A')
+     OR (SCOPE_LEVEL = 'B' AND BRANCH_CODE IS NOT NULL)
+     OR (SCOPE_LEVEL = 'G' AND AGENT_CODE IS NOT NULL))
+) IN ACMEDB.PASTS01;
+
+------------------------------------------------------------------------
+-- POLICY_AUDIT_LOG - Durable, append-only audit of policy mutations
+--   One row per committed PNEW/PEND/PRWL/PUWR transaction, written in
+--   the same unit of work as the change it describes.
+--   ACTION_CODE: 'NEW' new policy, 'END' endorsement,
+--                'RNW' renewal,    'UWD' underwriting decision
+--   CHANGE_CODE: endorsement type (END) or decision code (UWD)
+--   No FK to POLICIES so audit rows outlive purged policies. Grant
+--   the CICS plan INSERT and SELECT only (no UPDATE/DELETE).
+------------------------------------------------------------------------
+CREATE TABLE ACMEINS.POLICY_AUDIT_LOG (
+    AUDIT_ID            BIGINT          NOT NULL
+                        GENERATED ALWAYS AS IDENTITY,
+    POLICY_NUMBER       CHAR(12)        NOT NULL,
+    ACTION_CODE         CHAR(3)         NOT NULL,
+    TRANSACTION_ID      CHAR(4)         NOT NULL,
+    PROGRAM_ID          CHAR(8)         NOT NULL,
+    USER_ID             CHAR(8)         NOT NULL,
+    TERMINAL_ID         CHAR(4),
+    CHANGE_SEQ          INTEGER,
+    CHANGE_CODE         CHAR(3),
+    OLD_PREMIUM         DECIMAL(11,2),
+    NEW_PREMIUM         DECIMAL(11,2),
+    PREMIUM_ADJUSTMENT  DECIMAL(11,2),
+    DETAIL              VARCHAR(100),
+    CREATED_TIMESTAMP   TIMESTAMP       NOT NULL DEFAULT CURRENT TIMESTAMP,
+    CONSTRAINT PK_POLICY_AUDIT_LOG PRIMARY KEY (AUDIT_ID),
+    CONSTRAINT CK_PAL_ACTION CHECK
+        (ACTION_CODE IN ('NEW', 'END', 'RNW', 'UWD'))
+) IN ACMEDB.PASTS01;
+
+CREATE INDEX ACMEINS.IX_PAL_POLICY
+    ON ACMEINS.POLICY_AUDIT_LOG (POLICY_NUMBER, CREATED_TIMESTAMP);
+
+CREATE INDEX ACMEINS.IX_PAL_USER
+    ON ACMEINS.POLICY_AUDIT_LOG (USER_ID, CREATED_TIMESTAMP);
 
 ------------------------------------------------------------------------
 -- Territory rating factors (reference table)

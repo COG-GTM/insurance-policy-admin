@@ -9,6 +9,8 @@
       * Modified: 2003-06-15 - Added terrorism coverage check
       *           2010-09-20 - Added cyber liability option
       *           2022-03-01 - Added API flag for REST facade
+      *           2026-10-30 - Operator identity, policy scope check,
+      *                        durable DB2 audit (POLICY_AUDIT_LOG)
       *
       * This program handles creation of new insurance policies
       * via CICS terminal or BMS map input. Validates customer
@@ -31,6 +33,11 @@
        01  WS-MQ-QUEUE               PIC X(48)
            VALUE 'ACME.PAS.UNDERWRITING.REQUEST'.
        01  WS-MQ-MSG-LENGTH          PIC S9(08) COMP.
+       01  WS-AUTH-COUNT             PIC S9(09) COMP-5.
+       01  WS-AUDIT-DETAIL           PIC X(100).
+       01  WS-USER-ID                PIC X(08).
+       01  WS-TERMINAL-ID            PIC X(04).
+       01  WS-TRANSACTION-ID         PIC X(04).
 
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
@@ -67,15 +74,26 @@
        PROCEDURE DIVISION.
        0000-MAIN-LOGIC.
            PERFORM 1000-INITIALIZE
-           PERFORM 2000-RECEIVE-MAP
-           PERFORM 3000-VALIDATE-INPUT
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 2000-RECEIVE-MAP
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 3000-VALIDATE-INPUT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 3500-CHECK-OPERATOR-SCOPE
+           END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 4000-GENERATE-POLICY-NUM
                PERFORM 5000-INSERT-POLICY
                PERFORM 6000-INSERT-COVERAGES
+               PERFORM 6900-WRITE-AUDIT-TRAIL
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 7000-SEND-MQ-MESSAGE
                PERFORM 8000-SEND-CONFIRMATION
            ELSE
+               PERFORM 8500-ROLLBACK
                PERFORM 9000-SEND-ERROR
            END-IF
            PERFORM 9999-RETURN
@@ -91,6 +109,19 @@
                YYYYMMDD(WS-CURRENT-DATE)
                TIME(WS-CURRENT-TIME)
            END-EXEC
+      *    Identify the signed-on operator; every change is attributed
+      *    to this RACF user id and scoped to their USER_ENTITLEMENTS.
+           MOVE EIBTRMID TO WS-TERMINAL-ID
+           MOVE EIBTRNID TO WS-TRANSACTION-ID
+           EXEC CICS ASSIGN
+               USERID(WS-USER-ID)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               OR WS-USER-ID = SPACES
+               MOVE 'UNABLE TO IDENTIFY SIGNED-ON USER'
+                   TO WS-ERROR-MSG
+           END-IF
            .
 
        2000-RECEIVE-MAP.
@@ -133,6 +164,32 @@
            END-IF
            .
 
+       3500-CHECK-OPERATOR-SCOPE.
+      *    Operator may only write business for their own branch or
+      *    agent code; enterprise-scope (A) users may write any.
+           EXEC SQL
+               SELECT COUNT(*)
+               INTO :WS-AUTH-COUNT
+               FROM USER_ENTITLEMENTS E
+               WHERE E.USER_ID = :WS-USER-ID
+                 AND E.ACTIVE_IND = 'Y'
+                 AND (E.SCOPE_LEVEL = 'A'
+                  OR (E.SCOPE_LEVEL = 'B'
+                      AND E.BRANCH_CODE = :POLICY-BRANCH-CODE)
+                  OR (E.SCOPE_LEVEL = 'G'
+                      AND E.AGENT_CODE = :POLICY-AGENT-CODE))
+           END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE 'DB2 ERROR READING USER ENTITLEMENT'
+                   TO WS-ERROR-MSG
+           ELSE
+               IF WS-AUTH-COUNT = 0
+                   MOVE 'NOT AUTHORIZED FOR THIS AGENT/BRANCH'
+                       TO WS-ERROR-MSG
+               END-IF
+           END-IF
+           .
+
        4000-GENERATE-POLICY-NUM.
       *    Get next policy sequence from DB2 sequence
            EXEC SQL
@@ -160,7 +217,7 @@
            MOVE 0                  TO POL-RISK
            MOVE 'N'                TO POL-WEB
            MOVE 'N'                TO POL-API
-           MOVE 'POLNEW'           TO POL-UPD-BY
+           MOVE WS-USER-ID         TO POL-UPD-BY
 
            EXEC SQL
                INSERT INTO POLICIES
@@ -183,6 +240,7 @@
            IF SQLCODE NOT = 0
                MOVE 'DB2 ERROR INSERTING POLICY RECORD'
                    TO WS-ERROR-MSG
+               PERFORM 8500-ROLLBACK
                PERFORM 9000-SEND-ERROR
                PERFORM 9999-RETURN
            END-IF
@@ -237,6 +295,30 @@
            END-EXEC
            .
 
+       6900-WRITE-AUDIT-TRAIL.
+           MOVE SPACES TO WS-AUDIT-DETAIL
+           STRING 'NEW ' POLICY-TYPE ' AGENT ' POLICY-AGENT-CODE
+                  ' BRANCH ' POLICY-BRANCH-CODE
+                  ' HOLDER ' POLICY-HOLDER-ID
+               DELIMITED BY SIZE
+               INTO WS-AUDIT-DETAIL
+           EXEC SQL
+               INSERT INTO POLICY_AUDIT_LOG
+               (POLICY_NUMBER, ACTION_CODE, TRANSACTION_ID,
+                PROGRAM_ID, USER_ID, TERMINAL_ID,
+                NEW_PREMIUM, DETAIL, CREATED_TIMESTAMP)
+               VALUES
+               (:POLICY-NUMBER, 'NEW', :WS-TRANSACTION-ID,
+                :WS-PROGRAM-ID, :WS-USER-ID, :WS-TERMINAL-ID,
+                :POLICY-TOTAL-PREMIUM, :WS-AUDIT-DETAIL,
+                CURRENT TIMESTAMP)
+           END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE 'DB2 ERROR WRITING AUDIT RECORD - NOT APPLIED'
+                   TO WS-ERROR-MSG
+           END-IF
+           .
+
        7000-SEND-MQ-MESSAGE.
       *    Send underwriting referral message to MQ queue
            MOVE LENGTH OF POLICY-RECORD TO WS-MQ-MSG-LENGTH
@@ -258,6 +340,13 @@
                MAPSET('POLNMAPS')
                FROM(POLICY-RECORD)
                ERASE
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           .
+
+       8500-ROLLBACK.
+      *    Back out any partial change so nothing unaudited commits
+           EXEC CICS SYNCPOINT ROLLBACK
                RESP(WS-RESPONSE-CODE)
            END-EXEC
            .
