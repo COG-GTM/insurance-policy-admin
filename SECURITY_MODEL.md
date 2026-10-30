@@ -10,12 +10,12 @@ Acme Insurance's Policy Administration System: the system of record for all poli
 |---|---|---|
 | **REST facade** | `java-facade/` (`PolicyController`, `PolicyRepository`, `application*.properties`, `Dockerfile`, `pom.xml`) | `GET /api/v1/policies/{policyNumber}` and `/coverages`, plus actuator `/manage/*` and springfox swagger. **No authentication** (README limitation 5, comment in `PolicyController`). Parameterised JdbcTemplate queries. |
 | **CICS online** | `cobol/programs/POLNEW,POLQRY,POLRNW,POLEND,UNDWRT.cbl`, `cobol/copybooks/*.cpy` | Transactions PNEW/PQRY/PRWL/PEND/PUWR. 3270 BMS map input → embedded static SQL. These are the only write path to DB2. |
-| **Batch & file transfer** | `cobol/programs/PREMBAT.cbl`, `jcl/*.jcl` | DAILY-EXTRACT, MONTHLY-EXPOSURE, PREMIUM-BATCH. Extracts go by **plaintext FTP** (`PGM=FTP`, user `ACMEFTP`) to `CLAIMSRV.ACME.LOCAL` and `ACTUARIAL.ACME.LOCAL` (README limitation 7). |
+| **Batch & file transfer** | `cobol/programs/PREMBAT.cbl`, `jcl/*.jcl` | DAILY-EXTRACT, MONTHLY-EXPOSURE, PREMIUM-BATCH. Extracts go by **plaintext FTP** (the z/OS FTP client in the JCL steps, user `ACMEFTP`) to `CLAIMSRV.ACME.LOCAL` and `ACTUARIAL.ACME.LOCAL` (README limitation 7). |
 | **DB2 schema** | `sql/ddl/create-tables.sql`, `java-facade/src/main/resources/schema.sql`, `data.sql` | POLICIES, COVERAGES, PREMIUMS, ENDORSEMENTS, UNDERWRITING_DECISIONS, POLICY_HOLDERS. |
 | **CI compat gate** | `compat/`, `.github/workflows/compat-gate.yml`, `Makefile` | Runs on `pull_request` to main with `permissions: contents: read`. Uses secret `COMPAT_AUTH_HEADER` in the api-contract job. |
 
 ## Trust boundaries & entry points
-1. **Network → REST facade (port 8080).** The README says it is reachable only over the internal VPN, so network segmentation is the only control. Any VPN user or compromised internal host can call every endpoint, including `/manage/*` (actuator with `management.security.enabled=false`) and swagger UI.
+1. **Network → REST facade (port 8080).** The README says it is reachable only over the internal VPN, so network segmentation is the only control. Any VPN user or compromised internal host can call every endpoint, including `/manage/*` (actuator security is turned off in `application.properties`) and swagger UI.
 2. **REST facade → DB2.** It connects as service ID `PASFACAD`, and the password comes from the `DB2_PASSWORD` env var. The default `changeme` is baked into both the `Dockerfile` ENV and `application.properties`. The facade's DB2 grants should be read-only, but nothing in this repo shows they are.
 3. **3270 terminal users → CICS programs.** Authentication and authorisation are external (RACF/CICS security, not in the repo). Map input flows into SQL host variables and into premium/underwriting logic.
 4. **z/OS batch → downstream hosts.** FTP to Claims and Actuarial, plus the Broker Portal's read-only ODBC linked server. Data crosses the network unencrypted.
