@@ -20,6 +20,7 @@ REQUIRED_FTP_DATA = {
     "SECURE_MECHANISM": "TLS",
     "SECURE_CTRLCONN": "PRIVATE",
     "SECURE_DATACONN": "PRIVATE",
+    "SECURE_HOSTNAME": "REQUIRED",
 }
 TLS_DOWNGRADE_CMDS = {"CCC", "CLEAR", "SAFE"}
 
@@ -28,8 +29,9 @@ def tls_ftp_step_issues(text, step):
     """Issues for an FTP step whose EXEC line claims TLS (-r TLS).
 
     The step's TLS policy must be fully visible in the job: an in-stream
-    SYSFTPD setting REQUIRED_FTP_DATA (and nothing weaker), a NETRC dataset
-    for the login, and no downgrade subcommands in the in-stream INPUT."""
+    SYSFTPD setting REQUIRED_FTP_DATA (and nothing weaker) plus a KEYRING to
+    verify the server, a NETRC dataset for the login, and no downgrade
+    subcommands in the in-stream INPUT."""
     lines = text.splitlines()
     start = next((i for i, l in enumerate(lines) if TLS_FTP_EXEC.match(l) and TLS_FTP_EXEC.match(l).group(1) == step), None)
     if start is None:
@@ -64,6 +66,8 @@ def tls_ftp_step_issues(text, step):
             values = seen.get(key, [])
             if not values or any(v != value for v in values):
                 issues.append(f"{step}: SYSFTPD must set {key} {value} (and only that)")
+        if not any(seen.get("KEYRING", [])):
+            issues.append(f"{step}: SYSFTPD must name a KEYRING to verify the server certificate")
     netrc = dds.get("NETRC")
     if not netrc or not re.search(r"(?i)\bDSN=", netrc["spec"]):
         issues.append(f"{step}: no NETRC dataset; login would be in the JCL stream")
@@ -74,7 +78,7 @@ def tls_ftp_step_issues(text, step):
         commands = [l.split() for l in command_dd["data"] if l.strip()][1:]
         for words in commands:
             cmd = words[0].upper()
-            if cmd in TLS_DOWNGRADE_CMDS or (cmd == "PROT" and words[1:2] != ["P"]):
+            if cmd in TLS_DOWNGRADE_CMDS or (cmd == "PROT" and [w.upper() for w in words[1:2]] != ["P"]):
                 issues.append(f"{step}: INPUT subcommand {cmd} downgrades TLS")
     return issues
 
@@ -91,14 +95,18 @@ def added_lines():
 
 def main():
     findings = []
-    for path, line in added_lines():
+    added = list(added_lines())
+    for path, line in added:
         for sev, rule, rx, skip in RULES:
             if (skip is None or not skip.search(path)) and rx.search(line):
                 findings.append((sev, f"security:{rule}:{path}", line.strip()[:120]))
-        exec_match = TLS_FTP_EXEC.match(line)
-        if exec_match and path.lower().endswith(".jcl"):
-            for issue in tls_ftp_step_issues(head_file(path) or "", exec_match.group(1)):
-                findings.append(("FAIL", f"security:plaintext-ftp:{path}", issue))
+    for path in dict.fromkeys(p for p, _ in added if p.lower().endswith(".jcl")):
+        text = head_file(path) or ""
+        for line in text.splitlines():
+            exec_match = TLS_FTP_EXEC.match(line)
+            if exec_match:
+                for issue in tls_ftp_step_issues(text, exec_match.group(1)):
+                    findings.append(("FAIL", f"security:plaintext-ftp:{path}", issue))
     return report("Security non-regression", findings)
 
 

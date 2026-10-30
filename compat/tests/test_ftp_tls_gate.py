@@ -18,6 +18,8 @@ SECURE_MECHANISM  TLS
 SECURE_FTP        REQUIRED
 SECURE_CTRLCONN   PRIVATE
 SECURE_DATACONN   PRIVATE ; inline comment
+KEYRING           ACMEBTCH/PASFTPSRING
+SECURE_HOSTNAME   REQUIRED
 /*
 //INPUT    DD *
  ACTUARIAL.ACME.LOCAL
@@ -66,6 +68,12 @@ class TlsFtpGateTests(unittest.TestCase):
         self.assertIssue(SECURE.replace(" QUIT", " CCC\n QUIT"), "CCC downgrades")
         self.assertIssue(SECURE.replace(" QUIT", " PROT C\n QUIT"), "PROT downgrades")
         self.assertEqual(tls_ftp_step_issues(SECURE.replace(" QUIT", " PROT P\n QUIT"), "STEP020"), [])
+        self.assertEqual(tls_ftp_step_issues(SECURE.replace(" QUIT", " prot p\n QUIT"), "STEP020"), [])
+
+    def test_server_verification_required(self):
+        self.assertIssue(SECURE.replace("KEYRING           ACMEBTCH/PASFTPSRING\n", ""), "KEYRING")
+        self.assertIssue(SECURE.replace("SECURE_HOSTNAME   REQUIRED\n", ""), "SECURE_HOSTNAME REQUIRED")
+        self.assertIssue(SECURE.replace("SECURE_HOSTNAME   REQUIRED", "SECURE_HOSTNAME   OPTIONAL"), "SECURE_HOSTNAME REQUIRED")
 
     def test_external_input(self):
         text = SECURE.replace("//INPUT    DD *\n ACTUARIAL.ACME.LOCAL\n PUT 'A.B' /c.csv\n QUIT\n/*\n",
