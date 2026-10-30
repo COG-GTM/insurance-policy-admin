@@ -34,6 +34,14 @@
        01  WS-ANNUAL-ADJUST          PIC S9(09)V99 COMP-3.
        01  WS-PREMIUM-ADJUST         PIC S9(09)V99 COMP-3.
        01  WS-NEW-PREMIUM            PIC S9(09)V99 COMP-3.
+      *    Unearned premium at cancellation
+       01  WS-BASE-PREMIUM           PIC S9(09)V99 COMP-3.
+       01  WS-UNEARNED-PREMIUM       PIC S9(09)V9(06) COMP-3.
+       01  WS-END-EFF-DATE           PIC 9(08).
+       01  WS-END-ADJUST             PIC S9(09)V99 COMP-3.
+       01  WS-END-DAYS               PIC S9(05) COMP-3.
+       01  WS-END-CSR-SW             PIC X(01).
+           88  END-CSR-DONE          VALUE 'Y'.
        01  WS-ENDORSEMENT-TYPE        PIC X(03).
            88  END-TYPE-COV-ADD       VALUE 'CAD'.
            88  END-TYPE-COV-REM       VALUE 'CRM'.
@@ -106,18 +114,37 @@
                MOVE 'ERROR RECEIVING ENDORSEMENT DATA'
                    TO WS-ERROR-MSG
            ELSE
+               INITIALIZE POLICY-RECORD
                MOVE EI-POLICY-NUMBER TO POLICY-NUMBER
                MOVE EI-ENDORSEMENT-TYPE TO WS-ENDORSEMENT-TYPE
            END-IF
       *    Read current policy from DB2
            IF WS-ERROR-MSG = SPACES
                EXEC SQL
-                   SELECT POLICY_NUMBER, POLICY_STATUS,
+                   SELECT POLICY_NUMBER, POLICY_TYPE, POLICY_STATUS,
                           EFFECTIVE_DATE, EXPIRY_DATE,
-                          TOTAL_PREMIUM
-                   INTO :POLICY-NUMBER, :POLICY-STATUS,
+                          POLICYHOLDER_ID,
+                          COALESCE(AGENT_CODE, ' '),
+                          COALESCE(BRANCH_CODE, ' '),
+                          COALESCE(TOTAL_PREMIUM, 0),
+                          COALESCE(DEDUCTIBLE, 0),
+                          COALESCE(COVERAGE_LIMIT, 0),
+                          COALESCE(INCEPTION_DATE, EFFECTIVE_DATE),
+                          COALESCE(RENEWAL_COUNT, 0),
+                          COALESCE(UW_STATUS, ' '),
+                          COALESCE(RISK_SCORE, 0),
+                          COALESCE(WEB_INDICATOR, 'N'),
+                          COALESCE(API_FLAG, 'N'),
+                          UPDATED_BY
+                   INTO :POLICY-NUMBER, :POLICY-TYPE, :POLICY-STATUS,
                         :POLICY-EFFECTIVE-DATE, :POLICY-EXPIRY-DATE,
-                        :POLICY-TOTAL-PREMIUM
+                        :POLICY-HOLDER-ID, :POLICY-AGENT-CODE,
+                        :POLICY-BRANCH-CODE, :POLICY-TOTAL-PREMIUM,
+                        :POLICY-DEDUCTIBLE, :POLICY-LIMIT,
+                        :POLICY-INCEPTION-DATE, :POLICY-RENEWAL-COUNT,
+                        :POLICY-UW-STATUS, :POLICY-RISK-SCORE,
+                        :POLICY-WEB-IND, :POLICY-API-FLAG,
+                        :POLICY-UPDATED-BY
                    FROM POLICIES
                    WHERE POLICY_NUMBER = :POLICY-NUMBER
                    WITH RS USE AND KEEP UPDATE LOCKS
@@ -205,13 +232,7 @@
            END-IF
            IF WS-ERROR-MSG = SPACES
                IF END-TYPE-CANCEL
-      *            Return the unearned premium
-                   COMPUTE WS-PREMIUM-ADJUST ROUNDED =
-                       0 - (POLICY-TOTAL-PREMIUM * WS-PRORATA-FACTOR)
-                       ON SIZE ERROR
-                           MOVE 'PREMIUM ADJUSTMENT OUT OF RANGE'
-                               TO WS-ERROR-MSG
-                   END-COMPUTE
+                   PERFORM 4100-CALCULATE-UNEARNED
                ELSE
                    COMPUTE WS-PREMIUM-ADJUST ROUNDED =
                        WS-ANNUAL-ADJUST * WS-PRORATA-FACTOR
@@ -234,6 +255,64 @@
                    MOVE 'PREMIUM ADJUSTMENT OUT OF RANGE'
                        TO WS-ERROR-MSG
                END-IF
+           END-IF
+           .
+
+       4100-CALCULATE-UNEARNED.
+      *    Return the unearned premium. Each endorsement booked this
+      *    term was charged pro-rata from its own effective date, so
+      *    it is unearned over that period, not over the full term.
+           MOVE POLICY-TOTAL-PREMIUM TO WS-BASE-PREMIUM
+           MOVE ZERO TO WS-UNEARNED-PREMIUM
+           MOVE 'N' TO WS-END-CSR-SW
+           EXEC SQL
+               DECLARE ENDCSR CURSOR FOR
+               SELECT EFFECTIVE_DATE,
+                      COALESCE(PREMIUM_ADJUSTMENT, 0)
+               FROM ENDORSEMENTS
+               WHERE POLICY_NUMBER = :POLICY-NUMBER
+                 AND EFFECTIVE_DATE >= :POLICY-EFFECTIVE-DATE
+                 AND EFFECTIVE_DATE < :POLICY-EXPIRY-DATE
+           END-EXEC
+           EXEC SQL OPEN ENDCSR END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE 'DB2 ERROR READING ENDORSEMENTS' TO WS-ERROR-MSG
+               SET END-CSR-DONE TO TRUE
+           END-IF
+           PERFORM UNTIL END-CSR-DONE
+               EXEC SQL
+                   FETCH ENDCSR INTO :WS-END-EFF-DATE, :WS-END-ADJUST
+               END-EXEC
+               EVALUATE SQLCODE
+                   WHEN 0
+                       COMPUTE WS-END-DAYS =
+                           FUNCTION INTEGER-OF-DATE(POLICY-EXPIRY-DATE)
+                         - FUNCTION INTEGER-OF-DATE(WS-END-EFF-DATE)
+                       SUBTRACT WS-END-ADJUST FROM WS-BASE-PREMIUM
+                       IF WS-END-DAYS > 0
+                           COMPUTE WS-UNEARNED-PREMIUM =
+                               WS-UNEARNED-PREMIUM + WS-END-ADJUST
+                               * WS-DAYS-REMAINING / WS-END-DAYS
+                       END-IF
+                   WHEN 100
+                       SET END-CSR-DONE TO TRUE
+                   WHEN OTHER
+                       MOVE 'DB2 ERROR READING ENDORSEMENTS'
+                           TO WS-ERROR-MSG
+                       SET END-CSR-DONE TO TRUE
+               END-EVALUATE
+           END-PERFORM
+           EXEC SQL CLOSE ENDCSR END-EXEC
+           IF WS-ERROR-MSG = SPACES
+               COMPUTE WS-UNEARNED-PREMIUM =
+                   WS-UNEARNED-PREMIUM + WS-BASE-PREMIUM
+                   * WS-DAYS-REMAINING / WS-DAYS-IN-TERM
+               COMPUTE WS-PREMIUM-ADJUST ROUNDED =
+                   0 - WS-UNEARNED-PREMIUM
+                   ON SIZE ERROR
+                       MOVE 'PREMIUM ADJUSTMENT OUT OF RANGE'
+                           TO WS-ERROR-MSG
+               END-COMPUTE
            END-IF
            .
 
@@ -278,6 +357,7 @@
                IF END-TYPE-CANCEL
                    SET POL-STAT-CANCELLED TO TRUE
                END-IF
+               MOVE 'POLEND' TO POLICY-UPDATED-BY
                EXEC SQL
                    UPDATE POLICIES
                    SET TOTAL_PREMIUM = :POLICY-TOTAL-PREMIUM,

@@ -17,7 +17,10 @@ TEST_FIELDS = """       01  SQLCODE PIC S9(9) COMP.
        01  T-TEXT PIC X(20).
        01  T-SQLCODE PIC S9(9).
        01  T-SHOW-AMT PIC -9(9).99.
-       01  T-SHOW-PREM PIC -9(9).99"""
+       01  T-SHOW-PREM PIC -9(9).99.
+       01  T-IDX PIC 9(02).
+       01  T-COUNT PIC 9(02).
+       01  T-NAME PIC X(20)"""
 
 
 def accept(target, var):
@@ -58,8 +61,44 @@ def stub(match):
             "           MOVE 0 TO WS-RESPONSE-CODE",
             accept("POLICY-NUMBER", "T_POLICY_NUMBER"),
         ])
-    if "SELECT POLICY_NUMBER, POLICY_STATUS" in block:
+    if "DECLARE ENDCSR" in block or "CLOSE ENDCSR" in block:
+        return "           CONTINUE"
+    if "OPEN ENDCSR" in block:
         return "\n".join([
+            "           MOVE 0 TO T-IDX",
+            "           MOVE SPACES TO T-TEXT",
+            accept("T-TEXT", "T_END_COUNT"),
+            "           IF T-TEXT = SPACES",
+            "               MOVE 0 TO T-COUNT",
+            "           ELSE",
+            "               COMPUTE T-COUNT = FUNCTION NUMVAL(T-TEXT)",
+            "           END-IF",
+            set_sqlcode("T_OPEN_SQLCODE"),
+        ])
+    if "FETCH ENDCSR" in block:
+        return "\n".join([
+            "           ADD 1 TO T-IDX",
+            "           IF T-IDX > T-COUNT",
+            "               MOVE 100 TO SQLCODE",
+            "           ELSE",
+            "               MOVE 0 TO SQLCODE",
+            "               STRING 'T_END_DATE_' T-IDX",
+            "                   DELIMITED BY SIZE INTO T-NAME",
+            "               ACCEPT WS-END-EFF-DATE",
+            "                   FROM ENVIRONMENT T-NAME",
+            "               MOVE SPACES TO T-NAME",
+            "               STRING 'T_END_AMT_' T-IDX",
+            "                   DELIMITED BY SIZE INTO T-NAME",
+            "               ACCEPT T-TEXT FROM ENVIRONMENT T-NAME",
+            "               COMPUTE WS-END-ADJUST =",
+            "                   FUNCTION NUMVAL(T-TEXT)",
+            "               MOVE SPACES TO T-NAME",
+            "           END-IF",
+        ])
+    if "SELECT POLICY_NUMBER, POLICY_TYPE" in block:
+        return "\n".join([
+            "           MOVE 'AUT' TO POLICY-TYPE",
+            "           MOVE 'H123' TO POLICY-HOLDER-ID",
             accept("POLICY-STATUS", "T_STATUS"),
             accept("POLICY-EFFECTIVE-DATE", "T_EFFECTIVE_DATE"),
             accept("POLICY-EXPIRY-DATE", "T_EXPIRY_DATE"),
@@ -84,7 +123,9 @@ def stub(match):
     if "SYNCPOINT ROLLBACK" in block:
         return "           DISPLAY 'ROLLBACK'"
     if "CICS WRITEQ TS" in block:
-        return "           DISPLAY 'AUDIT'"
+        return ("           DISPLAY 'AUDIT TYPE=' POLICY-TYPE\n"
+                "               ' HOLDER=' POLICY-HOLDER-ID\n"
+                "               ' BY=' POLICY-UPDATED-BY")
     if "CICS SEND TEXT" in block:
         return "           DISPLAY 'ERROR=' WS-ERROR-MSG"
     if "CICS SEND" in block:
@@ -182,6 +223,25 @@ class PolendEndorsementTests(unittest.TestCase):
         self.assertEqual(self.amount(out, "ADJ"), Decimal("-501.37"))
         self.assertEqual(self.amount(out, "PREM"), Decimal("498.63"))
         self.assertIn("STATUS=CN", out)
+
+    def test_cancel_after_midterm_endorsement(self):
+        # $365/yr added with 183 days left was charged $183.00; all of
+        # it is unearned, plus 183/365 of the original $1,000
+        out = self.run_polend("CAN", "+", "000000000", premium="1183.00",
+                              end_count="1", end_date_01="20260702",
+                              end_amt_01="183.00")
+        self.assertEqual(self.amount(out, "ADJ"), Decimal("-684.37"))
+        self.assertEqual(self.amount(out, "PREM"), Decimal("498.63"))
+        self.assertIn("STATUS=CN", out)
+
+    def test_cancel_endorsement_read_failure_writes_nothing(self):
+        out = self.run_polend("CAN", "+", "000000000", open_sqlcode="-904")
+        self.assert_rejected(out, "DB2 ERROR READING ENDORSEMENTS")
+
+    def test_audit_record_carries_full_policy_row(self):
+        out = self.run_polend()
+        self.assertIn("AUDIT TYPE=AUT HOLDER=H123", out)
+        self.assertIn("BY=POLEND", out)
 
     def test_insert_failure_rolls_back_and_skips_update(self):
         out = self.run_polend(insert_sqlcode="-551")
