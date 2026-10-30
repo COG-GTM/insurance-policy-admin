@@ -34,9 +34,10 @@ COPY --from=build /workspace/target/pas-facade-1.0.0.jar /app/pas-facade.jar
 
 WORKDIR /app
 
-# DB2 connection credentials passed via environment
+# DB2 connection credentials passed via environment.
+# DB2_PASSWORD has no default and must be supplied at runtime
+# (e.g. docker run -e DB2_PASSWORD=... or a secrets manager).
 ENV DB2_USERNAME=PASFACAD
-ENV DB2_PASSWORD=changeme
 ENV JAVA_OPTS="-Xmx512m -Xms256m"
 
 EXPOSE 8080
