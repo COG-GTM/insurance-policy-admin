@@ -6,6 +6,9 @@
       * Modified: 2005-11-20 - Added POLICY-WEB-IND for web portal
       *           2015-06-01 - Extended POLICY-NUMBER to 12 chars
       *           2022-01-15 - Added POLICY-API-FLAG for REST facade
+      *           2026-10-30 - Added POLICY-RISK-SCORE-FULL (4 digits)
+      *                        from FILLER; POLICY-RISK-SCORE is now
+      *                        capped at 999 for 3-digit consumers
       * DB2 Table: POLICIES
       ******************************************************************
        01  POLICY-RECORD.
@@ -37,6 +40,7 @@
                88  UW-PENDING           VALUE 'PN'.
                88  UW-DECLINED          VALUE 'DC'.
                88  UW-REFERRED          VALUE 'RF'.
+      *    3-digit score, capped at 999. Full score: RISK-SCORE-FULL
            05  POLICY-RISK-SCORE        PIC 9(03).
            05  POLICY-WEB-IND           PIC X(01).
                88  POL-WEB-YES          VALUE 'Y'.
@@ -46,4 +50,5 @@
                88  POL-API-NO           VALUE 'N'.
            05  POLICY-LAST-UPDATED      PIC 9(08).
            05  POLICY-UPDATED-BY        PIC X(08).
-           05  FILLER                   PIC X(20).
+           05  POLICY-RISK-SCORE-FULL   PIC 9(04).
+           05  FILLER                   PIC X(16).

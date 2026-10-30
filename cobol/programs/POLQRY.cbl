@@ -8,6 +8,8 @@
       * Date:     1998-04-15
       * Modified: 2008-01-10 - Added coverage detail display
       *           2022-04-01 - Added API flag check for facade
+      *           2026-10-30 - RISK_SCORE read into a SMALLINT host
+      *                        var; 3-digit field capped at 999
       *
       * Read-only policy inquiry. Displays policy header, coverages,
       * premium details, and underwriting status on BMS maps.
@@ -22,6 +24,7 @@
        01  WS-RESPONSE-CODE          PIC S9(08) COMP.
        01  WS-ERROR-MSG              PIC X(79).
        01  WS-COV-COUNT              PIC 9(03).
+       01  WS-RISK-SCORE             PIC S9(04) COMP.
        01  WS-DISPLAY-LINE           PIC X(80).
 
        COPY POLICY-RECORD.
@@ -91,16 +94,31 @@
                     :POLICY-TOTAL-PREMIUM, :POLICY-DEDUCTIBLE,
                     :POLICY-LIMIT,
                     :POLICY-INCEPTION-DATE, :POLICY-RENEWAL-COUNT,
-                    :POLICY-UW-STATUS, :POLICY-RISK-SCORE,
+                    :POLICY-UW-STATUS, :WS-RISK-SCORE,
                     :POLICY-WEB-IND, :POLICY-API-FLAG
                FROM POLICIES
                WHERE POLICY_NUMBER = :POLICY-NUMBER
            END-EXEC
+           IF SQLCODE = 0
+               PERFORM 2100-SET-RISK-SCORE
+           END-IF
            IF SQLCODE = 100
                MOVE 'POLICY NOT FOUND' TO WS-ERROR-MSG
            END-IF
            IF SQLCODE < 0
                MOVE 'DB2 ERROR READING POLICY' TO WS-ERROR-MSG
+           END-IF
+           .
+
+       2100-SET-RISK-SCORE.
+           IF WS-RISK-SCORE < 0
+               MOVE 0 TO WS-RISK-SCORE
+           END-IF
+           MOVE WS-RISK-SCORE TO POLICY-RISK-SCORE-FULL
+           IF WS-RISK-SCORE > 999
+               MOVE 999 TO POLICY-RISK-SCORE
+           ELSE
+               MOVE WS-RISK-SCORE TO POLICY-RISK-SCORE
            END-IF
            .
 

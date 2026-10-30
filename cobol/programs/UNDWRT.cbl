@@ -9,6 +9,9 @@
       * Modified: 2004-03-15 - Added terrorism risk scoring
       *           2011-07-01 - Added catastrophe zone check
       *           2018-12-01 - Added cyber risk assessment
+      *           2026-10-30 - Signed score floored at 0; full score
+      *                        in POLICY-RISK-SCORE-FULL, 3-digit
+      *                        POLICY-RISK-SCORE capped at 999
       *
       * Evaluates underwriting risk for new and renewal policies.
       * Applies risk scoring rules, checks accumulation limits,
@@ -20,6 +23,9 @@
       *   300-599 = Refer to Senior UW
       *   600-799 = Refer to Manager
       *   800+   = Auto-Decline
+      *   Scores can exceed 999 (max 1799). POLICY-RISK-SCORE is
+      *   PIC 9(03), so it carries 999 for any score of 999 or more;
+      *   the exact score is in POLICY-RISK-SCORE-FULL and in DB2.
       ******************************************************************
        ENVIRONMENT DIVISION.
        DATA DIVISION.
@@ -30,7 +36,7 @@
        01  WS-RESPONSE-CODE          PIC S9(08) COMP.
        01  WS-ERROR-MSG              PIC X(79).
        01  WS-CURRENT-DATE           PIC 9(08).
-       01  WS-RISK-SCORE             PIC 9(04).
+       01  WS-RISK-SCORE             PIC S9(04).
        01  WS-DECISION               PIC X(02).
            88  DEC-ACCEPT             VALUE 'AP'.
            88  DEC-REFER-SR           VALUE 'RS'.
@@ -121,6 +127,12 @@
            IF CUST-CREDIT-SCORE > 0
                COMPUTE WS-RISK-SCORE =
                    (900 - CUST-CREDIT-SCORE) / 2
+                   ON SIZE ERROR
+                       MOVE 400 TO WS-RISK-SCORE
+               END-COMPUTE
+               IF WS-RISK-SCORE < 0
+                   MOVE 0 TO WS-RISK-SCORE
+               END-IF
            ELSE
                MOVE 400 TO WS-RISK-SCORE
            END-IF
@@ -131,6 +143,9 @@
            END-IF
            IF CUST-TIER-PREFERRED
                SUBTRACT 100 FROM WS-RISK-SCORE
+               IF WS-RISK-SCORE < 0
+                   MOVE 0 TO WS-RISK-SCORE
+               END-IF
            END-IF
 
       *    Loss history check
@@ -206,7 +221,12 @@
                    MOVE 'AUTO-DECLINED: HIGH RISK'
                        TO WS-DECISION-REASON
            END-EVALUATE
-           MOVE WS-RISK-SCORE TO POLICY-RISK-SCORE
+           MOVE WS-RISK-SCORE TO POLICY-RISK-SCORE-FULL
+           IF WS-RISK-SCORE > 999
+               MOVE 999 TO POLICY-RISK-SCORE
+           ELSE
+               MOVE WS-RISK-SCORE TO POLICY-RISK-SCORE
+           END-IF
            MOVE WS-DECISION TO POLICY-UW-STATUS
            .
 
