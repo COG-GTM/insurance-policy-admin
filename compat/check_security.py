@@ -19,40 +19,80 @@ SYMBOL_REF = re.compile(r"&([A-Z@$#][A-Z0-9@$#]*)\.?", re.I)
 UNPROVABLE = object()
 
 
-def symbols_at_each_exec(lines, exec_starts):
+def assignments(operands):
+    """NAME=value pairs from SET/PROC operands, stopping at the trailing comment."""
+    operands = re.sub(r"'(?:[^']|'')*'", lambda q: q.group(0).replace(" ", "\0"), operands.strip())
+    operands = operands.split(" ", 1)[0].replace("\0", " ")
+    for name, value in re.findall(r"([A-Z@$#][A-Z0-9@$#]*)=('(?:[^']|'')*'|[^,]*)", operands, re.I):
+        yield name.upper(), value[1:-1] if value.startswith("'") else value
+
+
+def symbols_at_each_exec(lines, procedure_calls):
     """SET values provably in effect at each EXEC.
 
-    PROC parameters can be overridden by a caller, SETs inside a PROC take effect
-    wherever it is called, and an INCLUDE member or called procedure can SET
-    anything, so those leave the affected symbols unprovable.
+    `procedure_calls` maps each EXEC line to the procedure it calls, or None for a
+    program step. In-stream PROC bodies keep their own symbols (parameters are
+    unprovable, since a caller can override them). Calling a procedure leaves the
+    symbols its body SETs unprovable; a cataloged procedure or INCLUDE member can
+    SET anything, so it leaves every symbol unprovable.
     """
-    symbols, at_exec = {}, {}
-    starts = set(exec_starts)
-    in_proc = False
+    job, at_exec, proc_sets = {}, {}, {}
+    active, current_proc = job, None
+
+    def changes(names):
+        if names is None:
+            active.clear()
+        else:
+            active.update((name, UNPROVABLE) for name in names)
+        if current_proc is not None and proc_sets[current_proc] is not None:
+            proc_sets[current_proc] = None if names is None else proc_sets[current_proc] | set(names)
+
     for i, line in enumerate(lines):
-        if i in starts:
-            at_exec[i] = dict(symbols)
-            if not re.match(r"^//\S+\s+EXEC\s+PGM\s*=", line, re.I):
-                symbols.clear()
+        if i in procedure_calls:
+            at_exec[i] = dict(active)
+            called = procedure_calls[i]
+            if called is not None:
+                changes(proc_sets.get(called))
+            continue
         if re.match(r"^//[A-Z0-9@$#]*\s+INCLUDE\b", line, re.I):
-            symbols.clear()
+            changes(None)
             continue
         if re.match(r"^//[A-Z0-9@$#]*\s+PEND\b", line, re.I):
-            in_proc = False
+            active, current_proc = job, None
             continue
-        m = re.match(r"^//[A-Z0-9@$#]*\s+(SET|PROC)\b(.*)$", line, re.I)
+        m = re.match(r"^//([A-Z0-9@$#]*)\s+(SET|PROC)\b(.*)$", line, re.I)
         if not m:
             continue
-        if m.group(1).upper() == "PROC":
-            in_proc = True
-        operands = re.sub(r"'(?:[^']|'')*'", lambda q: q.group(0).replace(" ", "\0"), m.group(2).strip())
-        operands = operands.split(" ", 1)[0].replace("\0", " ")
-        for name, value in re.findall(r"([A-Z@$#][A-Z0-9@$#]*)=('(?:[^']|'')*'|[^,]*)", operands, re.I):
-            if in_proc:
-                symbols[name.upper()] = UNPROVABLE
-            else:
-                symbols[name.upper()] = value[1:-1] if value.startswith("'") else value
+        if m.group(2).upper() == "PROC":
+            current_proc = m.group(1).upper()
+            proc_sets[current_proc] = set()
+            active = {name: UNPROVABLE for name, _ in assignments(m.group(3))}
+            continue
+        for name, value in assignments(m.group(3)):
+            active[name] = value
+            if current_proc is not None and proc_sets[current_proc] is not None:
+                proc_sets[current_proc].add(name)
     return at_exec
+
+
+def exec_statement(lines, start, end, dd_re):
+    exec_lines = [lines[start]]
+    for line in lines[start + 1:end]:
+        if dd_re.match(line) or not re.match(r"^//\s+", line):
+            break
+        exec_lines.append(line)
+    operands = "\n".join(line[2:] if line.startswith("//") else line for line in exec_lines)
+    operands = re.sub(r"'(?:[^']|'')*'", "''", operands)
+    return "\n".join(exec_lines), operands
+
+
+def exec_target(operands):
+    """("PGM", name) for a program step, ("PROC", name) for a procedure call."""
+    program = re.search(r"(?:^|[\s,])PGM\s*=\s*([^\s,]+)", operands, re.I)
+    if program:
+        return "PGM", program.group(1)
+    proc = re.search(r"\bEXEC\s+(?:PROC\s*=\s*)?([^\s,=]+)(?=[\s,]|$)", operands, re.I)
+    return "PROC", proc.group(1).upper() if proc else ""
 
 
 def resolve_program(program, symbols):
@@ -81,29 +121,26 @@ def ftp_steps(text):
     any_exec_re = re.compile(r"^//[A-Z0-9@$#]+\s+EXEC\b", re.I)
     dd_re = re.compile(r"^//(?:([A-Z0-9@$#]+)\s+)?\s*DD\b(.*)$", re.I)
     exec_starts = [i for i, line in enumerate(lines) if any_exec_re.match(line)]
-    symbols = symbols_at_each_exec(lines, exec_starts)
+    bounds = {
+        start: next((i for i in exec_starts if i > start), len(lines))
+        for start in exec_starts
+    }
+    statements = {start: exec_statement(lines, start, bounds[start], dd_re) for start in exec_starts}
+    targets = {start: exec_target(operands) for start, (_, operands) in statements.items()}
+    symbols = symbols_at_each_exec(
+        lines, {start: name if kind == "PROC" else None for start, (kind, name) in targets.items()}
+    )
     steps = []
 
     for start in exec_starts:
-        end = next((i for i in exec_starts if i > start), len(lines))
-        exec_lines = [lines[start]]
-        for line in lines[start + 1:end]:
-            if dd_re.match(line):
-                break
-            if re.match(r"^//\s+", line):
-                exec_lines.append(line)
-            else:
-                break
-
-        exec_text = "\n".join(exec_lines)
-        exec_for_match = "\n".join(line[2:] if line.startswith("//") else line for line in exec_lines)
-        exec_for_match = re.sub(r"'(?:[^']|'')*'", "''", exec_for_match)
-        program = re.search(r"(?:^|[\s,])PGM\s*=\s*([^\s,]+)", exec_for_match, re.I)
-        if not program:
+        end = bounds[start]
+        exec_text, _ = statements[start]
+        kind, program = targets[start]
+        if kind != "PGM":
             continue
         # A symbol without a SET value provable at this step (PROC parameter, system
         # symbol, INCLUDE member) could be FTP, so it gets the full check.
-        resolved = resolve_program(program.group(1), symbols[start])
+        resolved = resolve_program(program, symbols[start])
         if resolved is not None and resolved.upper() != "FTP":
             continue
 

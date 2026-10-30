@@ -233,8 +233,28 @@ class FtpTransferTests(unittest.TestCase):
             "//         PEND\n" + insecure
         )
         after_proc_call = "//         SET XFER=IEBGENER\n//CALL     EXEC SENDPRC\n" + insecure
-        for text in (after_include, set_in_proc, after_proc_call):
+        called_proc = (
+            "//         SET XFER=IEBGENER\n//SENDPRC  PROC\n//         SET XFER=FTP\n"
+            "//PS1      EXEC PGM=IEFBR14\n//         PEND\n//CALL     EXEC SENDPRC\n" + insecure
+        )
+        for text in (after_include, set_in_proc, after_proc_call, called_proc):
             self.assertIn(("STEP030", "PARM does not require TLS (-r TLS)"), ftp_step_issues(text))
+
+    def test_program_steps_and_uncalled_procedures_keep_known_symbols(self):
+        tail = "//STEP030  EXEC PGM=&XFER\n//SYSUT1   DD DUMMY"
+        pgm_not_first = (
+            "//         SET XFER=IEBGENER\n//PRE      EXEC REGION=0M,\n//         PGM=IEFBR14\n" + tail
+        )
+        uncalled_proc = (
+            "//         SET XFER=IEBGENER\n//SENDPRC  PROC\n//         SET XFER=FTP\n"
+            "//PS1      EXEC PGM=IEFBR14\n//         PEND\n" + tail
+        )
+        other_symbol_proc = (
+            "//         SET XFER=IEBGENER\n//SENDPRC  PROC\n//         SET OTHER=FTP\n"
+            "//PS1      EXEC PGM=IEFBR14\n//         PEND\n//CALL     EXEC PROC=SENDPRC\n" + tail
+        )
+        for text in (pgm_not_first, uncalled_proc, other_symbol_proc):
+            self.assertEqual(ftp_steps(text), [], text)
 
     def test_gate_accepts_secure_step_with_parm_on_continuation(self):
         step = SECURE_STEP.replace(
