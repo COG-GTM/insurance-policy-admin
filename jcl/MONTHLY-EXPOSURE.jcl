@@ -9,6 +9,9 @@
 //* Date:     1999-03-01
 //* Modified: 2008-07-01 - Added catastrophe zone data
 //*           2015-01-15 - Added cyber exposure fields
+//*           2026-10-30 - Actuarial transfer moved to FTPS (TLS
+//*                        required); login read from a dedicated
+//*                        actuarial NETRC, not shared with Claims
 //*
 //* Extracts monthly exposure data for actuarial analysis.
 //* Output is consumed by SAS programs for loss reserving
@@ -58,13 +61,34 @@
 /*
 //*
 //*-------------------------------------------------------------------
-//* STEP020 - Copy to actuarial shared drive
+//* STEP020 - Copy to actuarial shared drive over FTPS (TLS)
+//*   -r TLS and SECURE_FTP REQUIRED make the client fail the step
+//*   (non-zero RC via EXIT) instead of falling back to cleartext
+//*   FTP if the server refuses AUTH TLS. Login (user id PASACTFT,
+//*   not the Claims ACMEFTP id) and password come from the
+//*   RACF-protected actuarial NETRC dataset, not the JCL stream.
 //*-------------------------------------------------------------------
-//STEP020  EXEC PGM=FTP,PARM='(EXIT',
+//STEP020  EXEC PGM=FTP,PARM='-r TLS (EXIT',
 //         COND=(4,LT,STEP010)
+//NETRC    DD DSN=ACME.PAS.SECURE.NETRC.ACTUARL,DISP=SHR
+//SYSFTPD  DD *
+; Explicit FTPS (AUTH TLS, RFC 4217); never fall back to cleartext
+SECURE_MECHANISM  TLS
+TLSMECHANISM      FTP
+TLSRFCLEVEL       RFC4217
+SECURE_FTP        REQUIRED
+; Encrypt the control (login) and data (file) connections
+SECURE_CTRLCONN   PRIVATE
+SECURE_DATACONN   PRIVATE
+; TLS 1.2 only
+TLSV1             OFF
+TLSV1.1           OFF
+TLSV1.2           ON
+; Trusted CA for ACTUARIAL.ACME.LOCAL (server cert is verified)
+KEYRING           ACMEBTCH/PASFTPSRING
+/*
 //INPUT    DD *
  ACTUARIAL.ACME.LOCAL
- ACMEFTP
  PUT 'ACME.PAS.EXPOSURE.MONTHLY.D&LYYMMDD' /actuarial/data/exposure_monthly.csv
  QUIT
 /*
