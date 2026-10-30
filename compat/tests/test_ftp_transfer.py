@@ -193,6 +193,17 @@ class FtpTransferTests(unittest.TestCase):
         self.assertIsNotNone(rule.search("ftp://host/x"))
         self.assertIsNone(rule.search("//S EXEC PGM=FTP,PARM='-r TLS (EXIT'"))
 
+    def test_symbolic_program_name_is_checked_as_ftp(self):
+        via_set = "//         SET XFER=FTP\n" + OLD_INSECURE_STEP.replace("PGM=FTP", "PGM=&XFER")
+        via_proc = "//SENDPRC  PROC P=FTP\n" + OLD_INSECURE_STEP.replace("PGM=FTP", "PGM=&P.")
+        unresolved = OLD_INSECURE_STEP.replace("PGM=FTP", "PGM=&UNKNOWN")
+        for text in (via_set, via_proc, unresolved):
+            self.assertIn(("STEP030", "PARM does not require TLS (-r TLS)"), ftp_step_issues(text))
+        secure = "//         SET XFER=FTP\n" + SECURE_STEP.replace("PGM=FTP", "PGM=&XFER")
+        self.assertEqual(ftp_step_issues(secure), [])
+        other = "//         SET XFER=IEBGENER\n//STEP1    EXEC PGM=&XFER\n//SYSUT1   DD DUMMY"
+        self.assertEqual(ftp_steps(other), [])
+
     def test_gate_accepts_secure_step_with_parm_on_continuation(self):
         step = SECURE_STEP.replace(
             "//STEP030  EXEC PGM=FTP,PARM='-r TLS (EXIT',\n//         COND=(4,LT)",
