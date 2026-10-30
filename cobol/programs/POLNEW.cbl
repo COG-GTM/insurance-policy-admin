@@ -302,6 +302,13 @@
            EXEC CICS SYNCPOINT ROLLBACK
                RESP(WS-RESPONSE-CODE)
            END-EXEC
+      *    If the backout was refused, abend so CICS backs out the
+      *    unit of work instead of committing it at task end.
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               EXEC CICS ABEND
+                   ABCODE('PNUW')
+               END-EXEC
+           END-IF
            MOVE 'UNDERWRITING REFERRAL FAILED - POLICY NOT CREATED'
                TO WS-ERROR-MSG
            PERFORM 9000-SEND-ERROR
