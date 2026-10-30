@@ -34,6 +34,9 @@ jobs:
       - name: Security non-regression
         if: always()
         run: python3 compat/check_security.py
+      - name: COBOL program regression tests
+        if: always()
+        run: python3 -m unittest discover -s compat/tests -v
 
   build-test:
     name: Build & tests

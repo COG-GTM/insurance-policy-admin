@@ -6,6 +6,7 @@
       * Modified: 2005-11-20 - Added POLICY-WEB-IND for web portal
       *           2015-06-01 - Extended POLICY-NUMBER to 12 chars
       *           2022-01-15 - Added POLICY-API-FLAG for REST facade
+      *           2026-10-30 - UW-REFERRED covers UNDWRT 'RS'/'RM'
       * DB2 Table: POLICIES
       ******************************************************************
        01  POLICY-RECORD.
@@ -36,7 +37,9 @@
                88  UW-APPROVED          VALUE 'AP'.
                88  UW-PENDING           VALUE 'PN'.
                88  UW-DECLINED          VALUE 'DC'.
-               88  UW-REFERRED          VALUE 'RF'.
+               88  UW-REFERRED          VALUE 'RF' 'RS' 'RM'.
+               88  UW-REFERRED-SR       VALUE 'RS'.
+               88  UW-REFERRED-MGR      VALUE 'RM'.
            05  POLICY-RISK-SCORE        PIC 9(03).
            05  POLICY-WEB-IND           PIC X(01).
                88  POL-WEB-YES          VALUE 'Y'.
