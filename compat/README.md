@@ -14,6 +14,10 @@ business contract unless the change is explicitly approved.
 
 Run locally: `make compat` (needs JDK 8 for `java-facade` and Python 3).
 
+COBOL behaviour tests in `compat/tests/` run UNDWRT under GnuCOBOL with
+CICS/DB2 stubbed (skipped without `cobc`):
+`python3 -m unittest discover -s compat/tests`.
+
 ## Intentional changes
 If a change is deliberate (e.g. AB-524 adds authentication), add the finding id
 printed by the check to `allowed-changes.json` with the ticket and reason:
