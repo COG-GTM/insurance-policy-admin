@@ -174,20 +174,31 @@ def added_lines():
             yield path, line[1:]
 
 
-def main():
+FTP_URL = re.compile(r"(?i)\bftp://")
+
+
+def security_findings(added, read_file):
     findings = []
-    added = list(added_lines())
     for path, line in added:
+        is_jcl = path.lower().endswith(".jcl")
         for sev, rule, rx, skip in RULES:
+            if rule == "plaintext-ftp" and is_jcl:
+                # PGM=FTP steps in JCL are judged whole by ftp_step_issues;
+                # a single line cannot show a PARM on a continuation.
+                rx = FTP_URL
             if (skip is None or not skip.search(path)) and rx.search(line):
                 findings.append((sev, f"security:{rule}:{path}", line.strip()[:120]))
     for path in dict.fromkeys(path for path, _ in added if path.lower().endswith(".jcl")):
-        text = head_file(path)
+        text = read_file(path)
         if text is None:
             continue
         for step, message in ftp_step_issues(text):
             findings.append(("FAIL", f"security:ftp-step-insecure:{path}:{step}", message))
-    return report("Security non-regression", findings)
+    return findings
+
+
+def main():
+    return report("Security non-regression", security_findings(list(added_lines()), head_file))
 
 
 if __name__ == "__main__":

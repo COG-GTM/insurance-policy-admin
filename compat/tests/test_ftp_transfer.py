@@ -4,7 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from check_security import RULES, ftp_step_issues, ftp_steps
+from check_security import RULES, ftp_step_issues, ftp_steps, security_findings
 
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -192,6 +192,26 @@ class FtpTransferTests(unittest.TestCase):
         self.assertIsNotNone(rule.search("//S EXEC PGM=FTP,PARM='(EXIT'"))
         self.assertIsNotNone(rule.search("ftp://host/x"))
         self.assertIsNone(rule.search("//S EXEC PGM=FTP,PARM='-r TLS (EXIT'"))
+
+    def test_gate_accepts_secure_step_with_parm_on_continuation(self):
+        step = SECURE_STEP.replace(
+            "//STEP030  EXEC PGM=FTP,PARM='-r TLS (EXIT',\n//         COND=(4,LT)",
+            "//STEP030  EXEC PGM=FTP,\n//         PARM='-r TLS (EXIT',COND=(4,LT)",
+        )
+        self.assertNotEqual(step, SECURE_STEP)
+        added = [("jcl/NEW.jcl", line) for line in step.splitlines()]
+        self.assertEqual(security_findings(added, lambda path: step), [])
+
+    def test_gate_fails_insecure_jcl_step_and_ftp_urls(self):
+        added = [("jcl/NEW.jcl", line) for line in OLD_INSECURE_STEP.splitlines()]
+        ids = [fid for _, fid, _ in security_findings(added, lambda path: OLD_INSECURE_STEP)]
+        self.assertIn("security:ftp-step-insecure:jcl/NEW.jcl:STEP030", ids)
+        self.assertNotIn("security:plaintext-ftp:jcl/NEW.jcl", ids)
+        url_ids = [fid for _, fid, _ in security_findings(
+            [("jcl/NEW.jcl", "//* see ftp://claimsrv/x"), ("scripts/push.sh", "ftp -n host # PGM=FTP")],
+            lambda path: "",
+        )]
+        self.assertEqual(url_ids, ["security:plaintext-ftp:jcl/NEW.jcl", "security:plaintext-ftp:scripts/push.sh"])
 
 
 if __name__ == "__main__":
