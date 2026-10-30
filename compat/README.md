@@ -24,6 +24,8 @@ printed by the check to `allowed-changes.json` with the ticket and reason:
 
 Reviewers see the approval in the PR diff. When the API under test needs
 credentials, set the `COMPAT_AUTH_HEADER` repository secret (`Name: value`).
+For the default `java-facade` module `run_facade.sh` generates a throwaway
+`X-API-Key` for the local-profile client (via `PAS_LOCAL_API_KEY_SHA256`) and sets `COMPAT_AUTH_HEADER` itself.
 When a replacement service takes over the read API, point `COMPAT_API_MODULE`
 / `COMPAT_API_START` at it; the snapshots stay the contract. Re-record snapshots
 (`compat/api/run_facade.sh --record`) only with an approved contract change.

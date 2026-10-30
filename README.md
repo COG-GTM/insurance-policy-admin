@@ -56,6 +56,15 @@ GET /api/v1/policies/{policyNumber}/coverages   - Coverage list (JSON)
 GET /manage/health                              - Health check
 ```
 
+`/api/**` requires a per-consumer API key in the `X-API-Key` header; requests
+without a valid key get `401`. Each client is limited to its configured branch
+codes (policies in other branches return `404`) and every request is logged
+with the caller's client id (logger `com.acme.insurance.pas.audit`).
+Configure a client with `PAS_API_CLIENT_ID`, `PAS_API_CLIENT_KEY_SHA256`
+(`printf '%s' "$KEY" | sha256sum`) and `PAS_API_CLIENT_BRANCHES` (e.g.
+`CHI1,DET1` or `*`). The `local` profile reads the digest of a key you choose
+from `PAS_LOCAL_API_KEY_SHA256`; no key is built in.
+
 > **WARNING:** The REST facade is **read-only**. All policy mutations must go through CICS transactions on the mainframe.
 
 ## Integration Points
@@ -71,7 +80,7 @@ GET /manage/health                              - Health check
 2. **Hardcoded rating factors** - Base rates and territory factors are hardcoded in PREMBAT; should be table-driven
 3. **Leap year bug** - POLRNW renewal date calculation does not handle leap years correctly
 4. **No state-specific rate caps** - Using flat 15% rate increase cap instead of state-specific regulatory limits
-5. **Java facade has no authentication** - Relies on network segmentation (internal VPN only)
+5. **Java facade uses static API keys** - Per-consumer keys with branch scoping; OAuth2 client credentials still planned
 6. **Single-threaded batch** - PREMBAT processes policies sequentially; takes ~4 hours for full book
 7. **FTP file transfer** - No encryption on daily extract files (regulatory risk)
 
