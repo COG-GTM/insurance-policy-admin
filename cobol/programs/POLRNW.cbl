@@ -25,6 +25,9 @@
        01  WS-SQLCODE                PIC S9(09) COMP-5.
        01  WS-CURRENT-DATE           PIC 9(08).
        01  WS-NEW-EXPIRY-DATE        PIC 9(08).
+       01  WS-NEW-EXPIRY-PARTS REDEFINES WS-NEW-EXPIRY-DATE.
+           05  WS-NEW-EXPIRY-YYYY    PIC 9(04).
+           05  WS-NEW-EXPIRY-MMDD    PIC 9(04).
        01  WS-ERROR-MSG              PIC X(79).
        01  WS-RATE-INCREASE-CAP      PIC S9(03)V99 COMP-3
            VALUE 15.00.
@@ -55,9 +58,18 @@
            IF WS-ERROR-MSG = SPACES
                PERFORM 4000-CALCULATE-NEW-PREMIUM
                PERFORM 5000-APPLY-RATE-CAP
-               PERFORM 6000-CREATE-RENEWAL-TERM
-               PERFORM 7000-UPDATE-COVERAGES
-               PERFORM 8000-SEND-CONFIRMATION
+               PERFORM 6000-CREATE-RENEWAL-TERM THRU 6000-EXIT
+               IF WS-ERROR-MSG = SPACES
+                   PERFORM 7000-UPDATE-COVERAGES
+               END-IF
+      *        POLICIES and COVERAGES are one unit of work: if either
+      *        update failed, back both out before telling the user
+               IF WS-ERROR-MSG = SPACES
+                   PERFORM 8000-SEND-CONFIRMATION
+               ELSE
+                   PERFORM 8500-ROLLBACK-RENEWAL
+                   PERFORM 9000-SEND-ERROR
+               END-IF
            ELSE
                PERFORM 9000-SEND-ERROR
            END-IF
@@ -141,12 +153,21 @@
            .
 
        6000-CREATE-RENEWAL-TERM.
+           IF FUNCTION TEST-DATE-YYYYMMDD(POLICY-EXPIRY-DATE) NOT = 0
+               MOVE 'INVALID EXPIRY DATE ON POLICY' TO WS-ERROR-MSG
+               GO TO 6000-EXIT
+           END-IF
+      *    New term runs one year from the old expiry. A 29 February
+      *    anniversary falls back to 28 February in a non-leap year.
+           MOVE POLICY-EXPIRY-DATE TO WS-NEW-EXPIRY-DATE
+           ADD 1 TO WS-NEW-EXPIRY-YYYY
+           IF FUNCTION TEST-DATE-YYYYMMDD(WS-NEW-EXPIRY-DATE) NOT = 0
+               COMPUTE WS-NEW-EXPIRY-DATE = FUNCTION DATE-OF-INTEGER(
+                   FUNCTION INTEGER-OF-DATE(
+                       WS-NEW-EXPIRY-YYYY * 10000 + 301) - 1)
+           END-IF
            ADD 1 TO POLICY-RENEWAL-COUNT
            MOVE POLICY-EXPIRY-DATE TO POLICY-EFFECTIVE-DATE
-      *    Add 1 year to effective date for new expiry
-      *    Simple arithmetic - does not handle leap years properly
-           ADD 10000 TO POLICY-EXPIRY-DATE
-                        GIVING WS-NEW-EXPIRY-DATE
            MOVE WS-NEW-EXPIRY-DATE TO POLICY-EXPIRY-DATE
            MOVE 'AC' TO POLICY-STATUS
            MOVE 'PN' TO POLICY-UW-STATUS
@@ -165,9 +186,15 @@
            END-EXEC
            IF SQLCODE NOT = 0
                MOVE 'DB2 ERROR UPDATING RENEWAL' TO WS-ERROR-MSG
-               PERFORM 9000-SEND-ERROR
+           ELSE
+               IF SQLERRD(3) NOT = 1
+                   MOVE 'RENEWAL NOT APPLIED - POLICY NOT UPDATED'
+                       TO WS-ERROR-MSG
+               END-IF
            END-IF
            .
+       6000-EXIT.
+           EXIT.
 
        7000-UPDATE-COVERAGES.
       *    Extend coverage dates to match new policy term
@@ -178,6 +205,10 @@
                WHERE POLICY_NUMBER = :POLICY-NUMBER
                  AND STATUS = 'AC'
            END-EXEC
+      *    SQLCODE 100: policy has no active coverages to extend
+           IF SQLCODE NOT = 0 AND SQLCODE NOT = 100
+               MOVE 'DB2 ERROR UPDATING COVERAGES' TO WS-ERROR-MSG
+           END-IF
            .
 
        8000-SEND-CONFIRMATION.
@@ -187,6 +218,17 @@
                FROM(POLICY-RECORD)
                ERASE
            END-EXEC
+           .
+
+       8500-ROLLBACK-RENEWAL.
+           EXEC CICS SYNCPOINT ROLLBACK
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               EXEC CICS ABEND
+                   ABCODE('PRWR')
+               END-EXEC
+           END-IF
            .
 
        9000-SEND-ERROR.

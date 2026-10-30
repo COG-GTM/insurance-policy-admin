@@ -1,6 +1,9 @@
-.PHONY: compat compat-static compat-api compat-build
+.PHONY: compat compat-static compat-api compat-build cobol-test
 
 compat: compat-static compat-build compat-api
+
+cobol-test:
+	python3 -m unittest discover -s cobol/tests -p 'test_*.py' -v
 
 compat-static:
 	python3 compat/check_schema.py
