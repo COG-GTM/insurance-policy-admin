@@ -31,6 +31,11 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 | PQRY | POLQRY | Policy inquiry (read-only) |
 | PUWR | UNDWRT | Underwriting decision |
 
+PUWR writes the policy update, the audit row and the decision message on TD
+queue `UWDQ` as one unit of work and rolls all of them back if any step fails.
+`UWDQ` must be defined with `RECOVSTATUS(LOGICAL)` and drained to MQ queue
+`ACME.PAS.UNDERWRITING.DECISION`.
+
 ## Batch Jobs
 
 | JCL Job | Schedule | Description |
@@ -45,7 +50,9 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 - `COVERAGES` - Coverage/LOB detail
 - `PREMIUMS` - Premium calculations
 - `ENDORSEMENTS` - Policy changes
-- `UNDERWRITING_DECISIONS` - UW decision audit trail
+- `UNDERWRITING_DECISIONS` - UW decision audit trail, one row per decision
+  (key `POLICY_NUMBER, DECISION_DATE, DECISION_SEQ`; existing databases:
+  `sql/ddl/alter-uw-decisions-seq.sql`)
 - `POLICY_HOLDERS` - Customer master
 
 ## REST API Endpoints (Facade)

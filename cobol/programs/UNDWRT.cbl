@@ -9,6 +9,9 @@
       * Modified: 2004-03-15 - Added terrorism risk scoring
       *           2011-07-01 - Added catastrophe zone check
       *           2018-12-01 - Added cyber risk assessment
+      *           2026-10-30 - SQLCODE/RESP checks, SYNCPOINT ROLLBACK
+      *                        on failure, DECISION_SEQ audit key,
+      *                        4-char TD queue UWDQ
       *
       * Evaluates underwriting risk for new and renewal policies.
       * Applies risk scoring rules, checks accumulation limits,
@@ -29,7 +32,11 @@
        01  WS-COMMAREA-LENGTH        PIC S9(04) COMP VALUE 256.
        01  WS-RESPONSE-CODE          PIC S9(08) COMP.
        01  WS-ERROR-MSG              PIC X(79).
-       01  WS-CURRENT-DATE           PIC 9(08).
+       01  WS-ABSTIME                PIC S9(15) COMP-3.
+       01  WS-DECISION-DATE          PIC X(10).
+       01  WS-DECISION-SEQ           PIC S9(04) COMP.
+       01  WS-SQLCODE-DISP           PIC -(4)9.
+       01  WS-RESP-DISP              PIC -(4)9.
        01  WS-RISK-SCORE             PIC 9(04).
        01  WS-DECISION               PIC X(02).
            88  DEC-ACCEPT             VALUE 'AP'.
@@ -42,8 +49,10 @@
        01  WS-TOTAL-INCURRED         PIC S9(11)V99 COMP-3.
        01  WS-ACCUM-LIMIT            PIC S9(13)V99 COMP-3.
        01  WS-ZONE-RISK-FACTOR       PIC S9(01)V99 COMP-3.
-       01  WS-MQ-QUEUE               PIC X(48)
-           VALUE 'ACME.PAS.UNDERWRITING.DECISION'.
+      *    CICS TD queue names are 4 characters. UWDQ must be
+      *    defined RECOVSTATUS(LOGICAL) so a rollback discards the
+      *    message; it feeds MQ queue ACME.PAS.UNDERWRITING.DECISION.
+       01  WS-MQ-QUEUE               PIC X(04) VALUE 'UWDQ'.
 
        COPY POLICY-RECORD.
        COPY CUSTOMER-RECORD.
@@ -56,13 +65,27 @@
        PROCEDURE DIVISION.
        0000-MAIN-LOGIC.
            PERFORM 1000-INITIALIZE
-           PERFORM 2000-READ-POLICY-DATA
+           PERFORM 2000-READ-POLICY-DATA THRU 2000-EXIT
            IF WS-ERROR-MSG = SPACES
                PERFORM 3000-CALCULATE-RISK-SCORE
+                   THRU 3000-EXIT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 4000-CHECK-ACCUMULATION
+                   THRU 4000-EXIT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 5000-RENDER-DECISION
                PERFORM 6000-WRITE-DECISION
+                   THRU 6000-EXIT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 7000-SEND-MQ-NOTIFICATION
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 7500-COMMIT-DECISION
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 8000-DISPLAY-RESULT
            ELSE
                PERFORM 9000-SEND-ERROR
@@ -74,10 +97,11 @@
            MOVE SPACES TO WS-ERROR-MSG
            MOVE SPACES TO WS-DECISION-REASON
            MOVE 0 TO WS-RISK-SCORE
-           EXEC CICS ASKTIME ABSTIME(WS-CURRENT-DATE) END-EXEC
+           EXEC CICS ASKTIME ABSTIME(WS-ABSTIME) END-EXEC
            EXEC CICS FORMATTIME
-               ABSTIME(WS-CURRENT-DATE)
-               YYYYMMDD(WS-CURRENT-DATE)
+               ABSTIME(WS-ABSTIME)
+               YYYYMMDD(WS-DECISION-DATE)
+               DATESEP('-')
            END-EXEC
            .
 
@@ -141,6 +165,14 @@
                WHERE POLICY_NUMBER = :POLICY-NUMBER
                  AND CLAIM_DATE >= CURRENT DATE - 5 YEARS
            END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE SQLCODE TO WS-SQLCODE-DISP
+               STRING 'CLAIMS HISTORY UNAVAILABLE - SQLCODE '
+                      WS-SQLCODE-DISP
+                   DELIMITED BY SIZE
+                   INTO WS-ERROR-MSG
+               GO TO 3000-EXIT
+           END-IF
            IF WS-CLAIM-COUNT > 3
                ADD 150 TO WS-RISK-SCORE
            END-IF
@@ -166,6 +198,8 @@
                ADD 200 TO WS-RISK-SCORE
            END-IF
            .
+       3000-EXIT.
+           EXIT.
 
        4000-CHECK-ACCUMULATION.
       *    Check geographic accumulation of risk
@@ -176,6 +210,14 @@
                WHERE BRANCH_CODE = :POLICY-BRANCH-CODE
                  AND POLICY_STATUS = 'AC'
            END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE SQLCODE TO WS-SQLCODE-DISP
+               STRING 'ACCUMULATION CHECK FAILED - SQLCODE '
+                      WS-SQLCODE-DISP
+                   DELIMITED BY SIZE
+                   INTO WS-ERROR-MSG
+               GO TO 4000-EXIT
+           END-IF
       *    TODO: Accumulation limits should be configurable
       *    Hardcoded $500M limit per branch - R.Patel 2011
            IF WS-ACCUM-LIMIT > 500000000
@@ -186,6 +228,8 @@
                    INTO WS-DECISION-REASON
            END-IF
            .
+       4000-EXIT.
+           EXIT.
 
        5000-RENDER-DECISION.
            EVALUATE TRUE
@@ -211,18 +255,9 @@
            .
 
        6000-WRITE-DECISION.
-           EXEC SQL
-               INSERT INTO UNDERWRITING_DECISIONS
-               (POLICY_NUMBER, DECISION_DATE, DECISION_CODE,
-                RISK_SCORE, DECISION_REASON,
-                UNDERWRITER_ID, CREATED_TIMESTAMP)
-               VALUES
-               (:POLICY-NUMBER, :WS-CURRENT-DATE,
-                :WS-DECISION, :WS-RISK-SCORE,
-                :WS-DECISION-REASON,
-                'SYSTEM', CURRENT TIMESTAMP)
-           END-EXEC
-
+      *    Update the policy first: its row lock serialises concurrent
+      *    decisions on the same policy while DECISION_SEQ is chosen.
+      *    Any failure rolls back the whole unit of work.
            EXEC SQL
                UPDATE POLICIES
                SET UW_STATUS = :WS-DECISION,
@@ -230,6 +265,60 @@
                    LAST_UPDATED = CURRENT TIMESTAMP,
                    UPDATED_BY = 'UNDWRT'
                WHERE POLICY_NUMBER = :POLICY-NUMBER
+           END-EXEC
+           IF SQLCODE NOT = 0 OR SQLERRD(3) NOT = 1
+               MOVE SQLCODE TO WS-SQLCODE-DISP
+               STRING 'DECISION NOT SAVED - POLICY UPDATE FAILED '
+                      'SQLCODE ' WS-SQLCODE-DISP
+                   DELIMITED BY SIZE
+                   INTO WS-ERROR-MSG
+               PERFORM 6900-ROLLBACK-DECISION
+               GO TO 6000-EXIT
+           END-IF
+
+           EXEC SQL
+               SELECT COALESCE(MAX(DECISION_SEQ), 0) + 1
+               INTO :WS-DECISION-SEQ
+               FROM UNDERWRITING_DECISIONS
+               WHERE POLICY_NUMBER = :POLICY-NUMBER
+                 AND DECISION_DATE = :WS-DECISION-DATE
+           END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE SQLCODE TO WS-SQLCODE-DISP
+               STRING 'DECISION NOT SAVED - AUDIT SEQUENCE FAILED '
+                      'SQLCODE ' WS-SQLCODE-DISP
+                   DELIMITED BY SIZE
+                   INTO WS-ERROR-MSG
+               PERFORM 6900-ROLLBACK-DECISION
+               GO TO 6000-EXIT
+           END-IF
+
+           EXEC SQL
+               INSERT INTO UNDERWRITING_DECISIONS
+               (POLICY_NUMBER, DECISION_DATE, DECISION_SEQ,
+                DECISION_CODE, RISK_SCORE, DECISION_REASON,
+                UNDERWRITER_ID, CREATED_TIMESTAMP)
+               VALUES
+               (:POLICY-NUMBER, :WS-DECISION-DATE, :WS-DECISION-SEQ,
+                :WS-DECISION, :WS-RISK-SCORE,
+                :WS-DECISION-REASON,
+                'SYSTEM', CURRENT TIMESTAMP)
+           END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE SQLCODE TO WS-SQLCODE-DISP
+               STRING 'DECISION NOT SAVED - AUDIT INSERT FAILED '
+                      'SQLCODE ' WS-SQLCODE-DISP
+                   DELIMITED BY SIZE
+                   INTO WS-ERROR-MSG
+               PERFORM 6900-ROLLBACK-DECISION
+           END-IF
+           .
+       6000-EXIT.
+           EXIT.
+
+       6900-ROLLBACK-DECISION.
+           EXEC CICS SYNCPOINT ROLLBACK
+               RESP(WS-RESPONSE-CODE)
            END-EXEC
            .
 
@@ -240,6 +329,27 @@
                LENGTH(LENGTH OF POLICY-RECORD)
                RESP(WS-RESPONSE-CODE)
            END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               MOVE WS-RESPONSE-CODE TO WS-RESP-DISP
+               STRING 'DECISION NOT SAVED - NOTIFICATION QUEUE '
+                      WS-MQ-QUEUE ' RESP ' WS-RESP-DISP
+                   DELIMITED BY SIZE
+                   INTO WS-ERROR-MSG
+               PERFORM 6900-ROLLBACK-DECISION
+           END-IF
+           .
+
+       7500-COMMIT-DECISION.
+           EXEC CICS SYNCPOINT
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               MOVE WS-RESPONSE-CODE TO WS-RESP-DISP
+               STRING 'DECISION NOT SAVED - COMMIT FAILED RESP '
+                      WS-RESP-DISP
+                   DELIMITED BY SIZE
+                   INTO WS-ERROR-MSG
+           END-IF
            .
 
        8000-DISPLAY-RESULT.
