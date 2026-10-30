@@ -84,8 +84,9 @@ SECURE_DATACONN   PRIVATE
 TLSV1             OFF
 TLSV1.1           OFF
 TLSV1.2           ON
-; Trusted CA for ACTUARIAL.ACME.LOCAL (server cert is verified)
+; Server cert must chain to a CA in this keyring and name the host
 KEYRING           ACMEBTCH/PASFTPSRING
+SECURE_HOSTNAME   REQUIRED
 /*
 //INPUT    DD *
  ACTUARIAL.ACME.LOCAL
