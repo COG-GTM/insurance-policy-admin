@@ -58,6 +58,15 @@ public class ApiClientRegistryTests {
         assertNull(r.authenticate("anything"));
     }
 
+    @Test
+    public void entryWithoutKeyHashIsSkipped() {
+        ApiClientRegistry r = registry(client("local-dev", "", "*"),
+                client("chi", CHI_HASH, "CHI1"));
+        assertEquals(1, r.size());
+        assertNull(r.authenticate(""));
+        assertEquals("chi", r.authenticate("chi-test-key-0001").getId());
+    }
+
     @Test(expected = IllegalStateException.class)
     public void rejectsPlaintextKeyInsteadOfHash() {
         registry(client("chi", "chi-test-key-0001", "CHI1"));

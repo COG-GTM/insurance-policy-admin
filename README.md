@@ -62,8 +62,8 @@ codes (policies in other branches return `404`) and every request is logged
 with the caller's client id (logger `com.acme.insurance.pas.audit`).
 Configure a client with `PAS_API_CLIENT_ID`, `PAS_API_CLIENT_KEY_SHA256`
 (`printf '%s' "$KEY" | sha256sum`) and `PAS_API_CLIENT_BRANCHES` (e.g.
-`CHI1,DET1` or `*`). The `local` profile ships a client whose key is
-`local-dev-api-key`.
+`CHI1,DET1` or `*`). The `local` profile reads the digest of a key you choose
+from `PAS_LOCAL_API_KEY_SHA256`; no key is built in.
 
 > **WARNING:** The REST facade is **read-only**. All policy mutations must go through CICS transactions on the mainframe.
 

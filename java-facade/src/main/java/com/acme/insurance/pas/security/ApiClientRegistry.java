@@ -21,9 +21,8 @@ import java.util.regex.Pattern;
  * Resolves an {@code X-API-Key} value to a configured {@link ApiClient}.
  *
  * Fails application startup on an invalid client entry so a misconfiguration
- * cannot silently widen access. Entries with no id, key hash or branches are
- * ignored (unset environment variables); with no clients every request is
- * rejected.
+ * cannot silently widen access. Entries without a key hash (unset environment
+ * variable) are skipped; with no clients every request is rejected.
  */
 @Component
 public class ApiClientRegistry {
@@ -46,7 +45,11 @@ public class ApiClientRegistry {
             String id = trim(client.getId());
             String hash = trim(client.getKeySha256()).toLowerCase(Locale.ROOT);
             Set<String> branches = normaliseBranches(client.getBranches());
-            if (id.isEmpty() && hash.isEmpty() && branches.isEmpty()) {
+            if (hash.isEmpty()) {
+                if (!id.isEmpty() || !branches.isEmpty()) {
+                    LOG.warn("Policy API client '{}' has no key-sha256 configured; skipping",
+                            AuditLog.clean(id));
+                }
                 continue;
             }
             if (!CLIENT_ID.matcher(id).matches()) {
