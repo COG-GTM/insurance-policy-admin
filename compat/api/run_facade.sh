@@ -7,6 +7,12 @@ MODULE="${COMPAT_API_MODULE:-java-facade}"
 PORT="${COMPAT_PORT:-18080}"
 (cd "$MODULE" && mvn -B -ntp -q -DskipTests package)
 JAR=$(ls "$MODULE"/target/*.jar | grep -v original | head -1)
+if [ -z "${COMPAT_API_START:-}" ] && [ "$MODULE" = "java-facade" ]; then
+  # Ephemeral API key for the facade's local-profile client.
+  KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+  export PAS_LOCAL_API_KEY_SHA256=$(printf '%s' "$KEY" | sha256sum | cut -d' ' -f1)
+  export COMPAT_AUTH_HEADER="X-API-Key: $KEY"
+fi
 START="${COMPAT_API_START:-java -jar $JAR --spring.profiles.active=local --server.port=$PORT}"
 $START > compat-api.log 2>&1 &
 PID=$!
