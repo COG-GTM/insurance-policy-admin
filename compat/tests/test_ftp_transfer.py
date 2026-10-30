@@ -225,6 +225,17 @@ class FtpTransferTests(unittest.TestCase):
         proc_default = "//SENDPRC  PROC P=IEBGENER\n//STEP1    EXEC PGM=&P\n//SYSUT1   DD DUMMY"
         self.assertEqual([s[0] for s in ftp_steps(proc_default)], ["STEP1"])
 
+    def test_symbols_changed_by_include_or_procedure_stay_unprovable(self):
+        insecure = OLD_INSECURE_STEP.replace("PGM=FTP", "PGM=&XFER")
+        after_include = "//         SET XFER=IEBGENER\n//         INCLUDE MEMBER=XFERSYM\n" + insecure
+        set_in_proc = (
+            "//SENDPRC  PROC\n//         SET XFER=IEBGENER\n//PS1      EXEC PGM=IEFBR14\n"
+            "//         PEND\n" + insecure
+        )
+        after_proc_call = "//         SET XFER=IEBGENER\n//CALL     EXEC SENDPRC\n" + insecure
+        for text in (after_include, set_in_proc, after_proc_call):
+            self.assertIn(("STEP030", "PARM does not require TLS (-r TLS)"), ftp_step_issues(text))
+
     def test_gate_accepts_secure_step_with_parm_on_continuation(self):
         step = SECURE_STEP.replace(
             "//STEP030  EXEC PGM=FTP,PARM='-r TLS (EXIT',\n//         COND=(4,LT)",

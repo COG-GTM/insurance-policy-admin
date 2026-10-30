@@ -20,19 +20,35 @@ UNPROVABLE = object()
 
 
 def symbols_at_each_exec(lines, exec_starts):
-    """SET values in effect at each EXEC; PROC parameters can be overridden by a caller."""
+    """SET values provably in effect at each EXEC.
+
+    PROC parameters can be overridden by a caller, SETs inside a PROC take effect
+    wherever it is called, and an INCLUDE member or called procedure can SET
+    anything, so those leave the affected symbols unprovable.
+    """
     symbols, at_exec = {}, {}
     starts = set(exec_starts)
+    in_proc = False
     for i, line in enumerate(lines):
         if i in starts:
             at_exec[i] = dict(symbols)
+            if not re.match(r"^//\S+\s+EXEC\s+PGM\s*=", line, re.I):
+                symbols.clear()
+        if re.match(r"^//[A-Z0-9@$#]*\s+INCLUDE\b", line, re.I):
+            symbols.clear()
+            continue
+        if re.match(r"^//[A-Z0-9@$#]*\s+PEND\b", line, re.I):
+            in_proc = False
+            continue
         m = re.match(r"^//[A-Z0-9@$#]*\s+(SET|PROC)\b(.*)$", line, re.I)
         if not m:
             continue
+        if m.group(1).upper() == "PROC":
+            in_proc = True
         operands = re.sub(r"'(?:[^']|'')*'", lambda q: q.group(0).replace(" ", "\0"), m.group(2).strip())
         operands = operands.split(" ", 1)[0].replace("\0", " ")
         for name, value in re.findall(r"([A-Z@$#][A-Z0-9@$#]*)=('(?:[^']|'')*'|[^,]*)", operands, re.I):
-            if m.group(1).upper() == "PROC":
+            if in_proc:
                 symbols[name.upper()] = UNPROVABLE
             else:
                 symbols[name.upper()] = value[1:-1] if value.startswith("'") else value
