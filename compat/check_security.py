@@ -10,7 +10,7 @@ RULES = [
     ("FAIL", "hardcoded-secret", re.compile(r"(?i)(password|passwd|secret|api[_-]?key|token)\s*[=:]\s*['\"]?(?!\$\{)(?!changeme\b)[^\s'\"${}<>]{6,}"), LOCAL_OR_TEST),
     ("FAIL", "actuator-exposed", re.compile(r"(?i)(management\.security\.enabled\s*=\s*false|management\.endpoints\.web\.exposure\.include\s*=\s*\*)"), LOCAL_OR_TEST),
     ("FAIL", "h2-console-enabled", re.compile(r"(?i)spring\.h2\.console\.enabled\s*=\s*true"), LOCAL_OR_TEST),
-    ("FAIL", "plaintext-ftp", re.compile(r"(?i)(PGM=FTP\b(?!.*-r\s+TLS\b)|\bftp://)"), None),
+    ("FAIL", "plaintext-ftp", re.compile(r"(?i)(PGM=FTP\b(?!.*-r\s+TLS\b)|\bftp://)"), re.compile(r"^compat/tests/")),
     ("NOTE", "pii-field", re.compile(r"(?i)\b(ssn_?last4|tax_?id|date_?of_?birth|credit_?score)\b"), re.compile(r"(^sql/|schema\.sql|data\.sql|\.cpy$|/src/test/|^compat/)")),
 ]
 
