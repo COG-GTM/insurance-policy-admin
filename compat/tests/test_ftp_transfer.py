@@ -68,6 +68,14 @@ class FtpTransferTests(unittest.TestCase):
         self.assertTrue(any("no NETRC DD" in message for message in messages))
         self.assertIn(("STEP030", "INPUT line 2 is not an FTP subcommand (inline login/credential?)"), issues)
 
+    def test_ftp_step_must_fail_closed_with_exit(self):
+        no_exit = SECURE_STEP.replace("PARM='-r TLS (EXIT'", "PARM='-r TLS'")
+        self.assertIn(
+            ("STEP030", "PARM lacks (EXIT; a refused TLS handshake or failed PUT would not end the step with a non-zero return code"),
+            ftp_step_issues(no_exit),
+        )
+        self.assertEqual(ftp_step_issues(SECURE_STEP), [])
+
     def test_ftp_program_on_exec_continuation_is_detected(self):
         self.assertIn("STEP030", [name for name, _, _ in ftp_steps(FTP_CONTINUATION_STEP)])
         self.assertIn(

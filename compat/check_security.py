@@ -102,6 +102,8 @@ def ftp_step_issues(text):
     for stepname, exec_text, dds in ftp_steps(text):
         if not re.search(r"-r\s+TLS\b", exec_text, re.I):
             issues.append((stepname, "PARM does not require TLS (-r TLS)"))
+        if not re.search(r"\(\s*EXIT\b", exec_text, re.I):
+            issues.append((stepname, "PARM lacks (EXIT; a refused TLS handshake or failed PUT would not end the step with a non-zero return code"))
 
         sysftpd = dds.get("SYSFTPD")
         if not sysftpd or sysftpd["data"] is None or sysftpd["dsn"] is not None:
