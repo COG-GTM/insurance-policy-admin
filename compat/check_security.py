@@ -15,11 +15,57 @@ RULES = [
 ]
 
 
+SYMBOL_REF = re.compile(r"&([A-Z@$#][A-Z0-9@$#]*)\.?", re.I)
+UNPROVABLE = object()
+
+
+def symbols_at_each_exec(lines, exec_starts):
+    """SET values in effect at each EXEC; PROC parameters can be overridden by a caller."""
+    symbols, at_exec = {}, {}
+    starts = set(exec_starts)
+    for i, line in enumerate(lines):
+        if i in starts:
+            at_exec[i] = dict(symbols)
+        m = re.match(r"^//[A-Z0-9@$#]*\s+(SET|PROC)\b(.*)$", line, re.I)
+        if not m:
+            continue
+        operands = re.sub(r"'(?:[^']|'')*'", lambda q: q.group(0).replace(" ", "\0"), m.group(2).strip())
+        operands = operands.split(" ", 1)[0].replace("\0", " ")
+        for name, value in re.findall(r"([A-Z@$#][A-Z0-9@$#]*)=('(?:[^']|'')*'|[^,]*)", operands, re.I):
+            if m.group(1).upper() == "PROC":
+                symbols[name.upper()] = UNPROVABLE
+            else:
+                symbols[name.upper()] = value[1:-1] if value.startswith("'") else value
+    return at_exec
+
+
+def resolve_program(program, symbols):
+    """The literal program name, or None when it cannot be proven from this file."""
+    for _ in range(10):
+        if "&" not in program:
+            return program
+        unprovable = False
+
+        def substitute(m):
+            nonlocal unprovable
+            value = symbols.get(m.group(1).upper(), UNPROVABLE)
+            if value is UNPROVABLE:
+                unprovable = True
+                return m.group(0)
+            return value
+
+        program = SYMBOL_REF.sub(substitute, program)
+        if unprovable:
+            return None
+    return None
+
+
 def ftp_steps(text):
     lines = (text or "").splitlines()
     any_exec_re = re.compile(r"^//[A-Z0-9@$#]+\s+EXEC\b", re.I)
     dd_re = re.compile(r"^//(?:([A-Z0-9@$#]+)\s+)?\s*DD\b(.*)$", re.I)
     exec_starts = [i for i, line in enumerate(lines) if any_exec_re.match(line)]
+    symbols = symbols_at_each_exec(lines, exec_starts)
     steps = []
 
     for start in exec_starts:
@@ -37,9 +83,12 @@ def ftp_steps(text):
         exec_for_match = "\n".join(line[2:] if line.startswith("//") else line for line in exec_lines)
         exec_for_match = re.sub(r"'(?:[^']|'')*'", "''", exec_for_match)
         program = re.search(r"(?:^|[\s,])PGM\s*=\s*([^\s,]+)", exec_for_match, re.I)
-        # A symbolic program name can be set to FTP by a SET, a PROC override or a
-        # system symbol the gate cannot see, so it always gets the full check.
-        if not program or not (program.group(1).upper() == "FTP" or "&" in program.group(1)):
+        if not program:
+            continue
+        # A symbol without a SET value provable at this step (PROC parameter, system
+        # symbol, INCLUDE member) could be FTP, so it gets the full check.
+        resolved = resolve_program(program.group(1), symbols[start])
+        if resolved is not None and resolved.upper() != "FTP":
             continue
 
         dds = {}

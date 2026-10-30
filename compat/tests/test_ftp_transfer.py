@@ -207,8 +207,23 @@ class FtpTransferTests(unittest.TestCase):
             + "\n//         SET XFER=IEBGENER\n"
         )
         self.assertIn(("STEP030", "PARM does not require TLS (-r TLS)"), ftp_step_issues(later_set))
+        nested = "//         SET A=FT,B=&A.P\n" + OLD_INSECURE_STEP.replace("PGM=FTP", "PGM=&B")
+        self.assertIn(("STEP030", "PARM does not require TLS (-r TLS)"), ftp_step_issues(nested))
         literal = "//STEP1    EXEC PGM=IEBGENER\n//SYSUT1   DD DUMMY"
         self.assertEqual(ftp_steps(literal), [])
+
+    def test_symbolic_program_with_provable_non_ftp_value_is_skipped(self):
+        other = "//         SET XFER=IEBGENER\n//STEP1    EXEC PGM=&XFER\n//SYSUT1   DD DUMMY"
+        self.assertEqual(ftp_steps(other), [])
+        quoted = "//         SET XFER='IEBGENER'  COPY UTILITY\n//STEP1    EXEC PGM=&XFER.\n//SYSUT1   DD DUMMY"
+        self.assertEqual(ftp_steps(quoted), [])
+        reset_to_ftp = (
+            "//         SET XFER=IEBGENER\n//STEP1    EXEC PGM=&XFER\n//SYSUT1   DD DUMMY\n"
+            "//         SET XFER=FTP\n" + OLD_INSECURE_STEP.replace("PGM=FTP", "PGM=&XFER")
+        )
+        self.assertEqual([s[0] for s in ftp_steps(reset_to_ftp)], ["STEP030"])
+        proc_default = "//SENDPRC  PROC P=IEBGENER\n//STEP1    EXEC PGM=&P\n//SYSUT1   DD DUMMY"
+        self.assertEqual([s[0] for s in ftp_steps(proc_default)], ["STEP1"])
 
     def test_gate_accepts_secure_step_with_parm_on_continuation(self):
         step = SECURE_STEP.replace(
