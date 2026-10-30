@@ -87,6 +87,8 @@
                PERFORM 4000-GENERATE-POLICY-NUM
                PERFORM 5000-INSERT-POLICY
                PERFORM 6000-INSERT-COVERAGES
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 6900-WRITE-AUDIT-TRAIL
            END-IF
            IF WS-ERROR-MSG = SPACES
@@ -279,20 +281,27 @@
            .
 
        6100-WRITE-COVERAGE.
-           ADD 1 TO COV-SEQUENCE-NUM
-           MOVE POLICY-NUMBER TO COV-POLICY-NUMBER
-           EXEC SQL
-               INSERT INTO COVERAGES
-               (POLICY_NUMBER, SEQUENCE_NUM, COVERAGE_TYPE,
-                DESCRIPTION, COVERAGE_LIMIT, DEDUCTIBLE,
-                PREMIUM, EFFECTIVE_DATE, EXPIRY_DATE, STATUS)
-               VALUES
-               (:COV-POLICY-NUMBER, :COV-SEQUENCE-NUM,
-                :COV-TYPE-CODE, :COV-DESCRIPTION,
-                :COV-LIMIT, :COV-DEDUCTIBLE,
-                :COV-PREMIUM, :POL-EFF-DT,
-                :POL-EXP-DT, 'AC')
-           END-EXEC
+      *    Skip remaining coverages once one insert has failed
+           IF WS-ERROR-MSG = SPACES
+               ADD 1 TO COV-SEQUENCE-NUM
+               MOVE POLICY-NUMBER TO COV-POLICY-NUMBER
+               EXEC SQL
+                   INSERT INTO COVERAGES
+                   (POLICY_NUMBER, SEQUENCE_NUM, COVERAGE_TYPE,
+                    DESCRIPTION, COVERAGE_LIMIT, DEDUCTIBLE,
+                    PREMIUM, EFFECTIVE_DATE, EXPIRY_DATE, STATUS)
+                   VALUES
+                   (:COV-POLICY-NUMBER, :COV-SEQUENCE-NUM,
+                    :COV-TYPE-CODE, :COV-DESCRIPTION,
+                    :COV-LIMIT, :COV-DEDUCTIBLE,
+                    :COV-PREMIUM, :POL-EFF-DT,
+                    :POL-EXP-DT, 'AC')
+               END-EXEC
+               IF SQLCODE NOT = 0
+                   MOVE 'DB2 ERROR INSERTING COVERAGE - NOT APPLIED'
+                       TO WS-ERROR-MSG
+               END-IF
+           END-IF
            .
 
        6900-WRITE-AUDIT-TRAIL.
