@@ -8,6 +8,8 @@
       * Date:     1999-02-10
       * Modified: 2007-04-15 - Added mid-term cancellation
       *           2016-08-01 - Added endorsement audit trail
+      *           2026-10-30 - Operator identity, policy scope check,
+      *                        durable DB2 audit (POLICY_AUDIT_LOG)
       *
       * Processes policy endorsements (changes to existing policy):
       * - Coverage additions/removals
@@ -36,6 +38,12 @@
            88  END-TYPE-LMT-CHG       VALUE 'LCH'.
            88  END-TYPE-ADDR-CHG      VALUE 'ACH'.
            88  END-TYPE-CANCEL        VALUE 'CAN'.
+       01  WS-USER-ID                PIC X(08).
+       01  WS-TERMINAL-ID            PIC X(04).
+       01  WS-TRANSACTION-ID         PIC X(04).
+       01  WS-NOT-IN-SCOPE-MSG       PIC X(79) VALUE
+           'POLICY NOT FOUND OR NOT IN YOUR BOOK OF BUSINESS'.
+       01  WS-OLD-PREMIUM            PIC S9(09)V99 COMP-3.
 
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
@@ -48,16 +56,23 @@
        PROCEDURE DIVISION.
        0000-MAIN-LOGIC.
            PERFORM 1000-INITIALIZE
-           PERFORM 2000-RECEIVE-ENDORSEMENT
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 2000-RECEIVE-ENDORSEMENT
+           END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 3000-VALIDATE-ENDORSEMENT
            END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 4000-CALCULATE-PRORATA
                PERFORM 5000-APPLY-ENDORSEMENT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 6000-WRITE-AUDIT-TRAIL
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 7000-SEND-CONFIRMATION
            ELSE
+               PERFORM 8500-ROLLBACK
                PERFORM 8000-SEND-ERROR
            END-IF
            PERFORM 9999-RETURN
@@ -70,6 +85,19 @@
                ABSTIME(WS-CURRENT-DATE)
                YYYYMMDD(WS-CURRENT-DATE)
            END-EXEC
+      *    Identify the signed-on operator; every change is attributed
+      *    to this RACF user id and scoped to their USER_ENTITLEMENTS.
+           MOVE EIBTRMID TO WS-TERMINAL-ID
+           MOVE EIBTRNID TO WS-TRANSACTION-ID
+           EXEC CICS ASSIGN
+               USERID(WS-USER-ID)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               OR WS-USER-ID = SPACES
+               MOVE 'UNABLE TO IDENTIFY SIGNED-ON USER'
+                   TO WS-ERROR-MSG
+           END-IF
            .
 
        2000-RECEIVE-ENDORSEMENT.
@@ -82,8 +110,14 @@
            IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
                MOVE 'ERROR RECEIVING ENDORSEMENT DATA'
                    TO WS-ERROR-MSG
+           ELSE
+               PERFORM 2100-READ-POLICY-IN-SCOPE
            END-IF
-      *    Read current policy from DB2
+           .
+
+       2100-READ-POLICY-IN-SCOPE.
+      *    Read current policy from DB2, only if it is in the
+      *    operator's book of business (branch / agent entitlement)
            EXEC SQL
                SELECT POLICY_NUMBER, POLICY_STATUS,
                       EFFECTIVE_DATE, EXPIRY_DATE,
@@ -91,13 +125,27 @@
                INTO :POLICY-NUMBER, :POLICY-STATUS,
                     :POLICY-EFFECTIVE-DATE, :POLICY-EXPIRY-DATE,
                     :POLICY-TOTAL-PREMIUM
-               FROM POLICIES
-               WHERE POLICY_NUMBER = :POLICY-NUMBER
+               FROM POLICIES P
+               WHERE P.POLICY_NUMBER = :POLICY-NUMBER
+                 AND EXISTS
+                     (SELECT 1 FROM USER_ENTITLEMENTS E
+                       WHERE E.USER_ID = :WS-USER-ID
+                         AND E.ACTIVE_IND = 'Y'
+                         AND (E.SCOPE_LEVEL = 'A'
+                          OR (E.SCOPE_LEVEL = 'B'
+                              AND E.BRANCH_CODE = P.BRANCH_CODE)
+                          OR (E.SCOPE_LEVEL = 'G'
+                              AND E.AGENT_CODE = P.AGENT_CODE)))
                WITH RS USE AND KEEP UPDATE LOCKS
            END-EXEC
-           IF SQLCODE NOT = 0
-               MOVE 'POLICY NOT FOUND' TO WS-ERROR-MSG
-           END-IF
+           EVALUATE TRUE
+               WHEN SQLCODE = 0
+                   MOVE POLICY-TOTAL-PREMIUM TO WS-OLD-PREMIUM
+               WHEN SQLCODE = 100
+                   MOVE WS-NOT-IN-SCOPE-MSG TO WS-ERROR-MSG
+               WHEN OTHER
+                   MOVE 'DB2 ERROR READING POLICY' TO WS-ERROR-MSG
+           END-EVALUATE
            .
 
        3000-VALIDATE-ENDORSEMENT.
@@ -147,32 +195,68 @@
                (:POLICY-NUMBER, :WS-ENDORSEMENT-SEQ,
                 :WS-ENDORSEMENT-TYPE, :WS-CURRENT-DATE,
                 :WS-PREMIUM-ADJUST, CURRENT TIMESTAMP,
-                'POLEND')
+                :WS-USER-ID)
            END-EXEC
            IF SQLCODE NOT = 0
                MOVE 'DB2 ERROR INSERTING ENDORSEMENT'
                    TO WS-ERROR-MSG
+           ELSE
+               PERFORM 5100-UPDATE-POLICY-PREMIUM
            END-IF
+           .
 
-      *    Update policy premium
+       5100-UPDATE-POLICY-PREMIUM.
            COMPUTE POLICY-TOTAL-PREMIUM =
                POLICY-TOTAL-PREMIUM + WS-PREMIUM-ADJUST
            EXEC SQL
-               UPDATE POLICIES
+               UPDATE POLICIES P
                SET TOTAL_PREMIUM = :POLICY-TOTAL-PREMIUM,
                    LAST_UPDATED = CURRENT TIMESTAMP,
-                   UPDATED_BY = 'POLEND'
-               WHERE POLICY_NUMBER = :POLICY-NUMBER
+                   UPDATED_BY = :WS-USER-ID
+               WHERE P.POLICY_NUMBER = :POLICY-NUMBER
+                 AND EXISTS
+                     (SELECT 1 FROM USER_ENTITLEMENTS E
+                       WHERE E.USER_ID = :WS-USER-ID
+                         AND E.ACTIVE_IND = 'Y'
+                         AND (E.SCOPE_LEVEL = 'A'
+                          OR (E.SCOPE_LEVEL = 'B'
+                              AND E.BRANCH_CODE = P.BRANCH_CODE)
+                          OR (E.SCOPE_LEVEL = 'G'
+                              AND E.AGENT_CODE = P.AGENT_CODE)))
            END-EXEC
+           EVALUATE TRUE
+               WHEN SQLCODE = 0
+                   CONTINUE
+               WHEN SQLCODE = 100
+                   MOVE WS-NOT-IN-SCOPE-MSG TO WS-ERROR-MSG
+               WHEN OTHER
+                   MOVE 'DB2 ERROR UPDATING POLICY PREMIUM'
+                       TO WS-ERROR-MSG
+           END-EVALUATE
            .
 
        6000-WRITE-AUDIT-TRAIL.
-      *    Added 2016 for regulatory compliance
-           EXEC CICS WRITEQ TS
-               QUEUE('ENDORSEMENT-AUDIT')
-               FROM(POLICY-RECORD)
-               LENGTH(LENGTH OF POLICY-RECORD)
+      *    Regulatory audit record (2016), now a durable DB2 row in the
+      *    same unit of work as the endorsement: who, where, what, how
+      *    much. Replaces the temporary storage queue write.
+           EXEC SQL
+               INSERT INTO POLICY_AUDIT_LOG
+               (POLICY_NUMBER, ACTION_CODE, TRANSACTION_ID,
+                PROGRAM_ID, USER_ID, TERMINAL_ID,
+                CHANGE_SEQ, CHANGE_CODE, OLD_PREMIUM,
+                NEW_PREMIUM, PREMIUM_ADJUSTMENT,
+                CREATED_TIMESTAMP)
+               VALUES
+               (:POLICY-NUMBER, 'END', :WS-TRANSACTION-ID,
+                :WS-PROGRAM-ID, :WS-USER-ID, :WS-TERMINAL-ID,
+                :WS-ENDORSEMENT-SEQ, :WS-ENDORSEMENT-TYPE,
+                :WS-OLD-PREMIUM, :POLICY-TOTAL-PREMIUM,
+                :WS-PREMIUM-ADJUST, CURRENT TIMESTAMP)
            END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE 'DB2 ERROR WRITING AUDIT RECORD - NOT APPLIED'
+                   TO WS-ERROR-MSG
+           END-IF
            .
 
        7000-SEND-CONFIRMATION.
@@ -189,6 +273,13 @@
                FROM(WS-ERROR-MSG)
                LENGTH(79)
                ERASE
+           END-EXEC
+           .
+
+       8500-ROLLBACK.
+      *    Back out any partial change so nothing unaudited commits
+           EXEC CICS SYNCPOINT ROLLBACK
+               RESP(WS-RESPONSE-CODE)
            END-EXEC
            .
 

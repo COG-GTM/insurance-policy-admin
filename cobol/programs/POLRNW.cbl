@@ -9,6 +9,8 @@
       * Modified: 2005-03-01 - Added auto-renewal logic
       *           2012-11-15 - Added rate increase cap (regulatory)
       *           2020-02-01 - COVID grace period extension
+      *           2026-10-30 - Operator identity, policy scope check,
+      *                        durable DB2 audit (POLICY_AUDIT_LOG)
       *
       * Processes policy renewals. Reads expiring policy, validates
       * renewal eligibility, applies rate changes, creates new term.
@@ -31,6 +33,13 @@
        01  WS-RATE-CHANGE-PCT        PIC S9(03)V99 COMP-3.
        01  WS-NEW-PREMIUM            PIC S9(09)V99 COMP-3.
        01  WS-OLD-PREMIUM            PIC S9(09)V99 COMP-3.
+       01  WS-PREMIUM-CHANGE         PIC S9(09)V99 COMP-3.
+       01  WS-AUDIT-DETAIL           PIC X(100).
+       01  WS-USER-ID                PIC X(08).
+       01  WS-TERMINAL-ID            PIC X(04).
+       01  WS-TRANSACTION-ID         PIC X(04).
+       01  WS-NOT-IN-SCOPE-MSG       PIC X(79) VALUE
+           'POLICY NOT FOUND OR NOT IN YOUR BOOK OF BUSINESS'.
       * COVID grace period flag - added 2020
        01  WS-COVID-GRACE            PIC X(01) VALUE 'N'.
            88  COVID-GRACE-YES       VALUE 'Y'.
@@ -48,7 +57,9 @@
        PROCEDURE DIVISION.
        0000-MAIN-LOGIC.
            PERFORM 1000-INITIALIZE
-           PERFORM 2000-READ-EXISTING-POLICY
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 2000-READ-EXISTING-POLICY
+           END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 3000-CHECK-RENEWAL-ELIGIBILITY
            END-IF
@@ -56,9 +67,17 @@
                PERFORM 4000-CALCULATE-NEW-PREMIUM
                PERFORM 5000-APPLY-RATE-CAP
                PERFORM 6000-CREATE-RENEWAL-TERM
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 7000-UPDATE-COVERAGES
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 7500-WRITE-AUDIT-TRAIL
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 8000-SEND-CONFIRMATION
            ELSE
+               PERFORM 8500-ROLLBACK
                PERFORM 9000-SEND-ERROR
            END-IF
            PERFORM 9999-RETURN
@@ -73,6 +92,19 @@
                ABSTIME(WS-CURRENT-DATE)
                YYYYMMDD(WS-CURRENT-DATE)
            END-EXEC
+      *    Identify the signed-on operator; every change is attributed
+      *    to this RACF user id and scoped to their USER_ENTITLEMENTS.
+           MOVE EIBTRMID TO WS-TERMINAL-ID
+           MOVE EIBTRNID TO WS-TRANSACTION-ID
+           EXEC CICS ASSIGN
+               USERID(WS-USER-ID)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               OR WS-USER-ID = SPACES
+               MOVE 'UNABLE TO IDENTIFY SIGNED-ON USER'
+                   TO WS-ERROR-MSG
+           END-IF
            .
 
        2000-READ-EXISTING-POLICY.
@@ -84,8 +116,13 @@
            END-EXEC
            IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
                MOVE 'ERROR RECEIVING RENEWAL DATA' TO WS-ERROR-MSG
-               GO TO 2000-EXIT
+           ELSE
+               PERFORM 2100-READ-POLICY-IN-SCOPE
            END-IF
+           .
+
+       2100-READ-POLICY-IN-SCOPE.
+      *    Only policies in the operator's book of business
            EXEC SQL
                SELECT POLICY_NUMBER, POLICY_TYPE, POLICY_STATUS,
                       TOTAL_PREMIUM, EXPIRY_DATE, RENEWAL_COUNT,
@@ -93,15 +130,28 @@
                INTO :POLICY-NUMBER, :POLICY-TYPE, :POLICY-STATUS,
                     :POLICY-TOTAL-PREMIUM, :POLICY-EXPIRY-DATE,
                     :POLICY-RENEWAL-COUNT, :POLICY-UW-STATUS
-               FROM POLICIES
-               WHERE POLICY_NUMBER = :POLICY-NUMBER
+               FROM POLICIES P
+               WHERE P.POLICY_NUMBER = :POLICY-NUMBER
+                 AND EXISTS
+                     (SELECT 1 FROM USER_ENTITLEMENTS E
+                       WHERE E.USER_ID = :WS-USER-ID
+                         AND E.ACTIVE_IND = 'Y'
+                         AND (E.SCOPE_LEVEL = 'A'
+                          OR (E.SCOPE_LEVEL = 'B'
+                              AND E.BRANCH_CODE = P.BRANCH_CODE)
+                          OR (E.SCOPE_LEVEL = 'G'
+                              AND E.AGENT_CODE = P.AGENT_CODE)))
            END-EXEC
-           IF SQLCODE NOT = 0
-               MOVE 'POLICY NOT FOUND FOR RENEWAL' TO WS-ERROR-MSG
-           END-IF
+           EVALUATE TRUE
+               WHEN SQLCODE = 0
+                   CONTINUE
+               WHEN SQLCODE = 100
+                   MOVE WS-NOT-IN-SCOPE-MSG TO WS-ERROR-MSG
+               WHEN OTHER
+                   MOVE 'DB2 ERROR READING POLICY FOR RENEWAL'
+                       TO WS-ERROR-MSG
+           END-EVALUATE
            .
-       2000-EXIT.
-           EXIT.
 
        3000-CHECK-RENEWAL-ELIGIBILITY.
            IF NOT POL-STAT-ACTIVE AND NOT POL-STAT-EXPIRED
@@ -152,7 +202,7 @@
            MOVE 'PN' TO POLICY-UW-STATUS
 
            EXEC SQL
-               UPDATE POLICIES
+               UPDATE POLICIES P
                SET POLICY_STATUS = :POLICY-STATUS,
                    EFFECTIVE_DATE = :POLICY-EFFECTIVE-DATE,
                    EXPIRY_DATE = :POLICY-EXPIRY-DATE,
@@ -160,13 +210,26 @@
                    RENEWAL_COUNT = :POLICY-RENEWAL-COUNT,
                    UW_STATUS = :POLICY-UW-STATUS,
                    LAST_UPDATED = CURRENT TIMESTAMP,
-                   UPDATED_BY = 'POLRNW'
-               WHERE POLICY_NUMBER = :POLICY-NUMBER
+                   UPDATED_BY = :WS-USER-ID
+               WHERE P.POLICY_NUMBER = :POLICY-NUMBER
+                 AND EXISTS
+                     (SELECT 1 FROM USER_ENTITLEMENTS E
+                       WHERE E.USER_ID = :WS-USER-ID
+                         AND E.ACTIVE_IND = 'Y'
+                         AND (E.SCOPE_LEVEL = 'A'
+                          OR (E.SCOPE_LEVEL = 'B'
+                              AND E.BRANCH_CODE = P.BRANCH_CODE)
+                          OR (E.SCOPE_LEVEL = 'G'
+                              AND E.AGENT_CODE = P.AGENT_CODE)))
            END-EXEC
-           IF SQLCODE NOT = 0
-               MOVE 'DB2 ERROR UPDATING RENEWAL' TO WS-ERROR-MSG
-               PERFORM 9000-SEND-ERROR
-           END-IF
+           EVALUATE TRUE
+               WHEN SQLCODE = 0
+                   CONTINUE
+               WHEN SQLCODE = 100
+                   MOVE WS-NOT-IN-SCOPE-MSG TO WS-ERROR-MSG
+               WHEN OTHER
+                   MOVE 'DB2 ERROR UPDATING RENEWAL' TO WS-ERROR-MSG
+           END-EVALUATE
            .
 
        7000-UPDATE-COVERAGES.
@@ -178,6 +241,36 @@
                WHERE POLICY_NUMBER = :POLICY-NUMBER
                  AND STATUS = 'AC'
            END-EXEC
+           IF SQLCODE < 0
+               MOVE 'DB2 ERROR UPDATING COVERAGES' TO WS-ERROR-MSG
+           END-IF
+           .
+
+       7500-WRITE-AUDIT-TRAIL.
+           COMPUTE WS-PREMIUM-CHANGE =
+               POLICY-TOTAL-PREMIUM - WS-OLD-PREMIUM
+           MOVE SPACES TO WS-AUDIT-DETAIL
+           STRING 'RENEWED TERM ' POLICY-EFFECTIVE-DATE
+                  ' TO ' POLICY-EXPIRY-DATE
+               DELIMITED BY SIZE
+               INTO WS-AUDIT-DETAIL
+           EXEC SQL
+               INSERT INTO POLICY_AUDIT_LOG
+               (POLICY_NUMBER, ACTION_CODE, TRANSACTION_ID,
+                PROGRAM_ID, USER_ID, TERMINAL_ID,
+                CHANGE_SEQ, OLD_PREMIUM, NEW_PREMIUM,
+                PREMIUM_ADJUSTMENT, DETAIL, CREATED_TIMESTAMP)
+               VALUES
+               (:POLICY-NUMBER, 'RNW', :WS-TRANSACTION-ID,
+                :WS-PROGRAM-ID, :WS-USER-ID, :WS-TERMINAL-ID,
+                :POLICY-RENEWAL-COUNT, :WS-OLD-PREMIUM,
+                :POLICY-TOTAL-PREMIUM, :WS-PREMIUM-CHANGE,
+                :WS-AUDIT-DETAIL, CURRENT TIMESTAMP)
+           END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE 'DB2 ERROR WRITING AUDIT RECORD - NOT APPLIED'
+                   TO WS-ERROR-MSG
+           END-IF
            .
 
        8000-SEND-CONFIRMATION.
@@ -186,6 +279,13 @@
                MAPSET('POLRMAPS')
                FROM(POLICY-RECORD)
                ERASE
+           END-EXEC
+           .
+
+       8500-ROLLBACK.
+      *    Back out any partial change so nothing unaudited commits
+           EXEC CICS SYNCPOINT ROLLBACK
+               RESP(WS-RESPONSE-CODE)
            END-EXEC
            .
 

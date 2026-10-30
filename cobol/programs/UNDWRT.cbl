@@ -9,6 +9,8 @@
       * Modified: 2004-03-15 - Added terrorism risk scoring
       *           2011-07-01 - Added catastrophe zone check
       *           2018-12-01 - Added cyber risk assessment
+      *           2026-10-30 - Operator identity, policy scope check,
+      *                        durable DB2 audit (POLICY_AUDIT_LOG)
       *
       * Evaluates underwriting risk for new and renewal policies.
       * Applies risk scoring rules, checks accumulation limits,
@@ -44,6 +46,11 @@
        01  WS-ZONE-RISK-FACTOR       PIC S9(01)V99 COMP-3.
        01  WS-MQ-QUEUE               PIC X(48)
            VALUE 'ACME.PAS.UNDERWRITING.DECISION'.
+       01  WS-USER-ID                PIC X(08).
+       01  WS-TERMINAL-ID            PIC X(04).
+       01  WS-TRANSACTION-ID         PIC X(04).
+       01  WS-NOT-IN-SCOPE-MSG       PIC X(79) VALUE
+           'POLICY NOT FOUND OR NOT IN YOUR BOOK OF BUSINESS'.
 
        COPY POLICY-RECORD.
        COPY CUSTOMER-RECORD.
@@ -56,15 +63,23 @@
        PROCEDURE DIVISION.
        0000-MAIN-LOGIC.
            PERFORM 1000-INITIALIZE
-           PERFORM 2000-READ-POLICY-DATA
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 2000-READ-POLICY-DATA
+           END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 3000-CALCULATE-RISK-SCORE
                PERFORM 4000-CHECK-ACCUMULATION
                PERFORM 5000-RENDER-DECISION
                PERFORM 6000-WRITE-DECISION
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 6900-WRITE-AUDIT-TRAIL
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 7000-SEND-MQ-NOTIFICATION
                PERFORM 8000-DISPLAY-RESULT
            ELSE
+               PERFORM 8500-ROLLBACK
                PERFORM 9000-SEND-ERROR
            END-IF
            PERFORM 9999-RETURN
@@ -79,6 +94,19 @@
                ABSTIME(WS-CURRENT-DATE)
                YYYYMMDD(WS-CURRENT-DATE)
            END-EXEC
+      *    Identify the signed-on operator; every change is attributed
+      *    to this RACF user id and scoped to their USER_ENTITLEMENTS.
+           MOVE EIBTRMID TO WS-TERMINAL-ID
+           MOVE EIBTRNID TO WS-TRANSACTION-ID
+           EXEC CICS ASSIGN
+               USERID(WS-USER-ID)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               OR WS-USER-ID = SPACES
+               MOVE 'UNABLE TO IDENTIFY SIGNED-ON USER'
+                   TO WS-ERROR-MSG
+           END-IF
            .
 
        2000-READ-POLICY-DATA.
@@ -91,8 +119,13 @@
            IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
                MOVE 'ERROR RECEIVING UNDERWRITING DATA'
                    TO WS-ERROR-MSG
-               GO TO 2000-EXIT
+           ELSE
+               PERFORM 2100-READ-POLICY-IN-SCOPE
            END-IF
+           .
+
+       2100-READ-POLICY-IN-SCOPE.
+      *    Only policies in the operator's book of business
            EXEC SQL
                SELECT P.POLICY_NUMBER, P.POLICY_TYPE,
                       P.TOTAL_PREMIUM, P.COVERAGE_LIMIT,
@@ -107,14 +140,26 @@
                JOIN POLICY_HOLDERS C
                  ON P.POLICYHOLDER_ID = C.CUST_ID
                WHERE P.POLICY_NUMBER = :POLICY-NUMBER
+                 AND EXISTS
+                     (SELECT 1 FROM USER_ENTITLEMENTS E
+                       WHERE E.USER_ID = :WS-USER-ID
+                         AND E.ACTIVE_IND = 'Y'
+                         AND (E.SCOPE_LEVEL = 'A'
+                          OR (E.SCOPE_LEVEL = 'B'
+                              AND E.BRANCH_CODE = P.BRANCH_CODE)
+                          OR (E.SCOPE_LEVEL = 'G'
+                              AND E.AGENT_CODE = P.AGENT_CODE)))
            END-EXEC
-           IF SQLCODE NOT = 0
-               MOVE 'POLICY/CUSTOMER DATA NOT FOUND'
-                   TO WS-ERROR-MSG
-           END-IF
+           EVALUATE TRUE
+               WHEN SQLCODE = 0
+                   CONTINUE
+               WHEN SQLCODE = 100
+                   MOVE WS-NOT-IN-SCOPE-MSG TO WS-ERROR-MSG
+               WHEN OTHER
+                   MOVE 'DB2 ERROR READING POLICY/CUSTOMER DATA'
+                       TO WS-ERROR-MSG
+           END-EVALUATE
            .
-       2000-EXIT.
-           EXIT.
 
        3000-CALCULATE-RISK-SCORE.
       *    Base score from credit
@@ -220,17 +265,61 @@
                (:POLICY-NUMBER, :WS-CURRENT-DATE,
                 :WS-DECISION, :WS-RISK-SCORE,
                 :WS-DECISION-REASON,
-                'SYSTEM', CURRENT TIMESTAMP)
+                :WS-USER-ID, CURRENT TIMESTAMP)
            END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE 'DB2 ERROR WRITING UNDERWRITING DECISION'
+                   TO WS-ERROR-MSG
+           ELSE
+               PERFORM 6100-UPDATE-POLICY-UW
+           END-IF
+           .
 
+       6100-UPDATE-POLICY-UW.
            EXEC SQL
-               UPDATE POLICIES
+               UPDATE POLICIES P
                SET UW_STATUS = :WS-DECISION,
                    RISK_SCORE = :WS-RISK-SCORE,
                    LAST_UPDATED = CURRENT TIMESTAMP,
-                   UPDATED_BY = 'UNDWRT'
-               WHERE POLICY_NUMBER = :POLICY-NUMBER
+                   UPDATED_BY = :WS-USER-ID
+               WHERE P.POLICY_NUMBER = :POLICY-NUMBER
+                 AND EXISTS
+                     (SELECT 1 FROM USER_ENTITLEMENTS E
+                       WHERE E.USER_ID = :WS-USER-ID
+                         AND E.ACTIVE_IND = 'Y'
+                         AND (E.SCOPE_LEVEL = 'A'
+                          OR (E.SCOPE_LEVEL = 'B'
+                              AND E.BRANCH_CODE = P.BRANCH_CODE)
+                          OR (E.SCOPE_LEVEL = 'G'
+                              AND E.AGENT_CODE = P.AGENT_CODE)))
            END-EXEC
+           EVALUATE TRUE
+               WHEN SQLCODE = 0
+                   CONTINUE
+               WHEN SQLCODE = 100
+                   MOVE WS-NOT-IN-SCOPE-MSG TO WS-ERROR-MSG
+               WHEN OTHER
+                   MOVE 'DB2 ERROR UPDATING UNDERWRITING STATUS'
+                       TO WS-ERROR-MSG
+           END-EVALUATE
+           .
+
+       6900-WRITE-AUDIT-TRAIL.
+           EXEC SQL
+               INSERT INTO POLICY_AUDIT_LOG
+               (POLICY_NUMBER, ACTION_CODE, TRANSACTION_ID,
+                PROGRAM_ID, USER_ID, TERMINAL_ID,
+                CHANGE_CODE, DETAIL, CREATED_TIMESTAMP)
+               VALUES
+               (:POLICY-NUMBER, 'UWD', :WS-TRANSACTION-ID,
+                :WS-PROGRAM-ID, :WS-USER-ID, :WS-TERMINAL-ID,
+                :WS-DECISION, :WS-DECISION-REASON,
+                CURRENT TIMESTAMP)
+           END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE 'DB2 ERROR WRITING AUDIT RECORD - NOT APPLIED'
+                   TO WS-ERROR-MSG
+           END-IF
            .
 
        7000-SEND-MQ-NOTIFICATION.
@@ -248,6 +337,13 @@
                MAPSET('UWRTMAPS')
                FROM(POLICY-RECORD)
                ERASE
+           END-EXEC
+           .
+
+       8500-ROLLBACK.
+      *    Back out any partial change so nothing unaudited commits
+           EXEC CICS SYNCPOINT ROLLBACK
+               RESP(WS-RESPONSE-CODE)
            END-EXEC
            .
 
