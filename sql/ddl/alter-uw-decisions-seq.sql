@@ -11,11 +11,16 @@
 -- old system-named unique index, which would still reject a second
 -- same-day decision. Dropping the old table removes that index.
 --
+-- The new table is created without named constraints so it can coexist
+-- with the old one; PK_UW_DECISIONS and FK_UWD_POLICY are added after
+-- the old table is gone.
+--
 -- Run before deploying the new UNDWRT load module, with PUWR disabled.
--- Re-apply the table's GRANTs afterwards (DROP TABLE removes them).
+-- Re-apply the table's GRANTs afterwards (DROP TABLE removes them). If
+-- step 4 leaves the table space CHECK-pending, run CHECK DATA.
 ------------------------------------------------------------------------
 
--- 1. New table with the new key and its enforcing index
+-- 1. New table and the unique index for the new key
 CREATE TABLE ACMEINS.UNDERWRITING_DECISIONS_NEW (
     POLICY_NUMBER       CHAR(12)        NOT NULL,
     DECISION_DATE       DATE            NOT NULL,
@@ -26,11 +31,7 @@ CREATE TABLE ACMEINS.UNDERWRITING_DECISIONS_NEW (
     UNDERWRITER_ID      CHAR(8),
     OVERRIDE_REASON     VARCHAR(200),
     OVERRIDE_BY         CHAR(8),
-    CREATED_TIMESTAMP   TIMESTAMP       NOT NULL DEFAULT CURRENT TIMESTAMP,
-    CONSTRAINT PK_UW_DECISIONS PRIMARY KEY
-        (POLICY_NUMBER, DECISION_DATE, DECISION_SEQ),
-    CONSTRAINT FK_UWD_POLICY FOREIGN KEY (POLICY_NUMBER)
-        REFERENCES ACMEINS.POLICIES (POLICY_NUMBER)
+    CREATED_TIMESTAMP   TIMESTAMP       NOT NULL DEFAULT CURRENT TIMESTAMP
 ) IN ACMEDB.PASTS01;
 
 CREATE UNIQUE INDEX ACMEINS.XUWD_PK
@@ -53,5 +54,14 @@ DROP TABLE ACMEINS.UNDERWRITING_DECISIONS;
 
 RENAME TABLE ACMEINS.UNDERWRITING_DECISIONS_NEW
     TO UNDERWRITING_DECISIONS;
+
+-- 4. Original constraint names on the new key (PK uses XUWD_PK)
+ALTER TABLE ACMEINS.UNDERWRITING_DECISIONS
+    ADD CONSTRAINT PK_UW_DECISIONS PRIMARY KEY
+        (POLICY_NUMBER, DECISION_DATE, DECISION_SEQ);
+
+ALTER TABLE ACMEINS.UNDERWRITING_DECISIONS
+    ADD CONSTRAINT FK_UWD_POLICY FOREIGN KEY (POLICY_NUMBER)
+        REFERENCES ACMEINS.POLICIES (POLICY_NUMBER);
 
 COMMIT;
