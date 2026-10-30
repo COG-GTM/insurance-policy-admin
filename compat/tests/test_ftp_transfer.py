@@ -201,8 +201,14 @@ class FtpTransferTests(unittest.TestCase):
             self.assertIn(("STEP030", "PARM does not require TLS (-r TLS)"), ftp_step_issues(text))
         secure = "//         SET XFER=FTP\n" + SECURE_STEP.replace("PGM=FTP", "PGM=&XFER")
         self.assertEqual(ftp_step_issues(secure), [])
-        other = "//         SET XFER=IEBGENER\n//STEP1    EXEC PGM=&XFER\n//SYSUT1   DD DUMMY"
-        self.assertEqual(ftp_steps(other), [])
+        later_set = (
+            "//         SET XFER=FTP\n"
+            + OLD_INSECURE_STEP.replace("PGM=FTP", "PGM=&XFER")
+            + "\n//         SET XFER=IEBGENER\n"
+        )
+        self.assertIn(("STEP030", "PARM does not require TLS (-r TLS)"), ftp_step_issues(later_set))
+        literal = "//STEP1    EXEC PGM=IEBGENER\n//SYSUT1   DD DUMMY"
+        self.assertEqual(ftp_steps(literal), [])
 
     def test_gate_accepts_secure_step_with_parm_on_continuation(self):
         step = SECURE_STEP.replace(

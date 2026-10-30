@@ -15,38 +15,11 @@ RULES = [
 ]
 
 
-def jcl_symbols(lines):
-    """Values assigned by SET statements and PROC defaults (last one wins)."""
-    symbols = {}
-    for line in lines:
-        m = re.match(r"^//[A-Z0-9@$#]*\s+(?:SET|PROC)\s+(.*)$", line, re.I)
-        if not m:
-            continue
-        for name, value in re.findall(r"([A-Z@$#][A-Z0-9@$#]*)=('(?:[^']|'')*'|[^,\s]*)", m.group(1), re.I):
-            symbols[name.upper()] = value.strip("'")
-    return symbols
-
-
-def resolve_symbols(text, symbols):
-    for _ in range(5):
-        resolved = re.sub(
-            r"&([A-Z@$#][A-Z0-9@$#]*)\.?",
-            lambda m: symbols.get(m.group(1).upper(), m.group(0)),
-            text,
-            flags=re.I,
-        )
-        if resolved == text:
-            break
-        text = resolved
-    return text
-
-
 def ftp_steps(text):
     lines = (text or "").splitlines()
     any_exec_re = re.compile(r"^//[A-Z0-9@$#]+\s+EXEC\b", re.I)
     dd_re = re.compile(r"^//(?:([A-Z0-9@$#]+)\s+)?\s*DD\b(.*)$", re.I)
     exec_starts = [i for i, line in enumerate(lines) if any_exec_re.match(line)]
-    symbols = jcl_symbols(lines)
     steps = []
 
     for start in exec_starts:
@@ -63,9 +36,9 @@ def ftp_steps(text):
         exec_text = "\n".join(exec_lines)
         exec_for_match = "\n".join(line[2:] if line.startswith("//") else line for line in exec_lines)
         exec_for_match = re.sub(r"'(?:[^']|'')*'", "''", exec_for_match)
-        exec_for_match = resolve_symbols(exec_for_match, symbols)
         program = re.search(r"(?:^|[\s,])PGM\s*=\s*([^\s,]+)", exec_for_match, re.I)
-        # An unresolved symbolic program name could be FTP, so it gets the full check.
+        # A symbolic program name can be set to FTP by a SET, a PROC override or a
+        # system symbol the gate cannot see, so it always gets the full check.
         if not program or not (program.group(1).upper() == "FTP" or "&" in program.group(1)):
             continue
 
