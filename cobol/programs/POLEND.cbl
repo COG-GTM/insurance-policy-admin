@@ -358,6 +358,7 @@
                    SET POL-STAT-CANCELLED TO TRUE
                END-IF
                MOVE 'POLEND' TO POLICY-UPDATED-BY
+               MOVE WS-CURRENT-DATE TO POLICY-LAST-UPDATED
                EXEC SQL
                    UPDATE POLICIES
                    SET TOTAL_PREMIUM = :POLICY-TOTAL-PREMIUM,

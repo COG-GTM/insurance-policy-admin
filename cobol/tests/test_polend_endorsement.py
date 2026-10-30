@@ -125,7 +125,8 @@ def stub(match):
     if "CICS WRITEQ TS" in block:
         return ("           DISPLAY 'AUDIT TYPE=' POLICY-TYPE\n"
                 "               ' HOLDER=' POLICY-HOLDER-ID\n"
-                "               ' BY=' POLICY-UPDATED-BY")
+                "               ' BY=' POLICY-UPDATED-BY\n"
+                "               ' LAST=' POLICY-LAST-UPDATED")
     if "CICS SEND TEXT" in block:
         return "           DISPLAY 'ERROR=' WS-ERROR-MSG"
     if "CICS SEND" in block:
@@ -241,7 +242,7 @@ class PolendEndorsementTests(unittest.TestCase):
     def test_audit_record_carries_full_policy_row(self):
         out = self.run_polend()
         self.assertIn("AUDIT TYPE=AUT HOLDER=H123", out)
-        self.assertIn("BY=POLEND", out)
+        self.assertRegex(out, r"BY=POLEND\s+LAST=20\d{6}")
 
     def test_insert_failure_rolls_back_and_skips_update(self):
         out = self.run_polend(insert_sqlcode="-551")
