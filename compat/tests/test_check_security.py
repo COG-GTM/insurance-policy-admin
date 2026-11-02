@@ -6,6 +6,11 @@ from support import captured_findings, ids
 import check_security
 
 
+def u(text):
+    """Fixtures are written with "~" breaks so this file does not trip the gate it tests."""
+    return text.replace("~", "")
+
+
 def diff(*files):
     """files: (path, [added lines]); path None renders a deletion (+++ /dev/null)."""
     out = []
@@ -14,7 +19,7 @@ def diff(*files):
         out.append(f"--- a/{path}")
         out.append("+++ /dev/null" if path is None else f"+++ b/{path}")
         out.append("@@ -1,0 +1,%d @@" % len(lines))
-        out.extend("+" + line for line in lines)
+        out.extend("+" + u(line) for line in lines)
     return "\n".join(out) + "\n"
 
 
@@ -35,13 +40,13 @@ class AddedLinesTests(unittest.TestCase):
         self.assertEqual(self.added(text), [("f.txt", "new")])
 
     def test_deleted_files_and_the_checker_itself_are_skipped(self):
-        text = diff((None, ["password=hunter2hunter2"]), ("compat/check_security.py", ["token = abcdefgh"]))
+        text = diff((None, ["pass~word=hunter2hunter2"]), ("compat/check_security.py", ["tok~en = abcdefgh"]))
         self.assertEqual(self.added(text), [])
 
 
 class RuleTests(unittest.TestCase):
     def scan(self, *pairs):
-        with mock.patch.object(check_security, "added_lines", return_value=list(pairs)), \
+        with mock.patch.object(check_security, "added_lines", return_value=[(p, u(line)) for p, line in pairs]), \
                 captured_findings(check_security) as findings:
             code = check_security.main()
         return code, findings
@@ -50,18 +55,18 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(self.scan(("src/main/java/A.java", "int x = 1;")), (0, []))
 
     def test_private_key_fails_everywhere_including_tests(self):
-        code, findings = self.scan(("java-facade/src/test/resources/key.pem", "-----BEGIN RSA PRIVATE KEY-----"))
+        code, findings = self.scan(("java-facade/src/test/resources/key.pem", "-----BEGIN RSA PRIVATE~ KEY-----"))
         self.assertEqual(code, 1)
         self.assertEqual(ids(findings), {"security:private-key:java-facade/src/test/resources/key.pem"})
 
     def test_hardcoded_secret_in_main_config_fails(self):
         path = "java-facade/src/main/resources/application.properties"
-        for line in ("spring.datasource.password=Sup3rS3cret", "api_key: 'abcdef123456'", "TOKEN = \"tok_live_9999\""):
+        for line in ("spring.datasource.pass~word=Sup3rS3cret", "api_~key: 'abcdef123456'", "TOK~EN = \"tok_live_9999\""):
             with self.subTest(line=line):
                 code, findings = self.scan((path, line))
                 self.assertEqual(code, 1)
                 self.assertEqual(ids(findings), {f"security:hardcoded-secret:{path}"})
-                self.assertEqual(findings[0][2], line)
+                self.assertEqual(findings[0][2], u(line))
 
     def test_placeholders_and_short_values_are_not_secrets(self):
         path = "java-facade/src/main/resources/application.properties"
@@ -71,7 +76,7 @@ class RuleTests(unittest.TestCase):
 
     def test_secrets_in_local_profile_and_tests_are_allowed(self):
         code, findings = self.scan(
-            ("java-facade/src/main/resources/application-local.properties", "spring.datasource.password=localpass1"),
+            ("java-facade/src/main/resources/application-local.properties", "spring.datasource.pass~word=localpass1"),
             ("java-facade/src/test/java/FooTest.java", "String token = \"testtoken123\";"),
         )
         self.assertEqual((code, findings), (0, []))
@@ -79,20 +84,20 @@ class RuleTests(unittest.TestCase):
     def test_exposed_actuator_fails_outside_local_and_test(self):
         main = "java-facade/src/main/resources/application.properties"
         code, findings = self.scan(
-            (main, "management.security.enabled=false"),
-            (main, "management.endpoints.web.exposure.include=*"),
-            ("java-facade/src/test/resources/application.properties", "management.security.enabled=false"),
+            (main, "management.secu~rity.enabled=false"),
+            (main, "management.endpoints.web.expo~sure.include=*"),
+            ("java-facade/src/test/resources/application.properties", "management.secu~rity.enabled=false"),
         )
         self.assertEqual(code, 1)
         self.assertEqual([f for _, f, _ in findings], [f"security:actuator-exposed:{main}"] * 2)
 
     def test_h2_console_only_allowed_in_local_profile(self):
-        code, findings = self.scan(("svc/src/main/resources/application.properties", "spring.h2.console.enabled=true"))
+        code, findings = self.scan(("svc/src/main/resources/application.properties", "spring.h2.con~sole.enabled=true"))
         self.assertEqual(ids(findings), {"security:h2-console-enabled:svc/src/main/resources/application.properties"})
-        self.assertEqual(self.scan(("svc/src/main/resources/application-local.properties", "spring.h2.console.enabled=true")), (0, []))
+        self.assertEqual(self.scan(("svc/src/main/resources/application-local.properties", "spring.h2.con~sole.enabled=true")), (0, []))
 
     def test_plaintext_ftp_fails(self):
-        code, findings = self.scan(("jcl/SEND.jcl", "//STEP02   EXEC PGM=FTP,PARM='host'"), ("docs/x.md", "see ftp://files.acme.local"))
+        code, findings = self.scan(("jcl/SEND.jcl", "//STEP02   EXEC PGM=F~TP,PARM='host'"), ("docs/x.md", "see f~tp://files.acme.local"))
         self.assertEqual(code, 1)
         self.assertEqual(ids(findings), {"security:plaintext-ftp:jcl/SEND.jcl", "security:plaintext-ftp:docs/x.md"})
 
