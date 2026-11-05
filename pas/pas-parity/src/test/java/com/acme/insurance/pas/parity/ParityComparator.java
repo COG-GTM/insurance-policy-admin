@@ -77,7 +77,7 @@ public final class ParityComparator {
           actual.numbers().get(name));
     }
     TreeSet<String> probes = union(expected.probes(), actual.probes());
-    probes.removeAll(ignoredProbes);
+    probes.removeIf(name -> ignoredProbes.contains(name) && !actual.probes().containsKey(name));
     for (String name : probes) {
       checkNumber(
           differences,

@@ -310,7 +310,7 @@ def fixture_env(case):
     return env
 
 
-def validate(registry, quirks, known):
+def validate(registry, quirks, known, golden=True):
     """Static checks: registry, fixtures, tag coverage, quirk links, known differences."""
     errors = []
     quirk_by_id = {q["id"]: q for q in quirks["quirks"]}
@@ -362,6 +362,8 @@ def validate(registry, quirks, known):
         suite["_case_ids"] = ids
         golden_dir = PARITY / "golden" / name
         on_disk = {p.stem for p in golden_dir.glob("*.json")} if golden_dir.is_dir() else set()
+        if not golden:
+            continue
         for missing in sorted(ids - on_disk):
             errors.append(f"{name}/{missing}: golden file missing (run: make parity-record)")
         for orphan in sorted(on_disk - ids):
@@ -615,8 +617,7 @@ def command_check(args):
 
 def command_record(args):
     registry = load_registry()
-    errors = [e for e in validate(registry, load_json(QUIRKS), load_json(KNOWN_DIFFERENCES))
-              if "golden file" not in e]
+    errors = validate(registry, load_json(QUIRKS), load_json(KNOWN_DIFFERENCES), golden=False)
     if errors:
         for error in errors:
             print(f"FAIL {error}")
@@ -633,7 +634,13 @@ def command_record(args):
         golden_path(suite["suite"], case["id"]).write_text(dump(golden), encoding="utf-8")
         count += 1
     print(f"parity: recorded {count} golden file(s) with {cobc_version(cobc_path())}")
-    return 0
+    errors = []
+    for suite in selected(registry, args.suite):
+        ids = {case["id"] for case in load_fixtures(suite)["cases"]}
+        errors.extend(validate_ignored_probes(suite["suite"], suite.get("ignored_probes", {}), ids))
+    for error in errors:
+        print(f"FAIL {error}")
+    return 1 if errors else 0
 
 
 def command_run(args):

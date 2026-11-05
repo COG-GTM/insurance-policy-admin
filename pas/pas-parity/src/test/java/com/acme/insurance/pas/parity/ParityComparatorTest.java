@@ -100,6 +100,24 @@ class ParityComparatorTest {
   }
 
   @Test
+  void anIgnoredProbeIsStillComparedWhenJavaReportsIt() {
+    RunResult golden = RunResult.completed(0, List.of(premium("1.00")));
+    RunResult actual =
+        RunResult.completed(
+            0,
+            List.of(
+                Effect.builder("SQL INSERT PREMIUMS")
+                    .sqlcode(0)
+                    .text("POLICY_NUMBER", "POL-00000001")
+                    .number("TOTAL_PREMIUM", "1.00")
+                    .probe("WS-MOD-PREMIUM", "850.01")
+                    .build()));
+
+    assertThat(ParityComparator.compare(golden, actual, Set.of("WS-MOD-PREMIUM")))
+        .containsExactly(new Difference("effects[0].probes.WS-MOD-PREMIUM", "850.00", "850.01"));
+  }
+
+  @Test
   void knownDifferenceGlobsCoverPathsAndCases() {
     KnownDifference kd =
         new KnownDifference(

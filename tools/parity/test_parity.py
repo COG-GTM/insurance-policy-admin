@@ -162,6 +162,18 @@ class RunSelectionTest(unittest.TestCase):
             parity.cobc_path = original
 
 
+class RecordValidationTest(unittest.TestCase):
+    def test_record_validation_skips_golden_dependent_checks(self):
+        registry = parity.load_registry()
+        registry["suites"].append(dict(registry["suites"][0], suite="new-suite",
+                                       ignored_probes={"WS-NOT-YET-RECORDED": "not exposed"}))
+        quirks, known = parity.load_json(parity.QUIRKS), parity.load_json(parity.KNOWN_DIFFERENCES)
+        errors = parity.validate(registry, quirks, known, golden=False)
+        self.assertFalse([e for e in errors if "ignored probe" in e or "golden file" in e], errors)
+        errors = parity.validate(registry, quirks, known)
+        self.assertTrue(any("ignored probe WS-NOT-YET-RECORDED" in e for e in errors))
+
+
 class RepositoryTest(unittest.TestCase):
     def test_registry_fixtures_and_known_differences_are_valid(self):
         errors = parity.validate(parity.load_registry(), parity.load_json(parity.QUIRKS),
