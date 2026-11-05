@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 
@@ -17,7 +18,7 @@ import org.springframework.kafka.core.KafkaTemplate;
  * BridgeRouter}). At-least-once: a redelivered event is bridged again with the same {@code eventId}
  * header, which the MQ sink copies to a JMS property so consumers can drop duplicates (Q-528-2).
  */
-public class LegacyRecordBridge {
+public class LegacyRecordBridge implements DisposableBean {
 
   public static final String[] TOPICS =
       Arrays.stream(PasEventType.values()).map(PasEventType::topic).toArray(String[]::new);
@@ -46,6 +47,13 @@ public class LegacyRecordBridge {
         record.headers().add(h.getKey(), h.getValue().getBytes(StandardCharsets.UTF_8));
       }
       bytes.send(record).get(properties.sendTimeout().toMillis(), TimeUnit.MILLISECONDS);
+    }
+  }
+
+  @Override
+  public void destroy() throws Exception {
+    if (bytes.getProducerFactory() instanceof DisposableBean producers) {
+      producers.destroy();
     }
   }
 }

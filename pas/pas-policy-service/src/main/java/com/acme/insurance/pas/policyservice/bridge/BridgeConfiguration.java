@@ -2,19 +2,21 @@ package com.acme.insurance.pas.policyservice.bridge;
 
 import com.acme.insurance.pas.persistence.PolicyJdbcRepository;
 import com.acme.insurance.pas.policyservice.events.EventsProperties;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
@@ -31,28 +33,30 @@ import org.springframework.util.backoff.FixedBackOff;
 @ConditionalOnProperty(name = "pas.bridge.enabled", havingValue = "true")
 public class BridgeConfiguration {
 
-  @Bean(destroyMethod = "destroy")
-  DefaultKafkaProducerFactory<String, byte[]> bridgeProducerFactory(KafkaProperties kafka) {
-    Map<String, Object> config = kafka.buildProducerProperties(null);
-    return new DefaultKafkaProducerFactory<>(
-        config, new StringSerializer(), new ByteArraySerializer());
-  }
-
+  /** The byte-array producer is not a bean: a ProducerFactory bean would replace Boot's own. */
   @Bean
   LegacyRecordBridge legacyRecordBridge(
-      DefaultKafkaProducerFactory<String, byte[]> bridgeProducerFactory,
+      ProducerFactory<String, String> kafka,
       PolicyJdbcRepository policies,
       BridgeProperties properties) {
+    Map<String, Object> config = new HashMap<>(kafka.getConfigurationProperties());
+    config.remove("key.serializer");
+    config.remove("value.serializer");
+    DefaultKafkaProducerFactory<String, byte[]> producers =
+        new DefaultKafkaProducerFactory<>(
+            config, new StringSerializer(), new ByteArraySerializer());
     return new LegacyRecordBridge(
         new BridgeRouter(properties, policies::findPolicy),
-        new KafkaTemplate<>(bridgeProducerFactory),
+        new KafkaTemplate<>(producers),
         properties);
   }
 
   @Bean
   DeadLetterService deadLetterService(
-      KafkaProperties kafka, KafkaTemplate<String, String> producer, BridgeProperties properties) {
-    return new DeadLetterService(kafka, producer, properties);
+      ConsumerFactory<?, ?> consumers,
+      KafkaTemplate<String, String> producer,
+      BridgeProperties properties) {
+    return new DeadLetterService(consumers.getConfigurationProperties(), producer, properties);
   }
 
   @Bean

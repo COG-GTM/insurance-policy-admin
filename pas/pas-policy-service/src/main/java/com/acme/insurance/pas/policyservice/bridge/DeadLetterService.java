@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -15,7 +16,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.KafkaHeaders;
 
@@ -39,13 +39,15 @@ public class DeadLetterService {
       String exception,
       String reason) {}
 
-  private final KafkaProperties kafka;
+  private final Map<String, Object> consumerConfig;
   private final KafkaTemplate<String, String> producer;
   private final BridgeProperties properties;
 
   public DeadLetterService(
-      KafkaProperties kafka, KafkaTemplate<String, String> producer, BridgeProperties properties) {
-    this.kafka = kafka;
+      Map<String, Object> consumerConfig,
+      KafkaTemplate<String, String> producer,
+      BridgeProperties properties) {
+    this.consumerConfig = Map.copyOf(consumerConfig);
     this.producer = producer;
     this.properties = properties;
   }
@@ -86,7 +88,9 @@ public class DeadLetterService {
   }
 
   private List<ConsumerRecord<String, String>> scan() {
-    Map<String, Object> config = kafka.buildConsumerProperties(null);
+    Map<String, Object> config = new HashMap<>(consumerConfig);
+    config.remove(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG);
+    config.remove(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG);
     config.remove(ConsumerConfig.GROUP_ID_CONFIG);
     config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
     List<ConsumerRecord<String, String>> records = new ArrayList<>();
@@ -114,8 +118,13 @@ public class DeadLetterService {
         r.partition(),
         r.offset(),
         Instant.ofEpochMilli(r.timestamp()),
-        header(r, KafkaHeaders.DLT_EXCEPTION_FQCN),
+        cause(r),
         bounded(header(r, KafkaHeaders.DLT_EXCEPTION_MESSAGE)));
+  }
+
+  private static String cause(ConsumerRecord<String, String> r) {
+    String cause = header(r, KafkaHeaders.DLT_EXCEPTION_CAUSE_FQCN);
+    return cause != null ? cause : header(r, KafkaHeaders.DLT_EXCEPTION_FQCN);
   }
 
   private static String bounded(String s) {
