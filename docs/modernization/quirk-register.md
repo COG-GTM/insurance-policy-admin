@@ -67,7 +67,7 @@ Rules for this register:
 
 **Leap-year renewal date** (POLRNW, defect (known))
 
-The new expiry date is computed as `ADD 10000` to the YYYYMMDD expiry. That is correct for every date except 29 February: 2024-02-29 becomes 20250229, which is not a valid date. DB2 rejects the UPDATE (SQLCODE -180/-181), and because of Q-07 the program still updates coverages and sends the confirmation screen.
+The new expiry date is computed as `ADD 10000` to the YYYYMMDD expiry. That is correct for every date except 29 February: 2024-02-29 becomes 20250229, which is not a valid date. DB2 rejects the POLICIES UPDATE (SQLCODE -180/-181). Because of Q-07 the program still attempts the COVERAGES date update, which fails for the same reason so the coverage dates stay unchanged, and then sends the confirmation screen.
 
 - Owner: Product Owner, Policy Administration
 - Proposed decision: **fix** (proposed - pending business sign-off)

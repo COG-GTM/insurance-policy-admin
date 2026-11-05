@@ -165,7 +165,7 @@ Scheduled by CA-7. Every job uses DB2 subsystem `DBPD` through IKJEFT01/DSN. Loa
 ### MONTHLY-EXPOSURE (job MONEXP)
 `jcl/MONTHLY-EXPOSURE.jcl`. 1st of month 02:00 EST, CA-7 PAS0200, TIME=(2,).
 - **STEP010:** DSNTEP2 SELECT POLICIES ⋈ COVERAGES (both status 'AC'), grouped by policy type, branch, coverage type, rating territory and class code. Outputs `POLICY_COUNT` (counts coverages, [Q-34](quirk-register.md#q-34)), `TOTAL_EXPOSURE` (sum of limits), `TOTAL_PREMIUM` and `TOTAL_DEDUCTIBLE`. DD `EXPOUT` → `ACME.PAS.EXPOSURE.MONTHLY.D&LYYMMDD` (FB, LRECL 300).
-- **STEP020** (skipped if STEP010 RC > 4): plain FTP to `ACTUARIAL.ACME.LOCAL`, puts `/actuarial/data/exposure_monthly.csv`. The content is DSNTEP2 output, not CSV ([Q-30](quirk-register.md#q-30)).
+- **STEP020** (skipped if STEP010 RC > 4): plain FTP to `ACTUARIAL.ACME.LOCAL`, puts `/actuarial/data/exposure_monthly.csv`. As written, DSNTEP2 never writes EXPOUT, so this source does not show what the transferred file contains. It is not a CSV produced by this SQL, and its real content needs a production sample ([Q-30](quirk-register.md#q-30)).
 - Consumer: Actuarial SAS programs for loss reserving and pricing.
 
 ### Schedule and dependencies
@@ -196,7 +196,7 @@ CA-7 triggers, predecessors and restart rules are not in the repo ([FU-12](open-
 | # | Integration | Direction / mechanism | PAS side | Payload | Other end (owner) | Security today | Refs |
 |---|---|---|---|---|---|---|---|
 | I-1 | **Claims extract** | PAS → Claims, nightly plain FTP | DAILY-EXTRACT STEP030 | `policy_extract.dat` (LRECL 200), `coverage_extract.dat` (LRECL 150), fixed-width with the layout unconfirmed | Claims Engine VB6 batch import on `CLAIMSRV.ACME.LOCAL:/claims/import/`. **Owner: Claims team (name pending)** | Clear-text FTP, user ACMEFTP | Q-30, Q-31, Q-32, Q-33 |
-| I-2 | **Actuarial exposure feed** | PAS → Actuarial, monthly plain FTP | MONTHLY-EXPOSURE STEP020 | `exposure_monthly.csv` (LRECL 300, DSNTEP2 format) | SAS loss-reserving/pricing programs on `ACTUARIAL.ACME.LOCAL:/actuarial/data/`. **Owner: Actuarial (name pending)** | Clear-text FTP | Q-30, Q-32, Q-34 |
+| I-2 | **Actuarial exposure feed** | PAS → Actuarial, monthly plain FTP | MONTHLY-EXPOSURE STEP020 | `exposure_monthly.csv` (LRECL 300, content and layout unconfirmed) | SAS loss-reserving/pricing programs on `ACTUARIAL.ACME.LOCAL:/actuarial/data/`. **Owner: Actuarial (name pending)** | Clear-text FTP | Q-30, Q-32, Q-34 |
 | I-3 | **Broker Portal** | Broker Portal → DB2, SQL Server linked server over ODBC (read-only) | none (direct DB2 access) | Unknown tables and columns. Presumably POLICIES/COVERAGES/POLICY_HOLDERS | Broker Portal (SQL Server). **Owner: Broker Portal team (name pending)** | DB2 grants unknown | FU-18 |
 | I-4 | **Underwriting request** | PAS → UW queue, CICS TDQ → MQ | POLNEW 7000 | POLICY-RECORD (125 bytes) | Underwriting work queue `ACME.PAS.UNDERWRITING.REQUEST`. **Owner: Underwriting ops + MQ admins (pending)** | Internal | Q-13 |
 | I-5 | **Underwriting decision** | PAS → UW queue / FileNet, CICS TDQ → MQ | UNDWRT 7000 | POLICY-RECORD (125 bytes, risk score truncated to 3 digits) | `ACME.PAS.UNDERWRITING.DECISION`. **Owner: Underwriting ops (pending)** | Internal | Q-13, Q-14 |
