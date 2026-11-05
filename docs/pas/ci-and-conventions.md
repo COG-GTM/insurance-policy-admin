@@ -19,7 +19,7 @@ Dependency and vulnerability scanning:
   overrides in `pas/pom.xml`).
 - Accepted findings go in `pas/.trivyignore` with the reason, the owner and an expiry date, so they
   come back for review. Security review of the current entries is pending (sign-off table below).
-- `.github/dependabot.yml` opens weekly update PRs for Maven (`pas/`), the base image and the CI actions.
+- `.github/dependabot.yml` opens weekly update PRs for Maven (`pas/`), the base image (a literal, digest-pinned `FROM` in `pas/Dockerfile`, so Dependabot can bump it) and the CI actions.
 
 ## Conventions
 

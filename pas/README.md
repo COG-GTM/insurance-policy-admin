@@ -62,7 +62,7 @@ types in `pas-domain`, no direct `ACMEINS.CLAIMS` access). Every class lives in 
 - **Messaging (D4):** Kafka (KRaft, single node) in the local stack for the outbox work in AB-528;
   topic auto-creation is off.
 - **Images:** one `pas/Dockerfile` for both deployables: layered Spring Boot jar on
-  `eclipse-temurin:21-jre-alpine`, non-root user `10001`.
+  `eclipse-temurin:21-jre-alpine` (pinned by digest, bumped by Dependabot), non-root user `10001`.
 
 ## Configuration
 

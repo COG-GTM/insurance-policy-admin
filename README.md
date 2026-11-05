@@ -99,7 +99,7 @@ pas/                     target platform (ADR 0001): Maven multi-module build
 docker-compose.yml       local PostgreSQL 16, Kafka and the policy service
 ```
 
-Build, test and start it locally with one command (JDK 21, Maven 3.9+ and Docker required): `make pas`. CI and repository conventions: [docs/pas/](docs/pas/ci-and-conventions.md).
+Build, test and start it locally with one command (JDK 21, Maven 3.9+ and Docker required): `make pas`. If JDK 21 is not your default JDK, pass it: `make pas PAS_JAVA_HOME=/path/to/jdk-21` (on an older JDK the Maven enforcer stops the build). CI and repository conventions: [docs/pas/](docs/pas/ci-and-conventions.md).
 
 ## Team Contacts
 
