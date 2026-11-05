@@ -60,6 +60,8 @@ Rules for this register:
 | [Q-40](#q-40) | Nothing in the repo moves a new policy from PN to AC | POLNEW, UNDWRT | Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration | **preserve** | proposed - pending mainframe-team verification against production load module | AB-525 | `cobol/programs/POLNEW.cbl:151`<br>`cobol/programs/UNDWRT.cbl:228` |
 | [Q-41](#q-41) | Zero-premium renewal divides by zero (no guard, no ON SIZE ERROR) | POLRNW | Product Owner, Policy Administration + Mainframe team (mainframe-ops@acme.com) | **fix** | proposed - pending mainframe-team verification against production load module | AB-526 | `cobol/programs/POLRNW.cbl:130`<br>`cobol/programs/UNDWRT.cbl:152` |
 | [Q-518-1](#q-518-1) | Audit user columns hold only 8 characters | POLICIES, ENDORSEMENTS, UNDERWRITING_DECISIONS, PREMIUMS; POLICY-RECORD, PREMIUM-RECORD | Security + DBA team (db2-admin@acme.com) | **preserve** | proposed - pending ARB and Security sign-off (ADR 0001 D5) | AB-521, AB-525, AB-526 | `sql/ddl/create-tables.sql:47`<br>`sql/ddl/create-tables.sql:120`<br>`cobol/copybooks/POLICY-RECORD.cpy:48`<br>`cobol/programs/POLRNW.cbl:163`<br>`cobol/programs/UNDWRT.cbl:223`<br>`cobol/programs/POLNEW.cbl:163` |
+| [Q-521-1](#q-521-1) | Copybook last-updated fields hold a date, the columns a timestamp | POLICIES.LAST_UPDATED, POLICY_HOLDERS.LAST_UPDATED; POLICY-RECORD, CUSTOMER-RECORD | Data governance + DBA team | **preserve** | proposed - pending DBA and Data governance sign-off | AB-521 | `cobol/copybooks/POLICY-RECORD.cpy:47`<br>`cobol/copybooks/CUSTOMER-RECORD.cpy:41`<br>`sql/ddl/create-tables.sql:46` |
+| [Q-521-2](#q-521-2) | Nullable numeric columns have no null in the copybooks | POLICIES.RENEWAL_COUNT, POLICIES.RISK_SCORE, COVERAGES.COINSURANCE_PCT, POLICY_HOLDERS.CREDIT_SCORE; POLICY-RECORD, COVERAGE-RECORD, CUSTOMER-RECORD | Data governance + DBA team | **preserve** | proposed - pending DBA and Data governance sign-off | AB-521 | `cobol/copybooks/CUSTOMER-RECORD.cpy:32`<br>`sql/ddl/create-tables.sql:167` |
 | [Q-520-1](#q-520-1) | Failed map RECEIVE falls through the whole program | UNDWRT, POLRNW | Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration | **fix** | proposed - pending mainframe-team verification against production load module | AB-525, AB-526 | `cobol/programs/UNDWRT.cbl:94`<br>`cobol/programs/POLRNW.cbl:87`<br>`cobol/programs/UNDWRT.cbl:59` |
 <!-- END GENERATED: quirk-table -->
 
@@ -728,6 +730,37 @@ Every 'who changed this' column is CHAR(8): POLICIES.UPDATED_BY, ENDORSEMENTS.PR
   - `cobol/programs/POLRNW.cbl:163`: `UPDATED_BY = 'POLRNW'`
   - `cobol/programs/UNDWRT.cbl:223`: `'SYSTEM', CURRENT TIMESTAMP)`
   - `cobol/programs/POLNEW.cbl:163`: `MOVE 'POLNEW' TO POL-UPD-BY`
+
+### Q-521-1
+
+**Copybook last-updated fields hold a date, the columns a timestamp** (POLICIES.LAST_UPDATED, POLICY_HOLDERS.LAST_UPDATED; POLICY-RECORD, CUSTOMER-RECORD, data contract)
+
+POLICY-LAST-UPDATED and CUST-LAST-UPDATED are PIC 9(08) (YYYYMMDD), while POLICIES.LAST_UPDATED and POLICY_HOLDERS.LAST_UPDATED are TIMESTAMP. Any record built from a row loses the time of day, and a row built from a record gets midnight.
+
+- Owner: Data governance + DBA team
+- Proposed decision: **preserve** (proposed - pending DBA and Data governance sign-off)
+- Rationale: The copybook layout is a frozen contract for downstream consumers. The Java codecs write only the date part and read the date as midnight; the database keeps full timestamps.
+- Parity / characterization note: Parity compares these copybook fields as dates only; table comparisons use the full timestamp.
+- Lands in: AB-521
+- Evidence:
+  - `cobol/copybooks/POLICY-RECORD.cpy:47`: `POLICY-LAST-UPDATED`
+  - `cobol/copybooks/CUSTOMER-RECORD.cpy:41`: `CUST-LAST-UPDATED`
+  - `sql/ddl/create-tables.sql:46`: `LAST_UPDATED TIMESTAMP`
+
+### Q-521-2
+
+**Nullable numeric columns have no null in the copybooks** (POLICIES.RENEWAL_COUNT, POLICIES.RISK_SCORE, COVERAGES.COINSURANCE_PCT, POLICY_HOLDERS.CREDIT_SCORE; POLICY-RECORD, COVERAGE-RECORD, CUSTOMER-RECORD, data contract)
+
+RENEWAL_COUNT, RISK_SCORE, COINSURANCE_PCT and CREDIT_SCORE are nullable SMALLINT columns, but their copybook fields are unsigned PIC 9(03), which has no null and no sign. A null is written as 000 and reads back as 0; a negative value or one above 999 cannot be written.
+
+- Owner: Data governance + DBA team
+- Proposed decision: **preserve** (proposed - pending DBA and Data governance sign-off)
+- Rationale: The copybook layout is frozen. The codecs write null as zeros and reject values the picture cannot hold instead of truncating them, so no data is silently changed.
+- Parity / characterization note: Parity treats null and 0 as equal for these copybook fields.
+- Lands in: AB-521
+- Evidence:
+  - `cobol/copybooks/CUSTOMER-RECORD.cpy:32`: `CUST-CREDIT-SCORE`
+  - `sql/ddl/create-tables.sql:167`: `CREDIT_SCORE SMALLINT`
 
 ### Q-520-1
 

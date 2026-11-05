@@ -27,6 +27,13 @@ location.
 | Version | Location | Ticket | What |
 |---|---|---|---|
 | V1 | postgresql | AB-519 | Creates the empty `acmeins` schema (tables arrive in AB-521) |
+| V10 | postgresql | AB-521 | ACMEINS tables, keys, indexes and `POLICY_SEQ`, 1:1 with `sql/ddl/create-tables.sql` |
+| V11 | postgresql | AB-521 | Positive-factor CHECK on `territory_factors`; new `pasapp.class_factors` |
+| V11 | db2 | AB-521 | `PASAPP.CLASS_FACTORS` (DBA-applied) |
+| V12 | postgresql | AB-521 | PII column classification and `acmeins.policy_holders_masked` |
+| V13 | postgresql | AB-521 | `underwriting_decisions` keyed by `decision_id` (quirk Q-18) |
 
-In local dev `pas-policy-service` applies the migrations at start-up. How migrations are applied in shared
-environments (start-up vs a separate migration job, DBA-applied DB2 scripts) is decided in AB-521.
+In local dev and CI `pas-policy-service` applies the migrations at start-up. Shared environments run Flyway
+as a separate migration job with the schema-owner account before the release starts, application pods run
+with `SPRING_FLYWAY_ENABLED=false`, and DB2 scripts are applied by the DBA team. Details and the type mapping:
+[docs/pas/data-model.md](../../docs/pas/data-model.md).
