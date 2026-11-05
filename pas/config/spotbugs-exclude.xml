@@ -12,4 +12,10 @@
     <Class name="~com\.acme\.insurance\.pas\.batch\.extract\.(FeedDelivery|ExtractJobAlerting)"/>
     <Field name="meters"/>
   </Match>
+  <!-- AB-523: the premium job's repository, chunk components and alerting keep their injected
+       JdbcTemplate, repository, rating snapshot and MeterRegistry. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="~com\.acme\.insurance\.pas\.(persistence\.PremiumRunJdbcRepository|batch\.premium\..*)"/>
+  </Match>
 </FindBugsFilter>

@@ -1,0 +1,63 @@
+# AB-523 schedule for the platform scheduler (Kubernetes CronJob). Replaces CA-7 PAS0050
+# (PREMIUM-BATCH / PREMBAT, daily 01:00 EST) and its TSO SEND to PASADMIN. Image, namespace and the
+# secret/config names are placeholders the platform team fills in; nothing here holds a credential.
+# The report (ACME.PAS.REPORTS.PREMIUM equivalent, LRECL 132) goes to a persistent, encrypted volume
+# so a rerun replaces it and it survives the pod. The confirmed CA-7 calendar, predecessors and
+# paging target are FU-12.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pas-premium-reports
+  labels: {app: pas-batch, ticket: AB-523}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ENCRYPTED_STORAGE_CLASS
+  resources:
+    requests: {storage: 2Gi}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pas-premium-recalculation
+  labels: {app: pas-batch, job: premium, ticket: AB-523}
+spec:
+  schedule: "0 1 * * *"
+  timeZone: America/New_York
+  # One run at a time: a scheduled run never overlaps a manual rerun of the same book.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      # A failed pod is retried once; the retry restarts the same Spring Batch instance (same
+      # businessDate) from the last committed chunk of every partition. 45 min hard stop leaves room
+      # for one restart inside the 30-minute target's window before the 02:00 jobs.
+      backoffLimit: 1
+      activeDeadlineSeconds: 5400
+      template:
+        metadata:
+          labels: {app: pas-batch, job: premium}
+        spec:
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, fsGroup: 10001}
+          containers:
+            - name: pas-batch
+              image: REGISTRY/pas-batch:VERSION
+              # businessDate defaults to today in pas.premium.zone; add
+              # args: ["businessDate=YYYY-MM-DD"] to rate another day (see docs/pas/premium-batch.md).
+              envFrom:
+                - secretRef: {name: pas-batch-db}
+              env:
+                - {name: PAS_BATCH_JOB, value: premiumRecalculation}
+                - {name: PAS_PREMIUM_REPORT_DIR, value: /var/pas/reports/premium}
+                - {name: PAS_PREMIUM_PARTITIONS, value: "8"}
+                - {name: PAS_PREMIUM_CHUNK_SIZE, value: "500"}
+                # One connection per partition plus the job repository and the report step.
+                - {name: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE, value: "12"}
+              resources:
+                requests: {cpu: "2", memory: 1Gi}
+                limits: {memory: 2Gi}
+              volumeMounts:
+                - {name: reports, mountPath: /var/pas/reports/premium}
+          volumes:
+            - name: reports
+              persistentVolumeClaim: {claimName: pas-premium-reports}

@@ -110,3 +110,15 @@ extract-parity:
 ifdef CAPTURED
 	python3 tools/extracts/extract_parity.py compare --captured "$(CAPTURED)" --candidate "$(CANDIDATE)" --report extract-parity-report.json
 endif
+
+# --- AB-523 premium recalculation job. ---
+.PHONY: premium-batch premium-load-test
+
+# Unit and integration tests of job premiumRecalculation (golden report, rerun, errors, restart).
+premium-batch:
+	$(PAS_MVN) -pl pas-batch -am verify -Dtest='Premium*Test' -Dit.test='PremiumJobIT' -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false
+
+# Load test: POLICIES active policies (default 50,000), projected to FULL_BOOK (default 1,000,000).
+premium-load-test:
+	$(PAS_MVN) -pl pas-batch -am verify -Dtest=none -Dit.test='PremiumJobLoadIT' -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false $(if $(POLICIES),-Dpas.premium.load.policies=$(POLICIES)) $(if $(FULL_BOOK),-Dpas.premium.load.full-book=$(FULL_BOOK))
+	cat pas/pas-batch/target/premium-load-test.txt

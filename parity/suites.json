@@ -45,7 +45,12 @@
         }
       },
       "owner_ticket": "AB-523",
-      "java_adapter": null,
+      "java_adapter": "com.acme.insurance.pas.parity.adapters.PrembatBatchControlAdapter",
+      "ignored_probes": {
+        "WS-TERR-PREMIUM": "AB-523 runs the whole Spring Batch job and observes the stored PREMIUMS rows; the intermediate premiums are compared by suite prembat-rating (AB-522)",
+        "WS-CLASS-PREMIUM": "as WS-TERR-PREMIUM",
+        "WS-MOD-PREMIUM": "as WS-TERR-PREMIUM"
+      },
       "scope": "Batch control flow: insert errors, return code, run report"
     },
     {

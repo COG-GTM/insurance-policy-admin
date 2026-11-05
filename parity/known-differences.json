@@ -91,6 +91,48 @@
       "ticket": "AB-525",
       "sign_off": "pending",
       "reason": "Java keeps the accumulation reason; score and decision code must still match."
+    },
+    {
+      "id": "KD-06",
+      "suite": "prembat-batch-control",
+      "cases": [
+        "insert-error-stops-run"
+      ],
+      "paths": [
+        "outcome.return_code",
+        "effects.count",
+        "effects[1].sqlcode"
+      ],
+      "quirk": "Q-26",
+      "decision": "docs/modernization/quirk-register.md#q-26",
+      "ticket": "AB-523",
+      "sign_off": "pending",
+      "reason": "The -803 comes from a PREMIUMS row an earlier same-day run left for POL-00000032 (the adapter seeds it). Job premiumRecalculation replaces that row instead of failing (idempotent upsert), so the write succeeds (sqlcode 0), the run continues to POL-00000033 (one more effect, Q-25) and ends clean (return code 0 instead of 4). Every number of the replaced row must still match the COBOL insert."
+    },
+    {
+      "id": "KD-07",
+      "suite": "prembat-batch-control",
+      "cases": [
+        "invalid-term-date"
+      ],
+      "paths": [
+        "effects.count",
+        "effects[0].text.TERM_EXPIRY_DATE",
+        "effects[0].numbers.COVERAGE_SEQ",
+        "effects[0].numbers.BASE_RATE",
+        "effects[0].numbers.TERRITORY_FACTOR",
+        "effects[0].numbers.CLASS_FACTOR",
+        "effects[0].numbers.EXPERIENCE_MOD",
+        "effects[0].numbers.SCHEDULE_MOD",
+        "effects[0].numbers.DISCOUNT_PCT",
+        "effects[0].numbers.SURCHARGE_AMT",
+        "effects[0].numbers.TAX_AMT"
+      ],
+      "quirk": "Q-25",
+      "decision": "docs/modernization/quirk-register.md#q-25",
+      "ticket": "AB-523",
+      "sign_off": "pending",
+      "reason": "A PostgreSQL/DB2 DATE column cannot hold 2025-02-29, so the adapter stores the nearest valid day and makes the database reject that policy's PREMIUMS write with SQLSTATE 22007 (DB2 -181). The job records the policy as an error (sqlcode -181, attempted TOTAL_PREMIUM kept in premium_run_item; the other numbers of a rejected row are not stored) and continues with POL-00000035 instead of stopping (one more effect). Return code 4 (completed with errors) must still match."
     }
   ]
 }

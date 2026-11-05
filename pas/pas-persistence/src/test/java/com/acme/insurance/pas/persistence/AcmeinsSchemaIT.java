@@ -76,7 +76,11 @@ class AcmeinsSchemaIT {
         .doesNotContain("claims");
     assertThat(tables("pasapp"))
         .containsExactlyInAnyOrder(
-            "class_factors", "base_rates", "rating_parameters", "extract_delivery");
+            "class_factors",
+            "base_rates",
+            "rating_parameters",
+            "extract_delivery",
+            "premium_run_item");
     assertThat(tables("pas_batch"))
         .containsExactlyInAnyOrder(
             "batch_job_instance",
