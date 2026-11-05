@@ -21,6 +21,7 @@ import org.apache.sshd.common.config.keys.FilePasswordProvider;
 import org.apache.sshd.common.util.security.SecurityUtils;
 import org.apache.sshd.sftp.client.SftpClient;
 import org.apache.sshd.sftp.client.SftpClientFactory;
+import org.apache.sshd.sftp.client.extensions.openssh.OpenSSHPosixRenameExtension;
 import org.apache.sshd.sftp.common.SftpConstants;
 import org.apache.sshd.sftp.common.SftpException;
 
@@ -91,11 +92,21 @@ public class SftpFeedTransfer implements FeedTransfer {
   }
 
   /**
-   * Moves the upload into place without ever leaving the consumer with no file: the previous
-   * delivery is renamed to {@code .prev} first and restored if the final rename fails.
+   * Moves the upload into place. With the OpenSSH posix-rename extension the overwrite is atomic.
+   * Otherwise the previous delivery is moved to {@code .prev} and restored if the final rename
+   * fails, and a {@code .prev} left by an interrupted attempt is put back before anything is
+   * removed; the published name is briefly absent in that fallback.
    */
   static void replace(SftpClient sftp, String partial, String remote) throws IOException {
+    OpenSSHPosixRenameExtension posix = sftp.getExtension(OpenSSHPosixRenameExtension.class);
+    if (posix != null && posix.isSupported()) {
+      posix.posixRename(partial, remote);
+      return;
+    }
     String previous = remote + ".prev";
+    if (!exists(sftp, remote) && exists(sftp, previous)) {
+      sftp.rename(previous, remote);
+    }
     removeIfPresent(sftp, previous);
     boolean hadPrevious = renameIfPresent(sftp, remote, previous);
     try {
@@ -112,6 +123,18 @@ public class SftpFeedTransfer implements FeedTransfer {
     }
     if (hadPrevious) {
       removeIfPresent(sftp, previous);
+    }
+  }
+
+  private static boolean exists(SftpClient sftp, String path) throws IOException {
+    try {
+      sftp.lstat(path);
+      return true;
+    } catch (SftpException e) {
+      if (e.getStatus() != SftpConstants.SSH_FX_NO_SUCH_FILE) {
+        throw e;
+      }
+      return false;
     }
   }
 

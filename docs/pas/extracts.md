@@ -80,9 +80,12 @@ fails it.
   confirmed delivery. After a failed delivery they are kept for inspection until the next run of
   the feed rebuilds them; the example CronJobs mount a persistent encrypted volume so they survive
   the pod.
-- Replacing a file on the endpoint never leaves the consumer without one: the previous delivery is
-  renamed to `<file>.prev`, the upload is renamed into place and `.prev` is removed; if the rename
-  fails the previous file is restored.
+- Replacing a file on the endpoint: with the OpenSSH `posix-rename` extension the upload is renamed
+  over the published file atomically. Endpoints without it get a fallback: the previous delivery is
+  moved to `<file>.prev`, the upload renamed into place, `.prev` removed; a failed rename restores
+  it, and a `.prev` left by an interrupted attempt is restored before cleanup. The published name is
+  briefly absent in the fallback, so Security should require posix-rename (or MFT atomic delivery)
+  on the production endpoints (FU-15).
 - Every delivery writes a receipt to `pasapp.extract_delivery` (Flyway V70): feed, business date,
   file name, record and byte counts, SHA-256, destination without credentials, `CONFIRMED` or
   `FAILED`, attempts, Spring Batch execution id. Receipts hold no business data (DS-07).
@@ -145,7 +148,7 @@ directory per run (`YYYY-MM-DD/policy_extract.dat` and so on) and run:
 make extract-parity CAPTURED=/path/to/mainframe CANDIDATE=/path/to/pas-batch
 ```
 
-Each feed needs 5 consecutive byte-identical runs (`--required`); a missing scheduled run (a day for the Claims feeds, or a weekday with `--claims-calendar weekdays`; a month for exposure) breaks the streak, and every feed must pass. Exposure rows that differ only in
+Each feed needs 5 consecutive byte-identical runs (`--required`); a missing scheduled run (a day for the Claims feeds, or a weekday with `--claims-calendar weekdays`; the first of each month for exposure) breaks the streak, as does a capture filed under any other date (late or manual replays), and every feed must pass. Exposure rows that differ only in
 order within `(POLICY_TYPE, BRANCH_CODE)` are reported as `ORDR` and count only with
 `--exposure-order-insensitive`, which needs Actuarial's agreement (Q-34).
 

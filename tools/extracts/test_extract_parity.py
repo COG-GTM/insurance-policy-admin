@@ -63,6 +63,18 @@ class CompareTest(unittest.TestCase):
         feed = ep.compare_runs(self.cap, self.cand, 5)["feeds"]["exposure_monthly.csv"]
         self.assertEqual(feed["consecutive_identical"], 2)
 
+    def test_captures_off_the_scheduled_business_date_do_not_count(self):
+        rec = b"POLICY_TYPE,BRANCH_CODE\r\nAUT,NE01\r\n"
+        for m in range(1, 6):
+            write(self.cap, f"2026-0{m}-20", "exposure_monthly.csv", rec)
+            write(self.cand, f"2026-0{m}-20", "exposure_monthly.csv", rec)
+        feed = ep.compare_runs(self.cap, self.cand, 5)["feeds"]["exposure_monthly.csv"]
+        self.assertEqual(feed["consecutive_identical"], 0)
+        self.assertTrue(all(r["unscheduled"] for r in feed["runs"]))
+        self.runs(5, days=[6, 7, 8, 9, 10])  # Sat 7 and Sun 8 are not weekday business dates
+        weekdays = ep.compare_runs(self.cap, self.cand, 5, claims_calendar="weekdays")
+        self.assertEqual(weekdays["feeds"]["policy_extract.dat"]["consecutive_identical"], 2)
+
     def test_weekday_calendar_skips_weekends(self):
         # 2026-11-06 is a Friday, 2026-11-09 the Monday after.
         self.runs(5, days=[4, 5, 6, 9, 10])

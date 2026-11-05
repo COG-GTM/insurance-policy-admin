@@ -5,7 +5,8 @@ compare: byte-for-byte comparison of captured mainframe feed files against the f
 pas-batch, one sub-directory per run (YYYY-MM-DD), and a check that each feed has at least
 --required consecutive identical runs (acceptance criterion: 5). Consecutive means scheduled runs
 with nothing skipped: every calendar day (or every weekday with --claims-calendar weekdays) for the
-Claims feeds and every month for the exposure feed. A missing scheduled run breaks the streak, and
+Claims feeds and the first of every month for the exposure feed. Run directories are named by
+business date; a capture on any other date (a late or manual replay) breaks the streak. A missing scheduled run breaks the streak, and
 every feed must pass.
 
     extract_parity.py compare --captured DIR --candidate DIR [--required 5] [--report FILE]
@@ -80,11 +81,14 @@ def next_scheduled(date, cadence, claims_calendar="daily"):
     return date
 
 
+def is_scheduled(date, cadence, claims_calendar="daily"):
+    if cadence == "monthly":
+        return date.day == 1
+    return claims_calendar == "daily" or date.weekday() < 5
+
+
 def _scheduled_after(previous, run, cadence, claims_calendar):
     prev, cur = datetime.date.fromisoformat(previous), datetime.date.fromisoformat(run)
-    if cadence == "monthly":
-        return (cur.year, cur.month) == (next_scheduled(prev, cadence).year,
-                                         next_scheduled(prev, cadence).month)
     return cur == next_scheduled(prev, cadence, claims_calendar)
 
 
@@ -118,6 +122,12 @@ def compare_runs(captured, candidate, required, exposure_order_insensitive=False
         previous = None
         for r in results:
             matched = r["identical"] or (exposure_order_insensitive and r.get("order_only", False))
+            if not is_scheduled(datetime.date.fromisoformat(r["run"]), FEEDS[name]["cadence"],
+                                claims_calendar):
+                r["unscheduled"] = True
+                streak = 0
+                previous = None
+                continue
             if previous is not None and not _scheduled_after(
                     previous, r["run"], FEEDS[name]["cadence"], claims_calendar):
                 r["gap_before"] = True
@@ -209,6 +219,8 @@ def main(argv=None):
     for name, feed in report["feeds"].items():
         for r in feed["runs"]:
             tag = "OK  " if r["identical"] else "ORDR" if r.get("order_only") else "DIFF"
+            if r.get("unscheduled"):
+                print(f"SKIP {r['run']} {name}: not a scheduled business date, breaks the streak")
             if r.get("gap_before"):
                 print(f"GAP  scheduled run(s) missing before {r['run']} {name}")
             print(f"{tag} {r['run']} {name}"

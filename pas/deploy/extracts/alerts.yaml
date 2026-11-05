@@ -7,15 +7,21 @@ groups:
   - name: pas-extracts
     rules:
       - alert: PasExtractJobFailed
-        # A Job pod exited non-zero (failed extract or unconfirmed delivery after all retries).
-        expr: max by (job_name) (kube_job_status_failed{namespace="pas", job_name=~"pas-(claims-daily-extract|actuarial-monthly-exposure)-.*"}) > 0
+        # The Job failed for good (every pod retry up to backoffLimit exited non-zero). A failed pod
+        # whose retry succeeds does not page.
+        expr: max by (job_name) (kube_job_status_condition{namespace="pas", job_name=~"pas-(claims-daily-extract|actuarial-monthly-exposure)-.*", condition="Failed", status="true"}) == 1
         labels: {severity: page, team: pas}
         annotations:
           summary: "{{ $labels.job_name }} failed"
           runbook: docs/pas/extracts.md#failure-and-rerun
       - alert: PasClaimsExtractMissing
         # No successful Claims run in 26 hours (the job starts at 23:00).
-        expr: time() - kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-claims-daily-extract"} > 26 * 3600
+        # Also fires when the CronJob has never succeeded, measured from its creation.
+        expr: >-
+          (time() - kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-claims-daily-extract"} > 26 * 3600)
+          or
+          (time() - kube_cronjob_created{namespace="pas", cronjob="pas-claims-daily-extract"} > 26 * 3600
+            unless on (namespace, cronjob) kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-claims-daily-extract"})
         for: 30m
         labels: {severity: page, team: pas}
         annotations:
@@ -23,7 +29,12 @@ groups:
           runbook: docs/pas/extracts.md#failure-and-rerun
       - alert: PasActuarialExposureMissing
         # No successful monthly exposure run in 32 days.
-        expr: time() - kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-actuarial-monthly-exposure"} > 32 * 86400
+        # Also fires when the CronJob has never succeeded, measured from its creation.
+        expr: >-
+          (time() - kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-actuarial-monthly-exposure"} > 32 * 86400)
+          or
+          (time() - kube_cronjob_created{namespace="pas", cronjob="pas-actuarial-monthly-exposure"} > 32 * 86400
+            unless on (namespace, cronjob) kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-actuarial-monthly-exposure"})
         labels: {severity: page, team: pas}
         annotations:
           summary: "No successful Actuarial exposure extract in the last 32 days"
