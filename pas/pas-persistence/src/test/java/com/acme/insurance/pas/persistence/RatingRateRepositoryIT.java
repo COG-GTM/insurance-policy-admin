@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.acme.insurance.pas.domain.BaseRate;
 import com.acme.insurance.pas.domain.RatingParameter;
 import com.acme.insurance.pas.domain.RatingParameterCode;
+import com.acme.insurance.pas.domain.RatingRateHistory;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
@@ -79,12 +80,17 @@ class RatingRateRepositoryIT {
     assertThat(surcharge(change.minusDays(1))).isEqualTo("25.00");
     assertThat(surcharge(change.plusYears(1))).isEqualTo("30.00");
     assertThat(rates.baseRatesInForce(change)).hasSize(5);
-    assertThat(rates.allBaseRates())
+    RatingRateHistory history = rates.history();
+    assertThat(history.baseRates())
         .extracting(BaseRate::policyType, BaseRate::effectiveDate)
         .contains(org.assertj.core.groups.Tuple.tuple("LIF", change));
-    assertThat(rates.allParameters())
+    assertThat(history.parameters())
         .extracting(RatingParameter::code, RatingParameter::effectiveDate)
         .contains(org.assertj.core.groups.Tuple.tuple(RatingParameterCode.SURCHARGE_AMT, change));
+    assertThat(history.baseRates())
+        .filteredOn(r -> r.policyType().equals("LIF") && r.effectiveDate().equals(change))
+        .extracting(r -> r.baseRate().toPlainString())
+        .containsExactly("410.00");
   }
 
   @Test

@@ -2,6 +2,7 @@ package com.acme.insurance.pas.rating;
 
 import com.acme.insurance.pas.domain.BaseRate;
 import com.acme.insurance.pas.domain.RatingParameter;
+import com.acme.insurance.pas.domain.RatingRateHistory;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Comparator;
@@ -28,16 +29,17 @@ public interface RatingReferenceData {
    */
   RatingReferenceData pin();
 
-  /** Live data: per-date lookups, and the full row history for {@link #pin()}. */
+  /**
+   * Live data: per-date lookups, and the full row history for {@link #pin()}, which must be read as
+   * one consistent version of both tables.
+   */
   static RatingReferenceData of(
       Function<LocalDate, List<BaseRate>> baseRates,
       Function<LocalDate, List<RatingParameter>> parameters,
-      Supplier<List<BaseRate>> allBaseRates,
-      Supplier<List<RatingParameter>> allParameters) {
+      Supplier<RatingRateHistory> history) {
     Objects.requireNonNull(baseRates, "baseRates");
     Objects.requireNonNull(parameters, "parameters");
-    Objects.requireNonNull(allBaseRates, "allBaseRates");
-    Objects.requireNonNull(allParameters, "allParameters");
+    Objects.requireNonNull(history, "history");
     return new RatingReferenceData() {
       @Override
       public List<BaseRate> baseRatesInForce(LocalDate ratingDate) {
@@ -51,7 +53,8 @@ public interface RatingReferenceData {
 
       @Override
       public RatingReferenceData pin() {
-        return history(allBaseRates.get(), allParameters.get());
+        RatingRateHistory rows = history.get();
+        return history(rows.baseRates(), rows.parameters());
       }
     };
   }

@@ -3,7 +3,10 @@ package com.acme.insurance.pas.persistence;
 import com.acme.insurance.pas.domain.BaseRate;
 import com.acme.insurance.pas.domain.RatingParameter;
 import com.acme.insurance.pas.domain.RatingParameterCode;
+import com.acme.insurance.pas.domain.RatingRateHistory;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
@@ -41,32 +44,36 @@ public class RatingRateJdbcRepository {
         .list();
   }
 
-  /** Every row of every effective date, to pin a batch run to one version of the rates. */
-  public List<BaseRate> allBaseRates() {
-    return jdbc.sql(
-            "SELECT policy_type, effective_date, base_rate FROM pasapp.base_rates"
-                + " ORDER BY policy_type, effective_date")
+  /**
+   * Every base-rate and parameter row of every effective date, read by one statement so both tables
+   * come from the same committed version (a rate release that commits a base rate and a parameter
+   * together is seen entirely or not at all). Used to pin a batch run.
+   */
+  public RatingRateHistory history() {
+    List<BaseRate> baseRates = new ArrayList<>();
+    List<RatingParameter> parameters = new ArrayList<>();
+    jdbc.sql(
+            """
+            SELECT 'B' AS row_kind, policy_type AS row_key, effective_date,
+                   CAST(base_rate AS DECIMAL(11,4)) AS row_value
+            FROM pasapp.base_rates
+            UNION ALL
+            SELECT 'P', parameter_code, effective_date, parameter_value
+            FROM pasapp.rating_parameters
+            """)
         .query(
-            (rs, row) ->
-                new BaseRate(
-                    rs.getString("policy_type"),
-                    rs.getObject("effective_date", LocalDate.class),
-                    rs.getBigDecimal("base_rate")))
-        .list();
-  }
-
-  /** Every row of every effective date, to pin a batch run to one version of the rates. */
-  public List<RatingParameter> allParameters() {
-    return jdbc.sql(
-            "SELECT parameter_code, effective_date, parameter_value FROM pasapp.rating_parameters"
-                + " ORDER BY parameter_code, effective_date")
-        .query(
-            (rs, row) ->
-                new RatingParameter(
-                    RatingParameterCode.valueOf(rs.getString("parameter_code")),
-                    rs.getObject("effective_date", LocalDate.class),
-                    rs.getBigDecimal("parameter_value")))
-        .list();
+            rs -> {
+              String key = rs.getString("row_key").trim();
+              LocalDate effective = rs.getObject("effective_date", LocalDate.class);
+              BigDecimal value = rs.getBigDecimal("row_value");
+              if ("B".equals(rs.getString("row_kind"))) {
+                baseRates.add(new BaseRate(key, effective, value));
+              } else {
+                parameters.add(
+                    new RatingParameter(RatingParameterCode.valueOf(key), effective, value));
+              }
+            });
+    return new RatingRateHistory(baseRates, parameters);
   }
 
   public List<RatingParameter> parametersInForce(LocalDate ratingDate) {

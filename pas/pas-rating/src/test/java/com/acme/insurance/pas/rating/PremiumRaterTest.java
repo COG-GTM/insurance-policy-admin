@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.domain.BaseRate;
 import com.acme.insurance.pas.domain.RatingParameter;
+import com.acme.insurance.pas.domain.RatingRateHistory;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -26,8 +27,9 @@ class PremiumRaterTest {
                 return RatingTableTest.baseRates();
               },
               date -> RatingTableTest.parameters(),
-              RatingTableTest::baseRates,
-              RatingTableTest::parameters));
+              () ->
+                  new RatingRateHistory(
+                      RatingTableTest.baseRates(), RatingTableTest.parameters())));
 
   /** Territory T1 = 1.1000 and class C1 = 0.9000 from 2025-01-01. */
   static final FactorLookup TERRITORY =
@@ -156,8 +158,7 @@ class PremiumRaterTest {
             RatingReferenceData.of(
                 date -> List.copyOf(current),
                 date -> RatingTableTest.parameters(),
-                () -> List.copyOf(current),
-                RatingTableTest::parameters),
+                () -> new RatingRateHistory(current, RatingTableTest.parameters())),
             java.time.Duration.ofMinutes(5),
             clock);
     ReferenceRatingTables batchRun = fresh.snapshot();
@@ -187,8 +188,7 @@ class PremiumRaterTest {
                 RatingReferenceData.history(live, RatingTableTest.parameters())
                     .baseRatesInForce(date),
             date -> RatingTableTest.parameters(),
-            () -> List.copyOf(live),
-            RatingTableTest::parameters);
+            () -> new RatingRateHistory(live, RatingTableTest.parameters()));
     ReferenceRatingTables batchRun =
         new ReferenceRatingTables(data, java.time.Duration.ZERO, java.time.Clock.systemUTC())
             .snapshot();

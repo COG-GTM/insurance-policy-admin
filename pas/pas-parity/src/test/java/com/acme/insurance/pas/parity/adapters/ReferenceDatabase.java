@@ -46,11 +46,7 @@ public final class ReferenceDatabase {
     RatingRateJdbcRepository rates = new RatingRateJdbcRepository(jdbc());
     RatingFactorJdbcRepository factors = new RatingFactorJdbcRepository(jdbc());
     RatingReferenceData data =
-        RatingReferenceData.of(
-            rates::baseRatesInForce,
-            rates::parametersInForce,
-            rates::allBaseRates,
-            rates::allParameters);
+        RatingReferenceData.of(rates::baseRatesInForce, rates::parametersInForce, rates::history);
     return new PremiumRater(
         ReferenceRatingTables.snapshotOf(data),
         mode.source(factors::territoryFactor, factors::classFactor));
