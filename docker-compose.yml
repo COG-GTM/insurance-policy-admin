@@ -61,6 +61,12 @@ services:
       PAS_DB_PASSWORD: ${PAS_DB_PASSWORD}
       PAS_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       PAS_TRACING_SAMPLING_PROBABILITY: "1.0"
+      # Local token issuer (pas/scripts/local-token.sh); shared environments set the IdP's JWK set URI.
+      PAS_JWT_ISSUER: ${PAS_JWT_ISSUER:-https://pas-local.invalid/issuer}
+      PAS_JWT_AUDIENCE: ${PAS_JWT_AUDIENCE:-pas-policy-service}
+      PAS_JWT_PUBLIC_KEY_LOCATION: file:/run/pas-jwt/public.pem
+    volumes:
+      - ./pas/.local-jwt/public.pem:/run/pas-jwt/public.pem:ro
     ports:
       - "127.0.0.1:${PAS_HTTP_PORT:-8080}:8080"
       - "127.0.0.1:${PAS_MANAGEMENT_PORT:-8081}:8081"
