@@ -1,0 +1,959 @@
+{
+  "_comment": "AB-517 quirk register (source of truth). Rendered into quirk-register.md by tools/discovery/pas_inventory.py --write. AB-517 owns Q-01..Q-99; other tickets use Q-<ticket>-<n>. Decisions are proposals until the sign-off table in docs/modernization/README.md is completed.",
+  "quirks": [
+    {
+      "id": "Q-01",
+      "title": "Leap-year renewal date",
+      "component": "POLRNW",
+      "category": "defect (known)",
+      "description": "The new expiry date is computed as `ADD 10000` to the YYYYMMDD expiry. That is correct for every date except 29 February: 2024-02-29 becomes 20250229, which is not a valid date. DB2 rejects the UPDATE (SQLCODE -180/-181), and because of Q-07 the program still updates coverages and sends the confirmation screen.",
+      "owner": "Product Owner, Policy Administration",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Epic AB-516 names the leap-year renewal bug as a known defect. The fix needs a product convention for 29 Feb terms (recommendation: expire on 28 Feb of the following year, the same as `LocalDate.plusYears(1)`).",
+      "parity_note": "Characterization tests record today's behaviour for 29 Feb inputs (invalid date / DB2 error) and tag it as a signed-off deviation once the fix is approved. Every other date must match exactly.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "ADD 10000 TO POLICY-EXPIRY-DATE"
+        },
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "does not handle leap years properly"
+        }
+      ],
+      "follow_up": "FU-01",
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-02",
+      "title": "Open-claims count queried but never enforced",
+      "component": "POLRNW",
+      "category": "dormant business rule (known)",
+      "description": "3000-CHECK-RENEWAL-ELIGIBILITY counts OPEN claims in ACMEINS.CLAIMS into WS-SQLCODE and never tests the result. The comment says the business wanted to block renewal when there are more than 3 open claims (JH 2005). Today no renewal is ever blocked for open claims. The query still needs read access to the Claims-owned table.",
+      "owner": "Product Owner, Policy Administration",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Turning the block on changes who gets renewed, which is a business-rule change and not part of the like-for-like migration. Migrate at parity (no block). Raise enabling the >3 rule as a separate, flagged product change.",
+      "parity_note": "The Java renewal must not block on open claims. A characterization case with 4+ open claims must still renew.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "INTO :WS-SQLCODE"
+        },
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "TODO: Business wants to block renewal if >3 open claims"
+        }
+      ],
+      "follow_up": "FU-02",
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-03",
+      "title": "Territory table opened but never loaded, so all factors are 1.00",
+      "component": "PREMBAT",
+      "category": "defect (known)",
+      "description": "2000-LOAD-RATING-TABLES declares, OPENs and CLOSEs TERR_CURSOR without a single FETCH, and the comment says 'production loads all rows'. WS-TERRITORY-TABLE and WS-CLASS-TABLE are never filled. Territory, class and experience factors are hard-coded `* 1.00`, and the PREMIUMS row is inserted with literal 1.0000 for TERRITORY_FACTOR, CLASS_FACTOR, EXPERIENCE_MOD and SCHEDULE_MOD.",
+      "owner": "Actuarial / Pricing lead",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Epic AB-516: 'table-driven factors are the only intentional change'. The fix must be staged. First reproduce 1.00 at parity, then switch to TERRITORY_FACTORS behind a flag once Actuarial approves the table contents and the premium impact report.",
+      "parity_note": "Parity baseline uses factor 1.0000. The table-driven switch is a separately approved deviation with a before/after premium diff per policy.",
+      "evidence": [
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "EXEC SQL OPEN TERR_CURSOR END-EXEC"
+        },
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "(simplified - production loads all rows)"
+        },
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "WS-BASE-PREMIUM * 1.00"
+        }
+      ],
+      "follow_up": "FU-03",
+      "lands_in": "AB-522"
+    },
+    {
+      "id": "Q-04",
+      "title": "Flat 15% renewal rate-increase cap (and it can never trigger)",
+      "component": "POLRNW",
+      "category": "regulatory gap (known)",
+      "description": "5000-APPLY-RATE-CAP caps the renewal increase at a flat 15% (`WS-RATE-INCREASE-CAP VALUE 15.00`) instead of state-specific regulatory caps. Because 4000-CALCULATE-NEW-PREMIUM always applies exactly +5% (Q-05), the 15% branch is unreachable today.",
+      "owner": "Compliance / Regulatory",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "State-specific caps are a regulatory/pricing change, which the epic puts out of scope. Port the flat cap at parity as configuration (cap = 15.00) so Compliance can later supply per-state values without a code change.",
+      "parity_note": "Tests cover the cap boundary in isolation (unit level), even though the end-to-end renewal can never exceed 5% today.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "WS-RATE-INCREASE-CAP      PIC S9(03)V99 COMP-3"
+        },
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "Using flat 15% cap for now (TODO: state-specific caps)"
+        }
+      ],
+      "follow_up": "FU-04",
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-05",
+      "title": "Renewal premium is a hard-coded +5% uplift",
+      "component": "POLRNW",
+      "category": "hard-coded business rule",
+      "description": "Every renewal premium is the old TOTAL_PREMIUM * 1.05. It does not use PREMBAT, the PREMIUMS table, coverages or territory. The comment says actuarial never provided the table.",
+      "owner": "Actuarial / Pricing lead",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "This is a rating rule. The epic says rating moves at parity. Make it a configurable uplift (default 1.05).",
+      "parity_note": "Golden cases compare renewal premiums to the cent, with truncation (see Q-06).",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "WS-OLD-PREMIUM * 1.05"
+        }
+      ],
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-06",
+      "title": "Arithmetic truncates instead of rounding",
+      "component": "PREMBAT, POLRNW, POLEND, UNDWRT",
+      "category": "numeric semantics",
+      "description": "No COMPUTE in PAS uses ROUNDED, so intermediate and final results are truncated toward zero into the receiving PIC (V99 for money, V9(06) for the pro-rata factor). Examples: PREMBAT tax = premium * 0.0350 truncated to cents, POLRNW premium * 1.05 truncated to cents.",
+      "owner": "Actuarial / Pricing lead",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Changing to HALF_UP would change premiums by a cent on many policies. The epic requires cent-level parity, so use BigDecimal with RoundingMode.DOWN at the same scale as each COBOL receiving field.",
+      "parity_note": "The parity harness compares to the cent. Java code must use BigDecimal with explicit scale + RoundingMode.DOWN wherever COBOL COMPUTE has no ROUNDED.",
+      "evidence": [
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "WS-MOD-PREMIUM * WS-TAX-RATE"
+        },
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "WS-OLD-PREMIUM * 1.05"
+        }
+      ],
+      "lands_in": "AB-520, AB-522"
+    },
+    {
+      "id": "Q-07",
+      "title": "Renewal continues after a failed policy UPDATE",
+      "component": "POLRNW",
+      "category": "error handling defect",
+      "description": "If the POLICIES UPDATE fails, 6000-CREATE-RENEWAL-TERM sends the error text, but 0000-MAIN-LOGIC still runs 7000-UPDATE-COVERAGES (moves coverage dates to the new term) and 8000-SEND-CONFIRMATION. The terminal shows a confirmation and coverages can be moved to a term the policy never got. CICS syncpoint-on-return commits the coverage change.",
+      "owner": "Mainframe team (mainframe-ops@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Partial updates break data integrity. The target must do the whole renewal in one transaction and roll it back on any failure.",
+      "parity_note": "Characterization documents the current partial-update outcome. The Java service is expected to differ (all-or-nothing), so this is a signed-off deviation.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "MOVE 'DB2 ERROR UPDATING RENEWAL' TO WS-ERROR-MSG"
+        },
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "PERFORM 7000-UPDATE-COVERAGES"
+        }
+      ],
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-08",
+      "title": "Generated policy number overflows PIC X(12): last digit dropped, numbers collide",
+      "component": "POLNEW",
+      "category": "defect / needs verification",
+      "description": "4000-GENERATE-POLICY-NUM STRINGs 'POL' + WS-POLICY-SEQ (PIC 9(10), zero-padded) into POLICY-NUMBER PIC X(12). That is 13 characters, so the STRING overflows and drops the last digit. POLICY_SEQ starts at 1000000, so sequence values 1000000-1000009 all become 'POL000100000', and 9 of every 10 inserts would hit a duplicate key. The format 'POL' + 9 digits also differs from the 'POL-########' numbers in the facade seed data and API snapshots.",
+      "owner": "Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "The epic requires existing policy numbers to stay exactly the same. The mainframe team must confirm the production algorithm (the load module may differ from this source) before the Java generator is written. Existing numbers are preserved. Generation of new numbers must not collide.",
+      "parity_note": "Parity tests must assert the production format confirmed by the mainframe team, not this source. Blocked on FU-05.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "STRING 'POL' WS-POLICY-SEQ"
+        },
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "WS-POLICY-SEQ             PIC 9(10)"
+        },
+        {
+          "file": "cobol/copybooks/POLICY-RECORD.cpy",
+          "contains": "POLICY-NUMBER            PIC X(12)"
+        }
+      ],
+      "follow_up": "FU-05",
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-09",
+      "title": "New-policy dates never moved to the DB2 host variables",
+      "component": "POLNEW",
+      "category": "defect / needs verification",
+      "description": "5000-INSERT-POLICY copies number, type, holder, agent, branch, amounts and flags into DCLPOLICIES. It never sets POL-EFF-DT, POL-EXP-DT or POL-INCEPT-DT, but the INSERT binds them to the NOT NULL EFFECTIVE_DATE/EXPIRY_DATE columns and to INCEPTION_DATE. 6100-WRITE-COVERAGE binds the same uninitialised fields. As written, the insert would fail or store garbage dates. No rule for the new expiry date (effective + 1 year?) exists anywhere in the repo.",
+      "owner": "Mainframe team (mainframe-ops@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "Either the production source differs, or PNEW cannot create policies. The target must set effective, expiry and inception explicitly. The expiry rule needs product confirmation.",
+      "parity_note": "Blocked on FU-05. Capture real PNEW outputs from production or the test region before writing the new-business parity tests.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": ":POL-EFF-DT, :POL-EXP-DT,"
+        },
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "MOVE POLICY-HOLDER-ID   TO POL-HOLDER"
+        }
+      ],
+      "follow_up": "FU-05",
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-10",
+      "title": "Default coverages hard-coded per policy type with unset amounts",
+      "component": "POLNEW",
+      "category": "hard-coded business rule / defect",
+      "description": "6000-INSERT-COVERAGES writes fixed coverage codes per type: AUT gets AUTL+AUTP, HOM gets PROP+LIAB, COM gets PROP+LIAB+WKCP. LIF and HLT get no coverages. COV-LIMIT, COV-DEDUCTIBLE and COV-PREMIUM are never set, and COV-SEQUENCE-NUM is incremented without being initialised, so the stored amounts and sequence numbers depend on leftover storage.",
+      "owner": "Product Owner, Policy Administration",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Keep the per-type default coverage codes (behaviour consumers see). Fix the uninitialised amounts and sequence (explicit 0 / start at 1). Product must confirm whether LIF/HLT really get no coverages.",
+      "parity_note": "Tests assert the codes and descriptions per type. Amounts are asserted as 0.00 and sequence numbers as 1..n (signed-off deviation if production differs).",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "TODO: This should be table-driven but never got refactored"
+        },
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "ADD 1 TO COV-SEQUENCE-NUM"
+        }
+      ],
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-11",
+      "title": "Only the last validation error is reported",
+      "component": "POLNEW",
+      "category": "UX behaviour",
+      "description": "Each failed check in 3000-VALIDATE-INPUT overwrites WS-ERROR-MSG, so only the last failure is shown. The DB2 policyholder lookup runs even after earlier checks failed (and after a failed RECEIVE). Precedence, last wins: holder not found > limit zero > effective date in past > type required > holder id required.",
+      "owner": "Product Owner, Policy Administration",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "3270 users and scripts may depend on which message appears. Keep the same precedence on the CICS-equivalent path. A new REST API may additionally return every violation.",
+      "parity_note": "Golden cases with several invalid fields assert the single message selected by the precedence above.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "MOVE 'POLICYHOLDER ID IS REQUIRED' TO WS-ERROR-MSG"
+        },
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "MOVE 'POLICYHOLDER NOT FOUND IN SYSTEM'"
+        }
+      ],
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-12",
+      "title": "New-business premium is taken from screen input, not rated",
+      "component": "POLNEW",
+      "category": "business rule",
+      "description": "POLICIES.TOTAL_PREMIUM on a new policy is whatever the operator keyed into the map. No rating happens at quote/bind. PREMBAT later writes rated rows to PREMIUMS but never updates POLICIES.TOTAL_PREMIUM (see Q-26).",
+      "owner": "Actuarial / Pricing lead",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Introducing rating at bind is a product change and out of scope.",
+      "parity_note": "The new-business API accepts the premium as input. Tests assert it is stored unchanged.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "MOVE POLICY-TOTAL-PREMIUM TO POL-TOTAL-PREM"
+        }
+      ],
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-13",
+      "title": "TD queue names longer than 4 characters: request and decision share one queue",
+      "component": "POLNEW, UNDWRT",
+      "category": "integration ambiguity",
+      "description": "POLNEW writes the underwriting request and UNDWRT writes the decision with EXEC CICS WRITEQ TD, using 48-byte names 'ACME.PAS.UNDERWRITING.REQUEST' / '...DECISION'. A CICS TD queue id is 4 characters, so both resolve to the same queue 'ACME'. The routing to IBM MQ, FileNet and the underwriting work queue lives in CSD/DCT and MQ definitions that are not in this repo. POLNEW ignores a failed write (policy committed, no UW request sent), and UNDWRT never checks RESP.",
+      "owner": "Mainframe team (mainframe-ops@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "The target publishes two distinct, durable events (underwriting.requested, underwriting.decided) with at-least-once delivery. The mainframe team must supply the real queue/route definitions and the consumers (FileNet, UW queue) must confirm the payload (raw POLICY-RECORD bytes, 125 bytes).",
+      "parity_note": "The event payload is compared byte-for-byte against the POLICY-RECORD layout until consumers agree a new schema.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "VALUE 'ACME.PAS.UNDERWRITING.REQUEST'"
+        },
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "VALUE 'ACME.PAS.UNDERWRITING.DECISION'"
+        },
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "Non-fatal: log error but continue"
+        }
+      ],
+      "follow_up": "FU-06",
+      "lands_in": "AB-528"
+    },
+    {
+      "id": "Q-14",
+      "title": "Risk score sign loss and truncation",
+      "component": "UNDWRT",
+      "category": "numeric defect",
+      "description": "WS-RISK-SCORE is unsigned PIC 9(04). A preferred-tier customer with a high credit score goes negative after `SUBTRACT 100` and is stored as the absolute value (credit 850: 25 - 100 = -75, stored as 75). The score is then MOVEd to POLICY-RISK-SCORE PIC 9(03), which drops the thousands digit for scores of 1000 or more (possible: up to ~1850). The MQ message and the result map show e.g. 250 while UNDERWRITING_DECISIONS/POLICIES get 1250.",
+      "owner": "Underwriting lead",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Accept/refer/decline uses the full WS value, so the decision itself is not affected by the truncation. The fix: clamp at 0, never truncate, and send the full score in the event. Underwriting must confirm the clamp (sign loss can move a score a few points).",
+      "parity_note": "Characterization covers credit 850+/preferred and scores of 1000+. Java differs only in the message/display score and in negative clamping. Record both as signed-off deviations.",
+      "evidence": [
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "SUBTRACT 100 FROM WS-RISK-SCORE"
+        },
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "MOVE WS-RISK-SCORE TO POLICY-RISK-SCORE"
+        }
+      ],
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-15",
+      "title": "Loss ratio overflows at 1000%, so extreme losers can escape the surcharge",
+      "component": "UNDWRT",
+      "category": "numeric defect",
+      "description": "WS-LOSS-RATIO is PIC S9(03)V99. A loss ratio of 1000% or more loses its high-order digit (1050.00 becomes 050.00), so the `> 80` test fails and the +200 surcharge is not applied to the very worst risks. The query reads INCURRED_AMOUNT from ACMEINS.CLAIMS over 5 years.",
+      "owner": "Underwriting lead",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "This is a clear defect against the documented intent and only affects extreme loss histories. Underwriting must confirm.",
+      "parity_note": "A characterization case with incurred = 11x premium records the current (no surcharge) result as a signed-off deviation.",
+      "evidence": [
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "WS-LOSS-RATIO             PIC S9(03)V99 COMP-3"
+        },
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "IF WS-LOSS-RATIO > 80"
+        }
+      ],
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-16",
+      "title": "Accumulation-limit reason is overwritten",
+      "component": "UNDWRT",
+      "category": "defect",
+      "description": "4000-CHECK-ACCUMULATION adds 300 and writes 'ACCUMULATION LIMIT EXCEEDED FOR BRANCH ...' into WS-DECISION-REASON. 5000-RENDER-DECISION then always overwrites the reason with the band text, so the audit trail never says why. The branch sum includes the policy being underwritten (if active), and the $500M limit is hard-coded.",
+      "owner": "Underwriting lead",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Keep the score effect (+300 over $500M per branch, made configurable) and record the accumulation reason alongside the band text.",
+      "parity_note": "Score and decision code must match. DECISION_REASON text differs (signed-off deviation).",
+      "evidence": [
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "ACCUMULATION LIMIT EXCEEDED FOR BRANCH"
+        },
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "IF WS-ACCUM-LIMIT > 500000000"
+        }
+      ],
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-17",
+      "title": "Decision codes RS/RM are outside the POLICY-RECORD UW status domain",
+      "component": "UNDWRT",
+      "category": "data contract",
+      "description": "UNDWRT writes AP / RS / RM / DC to POLICIES.UW_STATUS and UNDERWRITING_DECISIONS.DECISION_CODE. The POLICY-RECORD copybook only defines AP / PN / DC / RF, so consumers decoding by copybook (FileNet, extracts, Broker Portal) see undefined values for referrals.",
+      "owner": "Underwriting lead",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "The stored codes are the DB contract read by the extracts and the facade. Keep RS/RM and document the full domain {AP, PN, DC, RF, RS, RM}.",
+      "parity_note": "Target enums must accept and emit all six codes unchanged.",
+      "evidence": [
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "VALUE 'RS'"
+        },
+        {
+          "file": "cobol/copybooks/POLICY-RECORD.cpy",
+          "contains": "88  UW-REFERRED          VALUE 'RF'."
+        }
+      ],
+      "lands_in": "AB-521, AB-525"
+    },
+    {
+      "id": "Q-18",
+      "title": "Second underwriting decision on the same day is silently lost",
+      "component": "UNDWRT",
+      "category": "defect",
+      "description": "UNDERWRITING_DECISIONS has PRIMARY KEY (POLICY_NUMBER, DECISION_DATE). A second PUWR run for the same policy on the same day fails with -803. SQLCODE is not checked, so POLICIES is still updated and the message is still sent, but the audit row is missing.",
+      "owner": "Underwriting lead + DBA team (db2-admin@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "The audit trail must be complete. The target keys decisions by timestamp/sequence. The data migration keeps the existing rows.",
+      "parity_note": "Deviation: Java records every decision. Reconciliation compares the latest decision per policy per day.",
+      "evidence": [
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "INSERT INTO UNDERWRITING_DECISIONS"
+        },
+        {
+          "file": "sql/ddl/create-tables.sql",
+          "contains": "CONSTRAINT PK_UW_DECISIONS PRIMARY KEY"
+        }
+      ],
+      "lands_in": "AB-521, AB-525"
+    },
+    {
+      "id": "Q-19",
+      "title": "Endorsement type never populated from the screen",
+      "component": "POLEND",
+      "category": "defect / needs verification",
+      "description": "The map is RECEIVEd INTO POLICY-RECORD, but WS-ENDORSEMENT-TYPE is a separate working-storage field with no VALUE and is never moved. The 'ENDORSEMENT TYPE IS REQUIRED' check and the ENDORSEMENT_TYPE inserted into ENDORSEMENTS therefore depend on uninitialised storage. The DB2 read also runs after a failed RECEIVE.",
+      "owner": "Mainframe team (mainframe-ops@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "The production source or the BMS map (not in repo) may populate it differently. The target takes the endorsement type as required input.",
+      "parity_note": "Blocked on FU-05 / FU-07: capture real PEND inputs and outputs.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLEND.cbl",
+          "contains": "IF WS-ENDORSEMENT-TYPE = SPACES"
+        },
+        {
+          "file": "cobol/programs/POLEND.cbl",
+          "contains": "INTO(POLICY-RECORD)"
+        }
+      ],
+      "follow_up": "FU-07",
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-20",
+      "title": "Pro-rata factor computed but never applied",
+      "component": "POLEND",
+      "category": "defect",
+      "description": "4000-CALCULATE-PRORATA computes days remaining / days in term, but nothing uses WS-PRORATA-FACTOR and WS-PREMIUM-ADJUST is never computed. The ENDORSEMENTS row stores an uninitialised adjustment and TOTAL_PREMIUM is incremented by it (expected 0). Days fields are unsigned PIC 9(03), so endorsing after expiry gives a positive 'remaining', and terms over 999 days truncate.",
+      "owner": "Product Owner, Policy Administration + Actuarial / Pricing lead",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "The header promises a pro-rata premium adjustment. Fixing it changes premiums, so Product/Actuarial must define the rule (pro-rata of what amount?). Until then the target stores 0.00 explicitly.",
+      "parity_note": "Parity: PREMIUM_ADJUSTMENT = 0.00 and TOTAL_PREMIUM unchanged. Enabling pro-rata is a separately approved change.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLEND.cbl",
+          "contains": "COMPUTE WS-PRORATA-FACTOR ="
+        },
+        {
+          "file": "cobol/programs/POLEND.cbl",
+          "contains": "POLICY-TOTAL-PREMIUM + WS-PREMIUM-ADJUST"
+        }
+      ],
+      "follow_up": "FU-08",
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-21",
+      "title": "Endorsement types have no type-specific processing; CAN does not cancel",
+      "component": "POLEND",
+      "category": "missing behaviour",
+      "description": "CAD/CRM/LCH/ACH/CAN are declared, but every type does the same thing: insert an ENDORSEMENTS row and rewrite TOTAL_PREMIUM. No coverage is added or removed, no limit or address changes, and a cancellation ('CAN', mid-term cancellation added 2007) does not set POLICY_STATUS to CN. The endorsement EFFECTIVE_DATE is always today (no back/forward dating). DESCRIPTION is never written.",
+      "owner": "Product Owner, Policy Administration",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "The migration ports what the program actually does. Real endorsement processing (and cancellation) is a new capability that needs its own spec, so raise it as a follow-up rather than silently adding it.",
+      "parity_note": "The Java endorsement path must not change coverages or status for any type at parity.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLEND.cbl",
+          "contains": "VALUE 'CAN'"
+        },
+        {
+          "file": "cobol/programs/POLEND.cbl",
+          "contains": "Added mid-term cancellation"
+        }
+      ],
+      "follow_up": "FU-08",
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-22",
+      "title": "Endorsement continues after a failed INSERT",
+      "component": "POLEND",
+      "category": "error handling defect",
+      "description": "If the ENDORSEMENTS insert fails, the error text is set, but 5000 still updates POLICIES.TOTAL_PREMIUM, and 6000 (audit) and 7000 (confirmation screen) still run, because 0000-MAIN-LOGIC only checks errors before 4000.",
+      "owner": "Mainframe team (mainframe-ops@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Same as Q-07: the target must be all-or-nothing.",
+      "parity_note": "Signed-off deviation: Java rolls back.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLEND.cbl",
+          "contains": "MOVE 'DB2 ERROR INSERTING ENDORSEMENT'"
+        },
+        {
+          "file": "cobol/programs/POLEND.cbl",
+          "contains": "PERFORM 6000-WRITE-AUDIT-TRAIL"
+        }
+      ],
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-23",
+      "title": "Regulatory endorsement audit trail lives in a CICS TS queue",
+      "component": "POLEND",
+      "category": "compliance gap",
+      "description": "The 2016 'regulatory' audit writes POLICY-RECORD to TS queue 'ENDORSEMENT-AUDIT'. That name is longer than the 8-character (16 with QNAME) TS limit, a TS queue is not a durable audit store, and nothing in the repo reads or archives it. The record does not contain the endorsement type or amount.",
+      "owner": "Compliance / Regulatory",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "Compliance must say what the audit must hold and how long. The target writes a durable, append-only audit record (plus event). The mainframe team must confirm who drains the TSQ today.",
+      "parity_note": "Not part of parity. Audit content is defined by Compliance (FU-09).",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLEND.cbl",
+          "contains": "QUEUE('ENDORSEMENT-AUDIT')"
+        },
+        {
+          "file": "cobol/programs/POLEND.cbl",
+          "contains": "Added 2016 for regulatory compliance"
+        }
+      ],
+      "follow_up": "FU-09",
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-24",
+      "title": "Inquiry reads customer and coverages but displays only the policy header",
+      "component": "POLQRY",
+      "category": "dead code / UX",
+      "description": "POLQRY reads POLICY_HOLDERS (SQLCODE unchecked) and up to 20 coverages into WS-COVERAGE-TABLE, but SENDs only POLICY-RECORD to map POLQDET. The header claims 'coverage detail display' and an 'API flag check for facade' (2022), but no API_FLAG check exists. The REST facade does not filter on API_FLAG either.",
+      "owner": "Product Owner, Policy Administration + Java facade owner (t.nguyen@acme.com)",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "The new inquiry API keeps the facade contract (compat snapshots). API_FLAG stays informational (no filtering). Product must confirm whether API_FLAG='N' policies should really be visible to API consumers.",
+      "parity_note": "The inquiry API must match compat/api/snapshots byte-for-byte, including returning policies with API_FLAG='N'.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLQRY.cbl",
+          "contains": "MAP('POLQDET')"
+        },
+        {
+          "file": "cobol/programs/POLQRY.cbl",
+          "contains": "OR WS-COV-COUNT >= 20"
+        },
+        {
+          "file": "cobol/programs/POLQRY.cbl",
+          "contains": "Added API flag check for facade"
+        }
+      ],
+      "follow_up": "FU-10",
+      "lands_in": "AB-524"
+    },
+    {
+      "id": "Q-25",
+      "title": "Premium batch stops at the first INSERT error",
+      "component": "PREMBAT",
+      "category": "defect",
+      "description": "3000-PROCESS-POLICIES loops `PERFORM 3100-FETCH-POLICY UNTIL SQLCODE NOT = 0`, but 3100 runs the PREMIUMS INSERT after the FETCH. A failed INSERT leaves SQLCODE non-zero and ends the loop, so all remaining policies are skipped and the job ends RC=4 with partial output.",
+      "owner": "Mainframe team (mainframe-ops@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "The epic requires the full book in under 30 min with safe reruns. The target processes every policy, records per-policy errors and continues.",
+      "parity_note": "Signed-off deviation for runs that hit an insert error. Otherwise per-policy outputs must match.",
+      "evidence": [
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "UNTIL SQLCODE NOT = 0"
+        },
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "PERFORM 3300-WRITE-PREMIUM-RECORD"
+        }
+      ],
+      "follow_up": "FU-11",
+      "lands_in": "AB-523"
+    },
+    {
+      "id": "Q-26",
+      "title": "Premium batch is not rerunnable: daily duplicate PREMIUMS key",
+      "component": "PREMBAT",
+      "category": "defect",
+      "description": "Every daily run INSERTs (POLICY_NUMBER, COVERAGE_SEQ=1, TERM_EFFECTIVE_DATE) for each active policy. PREMIUMS has that as its primary key, so from the second run in a term every insert hits -803. Combined with Q-25 the job processes one policy and stops. Only one row per policy (COVERAGE_SEQ 1) is written, and POLICIES.TOTAL_PREMIUM is never updated.",
+      "owner": "Actuarial / Pricing lead + Mainframe team (mainframe-ops@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "The epic requires safe reruns. Recommend an idempotent upsert per (policy, coverage seq, term). The mainframe team must explain how production avoids the duplicate (pre-delete step, different source?).",
+      "parity_note": "Parity compares the resulting PREMIUMS rows for a single run on a clean term. Reruns must be no-ops in Java.",
+      "evidence": [
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "MOVE 1             TO PREM-COVERAGE-SEQ"
+        },
+        {
+          "file": "sql/ddl/create-tables.sql",
+          "contains": "(POLICY_NUMBER, COVERAGE_SEQ, TERM_EFFECTIVE_DATE)"
+        }
+      ],
+      "follow_up": "FU-11",
+      "lands_in": "AB-523"
+    },
+    {
+      "id": "Q-27",
+      "title": "Premium formula: base by policy type only, flat 3.5% tax, flat $25 surcharge",
+      "component": "PREMBAT",
+      "category": "hard-coded business rule",
+      "description": "Base premium depends only on POLICY_TYPE (AUT 850, HOM 1200, COM 5000, LIF 400, HLT 3500, anything else 1000; e.g. 'CGL' in the facade data gets 1000). Coverages, limits and deductibles are ignored. Tax is a flat 3.5% (TODO state-specific), the surcharge a flat $25, and the installment code is always 'AN'.",
+      "owner": "Actuarial / Pricing lead",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Rating moves at parity. Only the factor tables change intentionally (Q-03). Move the constants to configuration with the same values.",
+      "parity_note": "Golden PREMIUMS rows per policy type, including an unknown type, compared to the cent.",
+      "evidence": [
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "MOVE 1000.00 TO WS-BASE-PREMIUM"
+        },
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "VALUE 0.0350."
+        },
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "MOVE 25.00 TO WS-SURCHARGE"
+        }
+      ],
+      "lands_in": "AB-522"
+    },
+    {
+      "id": "Q-28",
+      "title": "Premium batch return codes and notifications are inverted",
+      "component": "PREMBAT, PREMIUM-BATCH",
+      "category": "operational defect",
+      "description": "If the report file fails to open, PREMBAT sets WS-RETURN-CODE to 16 and does STOP RUN without moving it to RETURN-CODE, so the job ends RC=0. In the JCL, STEP030 has COND=(4,LT,STEP010), which bypasses it when RC > 4. It therefore sends 'PREMIUM BATCH COMPLETED WITH WARNINGS' on clean runs (RC 0) and on warnings (RC 4), and stays silent on real failures. STEP020 (IEFBR14) does nothing.",
+      "owner": "Mainframe operations / CA-7 scheduling",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Operations alerting must reflect reality. The target emits success/warning/failure status and metrics.",
+      "parity_note": "Not part of data parity. Covered by the scheduler/alerting runbook.",
+      "evidence": [
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "MOVE 16 TO WS-RETURN-CODE"
+        },
+        {
+          "file": "jcl/PREMIUM-BATCH.jcl",
+          "contains": "//STEP030  EXEC PGM=IKJEFT01,COND=(4,LT,STEP010)"
+        }
+      ],
+      "follow_up": "FU-12",
+      "lands_in": "AB-523"
+    },
+    {
+      "id": "Q-29",
+      "title": "Premium report STRINGs a packed-decimal field",
+      "component": "PREMBAT",
+      "category": "needs verification",
+      "description": "The report line STRINGs WS-FINAL-PREMIUM (COMP-3) and DISPLAY counters into a 132-byte line. STRING only accepts DISPLAY items, so either the production source differs or the report holds raw packed bytes. The report layout (ACME.PAS.REPORTS.PREMIUM, LRECL 132) cannot be pinned down from the repo.",
+      "owner": "Mainframe team (mainframe-ops@acme.com)",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "Preserve whatever production actually produces. The mainframe team must provide a sample report.",
+      "parity_note": "Byte-level report comparison waits for a production sample (FU-13).",
+      "evidence": [
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "STRING POLICY-NUMBER ' PREMIUM: '"
+        },
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "05  WS-FINAL-PREMIUM      PIC S9(09)V99 COMP-3."
+        }
+      ],
+      "follow_up": "FU-13",
+      "lands_in": "AB-523"
+    },
+    {
+      "id": "Q-30",
+      "title": "Extract jobs run DSNTEP2, which does not write the output DDs",
+      "component": "DAILY-EXTRACT, MONTHLY-EXPOSURE",
+      "category": "needs verification",
+      "description": "STEP010/STEP020 of DAILY-EXTRACT and STEP010 of MONTHLY-EXPOSURE run DSNTEP2 with in-stream SELECTs. DSNTEP2 writes formatted, paginated output to SYSPRINT. It does not write to POLOUT/COVOUT/EXPOUT, so as written the transferred datasets would be empty. The byte layout of the Claims feed (LRECL 200/150) and the actuarial 'CSV' (LRECL 300) is not defined anywhere in the repo.",
+      "owner": "Mainframe team (mainframe-ops@acme.com) + Claims team (owner of ACMEINS.CLAIMS and the Claims import) + Actuarial / Pricing lead",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "Downstream consumers parse fixed-width layouts (epic risk). Capture real production files and the actual unload utility (DSNTIAUL / custom program?) and preserve them byte-for-byte.",
+      "parity_note": "Byte-level file comparison against captured production files. Blocked on FU-13.",
+      "evidence": [
+        {
+          "file": "jcl/DAILY-EXTRACT.jcl",
+          "contains": "RUN PROGRAM(DSNTEP2) PLAN(DSNTEP12) -"
+        },
+        {
+          "file": "jcl/MONTHLY-EXPOSURE.jcl",
+          "contains": "PUT 'ACME.PAS.EXPOSURE.MONTHLY.D&LYYMMDD' /actuarial/data/exposure_monthly.csv"
+        }
+      ],
+      "follow_up": "FU-13",
+      "lands_in": "AB-527"
+    },
+    {
+      "id": "Q-31",
+      "title": "Claims extract mixes a policy delta with a full coverage dump",
+      "component": "DAILY-EXTRACT",
+      "category": "data contract",
+      "description": "The policy extract selects AC/PN policies with LAST_UPDATED >= CURRENT DATE - 1 DAY (a delta with a ~1-day window that depends on run time). The coverage extract dumps every active coverage (full). The header also promises a CUSTOMER extract and a Broker Portal refresh, but no step produces them. Status codes EX/LP/CN never reach Claims.",
+      "owner": "Claims team (owner of ACMEINS.CLAIMS and the Claims import)",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "The Claims VB6 import was built against this exact mix. Changing delta/full semantics needs Claims sign-off.",
+      "parity_note": "Run the extract on a fixed clock and compare with the captured production file. The delta window boundaries are part of the contract.",
+      "evidence": [
+        {
+          "file": "jcl/DAILY-EXTRACT.jcl",
+          "contains": "AND LAST_UPDATED >= CURRENT DATE - 1 DAY"
+        },
+        {
+          "file": "jcl/DAILY-EXTRACT.jcl",
+          "contains": "ACME.PAS.EXTRACT.CUSTOMER.DAILY"
+        }
+      ],
+      "follow_up": "FU-14",
+      "lands_in": "AB-527"
+    },
+    {
+      "id": "Q-32",
+      "title": "Plaintext FTP of PII feeds despite a documented 'encryption step'",
+      "component": "DAILY-EXTRACT, MONTHLY-EXPOSURE",
+      "category": "security / regulatory",
+      "description": "Both feeds are sent with the z/OS FTP client program (user ACMEFTP) in clear text. The DAILY-EXTRACT header says 'Added encryption step (regulatory)' in 2012, but no such step exists.",
+      "owner": "Security + Compliance / Regulatory",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Epic success criterion: 'No unencrypted file transfers'. Replace with SFTP/managed transfer. Consumers must confirm the new endpoint.",
+      "parity_note": "File content stays byte-identical. Only the transport changes.",
+      "evidence": [
+        {
+          "file": "jcl/DAILY-EXTRACT.jcl",
+          "contains": "Added encryption step (regulatory)"
+        },
+        {
+          "file": "jcl/DAILY-EXTRACT.jcl",
+          "contains": "CLAIMSRV.ACME.LOCAL"
+        }
+      ],
+      "follow_up": "FU-15",
+      "lands_in": "AB-527"
+    },
+    {
+      "id": "Q-33",
+      "title": "Extract datasets are not rerunnable (fixed DSN, DISP=NEW)",
+      "component": "DAILY-EXTRACT",
+      "category": "operational defect",
+      "description": "POLOUT and COVOUT use fixed names (no date qualifier or GDG) with DISP=(NEW,CATLG,DELETE). The second night fails with 'duplicate data set name' unless something outside this job deletes them. The dated DSNs in PREMIUM-BATCH/MONTHLY-EXPOSURE fail on a same-day rerun for the same reason.",
+      "owner": "Mainframe operations / CA-7 scheduling",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "Target outputs must be idempotent per business date. Operations must confirm the current cleanup job.",
+      "parity_note": "Not part of data parity.",
+      "evidence": [
+        {
+          "file": "jcl/DAILY-EXTRACT.jcl",
+          "contains": "//POLOUT   DD DSN=ACME.PAS.EXTRACT.POLICY.DAILY,"
+        },
+        {
+          "file": "jcl/DAILY-EXTRACT.jcl",
+          "contains": "//COVOUT   DD DSN=ACME.PAS.EXTRACT.COVERAGE.DAILY,"
+        }
+      ],
+      "follow_up": "FU-12",
+      "lands_in": "AB-527"
+    },
+    {
+      "id": "Q-34",
+      "title": "Exposure 'POLICY_COUNT' counts coverages; documented cat/cyber fields absent",
+      "component": "MONTHLY-EXPOSURE",
+      "category": "data contract",
+      "description": "POLICY_COUNT is COUNT(*) over the POLICIES x COVERAGES join, grouped by coverage attributes, so it counts coverage rows, not policies. The header mentions catastrophe-zone (2008) and cyber (2015) fields that are not in the query. ORDER BY only covers the first two grouping columns, so row order inside a group is not deterministic.",
+      "owner": "Actuarial / Pricing lead",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Actuarial SAS models are calibrated on this output. Keep the semantics and pin the row order (full ORDER BY) only if Actuarial agrees.",
+      "parity_note": "Compare as an order-insensitive multiset within (POLICY_TYPE, BRANCH_CODE) unless Actuarial confirms the order.",
+      "evidence": [
+        {
+          "file": "jcl/MONTHLY-EXPOSURE.jcl",
+          "contains": "COUNT(*) AS POLICY_COUNT"
+        },
+        {
+          "file": "jcl/MONTHLY-EXPOSURE.jcl",
+          "contains": "Added catastrophe zone data"
+        }
+      ],
+      "follow_up": "FU-14",
+      "lands_in": "AB-527"
+    },
+    {
+      "id": "Q-35",
+      "title": "Data values outside the COBOL code domains",
+      "component": "data (POLICIES, COVERAGES, POLICY_HOLDERS)",
+      "category": "data contract",
+      "description": "The facade seed data and the API contract snapshots contain values no COBOL 88-level knows: policy number format 'POL-########', POLICY_TYPE 'CGL', coverage codes DWEL/PERS/COLL/PREM/PROD, RISK_TIER 'A'/'B'. The copybooks define AUT/HOM/COM/LIF/HLT, PROP/LIAB/AUTP/AUTL/WKCP/UMBR/CYBR/TERR and P/S/U. Programs treat unknown values as 'other' (e.g. PREMBAT base 1000, UNDWRT no tier adjustment).",
+      "owner": "DBA team (db2-admin@acme.com)",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Production data may contain the same drift. The target must accept the full observed domain (string codes, not closed enums) until data profiling (FU-16) proves otherwise.",
+      "parity_note": "Parity fixtures include out-of-domain codes.",
+      "evidence": [
+        {
+          "file": "java-facade/src/main/resources/data.sql",
+          "contains": "'AG3010', 'DET1', 4500.00"
+        },
+        {
+          "file": "cobol/copybooks/POLICY-RECORD.cpy",
+          "contains": "88  POL-TYPE-HEALTH      VALUE 'HLT'."
+        }
+      ],
+      "follow_up": "FU-16",
+      "lands_in": "AB-521, AB-529"
+    },
+    {
+      "id": "Q-36",
+      "title": "Facade: no authentication, open actuator, default DB2 password",
+      "component": "java-facade",
+      "category": "security",
+      "description": "The Spring Boot 1.5 facade has no authentication (comment: relies on VPN), turns off actuator management security in the production application.properties, exposes Swagger UI, and defaults DB2_PASSWORD to 'changeme' in application.properties and the Dockerfile.",
+      "owner": "Security + Java facade owner (t.nguyen@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Epic success criterion: all reads and writes through authenticated, authorised APIs. Delivered by the inquiry/auth tickets, and the compat gate approves the 401/403 change explicitly.",
+      "parity_note": "API contract snapshots stay the same apart from the approved auth change.",
+      "evidence": [
+        {
+          "file": "java-facade/src/main/resources/application.properties",
+          "contains": "endpoints.health.sensitive=false"
+        },
+        {
+          "file": "java-facade/Dockerfile",
+          "contains": "ENV DB2_PASSWORD=changeme"
+        }
+      ],
+      "lands_in": "AB-524"
+    },
+    {
+      "id": "Q-37",
+      "title": "Local H2 schema has a policy -> holder FK that DB2 lacks",
+      "component": "schema (POLICIES)",
+      "category": "schema drift",
+      "description": "java-facade/src/main/resources/schema.sql declares FK_POL_HOLDER (POLICIES.POLICYHOLDER_ID -> POLICY_HOLDERS.CUST_ID). The DB2 DDL has no such constraint, so production can hold policies whose holder does not exist. POLNEW checks the holder only at create time.",
+      "owner": "DBA team (db2-admin@acme.com)",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Keep DB2 semantics (no FK) during dual-run so that migration never rejects production rows. Add the FK only after profiling shows zero orphans.",
+      "parity_note": "Data migration reconciliation reports orphan counts.",
+      "evidence": [
+        {
+          "file": "java-facade/src/main/resources/schema.sql",
+          "contains": "CONSTRAINT FK_POL_HOLDER FOREIGN KEY (POLICYHOLDER_ID)"
+        }
+      ],
+      "follow_up": "FU-16",
+      "lands_in": "AB-521, AB-529"
+    },
+    {
+      "id": "Q-38",
+      "title": "Premium batch is one unit of work for the whole book",
+      "component": "PREMBAT, PREMIUM-BATCH",
+      "category": "operational / performance",
+      "description": "PREMBAT never COMMITs. The whole ~4-hour run is one DB2 unit of work, committed only when the DSN RUN ends normally. An abend rolls back every row and holds locks on PREMIUMS for hours. Processing is single-threaded, ordered by POLICY_NUMBER.",
+      "owner": "Mainframe team (mainframe-ops@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Epic success criterion: under 30 minutes with safe reruns. The target commits in chunks, is restartable and runs in parallel.",
+      "parity_note": "Final PREMIUMS state must match for a completed run, whatever the chunking.",
+      "evidence": [
+        {
+          "file": "jcl/PREMIUM-BATCH.jcl",
+          "contains": "RUN PROGRAM(PREMBAT) PLAN(PASBATCH) -"
+        },
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "ORDER BY POLICY_NUMBER"
+        }
+      ],
+      "follow_up": "FU-11",
+      "lands_in": "AB-523"
+    },
+    {
+      "id": "Q-39",
+      "title": "Renewal resets UW status to pending but never requests underwriting",
+      "component": "POLRNW",
+      "category": "dormant business rule",
+      "description": "6000-CREATE-RENEWAL-TERM sets POLICY_STATUS 'AC' and UW_STATUS 'PN' but sends no underwriting request (unlike POLNEW), so renewed policies stay UW 'PN' until someone runs PUWR by hand. The new term always starts at the old expiry, whenever the renewal is run. Expired (EX) policies of any age are eligible. The 2020 COVID grace flag WS-COVID-GRACE is declared but never used.",
+      "owner": "Underwriting lead + Product Owner, Policy Administration",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Changing the renewal underwriting workflow is a business change. Port as-is, and raise the missing UW referral and the lapse limit as a follow-up.",
+      "parity_note": "Java renewal sets UW_STATUS 'PN' and emits no underwriting request.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "MOVE 'PN' TO POLICY-UW-STATUS"
+        },
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "WS-COVID-GRACE            PIC X(01) VALUE 'N'."
+        }
+      ],
+      "follow_up": "FU-02",
+      "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-40",
+      "title": "Nothing in the repo moves a new policy from PN to AC",
+      "component": "POLNEW, UNDWRT",
+      "category": "missing behaviour / needs verification",
+      "description": "POLNEW inserts POLICY_STATUS 'PN'. UNDWRT updates only UW_STATUS and RISK_SCORE, never POLICY_STATUS. Every downstream reader filters on status: PREMBAT, accumulation and the exposure feed read only 'AC', and the Claims extract reads AC/PN. So the PN -> AC activation step must live outside this repo (another program, manual SQL, or the BMS flow).",
+      "owner": "Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "The activation path must be found before new business is migrated. Until then the target leaves status changes to an explicit activation call.",
+      "parity_note": "Blocked on FU-05.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "MOVE 'PN'               TO POL-STAT"
+        },
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "SET UW_STATUS = :WS-DECISION,"
+        }
+      ],
+      "follow_up": "FU-05",
+      "lands_in": "AB-525"
+    }
+  ]
+}

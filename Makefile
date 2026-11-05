@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-build
+.PHONY: compat compat-static compat-api compat-build inventory
 
 compat: compat-static compat-build compat-api
 
@@ -12,3 +12,7 @@ compat-build:
 
 compat-api:
 	./compat/api/run_facade.sh
+
+inventory:
+	python3 tools/discovery/pas_inventory.py
+	python3 -m unittest discover -s tools/discovery -p 'test_*.py'

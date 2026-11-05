@@ -1,0 +1,25 @@
+name: PAS discovery inventory
+
+on:
+  pull_request:
+    branches: [main, "devin/ab-516-v3"]
+  workflow_dispatch:
+
+concurrency:
+  group: discovery-inventory-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    name: Behaviour inventory & quirk register
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Inventory and quirk register are current and valid
+        run: make inventory

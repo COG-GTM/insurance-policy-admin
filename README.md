@@ -81,6 +81,10 @@ GET /manage/health                              - Health check
 - **Java facade:** SVN (svn://svn.acme.local/pas-facade/trunk)
 - **No CI/CD pipeline** - Manual compilation and deployment
 
+## Modernization (AB-516)
+
+Behaviour inventory, quirk register and open questions: [docs/modernization/](docs/modernization/README.md). Check them with `make inventory`.
+
 ## Team Contacts
 
 - **Mainframe Team:** mainframe-ops@acme.com

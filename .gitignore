@@ -1,2 +1,4 @@
 compat-api.log
 __pycache__/
+target/
+logs/
