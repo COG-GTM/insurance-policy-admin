@@ -58,8 +58,8 @@ personal data.
 
 - `FacadeContractIT` runs the compat gate's own checker (`compat/api/check_api.py`, snapshots in
   `compat/api/snapshots/policies-v1.json` recorded from the facade) against the new service loaded
-  with the facade's seed data and a whole-book token: **PASS**. The same check without a token fails
-  on 401s; that authentication change is the one deliberate contract change.
+  with the facade's seed data, called with whole-book read access: the checker passes. Called
+  anonymously it fails on 401s; that authentication change is the one deliberate contract change.
 - `make pas-api-contract` does the same against the running local stack.
 - `compat/allowed-changes.json` is unchanged: `make compat-api` still targets `java-facade`, which is
   unchanged, so it reports no findings. When the gate is repointed at the new service (retirement
