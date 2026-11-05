@@ -63,14 +63,15 @@ public class RatingRateJdbcRepository {
             """)
         .query(
             rs -> {
-              String key = rs.getString("row_key").trim();
+              String key = rs.getString("row_key");
               LocalDate effective = rs.getObject("effective_date", LocalDate.class);
               BigDecimal value = rs.getBigDecimal("row_value");
               if ("B".equals(rs.getString("row_kind"))) {
-                baseRates.add(new BaseRate(key, effective, value));
+                // The UNION coerces CHAR(3) to a varying type, which may drop trailing blanks.
+                baseRates.add(new BaseRate(String.format("%-3s", key), effective, value));
               } else {
                 parameters.add(
-                    new RatingParameter(RatingParameterCode.valueOf(key), effective, value));
+                    new RatingParameter(RatingParameterCode.valueOf(key.trim()), effective, value));
               }
             });
     return new RatingRateHistory(baseRates, parameters);

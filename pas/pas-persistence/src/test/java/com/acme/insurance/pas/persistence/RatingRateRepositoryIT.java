@@ -94,6 +94,18 @@ class RatingRateRepositoryIT {
   }
 
   @Test
+  void historyKeepsTrailingBlanksOfPolicyTypeCodes() {
+    LocalDate date = LocalDate.of(2032, 1, 1);
+    rates.insert(new BaseRate("AU ", date, new BigDecimal("123.45")));
+
+    assertThat(rates.history().baseRates())
+        .filteredOn(r -> r.effectiveDate().equals(date))
+        .extracting(BaseRate::policyType)
+        .containsExactly("AU ");
+    assertThat(rates.baseRatesInForce(date)).extracting(BaseRate::policyType).contains("AU ");
+  }
+
+  @Test
   void constraintsRejectBadRows() {
     assertThatThrownBy(
             () ->
