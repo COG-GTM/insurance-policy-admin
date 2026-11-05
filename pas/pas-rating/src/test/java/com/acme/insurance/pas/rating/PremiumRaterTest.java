@@ -9,6 +9,7 @@ import com.acme.insurance.pas.domain.TerritoryFactor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,27 @@ class PremiumRaterTest {
 
   static final FactorLookup CLASS =
       (code, date) -> "C1".equals(code) ? Optional.of(new BigDecimal("0.9000")) : Optional.empty();
+
+  @Test
+  void snapshotVersionDependsOnTheRowsNotOnTheirReadOrder() {
+    List<BaseRate> rates = RatingTableTest.baseRates();
+    List<BaseRate> reversed = new ArrayList<>(rates);
+    Collections.reverse(reversed);
+
+    String version = raterOver(rates).snapshot().version().orElseThrow();
+
+    assertThat(new PremiumRater(tables, RatingFactorSource.LEGACY_NEUTRAL).version()).isEmpty();
+    assertThat(raterOver(reversed).snapshot().version()).contains(version);
+    assertThat(raterOver(rates.subList(1, rates.size())).snapshot().version().orElseThrow())
+        .isNotEqualTo(version);
+  }
+
+  private static PremiumRater raterOver(List<BaseRate> rates) {
+    RatingRateHistory history = new RatingRateHistory(rates, RatingTableTest.parameters());
+    return new PremiumRater(
+        ReferenceRatingTables.snapshotOf(RatingReferenceData.history(history)),
+        RatingFactorSource.LEGACY_NEUTRAL);
+  }
 
   @Test
   void legacyNeutralIgnoresTheFactorTables() {
