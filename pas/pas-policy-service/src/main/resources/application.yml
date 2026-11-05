@@ -110,3 +110,18 @@ pas:
     # Outbox relay to Kafka; off unless a broker is configured. Topics come from the platform.
     relay-enabled: ${PAS_EVENTS_RELAY_ENABLED:false}
     create-topics: ${PAS_EVENTS_CREATE_TOPICS:false}
+  policy-change:
+    # Renewal and endorsement (AB-526). Defaults reproduce POLRNW: +5% uplift (Q-05) and a flat 15%
+    # rate-increase cap (Q-04), configurable so state-specific caps can follow.
+    renewal-uplift-pct: ${PAS_RENEWAL_UPLIFT_PCT:5.00}
+    rate-increase-cap-pct: ${PAS_RENEWAL_RATE_INCREASE_CAP_PCT:15.00}
+    # Expiry of a renewed 29 February term: FEB_28 (recommended) or MAR_01 (Q-01, FU-01).
+    leap-day-expiry: ${PAS_RENEWAL_LEAP_DAY_EXPIRY:FEB_28}
+    # Open claims are counted but not enforced (Q-02, FU-02). Set a maximum only together with a
+    # Claims read interface (FU-17); the service does not start with a maximum and no interface.
+    max-open-claims: ${PAS_RENEWAL_MAX_OPEN_CLAIMS:}
+    # Zone of the business date an endorsement takes effect on (POLEND's CURRENT DATE).
+    business-zone: ${PAS_BUSINESS_ZONE:UTC}
+    # Non-zero annualPremiumChange on endorsements. Off until Product/Actuarial sign off FU-526-1:
+    # POLEND adjusts by 0.00 (Q-20), so a non-zero change is refused with 422.
+    endorsement-premium-change-enabled: ${PAS_ENDORSEMENT_PREMIUM_CHANGE_ENABLED:false}

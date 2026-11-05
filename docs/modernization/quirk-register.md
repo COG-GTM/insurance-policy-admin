@@ -288,7 +288,7 @@ WS-RISK-SCORE is unsigned PIC 9(04). A preferred-tier customer with a high credi
 - Owner: Underwriting lead
 - Proposed decision: **fix** (proposed - pending business sign-off)
 - Rationale: Accept/refer/decline uses the full WS value, so the decision itself is not affected by the truncation. The fix: clamp at 0, never truncate, and send the full score in the event. Underwriting must confirm the clamp (sign loss can move a score a few points).
-- Parity / characterization note: Characterization covers credit 850+/preferred and scores of 1000+. Java differs only in the message/display score and in negative clamping. Record both as signed-off deviations. The clamp is not only cosmetic: when the absolute value pushed the COBOL score over a band boundary, Java decides differently (credit 850 preferred, 4 claims, limit over 5,000,000: COBOL 325 RS, Java 250 AP). Fixture preferred-high-credit-band-crossing and known difference KD-08 cover it; Underwriting must sign off the band change.
+- Parity / characterization note: Characterization covers credit 850+/preferred and scores of 1000+. Java differs only in the message/display score and in negative clamping. Record both as signed-off deviations. The clamp is not only cosmetic: when the absolute value pushed the COBOL score over a band boundary, Java decides differently (credit 850 preferred, 4 claims, limit over 5,000,000: COBOL 325 RS, Java 250 AP). Fixture preferred-high-credit-band-crossing and known difference KD-11 cover it; Underwriting must sign off the band change.
 - Lands in: AB-525
 - Evidence:
   - `cobol/programs/UNDWRT.cbl:133`: `SUBTRACT 100 FROM WS-RISK-SCORE`

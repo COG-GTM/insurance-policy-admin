@@ -4,6 +4,8 @@ import com.acme.insurance.pas.persistence.DatabaseVendor;
 import com.acme.insurance.pas.persistence.DefaultCoverageJdbcRepository;
 import com.acme.insurance.pas.persistence.EventOutboxJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyAuditJdbcRepository;
+import com.acme.insurance.pas.persistence.EndorsementJdbcRepository;
+import com.acme.insurance.pas.persistence.PolicyChangeAuditJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyHolderJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicySequence;
@@ -64,5 +66,15 @@ public class PersistenceConfig {
   @Bean
   BusinessClock businessClock(@Value("${pas.business-zone:America/New_York}") ZoneId zone) {
     return new BusinessClock(Clock.systemUTC(), zone);
+  }
+
+  @Bean
+  EndorsementJdbcRepository endorsementJdbcRepository(JdbcClient jdbc) {
+    return new EndorsementJdbcRepository(jdbc);
+  }
+
+  @Bean
+  PolicyChangeAuditJdbcRepository policyChangeAuditJdbcRepository(JdbcClient jdbc) {
+    return new PolicyChangeAuditJdbcRepository(jdbc);
   }
 }

@@ -17,6 +17,8 @@ The frozen sources are `sql/ddl/create-tables.sql` and `cobol/copybooks/*.cpy`; 
 | V50 | postgresql, db2 | `PASAPP.EVENT_OUTBOX`: transactional outbox for the PAS events (AB-525) |
 | V51 | postgresql, db2 | `PASAPP.POLICY_AUDIT`: append-only write audit (PostgreSQL trigger blocks UPDATE/DELETE) (AB-525) |
 | V52 | postgresql, db2 | `PASAPP.DEFAULT_COVERAGES`: POLNEW default coverages per policy type, seeded (AB-525) |
+| V60 | postgresql | AB-526: append-only `pasapp.policy_change_audit` for renewals and endorsements (Q-23, [policy-change-api.md](policy-change-api.md)) |
+| V60 | db2 | AB-526: `PASAPP.POLICY_CHANGE_AUDIT`, application id gets INSERT and SELECT only (DBA-applied) |
 
 V14-V19 stay free for this ticket's follow-ups (column protection once Security decides, section 5).
 

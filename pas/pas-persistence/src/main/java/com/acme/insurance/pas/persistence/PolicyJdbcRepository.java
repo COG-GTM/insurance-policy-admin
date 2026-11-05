@@ -10,12 +10,38 @@ import com.acme.insurance.pas.domain.Coverage;
 import com.acme.insurance.pas.domain.Policy;
 import com.acme.insurance.pas.domain.Premium;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
-/** ACMEINS.POLICIES, COVERAGES and PREMIUMS. */
+/** ACMEINS.POLICIES, COVERAGES and PREMIUMS; renewal and endorsement updates (AB-526). */
 public class PolicyJdbcRepository {
+
+  private static final RowMapper<Policy> POLICY_ROW =
+      (rs, row) ->
+          new Policy(
+              text(rs, "policy_number"),
+              text(rs, "policy_type"),
+              text(rs, "policy_status"),
+              date(rs, "effective_date"),
+              date(rs, "expiry_date"),
+              text(rs, "policyholder_id"),
+              text(rs, "agent_code"),
+              text(rs, "branch_code"),
+              decimal(rs, "total_premium"),
+              decimal(rs, "deductible"),
+              decimal(rs, "coverage_limit"),
+              date(rs, "inception_date"),
+              integer(rs, "renewal_count"),
+              text(rs, "uw_status"),
+              integer(rs, "risk_score"),
+              text(rs, "web_indicator"),
+              text(rs, "api_flag"),
+              timestamp(rs, "last_updated"),
+              text(rs, "updated_by"));
 
   private final JdbcClient jdbc;
 
@@ -99,29 +125,67 @@ public class PolicyJdbcRepository {
   public Optional<Policy> findPolicy(String policyNumber) {
     return jdbc.sql("SELECT * FROM acmeins.policies WHERE policy_number = ?")
         .param(policyNumber)
-        .query(
-            (rs, row) ->
-                new Policy(
-                    text(rs, "policy_number"),
-                    text(rs, "policy_type"),
-                    text(rs, "policy_status"),
-                    date(rs, "effective_date"),
-                    date(rs, "expiry_date"),
-                    text(rs, "policyholder_id"),
-                    text(rs, "agent_code"),
-                    text(rs, "branch_code"),
-                    decimal(rs, "total_premium"),
-                    decimal(rs, "deductible"),
-                    decimal(rs, "coverage_limit"),
-                    date(rs, "inception_date"),
-                    integer(rs, "renewal_count"),
-                    text(rs, "uw_status"),
-                    integer(rs, "risk_score"),
-                    text(rs, "web_indicator"),
-                    text(rs, "api_flag"),
-                    timestamp(rs, "last_updated"),
-                    text(rs, "updated_by")))
+        .query(POLICY_ROW)
         .optional();
+  }
+
+  /**
+   * Reads the policy and keeps it locked until the transaction ends, the guarantee POLEND gets from
+   * {@code WITH RS USE AND KEEP UPDATE LOCKS}: concurrent renewals and endorsements of one policy
+   * run one after the other and never overwrite each other's premium. Needs an open transaction.
+   */
+  public Optional<Policy> findPolicyForUpdate(String policyNumber) {
+    return jdbc.sql("SELECT * FROM acmeins.policies WHERE policy_number = ? FOR UPDATE")
+        .param(policyNumber)
+        .query(POLICY_ROW)
+        .optional();
+  }
+
+  /** POLRNW 6000-UPDATE-POLICY. Returns the number of rows updated. */
+  public int updateRenewal(Policy renewed) {
+    return jdbc.sql(
+            """
+            UPDATE acmeins.policies
+               SET policy_status = ?, effective_date = ?, expiry_date = ?, total_premium = ?,
+                   renewal_count = ?, uw_status = ?, last_updated = ?, updated_by = ?
+             WHERE policy_number = ?
+            """)
+        .params(
+            renewed.policyStatusCode(),
+            renewed.effectiveDate(),
+            renewed.expiryDate(),
+            renewed.totalPremium(),
+            renewed.renewalCount(),
+            renewed.uwStatusCode(),
+            renewed.lastUpdated(),
+            renewed.updatedBy(),
+            renewed.policyNumber())
+        .update();
+  }
+
+  /** POLEND 5000-UPDATE-POLICY-PREMIUM. Returns the number of rows updated. */
+  public int updateTotalPremium(
+      String policyNumber, BigDecimal totalPremium, LocalDateTime lastUpdated, String updatedBy) {
+    return jdbc.sql(
+            """
+            UPDATE acmeins.policies
+               SET total_premium = ?, last_updated = ?, updated_by = ?
+             WHERE policy_number = ?
+            """)
+        .params(totalPremium, lastUpdated, updatedBy, policyNumber)
+        .update();
+  }
+
+  /** POLRNW 7000-UPDATE-COVERAGES: re-dates the active coverages to the new term. */
+  public int redateActiveCoverages(
+      String policyNumber, LocalDate effectiveDate, LocalDate expiryDate) {
+    return jdbc.sql(
+            """
+            UPDATE acmeins.coverages SET effective_date = ?, expiry_date = ?
+             WHERE policy_number = ? AND status = 'AC'
+            """)
+        .params(effectiveDate, expiryDate, policyNumber)
+        .update();
   }
 
   public void insert(Coverage c) {

@@ -82,7 +82,8 @@ class AcmeinsSchemaIT {
             "extract_delivery",
             "event_outbox",
             "policy_audit",
-            "default_coverages");
+            "default_coverages",
+            "policy_change_audit");
     assertThat(tables("pas_batch"))
         .containsExactlyInAnyOrder(
             "batch_job_instance",

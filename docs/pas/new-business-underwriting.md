@@ -138,10 +138,10 @@ UPDATE and DELETE with a trigger; on DB2 the application id only gets INSERT and
 
 Suite `undwrt-decision` runs `UndwrtDecisionAdapter` on every fixture, including the 299/300,
 599/600 and 799/800 boundaries (`make parity`). Known differences, all pending sign-off:
-KD-03 (Q-14), KD-04 (Q-15 score), KD-05 (Q-16), KD-06 (Q-15 loss-ratio probe), KD-07 (Q-520-1: a
-failed receive is rejected before any write), KD-08 (Q-14 moving the band: COBOL 325 `RS`, Java 250
-`AP`). PRs #101 and #102 also add KD-06/KD-07; whichever merges after another renumbers its own
-entries. The events are JSON, so the WRITEQ TD effect is compared field by field from the decision
+KD-03 (Q-14), KD-04 (Q-15 score), KD-05 (Q-16), KD-09 (Q-15 loss-ratio probe), KD-10 (Q-520-1: a
+failed receive is rejected before any write), KD-11 (Q-14 moving the band: COBOL 325 `RS`, Java 250
+`AP`). KD-06..KD-08 belong to AB-526 (merged first), so AB-525's entries were renumbered to
+KD-09..KD-11; PR #102 (AB-523) renumbers its own when it merges. The events are JSON, so the WRITEQ TD effect is compared field by field from the decision
 row, not byte for byte (Q-13). POLNEW has no harness suite; `NewBusinessApiIT` covers
 it end to end against PostgreSQL and Kafka.
 
@@ -162,7 +162,7 @@ it end to end against PostgreSQL and Kafka.
 |---|---|---|
 | Q-525-1, Q-525-2, Q-525-3 fixes (FU-525-1) | Underwriting lead + Product Owner | pending |
 | Override storage and attribution (Q-525-4) | Underwriting lead + Security | pending |
-| KD-06, KD-07, KD-08 known differences (KD-08: Q-14 band change) | Underwriting lead + Mainframe team | pending |
+| KD-09, KD-10, KD-11 known differences (KD-11: Q-14 band change) | Underwriting lead + Mainframe team | pending |
 | Policy number format (FU-05) and term (FU-525-2) | Mainframe team + Product Owner | pending |
 | Claims interface contract (FU-525-4 / FU-17) | Claims team | pending |
 | Scopes and legacy user claim (FU-525-3) | Security | pending |
