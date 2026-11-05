@@ -195,5 +195,31 @@ class RepositoryTest(unittest.TestCase):
         self.assertIn("dup-1", ca.anchors("## Dup\n## Dup\n"))
 
 
+class MarkdownAnchorTest(unittest.TestCase):
+    def test_setext_headings(self):
+        text = "Intro\n\nRelease notes\n-------------\n\nText\n\nOverview\n========\n"
+        self.assertTrue({"release-notes", "overview"} <= ca.anchors(text))
+
+    def test_setext_same_file_link(self):
+        text = "Release notes\n-------------\n\n[details](#release-notes)\n"
+        self.assertEqual(ca.link_errors("docs/adr/x.md", text), [])
+
+    def test_table_separator_is_not_a_heading(self):
+        self.assertNotIn("-a-b-", ca.anchors("| a | b |\n|---|---|\n"))
+
+    def test_fenced_headings_ignored(self):
+        for fence in ("```", "~~~"):
+            self.assertNotIn("not-a-heading", ca.anchors(f"{fence}\n# Not a heading\n{fence}\n"))
+
+    def test_links_in_fences_ignored(self):
+        for fence in ("```", "~~~", "````"):
+            text = f"{fence}md\n[consumer](#replace-with-section)\n[x](missing.md)\n{fence}\n"
+            self.assertEqual(ca.link_errors("docs/adr/x.md", text), [])
+
+    def test_broken_anchor_outside_fence_reported(self):
+        errs = ca.link_errors("docs/adr/x.md", "# Title\n\n[x](#nope)\n")
+        self.assertTrue(any("broken anchor" in e for e in errs))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -222,15 +222,40 @@ def slug(heading):
     return h.replace(" ", "-")
 
 
-def anchors(text):
-    found, counts, fenced = set(), {}, False
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+
+
+def prose_lines(text):
+    """Lines outside fenced (``` or ~~~) code blocks; fenced lines become blank."""
+    out, fence = [], None
     for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            fenced = not fenced
+        m = FENCE.match(line)
+        if fence is None and m:
+            fence = m.group(1)
+            out.append("")
             continue
-        m = None if fenced else re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
-        if m:
-            s = slug(m.group(1))
+        if fence is not None:
+            if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence) and not line.strip()[len(m.group(1)):].strip():
+                fence = None
+            out.append("")
+            continue
+        out.append(line)
+    return out
+
+
+def anchors(text):
+    found, counts = set(), {}
+    lines = prose_lines(text)
+    for i, line in enumerate(lines):
+        m = re.match(r"^ {0,3}#{1,6}\s+(.+?)\s*#*\s*$", line)
+        heading = m.group(1) if m else None
+        if heading is None and i + 1 < len(lines) and re.match(r"^ {0,3}(=+|-+)\s*$", lines[i + 1]):
+            prev = lines[i - 1] if i else ""
+            if line.strip() and not line.startswith("    ") and not re.match(r"^\s*([-*+]|\d+[.)]|\||>)\s", line) \
+                    and not prev.strip():
+                heading = line.strip()
+        if heading:
+            s = slug(heading)
             n = counts.get(s, 0)
             counts[s] = n + 1
             found.add(s if n == 0 else f"{s}-{n}")
@@ -241,7 +266,8 @@ def anchors(text):
 def link_errors(path, text):
     errors = []
     base = os.path.dirname(path)
-    for target, frag in re.findall(r"\]\(([^)#\s]*)(?:#([^)\s]*))?\)", text):
+    prose = "\n".join(prose_lines(text))
+    for target, frag in re.findall(r"\]\(([^)#\s]*)(?:#([^)\s]*))?\)", prose):
         if re.match(r"^[a-z]+:", target) or not (target or frag):
             continue
         resolved = os.path.normpath(os.path.join(base, target)) if target else path
