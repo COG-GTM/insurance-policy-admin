@@ -2,8 +2,9 @@
 -- 1. Every personal column carries its classification as a column comment, so data catalogues
 --    and reviews can find it.
 -- 2. policy_holders_masked is the only object reporting, support and non-production readers get.
---    It never returns RESTRICTED values and masks PERSONAL values. Grants are applied per
---    environment by the DBA team (roles are not created by migrations).
+--    It never returns RESTRICTED values or anything derived from them, and masks PERSONAL values
+--    (email keeps its domain, pending Security acceptance in docs/pas/data-model.md section 7).
+--    Grants are applied per environment by the DBA team (roles are not created by migrations).
 -- Column-level encryption or tokenisation of ssn_last4 and tax_id is pending the Security
 -- decision recorded in docs/pas/data-model.md; it lands as a later migration in this range.
 
@@ -32,7 +33,6 @@ SELECT
     state_code,
     country_code,
     CASE WHEN email IS NULL THEN NULL ELSE '***@' || split_part(email, '@', 2) END AS email,
-    CAST(extract(year FROM date_of_birth) AS integer) AS birth_year,
     CASE WHEN ssn_last4 IS NULL THEN NULL ELSE '****' END AS ssn_last4,
     CASE WHEN tax_id IS NULL THEN NULL ELSE '**********' END AS tax_id,
     risk_tier,

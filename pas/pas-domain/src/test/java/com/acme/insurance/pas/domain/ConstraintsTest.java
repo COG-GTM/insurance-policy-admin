@@ -21,6 +21,22 @@ class ConstraintsTest {
   }
 
   @Test
+  void errorMessagesNeverEchoTheValue() {
+    assertThatThrownBy(() -> Constraints.decimal(new BigDecimal("123456789.123"), 11, 2, "x"))
+        .hasMessage("x has more than 2 decimal places")
+        .message()
+        .doesNotContain("123456789");
+    assertThatThrownBy(() -> Constraints.decimal(new BigDecimal("98765432109"), 11, 2, "x"))
+        .hasMessage("x does not fit DECIMAL(11,2)")
+        .message()
+        .doesNotContain("98765432109");
+    assertThatThrownBy(() -> Constraints.range(98765, 999, "x")).message().doesNotContain("98765");
+    assertThatThrownBy(() -> Constraints.text("secret-value", 4, "x"))
+        .message()
+        .doesNotContain("secret-value");
+  }
+
+  @Test
   void auditColumnsStayEightCharacters() {
     assertThatThrownBy(
             () ->

@@ -131,8 +131,11 @@ What the code does today:
 - Codec and constraint error messages name the field, never its content.
 - `PolicyHolderJdbcRepository` logs nothing; SQL errors carry bind markers, not values.
 - V12 records the class of every column as a column comment and adds
-  `acmeins.policy_holders_masked`: initials only for names and company name, the domain only for email, birth year
-  instead of date of birth, `****` for SSN last four and tax id, no address, phone or credit score.
+  `acmeins.policy_holders_masked`: initials only for names and company name, the domain only for
+  email, `****` for SSN last four and tax id, and no date of birth (nor any value derived from it,
+  such as birth year), address, phone or credit score. The email domain is kept for support
+  triage; it can identify a holder with a personal domain, so Security must accept it explicitly
+  (section 7) or the view masks it fully.
   Reporting, support and every non-production reader get grants on the view only (DBA, per
   environment).
 - Fixtures and tests use synthetic values only (`example.invalid`, zeros).
@@ -171,6 +174,7 @@ PAS does not port, create, read or write `ACMEINS.CLAIMS`. Assumptions recorded 
 | Area | Owner | Status |
 |---|---|---|
 | Column-level protection option, masking rules, no-PII-in-logs controls (section 5) | Security | pending |
+| Masked view keeps the email domain (section 5) | Security | pending |
 | PII classification, masked view, non-production data policy | Data governance | pending |
 | Type mapping, V10-V13, migration job model, `PASAPP.CLASS_FACTORS` on DB2 | DBA team | pending |
 | ACMEINS.CLAIMS assumptions (section 6) | Claims team | pending |

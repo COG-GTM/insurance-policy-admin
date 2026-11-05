@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.flywaydb.core.Flyway;
@@ -103,6 +104,33 @@ class AcmeinsSchemaIT {
               });
       if (table.getKey().equals("underwriting_decisions")) {
         assertThat(actual.remove("decision_id")).isEqualTo("bigint NOT NULL");
+      }
+      assertThat(actual).as(table.getKey()).containsExactlyEntriesOf(table.getValue());
+    }
+  }
+
+  @Test
+  void columnDefaultsMatchTheFrozenDb2Ddl() throws IOException {
+    Map<String, Map<String, String>> expected = legacyDefaults();
+    assertThat(
+            expected.values().stream()
+                .mapToLong(m -> m.values().stream().filter(d -> d != null).count())
+                .sum())
+        .isEqualTo(36);
+    for (Map.Entry<String, Map<String, String>> table : expected.entrySet()) {
+      Map<String, String> actual = new LinkedHashMap<>();
+      jdbc.sql(
+              """
+              SELECT column_name, column_default FROM information_schema.columns
+              WHERE table_schema = 'acmeins' AND table_name = ? ORDER BY ordinal_position
+              """)
+          .param(table.getKey())
+          .query(
+              rs -> {
+                actual.put(rs.getString("column_name"), pgDefault(rs.getString("column_default")));
+              });
+      if (table.getKey().equals("underwriting_decisions")) {
+        assertThat(actual.remove("decision_id")).isNull();
       }
       assertThat(actual).as(table.getKey()).containsExactlyEntriesOf(table.getValue());
     }
@@ -360,8 +388,8 @@ class AcmeinsSchemaIT {
         .containsEntry("email", "***@example.invalid")
         .containsEntry("ssn_last4", "****")
         .containsEntry("tax_id", "**********")
-        .containsEntry("birth_year", 1970)
-        .doesNotContainKeys("date_of_birth", "credit_score", "phone", "addr_line1", "zip_code");
+        .doesNotContainKeys(
+            "date_of_birth", "birth_year", "credit_score", "phone", "addr_line1", "zip_code");
     assertThat(
             jdbc.sql(
                     """
@@ -454,8 +482,36 @@ class AcmeinsSchemaIT {
     };
   }
 
+  /** Normalises a PostgreSQL column_default to the DB2 spelling used in sql/ddl. */
+  private static String pgDefault(String columnDefault) {
+    if (columnDefault == null) {
+      return null;
+    }
+    String value = columnDefault.replaceAll("::[a-z ]+$", "");
+    return switch (value) {
+      case "LOCALTIMESTAMP" -> "CURRENT TIMESTAMP";
+      case "CURRENT_DATE" -> "CURRENT DATE";
+      default -> value;
+    };
+  }
+
   /** Parses the CREATE TABLE statements of the frozen DB2 DDL into column -> normalised type. */
   private static Map<String, Map<String, String>> legacyColumns() throws IOException {
+    return parseLegacyDdl((type, rest) -> type + (rest.contains("NOT NULL") ? " NOT NULL" : ""));
+  }
+
+  /** Parses the CREATE TABLE statements of the frozen DB2 DDL into column -> DEFAULT (or null). */
+  private static Map<String, Map<String, String>> legacyDefaults() throws IOException {
+    Pattern defaultClause = Pattern.compile("DEFAULT\\s+('[^']*'|CURRENT \\w+|-?[\\d.]+)");
+    return parseLegacyDdl(
+        (type, rest) -> {
+          Matcher d = defaultClause.matcher(rest);
+          return d.find() ? d.group(1) : null;
+        });
+  }
+
+  private static Map<String, Map<String, String>> parseLegacyDdl(
+      BiFunction<String, String, String> describe) throws IOException {
     Path dir = Path.of("").toAbsolutePath();
     while (dir != null && !Files.isRegularFile(dir.resolve("sql/ddl/create-tables.sql"))) {
       dir = dir.getParent();
@@ -475,10 +531,9 @@ class AcmeinsSchemaIT {
         if (!c.matches() || c.group(1).equals("CONSTRAINT") || c.group(1).equals("REFERENCES")) {
           continue;
         }
-        String type = c.group(2).toLowerCase(Locale.ROOT).replace("integer", "integer");
         columns.put(
             c.group(1).toLowerCase(Locale.ROOT),
-            type + (c.group(3).contains("NOT NULL") ? " NOT NULL" : ""));
+            describe.apply(c.group(2).toLowerCase(Locale.ROOT), c.group(3)));
       }
       result.put(t.group(1).toLowerCase(Locale.ROOT), columns);
     }

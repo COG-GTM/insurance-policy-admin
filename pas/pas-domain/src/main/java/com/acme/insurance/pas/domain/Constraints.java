@@ -21,12 +21,11 @@ public final class Constraints {
     try {
       scaled = value.setScale(scale, RoundingMode.UNNECESSARY);
     } catch (ArithmeticException e) {
-      throw new IllegalArgumentException(
-          field + " has more than " + scale + " decimal places: " + value, e);
+      throw new IllegalArgumentException(field + " has more than " + scale + " decimal places", e);
     }
     if (scaled.unscaledValue().abs().toString().length() > precision) {
       throw new IllegalArgumentException(
-          field + " does not fit DECIMAL(" + precision + "," + scale + "): " + value);
+          field + " does not fit DECIMAL(" + precision + "," + scale + ")");
     }
     return scaled;
   }
