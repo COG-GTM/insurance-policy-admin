@@ -14,6 +14,8 @@ The frozen sources are `sql/ddl/create-tables.sql` and `cobol/copybooks/*.cpy`; 
 | V11 | db2 | `PASAPP.CLASS_FACTORS` for DB2 while it is the system of record (DBA-applied) |
 | V12 | postgresql | PII classification comments on `POLICY_HOLDERS` and the `acmeins.policy_holders_masked` view |
 | V13 | postgresql | Q-18 fix: `UNDERWRITING_DECISIONS` keyed by a generated `DECISION_ID`, same-day decisions kept |
+| V60 | postgresql | AB-526: append-only `pasapp.policy_change_audit` for renewals and endorsements (Q-23, [policy-change-api.md](policy-change-api.md)) |
+| V60 | db2 | AB-526: `PASAPP.POLICY_CHANGE_AUDIT`, application id gets INSERT and SELECT only (DBA-applied) |
 
 V14-V19 stay free for this ticket's follow-ups (column protection once Security decides, section 5).
 

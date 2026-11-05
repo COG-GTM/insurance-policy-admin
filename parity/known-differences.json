@@ -19,7 +19,7 @@
       "decision": "docs/modernization/quirk-register.md#q-01",
       "ticket": "AB-526",
       "sign_off": "pending",
-      "reason": "29 Feb expiry: Java computes a valid next-year expiry (recommended 28 Feb) instead of the invalid 20250229 that DB2 rejects; the policy update succeeds and the 'DB2 ERROR UPDATING RENEWAL' send and the partial update path (Q-07) disappear with it. That removes one effect and shifts the ones after it, hence effects[1..3]; the policy update's premium and renewal count must still match. AB-526 narrows this to the shifted fields once its adapter exists."
+      "reason": "29 Feb expiry: Java computes a valid next-year expiry (28 Feb by default, pas.policy-change.leap-day-expiry, FU-01) instead of the invalid 20250229 that DB2 rejects; the policy update succeeds and the 'DB2 ERROR UPDATING RENEWAL' send and the partial update path (Q-07) disappear with it. Narrowed by AB-526 with PolrnwRenewalAdapter: effect 0 differs only in sqlcode and EXPIRY_DATE (premium, renewal count and effective date must match); dropping the error send shifts the coverage update, confirmation and return up by one, so effects[1..3] are compared against different COBOL effects and stay listed."
     },
     {
       "id": "KD-02",
@@ -37,7 +37,7 @@
       "decision": "docs/modernization/quirk-register.md#q-41",
       "ticket": "AB-526",
       "sign_off": "pending",
-      "reason": "Zero-premium renewal: COBOL abends (S0CB) on the rate-change division and writes nothing; Java guards the division and completes. Only the outcome and the effect count may differ."
+      "reason": "Zero-premium renewal: COBOL abends (S0CB) on the rate-change division and writes nothing; Java guards the division and completes. Only the outcome and the effect count may differ. Confirmed by AB-526 with PolrnwRenewalAdapter: Java renews at 0.00 with a 0.00 rate change."
     },
     {
       "id": "KD-03",
@@ -91,6 +91,64 @@
       "ticket": "AB-525",
       "sign_off": "pending",
       "reason": "Java keeps the accumulation reason; score and decision code must still match."
+    },
+    {
+      "id": "KD-06",
+      "suite": "polrnw-renewal",
+      "cases": [
+        "map-receive-failure"
+      ],
+      "paths": [
+        "outcome.status",
+        "outcome.return_code",
+        "outcome.abend_code",
+        "effects.count"
+      ],
+      "quirk": "Q-520-1",
+      "decision": "docs/modernization/quirk-register.md#q-520-1",
+      "ticket": "AB-526",
+      "sign_off": "pending",
+      "reason": "Failed screen receive: COBOL falls through to the premium calculation and abends (S0CB) on the zero premium; the renewal API rejects an unreadable request before any read or write (HTTP 400, 'ERROR RECEIVING RENEWAL DATA'). Only the outcome and the effect count may differ."
+    },
+    {
+      "id": "KD-07",
+      "suite": "polend-endorsement",
+      "cases": [
+        "mid-term-low-values-type",
+        "leap-year-term",
+        "leap-day-start",
+        "zero-length-term",
+        "term-start",
+        "after-expiry",
+        "multi-year-term-truncated",
+        "zero-premium"
+      ],
+      "paths": [
+        "effects[0].text.ENDORSEMENT_TYPE"
+      ],
+      "quirk": "Q-19",
+      "decision": "docs/modernization/quirk-register.md#q-19",
+      "ticket": "AB-526",
+      "sign_off": "pending",
+      "reason": "POLEND never fills its endorsement type from the screen, so these golden cases insert LOW-VALUES into ENDORSEMENTS.ENDORSEMENT_TYPE. The endorsement API requires one of CAD, CRM, LCH, ACH, CAN (Q-19); PolendEndorsementAdapter submits LCH for a LOW-VALUES fixture. Only the inserted type may differ; sequence, adjustment, premium, audit and confirmation must match."
+    },
+    {
+      "id": "KD-08",
+      "suite": "polend-endorsement",
+      "cases": [
+        "after-expiry",
+        "multi-year-term-truncated"
+      ],
+      "paths": [
+        "effects[0].probes.WS-DAYS-REMAINING",
+        "effects[0].probes.WS-DAYS-IN-TERM",
+        "effects[0].probes.WS-PRORATA-FACTOR"
+      ],
+      "quirk": "Q-20",
+      "decision": "docs/modernization/quirk-register.md#q-20",
+      "ticket": "AB-526",
+      "sign_off": "pending",
+      "reason": "POLEND's day counts are unsigned PIC 9(03): 31 days after expiry stores +31 remaining, and a 1096-day term truncates to 96 (factor 5.729166). Java counts days without truncation and clamps the remaining days to 0..term (after expiry: 0, factor 0.000000; three-year term: 1096 days, factor 0.501824). Only the pro-rata probes may differ; the adjustment stays 0.00 because POLEND never applies the factor and no premium change is submitted."
     }
   ]
 }
