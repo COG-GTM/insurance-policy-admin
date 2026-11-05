@@ -92,6 +92,9 @@ class RenewalCalculatorTest {
     assertThat(below.capApplied()).isFalse();
     assertThat(above.newPremium()).isEqualByComparingTo("-115.00");
     assertThat(above.capApplied()).isTrue();
+    assertThat(steep.quote(BigDecimal.ZERO, LocalDate.of(2024, 6, 1), 0).capApplied()).isFalse();
+    assertThat(steep.quote(new BigDecimal("0.01"), LocalDate.of(2024, 6, 1), 0).capApplied())
+        .isFalse();
   }
 
   @Test
