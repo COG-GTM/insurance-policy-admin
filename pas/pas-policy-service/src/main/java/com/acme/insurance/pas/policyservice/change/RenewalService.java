@@ -53,7 +53,8 @@ public class RenewalService {
 
   /**
    * @param expectedExpiryDate when present, the renewal only happens while the policy still expires
-   *     on that date, so a retried request cannot renew the policy twice
+   *     on that date, so a retried request cannot renew the policy twice. Without it a retry renews
+   *     again, as POLRNW does, so callers should always send it
    */
   @Transactional
   public ChangeResult<Renewal> renew(
@@ -101,7 +102,8 @@ public class RenewalService {
             current.apiFlag(),
             now,
             UPDATED_BY);
-    policies.updateRenewal(renewed);
+    PolicyLookup.requireOneRow(
+        policies.updateRenewal(renewed), "POLICIES renewal update", renewed.policyNumber());
     policies.redateActiveCoverages(
         renewed.policyNumber(), renewed.effectiveDate(), renewed.expiryDate());
     audit.insert(

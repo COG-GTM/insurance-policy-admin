@@ -71,7 +71,9 @@ paths:
         the term (6 decimals, truncated; 1 for a zero-length term; remaining days never below 0 or
         above the term). The premium adjustment is annualPremiumChange times the factor, truncated
         to the cent, and is added to TOTAL_PREMIUM; without annualPremiumChange it is 0.00, as in
-        POLEND (Q-20, FU-07). No type-specific processing happens, also not for CAN (Q-21, FU-08).
+        POLEND (Q-20, FU-07). A non-zero annualPremiumChange is refused with 422
+        ENDORSEMENT_PREMIUM_CHANGE_DISABLED unless pas.policy-change.endorsement-premium-change-enabled
+        is on, which stays off until FU-526-1 is signed off. No type-specific processing happens, also not for CAN (Q-21, FU-08).
       security:
         - oauth2: [pas.policy.endorse]
       parameters:
@@ -142,7 +144,8 @@ components:
     Rejected:
       description: |
         The policy cannot be changed (code NOT_ELIGIBLE_FOR_RENEWAL, TOO_MANY_OPEN_CLAIMS,
-        NOT_ACTIVE_FOR_ENDORSEMENT, POLICY_TERM_INVALID or PREMIUM_OUT_OF_RANGE). Nothing is written.
+        NOT_ACTIVE_FOR_ENDORSEMENT, POLICY_TERM_INVALID, PREMIUM_OUT_OF_RANGE or
+        ENDORSEMENT_PREMIUM_CHANGE_DISABLED). Nothing is written.
       content:
         application/problem+json:
           schema:
@@ -155,7 +158,9 @@ components:
           type: string
           format: date
           nullable: true
-          description: Renew only while the policy still expires on this date; makes retries safe.
+          description: >-
+            Strongly recommended. Renew only while the policy still expires on this date, so a
+            retry answers 409 instead of renewing again. Without it every request renews, as POLRNW does.
     EndorsementRequest:
       type: object
       required: [endorsementType]
@@ -171,7 +176,9 @@ components:
         annualPremiumChange:
           type: number
           nullable: true
-          description: Full-term premium change, 2 decimals, at most 999999999.99 either way. Absent is 0.00.
+          description: >-
+            Full-term premium change, 2 decimals, at most 999999999.99 either way. Absent is 0.00.
+            Non-zero values need pas.policy-change.endorsement-premium-change-enabled (off by default, FU-526-1).
     Renewal:
       type: object
       properties:

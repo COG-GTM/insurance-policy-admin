@@ -37,3 +37,7 @@ CREATE UNIQUE INDEX PASAPP.IX_POLICY_CHG_AUDIT
 
 CREATE INDEX PASAPP.IX_PCA_POLICY
     ON PASAPP.POLICY_CHANGE_AUDIT (POLICY_NUMBER, OCCURRED_AT);
+
+-- Append-only grant, applied by the DBA team with the real application authorization id at review
+-- (pending). The application id must not hold UPDATE or DELETE on this table:
+-- GRANT SELECT, INSERT ON PASAPP.POLICY_CHANGE_AUDIT TO <pas-application-authid>;

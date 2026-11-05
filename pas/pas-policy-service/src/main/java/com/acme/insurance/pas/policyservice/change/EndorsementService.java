@@ -34,16 +34,19 @@ public class EndorsementService {
   private final EndorsementJdbcRepository endorsements;
   private final PolicyChangeAuditJdbcRepository audit;
   private final PolicyChangeClock clock;
+  private final boolean premiumChangeEnabled;
 
   public EndorsementService(
       PolicyJdbcRepository policies,
       EndorsementJdbcRepository endorsements,
       PolicyChangeAuditJdbcRepository audit,
-      PolicyChangeClock clock) {
+      PolicyChangeClock clock,
+      PolicyChangeProperties properties) {
     this.policies = policies;
     this.endorsements = endorsements;
     this.audit = audit;
     this.clock = clock;
+    this.premiumChangeEnabled = properties.endorsementPremiumChangeEnabled();
   }
 
   @Transactional
@@ -52,6 +55,10 @@ public class EndorsementService {
     var invalidType = PolicyChangeError.checkEndorsementType(command.endorsementType());
     if (invalidType.isPresent()) {
       return ChangeResult.rejected(invalidType.get());
+    }
+    BigDecimal change = command.annualPremiumChange();
+    if (!premiumChangeEnabled && change != null && change.signum() != 0) {
+      return ChangeResult.rejected(PolicyChangeError.ENDORSEMENT_PREMIUM_CHANGE_DISABLED);
     }
     ChangeResult<Policy> lookup = PolicyLookup.lockEntitled(policies, policyNumber, entitlement);
     if (lookup.outcome() != ChangeResult.Outcome.DONE) {
@@ -66,12 +73,7 @@ public class EndorsementService {
     ProRata proRata;
     BigDecimal newPremium;
     try {
-      proRata =
-          ProRata.of(
-              current.effectiveDate(),
-              current.expiryDate(),
-              businessDate,
-              command.annualPremiumChange());
+      proRata = ProRata.of(current.effectiveDate(), current.expiryDate(), businessDate, change);
       newPremium = proRata.applyTo(current.totalPremium());
     } catch (RatingOverflowException e) {
       return ChangeResult.rejected(PolicyChangeError.PREMIUM_OUT_OF_RANGE);
@@ -90,7 +92,10 @@ public class EndorsementService {
             now,
             PROCESSED_BY);
     endorsements.insert(endorsement);
-    policies.updateTotalPremium(current.policyNumber(), newPremium, now, PROCESSED_BY);
+    PolicyLookup.requireOneRow(
+        policies.updateTotalPremium(current.policyNumber(), newPremium, now, PROCESSED_BY),
+        "POLICIES premium update",
+        current.policyNumber());
     audit.insert(
         new PolicyChangeAudit(
             current.policyNumber(),
@@ -120,7 +125,8 @@ public class EndorsementService {
    * @param endorsementType CAD, CRM, LCH, ACH or CAN (required, Q-19)
    * @param description optional free text, at most 100 characters
    * @param annualPremiumChange full-term premium change the pro-rata factor applies to; absent is
-   *     0.00, POLEND's adjustment (Q-20)
+   *     0.00, POLEND's adjustment (Q-20). Non-zero only with {@code
+   *     pas.policy-change.endorsement-premium-change-enabled} (FU-526-1)
    */
   public record EndorsementCommand(
       String endorsementType, String description, BigDecimal annualPremiumChange) {}

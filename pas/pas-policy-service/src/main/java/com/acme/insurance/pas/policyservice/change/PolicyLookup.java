@@ -41,6 +41,17 @@ final class PolicyLookup {
     return entitlement.permits(policy.agentCode(), policy.branchCode());
   }
 
+  /**
+   * The policy row is locked, so an update must hit exactly one row. Anything else throws, which
+   * rolls the whole change back instead of writing an audit row for an update that didn't happen.
+   */
+  static void requireOneRow(int updated, String statement, String policyNumber) {
+    if (updated != 1) {
+      throw new IllegalStateException(
+          statement + " changed " + updated + " rows for policy " + policyNumber + ", expected 1");
+    }
+  }
+
   /** Re-types a not-found or denied lookup for the caller's result. */
   static <T> ChangeResult<T> propagate(ChangeResult<Policy> lookup) {
     return new ChangeResult<>(lookup.outcome(), null, lookup.error());

@@ -44,7 +44,10 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = "management.server.port=0")
+    properties = {
+      "management.server.port=0",
+      "pas.policy-change.endorsement-premium-change-enabled=true"
+    })
 @AutoConfigureObservability
 @Import(TestcontainersConfiguration.class)
 class PolicyChangeApiIT {
@@ -302,6 +305,24 @@ class PolicyChangeApiIT {
   }
 
   @Test
+  void anOverlongSubjectIsAuditedCutWithItsDigest() throws Exception {
+    String policy = policy("AC", today().minusDays(1), today().plusDays(300), "100.00");
+    String subject = "u".repeat(300);
+    String jwt =
+        TestJwt.sign(
+            TestJwt.claims(POLICY_ENDORSE).subject(subject).claim("pas_book", "*").build());
+
+    assertThat(endorse(policy, "{\"endorsementType\":\"CAD\"}", jwt).statusCode()).isEqualTo(201);
+    assertThat(audit.findByPolicy(policy))
+        .singleElement()
+        .satisfies(
+            a -> {
+              assertThat(a.principal()).hasSize(Actor.PRINCIPAL_BYTES).contains("#sha256:");
+              assertThat(a.principal()).isEqualTo(Actor.auditPrincipal(subject));
+            });
+  }
+
+  @Test
   void onlyActivePoliciesAreEndorsed() throws Exception {
     String policy = policy("EX", today().minusYears(1), today().minusDays(1), "100.00");
 
@@ -356,20 +377,37 @@ class PolicyChangeApiIT {
   @Test
   void aFailedAuditWriteRollsBackTheWholeEndorsement() throws Exception {
     String policy = policy("AC", today().minusDays(1), today().plusDays(300), "100.00");
-    String tooLongForTheAuditColumn = "u".repeat(300);
-    String jwt =
-        TestJwt.sign(
-            TestJwt.claims(POLICY_ENDORSE)
-                .subject(tooLongForTheAuditColumn)
-                .claim("pas_book", "*")
-                .build());
+    String trigger = "fail_audit_" + policy.replace('-', '_').toLowerCase(java.util.Locale.ROOT);
+    jdbc.sql(
+            "CREATE FUNCTION pasapp."
+                + trigger
+                + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'audit"
+                + " unavailable' USING ERRCODE = 'P0001'; END $$")
+        .update();
+    jdbc.sql(
+            "CREATE TRIGGER "
+                + trigger
+                + " BEFORE INSERT ON pasapp.policy_change_audit FOR EACH ROW WHEN"
+                + " (NEW.policy_number = '"
+                + policy
+                + "') EXECUTE FUNCTION pasapp."
+                + trigger
+                + "()")
+        .update();
+    try {
+      HttpResponse<String> response =
+          endorse(
+              policy,
+              "{\"endorsementType\":\"CAD\",\"annualPremiumChange\":50.00}",
+              TestJwt.wholeBook(POLICY_ENDORSE));
 
-    HttpResponse<String> response =
-        endorse(policy, "{\"endorsementType\":\"CAD\",\"annualPremiumChange\":50.00}", jwt);
-
-    assertThat(response.statusCode()).isEqualTo(500);
-    assertThat(endorsements.findByPolicy(policy)).isEmpty();
-    assertThat((BigDecimal) row(policy).get("total_premium")).isEqualByComparingTo("100.00");
+      assertThat(response.statusCode()).isEqualTo(500);
+      assertThat(endorsements.findByPolicy(policy)).isEmpty();
+      assertThat((BigDecimal) row(policy).get("total_premium")).isEqualByComparingTo("100.00");
+    } finally {
+      jdbc.sql("DROP TRIGGER " + trigger + " ON pasapp.policy_change_audit").update();
+      jdbc.sql("DROP FUNCTION pasapp." + trigger + "()").update();
+    }
   }
 
   @Test
