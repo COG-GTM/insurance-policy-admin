@@ -1191,6 +1191,46 @@
       ],
       "follow_up": "FU-13",
       "lands_in": "AB-527"
+    },
+    {
+      "id": "Q-525-1",
+      "title": "POLNEW accepts a negative policy limit",
+      "component": "POLNEW",
+      "category": "validation defect",
+      "description": "3000-VALIDATE-INPUT rejects COVERAGE_LIMIT only when it is EQUAL TO ZERO, although the message reads 'POLICY LIMIT MUST BE GREATER THAN ZERO'. A negative limit entered on POLNMAP passes validation and is stored.",
+      "owner": "Underwriting lead",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "The message states the intent. A negative limit is never a valid policy and would reduce the branch accumulation in UNDWRT. The create-policy API rejects a limit <= 0 with the same message.",
+      "parity_note": "POLNEW has no parity suite yet; NewBusinessApiIT covers the negative limit.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "POLICY LIMIT MUST BE GREATER THAN ZERO"
+        }
+      ],
+      "follow_up": "FU-525-1",
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-525-2",
+      "title": "Holder without credit score: UNDWRT has no null indicator",
+      "component": "UNDWRT",
+      "category": "data handling",
+      "description": "The policy/holder SELECT in UNDWRT reads CREDIT_SCORE into a host variable without a null indicator. CREDIT_SCORE is nullable, so a holder without a score makes the SELECT fail (SQLCODE -305) and PUWR answers 'POLICY/CUSTOMER DATA NOT FOUND'; the 'no credit score' branch (base 400) is reached only for a stored 0.",
+      "owner": "Underwriting lead",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "The COBOL has an explicit branch for a missing score (base 400), which states the intent. The Java underwriter treats a NULL score like 0 and scores the policy instead of reporting it as not found.",
+      "parity_note": "Fixtures cannot express NULL host variables; UnderwriterTest covers the NULL score.",
+      "evidence": [
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": ":CUST-TYPE, :CUST-CREDIT-SCORE,"
+        }
+      ],
+      "follow_up": "FU-525-1",
+      "lands_in": "AB-525"
     }
   ]
 }

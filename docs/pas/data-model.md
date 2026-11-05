@@ -14,6 +14,9 @@ The frozen sources are `sql/ddl/create-tables.sql` and `cobol/copybooks/*.cpy`; 
 | V11 | db2 | `PASAPP.CLASS_FACTORS` for DB2 while it is the system of record (DBA-applied) |
 | V12 | postgresql | PII classification comments on `POLICY_HOLDERS` and the `acmeins.policy_holders_masked` view |
 | V13 | postgresql | Q-18 fix: `UNDERWRITING_DECISIONS` keyed by a generated `DECISION_ID`, same-day decisions kept |
+| V50 | postgresql, db2 | `PASAPP.EVENT_OUTBOX`: transactional outbox for the PAS events (AB-525) |
+| V51 | postgresql, db2 | `PASAPP.POLICY_AUDIT`: append-only write audit (PostgreSQL trigger blocks UPDATE/DELETE) (AB-525) |
+| V52 | postgresql, db2 | `PASAPP.DEFAULT_COVERAGES`: POLNEW default coverages per policy type, seeded (AB-525) |
 
 V14-V19 stay free for this ticket's follow-ups (column protection once Security decides, section 5).
 
@@ -179,3 +182,4 @@ PAS does not port, create, read or write `ACMEINS.CLAIMS`. Assumptions recorded 
 | Type mapping, V10-V13, migration job model, `PASAPP.CLASS_FACTORS` on DB2 | DBA team | pending |
 | ACMEINS.CLAIMS assumptions (section 6) | Claims team | pending |
 | Q-18 fix and Q-521-1 / Q-521-2 decisions | Product owner + ARB | pending |
+| V50-V52 on DB2 (`PASAPP` outbox, audit, default coverages; INSERT/SELECT-only grant on the audit table) | DBA team | pending |

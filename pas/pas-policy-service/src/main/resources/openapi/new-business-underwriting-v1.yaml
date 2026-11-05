@@ -1,0 +1,242 @@
+openapi: 3.0.3
+info:
+  title: PAS new business and underwriting API
+  version: 1.0.0
+  description: |
+    New business and underwriting for the Policy Administration System (AB-525). Replaces CICS
+    transactions PNEW (program POLNEW) and PUWR (program UNDWRT). Every request needs an OAuth 2.0
+    access token (ADR 0001 D5) with the scope named on the operation. Writes are limited to the
+    caller's book of business (token claims pas_book, pas_agents, pas_branches): a new policy
+    outside it answers 403, an existing policy outside it answers 404 like a missing one.
+    Successful writes publish events through the transactional outbox (pas.policy.created,
+    pas.underwriting.requested, pas.underwriting.decided) instead of the TD queue writes.
+servers:
+  - url: /
+paths:
+  /api/v1/policies:
+    post:
+      operationId: createPolicy
+      summary: Create a new-business policy (POLNEW)
+      security:
+        - oauth2: [pas.policy.write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewPolicyRequest'
+      responses:
+        '201':
+          description: Policy created with status PN and the default coverages of its type.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedPolicy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: POLNEW validation failed. message is the PNEW error text (last failed check).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/policies/{policyNumber}/underwriting-decisions:
+    post:
+      operationId: decideUnderwriting
+      summary: Run the underwriting decision (UNDWRT)
+      security:
+        - oauth2: [pas.underwriting.decide]
+      parameters:
+        - $ref: '#/components/parameters/PolicyNumber'
+      responses:
+        '201':
+          description: Decision recorded; POLICIES.UW_STATUS and RISK_SCORE updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Decision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          description: The Claims history interface did not answer; nothing was written.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      operationId: listUnderwritingDecisions
+      summary: Underwriting decision history of a policy
+      security:
+        - oauth2: [pas.policy.read]
+      parameters:
+        - $ref: '#/components/parameters/PolicyNumber'
+      responses:
+        '200':
+          description: Decisions, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Decision'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/policies/{policyNumber}/underwriting-decisions/override:
+    post:
+      operationId: overrideUnderwriting
+      summary: Manually override the latest decision with a reason
+      security:
+        - oauth2: [pas.underwriting.override]
+      parameters:
+        - $ref: '#/components/parameters/PolicyNumber'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OverrideRequest'
+      responses:
+        '200':
+          description: Override recorded on the latest decision (OVERRIDE_REASON, OVERRIDE_BY).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Decision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://idp.example/oauth2/token
+          scopes:
+            pas.policy.read: Read policies
+            pas.policy.write: Create new-business policies
+            pas.underwriting.decide: Run the underwriting decision
+            pas.underwriting.override: Override an underwriting decision
+  parameters:
+    PolicyNumber:
+      name: policyNumber
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 12
+  responses:
+    BadRequest:
+      description: The request is malformed (field widths, decimal places, override fields).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthenticated:
+      description: No valid access token.
+    Forbidden:
+      description: Missing scope, or a new policy outside the caller's entitlement.
+    NotFound:
+      description: No such policy, or the policy is outside the caller's entitlement.
+    Conflict:
+      description: No decision to override, the decision changed meanwhile, or already decided today on DB2.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    NewPolicyRequest:
+      type: object
+      properties:
+        policyType: {type: string, maxLength: 3, description: 'AUT, HOM, COM, LIF or HLT'}
+        policyholderId: {type: string, maxLength: 10}
+        agentCode: {type: string, maxLength: 6}
+        branchCode: {type: string, maxLength: 4}
+        effectiveDate: {type: string, format: date, description: Not before the business date.}
+        totalPremium: {type: number, description: 'Stored as entered, not rated (Q-12).'}
+        deductible: {type: number}
+        coverageLimit: {type: number, description: Must be greater than zero.}
+    CreatedPolicy:
+      type: object
+      properties:
+        policyNumber: {type: string}
+        policyType: {type: string}
+        policyStatus: {type: string, example: PN}
+        uwStatus: {type: string, example: PN}
+        effectiveDate: {type: string, format: date}
+        expiryDate: {type: string, format: date}
+        policyholderId: {type: string}
+        agentCode: {type: string}
+        branchCode: {type: string}
+        totalPremium: {type: number}
+        deductible: {type: number}
+        coverageLimit: {type: number}
+        coverages:
+          type: array
+          items:
+            $ref: '#/components/schemas/CoverageLine'
+    CoverageLine:
+      type: object
+      properties:
+        sequenceNum: {type: integer}
+        coverageType: {type: string}
+        description: {type: string}
+    OverrideRequest:
+      type: object
+      required: [decisionCode, reason]
+      properties:
+        decisionCode: {type: string, enum: [AP, DC]}
+        reason: {type: string, maxLength: 200}
+    Decision:
+      type: object
+      properties:
+        policyNumber: {type: string}
+        decisionDate: {type: string, format: date}
+        decisionCode: {type: string, enum: [AP, RS, RM, DC]}
+        riskScore: {type: integer, description: 'Full score, not truncated to 3 digits (Q-14).'}
+        decisionReason: {type: string}
+        underwriterId: {type: string}
+        overrideReason: {type: string, nullable: true}
+        overrideBy: {type: string, nullable: true}
+        reasons:
+          type: array
+          nullable: true
+          items: {type: string}
+    Error:
+      type: object
+      properties:
+        message: {type: string}
+        violations:
+          type: array
+          items:
+            type: object
+            properties:
+              field: {type: string, nullable: true}
+              message: {type: string}

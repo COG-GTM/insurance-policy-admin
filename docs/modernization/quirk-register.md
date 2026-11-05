@@ -67,6 +67,8 @@ Rules for this register:
 | [Q-522-1](#q-522-1) | PREMBAT premium arithmetic has no ON SIZE ERROR: overflow silently drops high-order digits | PREMBAT | Actuarial / Pricing lead | **fix** | proposed - pending business sign-off | AB-522 | `cobol/programs/PREMBAT.cbl:66`<br>`cobol/programs/PREMBAT.cbl:186` |
 | [Q-527-1](#q-527-1) | Daily extract window depends on when the job starts | DAILY-EXTRACT STEP010 (policy delta) | Claims team + Mainframe operations | **fix** | proposed - pending Claims sign-off | AB-527 | `jcl/DAILY-EXTRACT.jcl:54` |
 | [Q-527-2](#q-527-2) | Extract record bytes are not specified anywhere | DAILY-EXTRACT POLOUT/COVOUT, MONTHLY-EXPOSURE EXPOUT | Mainframe team + Claims team + Actuarial | **preserve** | proposed - layout is a candidate until production samples (FU-13) and consumer sign-off (FU-14) | AB-527 | `jcl/DAILY-EXTRACT.jcl:39`<br>`jcl/DAILY-EXTRACT.jcl:68`<br>`jcl/MONTHLY-EXPOSURE.jcl:33` |
+| [Q-525-1](#q-525-1) | POLNEW accepts a negative policy limit | POLNEW | Underwriting lead | **fix** | proposed - pending business sign-off | AB-525 | `cobol/programs/POLNEW.cbl:120` |
+| [Q-525-2](#q-525-2) | Holder without credit score: UNDWRT has no null indicator | UNDWRT | Underwriting lead | **fix** | proposed - pending business sign-off | AB-525 | `cobol/programs/UNDWRT.cbl:104` |
 <!-- END GENERATED: quirk-table -->
 
 ## Details
@@ -846,5 +848,35 @@ The JCL only fixes RECFM FB with LRECL 200/150 for the Claims extracts and RECFM
   - `jcl/DAILY-EXTRACT.jcl:39`: `LRECL=200`
   - `jcl/DAILY-EXTRACT.jcl:68`: `LRECL=150`
   - `jcl/MONTHLY-EXPOSURE.jcl:33`: `LRECL=300`
+
+### Q-525-1
+
+**POLNEW accepts a negative policy limit** (POLNEW, validation defect)
+
+3000-VALIDATE-INPUT rejects COVERAGE_LIMIT only when it is EQUAL TO ZERO, although the message reads 'POLICY LIMIT MUST BE GREATER THAN ZERO'. A negative limit entered on POLNMAP passes validation and is stored.
+
+- Owner: Underwriting lead
+- Proposed decision: **fix** (proposed - pending business sign-off)
+- Rationale: The message states the intent. A negative limit is never a valid policy and would reduce the branch accumulation in UNDWRT. The create-policy API rejects a limit <= 0 with the same message.
+- Parity / characterization note: POLNEW has no parity suite yet; NewBusinessApiIT covers the negative limit.
+- Lands in: AB-525
+- Follow-up: FU-525-1
+- Evidence:
+  - `cobol/programs/POLNEW.cbl:120`: `POLICY LIMIT MUST BE GREATER THAN ZERO`
+
+### Q-525-2
+
+**Holder without credit score: UNDWRT has no null indicator** (UNDWRT, data handling)
+
+The policy/holder SELECT in UNDWRT reads CREDIT_SCORE into a host variable without a null indicator. CREDIT_SCORE is nullable, so a holder without a score makes the SELECT fail (SQLCODE -305) and PUWR answers 'POLICY/CUSTOMER DATA NOT FOUND'; the 'no credit score' branch (base 400) is reached only for a stored 0.
+
+- Owner: Underwriting lead
+- Proposed decision: **fix** (proposed - pending business sign-off)
+- Rationale: The COBOL has an explicit branch for a missing score (base 400), which states the intent. The Java underwriter treats a NULL score like 0 and scores the policy instead of reporting it as not found.
+- Parity / characterization note: Fixtures cannot express NULL host variables; UnderwriterTest covers the NULL score.
+- Lands in: AB-525
+- Follow-up: FU-525-1
+- Evidence:
+  - `cobol/programs/UNDWRT.cbl:104`: `:CUST-TYPE, :CUST-CREDIT-SCORE,`
 
 <!-- END GENERATED: quirk-details -->
