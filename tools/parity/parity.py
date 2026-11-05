@@ -534,15 +534,19 @@ def run_suites(registry, suite_filter=None, case_filter=None):
     cobc = cobc_path()
     if not cobc:
         raise HarnessError("GnuCOBOL (cobc) not found. Install it (apt-get install gnucobol3) or set COBC.")
-    executables = {}
+    executables, matched = {}, 0
     for suite in selected(registry, suite_filter):
+        cases = [c for c in load_fixtures(suite)["cases"] if not case_filter or c["id"] == case_filter]
+        if not cases:
+            continue
         program = suite["program"]
         if program not in executables:
             executables[program] = build(program, suite, cobc)
-        for case in load_fixtures(suite)["cases"]:
-            if case_filter and case["id"] != case_filter:
-                continue
+        for case in cases:
+            matched += 1
             yield suite, case, run_case(suite, case, executables[program])
+    if case_filter and not matched:
+        raise HarnessError(f"no case {case_filter} in suite(s) matching {suite_filter or '*'}")
 
 
 # --------------------------------------------------------------------------------------------

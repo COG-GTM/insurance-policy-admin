@@ -130,6 +130,17 @@ class KnownDifferenceTest(unittest.TestCase):
         self.assertTrue(any("sign_off" in e for e in errors))
 
 
+class RunSelectionTest(unittest.TestCase):
+    def test_unknown_case_is_an_error(self):
+        original = parity.cobc_path
+        parity.cobc_path = lambda: "/bin/true"
+        try:
+            with self.assertRaisesRegex(parity.HarnessError, "no case no-such-case"):
+                list(parity.run_suites(parity.load_registry(), "polrnw-renewal", "no-such-case"))
+        finally:
+            parity.cobc_path = original
+
+
 class RepositoryTest(unittest.TestCase):
     def test_registry_fixtures_and_known_differences_are_valid(self):
         errors = parity.validate(parity.load_registry(), parity.load_json(parity.QUIRKS),
