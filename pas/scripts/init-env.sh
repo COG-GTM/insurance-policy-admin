@@ -3,6 +3,14 @@
 # password. Leaves an existing .env alone.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+# Key pair for local access tokens (pas/scripts/local-token.sh); the service trusts the public half.
+if [[ ! -f pas/.local-jwt/private.pem ]]; then
+  mkdir -p pas/.local-jwt
+  (umask 077 && openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out pas/.local-jwt/private.pem 2>/dev/null)
+  openssl pkey -in pas/.local-jwt/private.pem -pubout -out pas/.local-jwt/public.pem
+  chmod 644 pas/.local-jwt/public.pem
+  echo "created pas/.local-jwt key pair"
+fi
 [[ -f .env ]] && exit 0
 # PostgreSQL only sets the password when it creates its data volume; a new password would not match it.
 if docker volume inspect pas_pas-postgres >/dev/null 2>&1; then

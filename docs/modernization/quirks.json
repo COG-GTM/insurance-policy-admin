@@ -554,7 +554,7 @@
       "owner": "Product Owner, Policy Administration + Java facade owner (t.nguyen@acme.com)",
       "proposed_decision": "preserve",
       "decision_status": "proposed - pending business sign-off",
-      "rationale": "The new inquiry API keeps the facade contract (compat snapshots). API_FLAG stays informational (no filtering). Product must confirm whether API_FLAG='N' policies should really be visible to API consumers.",
+      "rationale": "The new inquiry API keeps the facade contract (compat snapshots). API_FLAG stays informational (no filtering). Product must confirm whether API_FLAG='N' policies should really be visible to API consumers. AB-524: GET /api/v1/policies/{policyNumber} returns API_FLAG='N' policies as before; the holder POLQRY reads is exposed additively at /policyholder (masked unless pas.policyholder.read).",
       "parity_note": "The inquiry API must match compat/api/snapshots byte-for-byte, including returning policies with API_FLAG='N'.",
       "evidence": [
         {
@@ -849,7 +849,7 @@
       "owner": "Security + Java facade owner (t.nguyen@acme.com)",
       "proposed_decision": "fix",
       "decision_status": "proposed - pending business sign-off",
-      "rationale": "Epic success criterion: all reads and writes through authenticated, authorised APIs. Delivered by the inquiry/auth tickets, and the compat gate approves the 401/403 change explicitly.",
+      "rationale": "Epic success criterion: all reads and writes through authenticated, authorised APIs. Delivered by the inquiry/auth tickets, and the compat gate approves the 401/403 change explicitly. AB-524: pas-policy-service validates OAuth 2.0 JWTs on every request, enforces pas.policy.read plus agent/branch/book entitlement, and needs pas.ops.read for info/metrics; the facade is retired through the gated plan in docs/pas/facade-retirement.md.",
       "parity_note": "API contract snapshots stay the same apart from the approved auth change.",
       "evidence": [
         {
@@ -861,6 +861,30 @@
           "contains": "ENV DB2_PASSWORD=changeme"
         }
       ],
+      "lands_in": "AB-524"
+    },
+    {
+      "id": "Q-524-1",
+      "title": "Facade serialises dates as strings but LAST_UPDATED as epoch milliseconds",
+      "component": "java-facade",
+      "category": "contract",
+      "description": "The facade maps DATE columns with ResultSet.getDate (serialised by Jackson as yyyy-MM-dd) and LAST_UPDATED with getTimestamp (serialised as epoch milliseconds in the JVM default time zone). RENEWAL_COUNT, RISK_SCORE and COINSURANCE_PCT are Java primitives, so NULL becomes 0. Not-found answers 404 with an empty body.",
+      "owner": "Java facade owner (t.nguyen@acme.com)",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Existing consumers parse these shapes (compat/api/snapshots/policies-v1.json). The inquiry API keeps them; the time zone is configurable (PAS_INQUIRY_TIMESTAMP_ZONE) until FU-524-2 confirms the production value.",
+      "parity_note": "FacadeContractIT runs compat/api/check_api.py against pas-policy-service; lastUpdated is type-checked only.",
+      "evidence": [
+        {
+          "file": "java-facade/src/main/java/com/acme/insurance/pas/repository/PolicyRepository.java",
+          "contains": "getTimestamp"
+        },
+        {
+          "file": "java-facade/src/main/java/com/acme/insurance/pas/repository/PolicyRepository.java",
+          "contains": "getDate"
+        }
+      ],
+      "follow_up": "FU-524-2",
       "lands_in": "AB-524"
     },
     {

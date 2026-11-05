@@ -3,6 +3,7 @@ package com.acme.insurance.pas.policyservice;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.acme.insurance.pas.policyservice.observability.CorrelationIdFilter;
+import com.acme.insurance.pas.policyservice.security.PasScopes;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -18,6 +19,8 @@ import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -27,6 +30,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(TestcontainersConfiguration.class)
 @ExtendWith(OutputCaptureExtension.class)
 class PasPolicyServiceApplicationIT {
+
+  @DynamicPropertySource
+  static void jwt(DynamicPropertyRegistry registry) {
+    TestJwt.register(registry);
+  }
 
   private final HttpClient http = HttpClient.newHttpClient();
 
@@ -51,7 +59,8 @@ class PasPolicyServiceApplicationIT {
 
   @Test
   void prometheusMetricsAreTaggedWithTheApplication() throws Exception {
-    HttpResponse<String> metrics = get(managementPort, "/actuator/prometheus");
+    HttpResponse<String> metrics =
+        get(managementPort, "/actuator/prometheus", TestJwt.wholeBook(PasScopes.OPS_READ));
     assertThat(metrics.statusCode()).isEqualTo(200);
     assertThat(metrics.body())
         .contains("jvm_memory_used_bytes")
@@ -60,9 +69,27 @@ class PasPolicyServiceApplicationIT {
   }
 
   @Test
+  void infoAndMetricsNeedTheOpsScope() throws Exception {
+    for (String path : new String[] {"/actuator/info", "/actuator/prometheus"}) {
+      assertThat(get(managementPort, path).statusCode()).as(path).isEqualTo(401);
+      assertThat(get(managementPort, path, TestJwt.wholeBook(PasScopes.POLICY_READ)).statusCode())
+          .as(path)
+          .isEqualTo(403);
+      assertThat(get(managementPort, path, TestJwt.wholeBook(PasScopes.OPS_READ)).statusCode())
+          .as(path)
+          .isEqualTo(200);
+    }
+  }
+
+  @Test
   void onlyProbeInfoAndMetricsEndpointsAreExposed() throws Exception {
-    for (String path : new String[] {"/actuator/env", "/actuator/beans", "/actuator/heapdump"}) {
-      assertThat(get(managementPort, path).statusCode()).as(path).isIn(403, 404);
+    String ops = TestJwt.wholeBook(PasScopes.OPS_READ + " " + PasScopes.POLICY_READ);
+    for (String path :
+        new String[] {
+          "/actuator/env", "/actuator/beans", "/actuator/heapdump", "/actuator/loggers"
+        }) {
+      assertThat(get(managementPort, path).statusCode()).as(path).isIn(401, 403, 404);
+      assertThat(get(managementPort, path, ops).statusCode()).as(path).isIn(403, 404);
     }
   }
 
@@ -117,6 +144,14 @@ class PasPolicyServiceApplicationIT {
   private HttpResponse<String> get(int port, String path) throws Exception {
     return http.send(
         HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).build(),
+        HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpResponse<String> get(int port, String path, String jwt) throws Exception {
+    return http.send(
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+            .header("Authorization", "Bearer " + jwt)
+            .build(),
         HttpResponse.BodyHandlers.ofString());
   }
 }

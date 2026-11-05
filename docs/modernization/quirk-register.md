@@ -54,6 +54,7 @@ Rules for this register:
 | [Q-34](#q-34) | Exposure 'POLICY_COUNT' counts coverages; documented cat/cyber fields absent | MONTHLY-EXPOSURE | Actuarial / Pricing lead | **preserve** | proposed - pending business sign-off | AB-527 | `jcl/MONTHLY-EXPOSURE.jcl:45`<br>`jcl/MONTHLY-EXPOSURE.jcl:10` |
 | [Q-35](#q-35) | Data values outside the COBOL code domains | data (POLICIES, COVERAGES, POLICY_HOLDERS) | DBA team (db2-admin@acme.com) | **preserve** | proposed - pending business sign-off | AB-521, AB-529 | `java-facade/src/main/resources/data.sql:51`<br>`cobol/copybooks/POLICY-RECORD.cpy:18` |
 | [Q-36](#q-36) | Facade: no authentication, open actuator, default DB2 password | java-facade | Security + Java facade owner (t.nguyen@acme.com) | **fix** | proposed - pending business sign-off | AB-524 | `java-facade/src/main/resources/application.properties:35`<br>`java-facade/Dockerfile:39` |
+| [Q-524-1](#q-524-1) | Facade serialises dates as strings but LAST_UPDATED as epoch milliseconds | java-facade | Java facade owner (t.nguyen@acme.com) | **preserve** | proposed - pending business sign-off | AB-524 | `java-facade/src/main/java/com/acme/insurance/pas/repository/PolicyRepository.java:92`<br>`java-facade/src/main/java/com/acme/insurance/pas/repository/PolicyRepository.java:76` |
 | [Q-37](#q-37) | Local H2 schema has a policy -> holder FK that DB2 lacks | schema (POLICIES) | DBA team (db2-admin@acme.com) | **preserve** | proposed - pending business sign-off | AB-521, AB-529 | `java-facade/src/main/resources/schema.sql:61` |
 | [Q-38](#q-38) | Premium batch is one unit of work for the whole book | PREMBAT, PREMIUM-BATCH | Mainframe team (mainframe-ops@acme.com) | **fix** | proposed - pending business sign-off | AB-523 | `jcl/PREMIUM-BATCH.jcl:34`<br>`cobol/programs/PREMBAT.cbl:126` |
 | [Q-39](#q-39) | Renewal resets UW status to pending but never requests underwriting | POLRNW | Underwriting lead + Product Owner, Policy Administration | **preserve** | proposed - pending business sign-off | AB-526 | `cobol/programs/POLRNW.cbl:152`<br>`cobol/programs/POLRNW.cbl:35` |
@@ -435,7 +436,7 @@ POLQRY reads POLICY_HOLDERS (SQLCODE unchecked) and up to 20 coverages into WS-C
 
 - Owner: Product Owner, Policy Administration + Java facade owner (t.nguyen@acme.com)
 - Proposed decision: **preserve** (proposed - pending business sign-off)
-- Rationale: The new inquiry API keeps the facade contract (compat snapshots). API_FLAG stays informational (no filtering). Product must confirm whether API_FLAG='N' policies should really be visible to API consumers.
+- Rationale: The new inquiry API keeps the facade contract (compat snapshots). API_FLAG stays informational (no filtering). Product must confirm whether API_FLAG='N' policies should really be visible to API consumers. AB-524: GET /api/v1/policies/{policyNumber} returns API_FLAG='N' policies as before; the holder POLQRY reads is exposed additively at /policyholder (masked unless pas.policyholder.read).
 - Parity / characterization note: The inquiry API must match compat/api/snapshots byte-for-byte, including returning policies with API_FLAG='N'.
 - Lands in: AB-524
 - Follow-up: FU-10
@@ -628,12 +629,28 @@ The Spring Boot 1.5 facade has no authentication (comment: relies on VPN), turns
 
 - Owner: Security + Java facade owner (t.nguyen@acme.com)
 - Proposed decision: **fix** (proposed - pending business sign-off)
-- Rationale: Epic success criterion: all reads and writes through authenticated, authorised APIs. Delivered by the inquiry/auth tickets, and the compat gate approves the 401/403 change explicitly.
+- Rationale: Epic success criterion: all reads and writes through authenticated, authorised APIs. Delivered by the inquiry/auth tickets, and the compat gate approves the 401/403 change explicitly. AB-524: pas-policy-service validates OAuth 2.0 JWTs on every request, enforces pas.policy.read plus agent/branch/book entitlement, and needs pas.ops.read for info/metrics; the facade is retired through the gated plan in docs/pas/facade-retirement.md.
 - Parity / characterization note: API contract snapshots stay the same apart from the approved auth change.
 - Lands in: AB-524
 - Evidence:
   - `java-facade/src/main/resources/application.properties:35`: `endpoints.health.sensitive=false`
   - `java-facade/Dockerfile:39`: `ENV DB2_PASSWORD=changeme`
+
+### Q-524-1
+
+**Facade serialises dates as strings but LAST_UPDATED as epoch milliseconds** (java-facade, contract)
+
+The facade maps DATE columns with ResultSet.getDate (serialised by Jackson as yyyy-MM-dd) and LAST_UPDATED with getTimestamp (serialised as epoch milliseconds in the JVM default time zone). RENEWAL_COUNT, RISK_SCORE and COINSURANCE_PCT are Java primitives, so NULL becomes 0. Not-found answers 404 with an empty body.
+
+- Owner: Java facade owner (t.nguyen@acme.com)
+- Proposed decision: **preserve** (proposed - pending business sign-off)
+- Rationale: Existing consumers parse these shapes (compat/api/snapshots/policies-v1.json). The inquiry API keeps them; the time zone is configurable (PAS_INQUIRY_TIMESTAMP_ZONE) until FU-524-2 confirms the production value.
+- Parity / characterization note: FacadeContractIT runs compat/api/check_api.py against pas-policy-service; lastUpdated is type-checked only.
+- Lands in: AB-524
+- Follow-up: FU-524-2
+- Evidence:
+  - `java-facade/src/main/java/com/acme/insurance/pas/repository/PolicyRepository.java:92`: `getTimestamp`
+  - `java-facade/src/main/java/com/acme/insurance/pas/repository/PolicyRepository.java:76`: `getDate`
 
 ### Q-37
 

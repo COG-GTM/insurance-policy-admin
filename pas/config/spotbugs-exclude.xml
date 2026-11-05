@@ -4,7 +4,7 @@
   <!-- Spring injects collaborators through constructors; storing the injected bean is intended. -->
   <Match>
     <Bug pattern="EI_EXPOSE_REP2"/>
-    <Class name="~com\.acme\.insurance\.pas\..*(Config|Configuration|Controller|Filter|Properties)"/>
+    <Class name="~com\.acme\.insurance\.pas\..*(Config|Configuration|Controller|Filter|Properties|Service)"/>
   </Match>
   <!-- AB-527: the extract delivery and alerting beans keep the injected MeterRegistry to record metrics. -->
   <Match>
