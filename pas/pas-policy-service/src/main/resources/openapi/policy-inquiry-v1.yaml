@@ -17,6 +17,41 @@ servers:
 security:
   - oauth2: [pas.policy.read]
 paths:
+  /api/v1/policies:
+    get:
+      operationId: listPolicies
+      summary: Policies of one agent or one branch (Broker Portal list, replaces its DB2 linked-server read, AB-528)
+      description: >-
+        Exactly one of agentCode or branchCode. Keyset paging in policy-number order: pass nextAfter
+        as after for the next page. A filter outside the caller's entitlement returns an empty page.
+      parameters:
+        - {name: agentCode, in: query, required: false, schema: {type: string, pattern: '^[A-Z0-9]{1,6}$'}}
+        - {name: branchCode, in: query, required: false, schema: {type: string, pattern: '^[A-Z0-9]{1,4}$'}}
+        - {name: status, in: query, required: false, schema: {type: string, pattern: '^[A-Z]{2}$'}}
+        - {name: after, in: query, required: false, schema: {type: string, maxLength: 12}}
+        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses:
+        '200':
+          description: One page of policies.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [policies]
+                properties:
+                  policies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Policy'
+                  nextAfter:
+                    type: string
+                    nullable: true
+        '400':
+          description: Neither or both of agentCode and branchCode, or an invalid parameter.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /api/v1/policies/{policyNumber}:
     get:
       operationId: getPolicy
