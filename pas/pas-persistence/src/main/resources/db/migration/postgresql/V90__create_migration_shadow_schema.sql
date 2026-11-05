@@ -34,6 +34,9 @@ CREATE TABLE acmeins_shadow.migration_run (
     status              varchar(16)     NOT NULL,
     started_at          timestamp(6)    NOT NULL DEFAULT localtimestamp,
     finished_at         timestamp(6),
+    -- Complete record-difference count of a reconciliation; recon_difference keeps at most 1,000
+    -- keys per table, so the dashboard reads the total from here.
+    record_differences  bigint,
     CONSTRAINT pk_migration_run PRIMARY KEY (run_id),
     CONSTRAINT ck_migration_run_direction CHECK (direction IN ('DB2_TO_PG', 'PG_TO_DB2', 'NONE')),
     CONSTRAINT ck_migration_run_status CHECK (status IN ('RUNNING', 'MATCH', 'DIFFERENCES', 'SYNCED', 'FAILED'))
@@ -91,10 +94,10 @@ SELECT r.business_date,
        r.finished_at,
        COUNT(c.check_id) AS checks,
        COALESCE(SUM(CASE WHEN c.status = 'DIFF' THEN 1 ELSE 0 END), 0) AS failed_checks,
-       (SELECT COUNT(*) FROM acmeins_shadow.recon_difference d WHERE d.run_id = r.run_id) AS record_differences
+       COALESCE(r.record_differences, 0) AS record_differences
   FROM acmeins_shadow.migration_run r
   LEFT JOIN acmeins_shadow.recon_check c ON c.run_id = r.run_id
  WHERE r.status IN ('MATCH', 'DIFFERENCES')
- GROUP BY r.business_date, r.run_id, r.job_name, r.status, r.finished_at;
+ GROUP BY r.business_date, r.run_id, r.job_name, r.status, r.finished_at, r.record_differences;
 
 COMMENT ON SCHEMA acmeins_shadow IS 'AB-529 DS-02: migration sync runs, reconciliation results and parallel-run outputs; dropped after cutover sign-off plus the rollback window';

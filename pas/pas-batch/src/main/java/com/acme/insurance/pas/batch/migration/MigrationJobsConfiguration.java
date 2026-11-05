@@ -20,6 +20,7 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.job.builder.SimpleJobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
@@ -66,6 +67,11 @@ public final class MigrationJobsConfiguration {
   static final String RUN_ID_KEY = "migration.runId";
   static final String RESULT_KEY = "migration.result";
   static final String DIFFERENCES = "DIFFERENCES";
+  static final String COLLAPSE_SAME_DAY_DECISIONS = "collapseSameDayDecisions";
+  private static final String SAME_DAY_DECISIONS =
+      "SELECT COUNT(*) FROM (SELECT POLICY_NUMBER, DECISION_DATE FROM"
+          + " ACMEINS.UNDERWRITING_DECISIONS GROUP BY POLICY_NUMBER, DECISION_DATE"
+          + " HAVING COUNT(*) > 1) D";
 
   private static final Logger log = LoggerFactory.getLogger(MigrationJobsConfiguration.class);
   private static final PlatformTransactionManager NO_TX = new ResourcelessTransactionManager();
@@ -113,7 +119,8 @@ public final class MigrationJobsConfiguration {
   }
 
   @Bean
-  Job migrationSystemOfRecord(JobRepository jobs, MigrationConnections connections) {
+  Job migrationSystemOfRecord(
+      JobRepository jobs, MigrationConnections connections, JobExplorer explorer) {
     Tasklet tasklet =
         (contribution, chunk) -> {
           var params = chunk.getStepContext().getStepExecution().getJobParameters();
@@ -126,6 +133,14 @@ public final class MigrationJobsConfiguration {
           String by = params.getString("changedBy", "");
           if (reason.isBlank() || by.isBlank()) {
             throw new IllegalArgumentException("pass reason= and changedBy= for the audit trail");
+          }
+          for (String sync : List.of(BULK_LOAD_JOB, DELTA_SYNC_JOB, REVERSE_SYNC_JOB)) {
+            if (!explorer.findRunningJobExecutions(sync).isEmpty()) {
+              throw new IllegalStateException(
+                  sync
+                      + " is running; suspend the sync CronJob and let the run finish (or mark an"
+                      + " abandoned execution) before changing the system of record");
+            }
           }
           store(connections).setSystemOfRecord(system, by, reason);
           log.warn("pas.migration.system-of-record changed to={} by={}", system, by);
@@ -184,6 +199,19 @@ public final class MigrationJobsConfiguration {
             if (!"YES".equals(params.getString("confirmRollback"))) {
               throw new IllegalArgumentException("a rollback needs confirmRollback=YES");
             }
+            Long sameDay =
+                new JdbcTemplate(connections.dataSource(Side.POSTGRES))
+                    .queryForObject(SAME_DAY_DECISIONS, Long.class);
+            if (sameDay != null
+                && sameDay > 0
+                && !"YES".equals(params.getString(COLLAPSE_SAME_DAY_DECISIONS))) {
+              throw new IllegalStateException(
+                  ("PostgreSQL has %d policy/date pairs with several underwriting decisions; DB2"
+                          + " keeps one per day (Q-18). Export them from acmeins.underwriting_decisions"
+                          + " (they stay on PostgreSQL) and pass %s=YES to send the most recent"
+                          + " decision of each day to DB2")
+                      .formatted(sameDay, COLLAPSE_SAME_DAY_DECISIONS));
+            }
           }
           if (bulkLoad && !"true".equals(params.getString("resume"))) {
             JdbcTemplate pg = new JdbcTemplate(connections.dataSource(Side.POSTGRES));
@@ -214,12 +242,29 @@ public final class MigrationJobsConfiguration {
         (contribution, chunk) -> {
           TableSynchronizer synchronizer =
               new TableSynchronizer(properties.bucketDigits(), properties.batchSize());
+          var params = chunk.getStepContext().getStepExecution().getJobParameters();
+          String authoritative = direction == Direction.PG_TO_DB2 ? "PG" : "DB2";
+          MigrationRunStore guardStore = store(connections);
+          Runnable guard =
+              () -> {
+                String system = guardStore.systemOfRecord();
+                if (!authoritative.equals(system)) {
+                  throw new IllegalStateException(
+                      "system of record changed to " + system + " during the sync; stopped");
+                }
+              };
+          boolean collapse =
+              direction == Direction.PG_TO_DB2
+                  && table == MigrationTable.UNDERWRITING_DECISIONS
+                  && "YES".equals(params.getString(COLLAPSE_SAME_DAY_DECISIONS));
           TableSynchronizer.Result result =
               synchronizer.sync(
                   table,
                   phase,
                   connections.client(from),
-                  new JdbcTemplate(connections.dataSource(to)));
+                  new JdbcTemplate(connections.dataSource(to)),
+                  guard,
+                  collapse);
           long runId = runId(chunk.getStepContext().getStepExecution().getJobExecution());
           store(connections).recordSync(runId, table, result);
           contribution.incrementWriteCount(result.inserted() + result.updated() + result.deleted());

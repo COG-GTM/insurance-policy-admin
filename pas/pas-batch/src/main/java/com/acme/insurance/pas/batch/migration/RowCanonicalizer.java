@@ -11,9 +11,11 @@ import java.util.List;
 
 /**
  * Turns a row read from either database into the same canonical text, so DB2 and PostgreSQL rows
- * with the same business content get the same SHA-256. CHAR padding is ignored, decimals keep the
- * column scale ({@code 1.50} and {@code 1.5} differ, as a DECIMAL(p,s) column never returns the
- * latter), dates and timestamps are ISO-8601. Hashes are only compared in memory and never stored.
+ * with the same business content get the same SHA-256. Strings are compared exactly (fixed-width
+ * CHAR padding is removed when the row is read, see {@link TableSnapshot#normalize}, so trailing
+ * blanks in VARCHAR values still count), decimals keep the column scale ({@code 1.50} and {@code
+ * 1.5} differ, as a DECIMAL(p,s) column never returns the latter), dates and timestamps are
+ * ISO-8601. Hashes are only compared in memory and never stored.
  */
 public final class RowCanonicalizer {
 
@@ -27,7 +29,7 @@ public final class RowCanonicalizer {
       return NULL;
     }
     if (value instanceof String s) {
-      return s.stripTrailing();
+      return s;
     }
     if (value instanceof BigDecimal d) {
       return d.toPlainString();
@@ -51,7 +53,7 @@ public final class RowCanonicalizer {
       if (!out.isEmpty()) {
         out.append('|');
       }
-      out.append(v == null ? "" : canonical(v));
+      out.append(v == null ? "" : canonical(v).stripTrailing());
     }
     return out.toString();
   }

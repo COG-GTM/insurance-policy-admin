@@ -9,6 +9,7 @@ import java.sql.Date;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.flywaydb.core.Flyway;
@@ -21,6 +22,7 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -74,6 +76,7 @@ class MigrationJobsIT {
 
   @Autowired JdbcTemplate target;
   @Autowired JobLauncher launcher;
+  @Autowired JobRepository jobRepository;
 
   @Autowired
   @Qualifier(MigrationJobsConfiguration.BULK_LOAD_JOB)
@@ -120,6 +123,8 @@ class MigrationJobsIT {
         "TRUNCATE acmeins_shadow.recon_difference, acmeins_shadow.recon_check,"
             + " acmeins_shadow.sync_table_result, acmeins_shadow.migration_run");
     target.update("UPDATE acmeins_shadow.system_of_record SET system_name = 'DB2' WHERE id = 1");
+    legacy.execute("ALTER SEQUENCE acmeins.policy_seq RESTART");
+    target.execute("ALTER SEQUENCE acmeins.policy_seq RESTART");
     MigrationFixtures.seed(legacy, 40);
   }
 
@@ -242,6 +247,12 @@ class MigrationJobsIT {
     assertThat(run.getStatus()).isEqualTo(BatchStatus.COMPLETED);
     assertThat(run.getExitStatus().getExitCode()).isEqualTo("DIFFERENCES");
     assertThat(latestRun()).containsEntry("status", "DIFFERENCES");
+    assertThat(
+            target.queryForObject(
+                "SELECT record_differences FROM acmeins_shadow.recon_daily_summary WHERE run_id = ?",
+                Long.class,
+                latestRun().get("run_id")))
+        .isPositive();
     List<Map<String, Object>> differences =
         target.queryForList(
             "SELECT table_name, record_key, difference FROM acmeins_shadow.recon_difference"
@@ -320,6 +331,90 @@ class MigrationJobsIT {
         .containsEntry("status", "MATCH")
         .containsEntry("direction", "PG_TO_DB2");
     assertThat(launch(deltaSync, Map.of()).getStatus()).isEqualTo(BatchStatus.COMPLETED);
+  }
+
+  @Test
+  void deltaSyncCarriesTrailingBlankOnlyVarcharEdits() throws Exception {
+    launch(bulkLoad, Map.of());
+    legacy.update(
+        "UPDATE acmeins.policy_holders SET last_name = 'TESTLAST3 ' WHERE last_name = 'TESTLAST3'");
+
+    assertThat(launch(deltaSync, Map.of()).getStatus()).isEqualTo(BatchStatus.COMPLETED);
+
+    assertThat(
+            target.queryForObject(
+                "SELECT COUNT(*) FROM acmeins.policy_holders WHERE last_name = 'TESTLAST3 '",
+                Integer.class))
+        .isEqualTo(1);
+  }
+
+  @Test
+  void cutoverWaitsForARunningSync() throws Exception {
+    launch(bulkLoad, Map.of());
+    JobExecution running =
+        jobRepository.createJobExecution(
+            MigrationJobsConfiguration.DELTA_SYNC_JOB,
+            new JobParametersBuilder().addLong("it", System.nanoTime()).toJobParameters());
+    running.setStartTime(LocalDateTime.now());
+    running.setStatus(BatchStatus.STARTED);
+    jobRepository.update(running);
+
+    JobExecution refused =
+        launch(
+            systemOfRecord,
+            Map.of("system", "PG", "confirm", "YES", "reason", "IT cutover", "changedBy", "it"));
+    assertThat(refused.getStatus()).isEqualTo(BatchStatus.FAILED);
+    assertThat(
+            target.queryForObject(
+                "SELECT system_name FROM acmeins_shadow.system_of_record", String.class))
+        .isEqualTo("DB2");
+
+    running.setEndTime(LocalDateTime.now());
+    running.setStatus(BatchStatus.FAILED);
+    jobRepository.update(running);
+    cutover();
+  }
+
+  @Test
+  void rollbackOfSameDayDecisionsNeedsAnExplicitCollapse() throws Exception {
+    launch(bulkLoad, Map.of());
+    cutover();
+    String policy = MigrationFixtures.policy(7);
+    target.update(
+        "INSERT INTO acmeins.underwriting_decisions (policy_number, decision_date, decision_code,"
+            + " risk_score, decision_reason, underwriter_id, created_timestamp)"
+            + " VALUES (?, ?, 'AP', 43, 'LATER', 'UW002', localtimestamp + interval '1 hour')",
+        policy,
+        Date.valueOf("2026-01-01"));
+
+    assertThat(launch(reverseSync, Map.of("confirmRollback", "YES")).getStatus())
+        .isEqualTo(BatchStatus.FAILED);
+    JobExecution run =
+        launch(
+            reverseSync,
+            Map.of(
+                "confirmRollback",
+                "YES",
+                MigrationJobsConfiguration.COLLAPSE_SAME_DAY_DECISIONS,
+                "YES"));
+
+    assertThat(run.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+    assertThat(
+            legacy.queryForList(
+                "SELECT decision_reason FROM acmeins.underwriting_decisions WHERE policy_number = ?",
+                String.class,
+                policy))
+        .containsExactly("LATER");
+    assertThat(
+            target.queryForObject(
+                "SELECT COUNT(*) FROM acmeins.underwriting_decisions WHERE policy_number = ?",
+                Integer.class,
+                policy))
+        .isEqualTo(2);
+    assertThat(
+            target.queryForObject(
+                "SELECT system_name FROM acmeins_shadow.system_of_record", String.class))
+        .isEqualTo("DB2");
   }
 
   private void cutover() throws Exception {

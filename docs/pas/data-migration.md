@@ -70,6 +70,13 @@ CronJob is suspended and the daily reconciliation stays.
 
 The guard in `acmeins_shadow.system_of_record` makes forward sync refuse once PostgreSQL is the
 system of record, so a forgotten CronJob cannot overwrite post-cutover writes with stale DB2 data.
+Every sync step reads the guard again before each bucket it writes and stops if the system of
+record changed during the run, and `migrationSystemOfRecord` refuses while a bulk load, delta sync
+or reverse sync execution is running. Cutover therefore suspends the CronJob and lets the last run
+finish (an execution left `STARTED` by a killed pod is marked abandoned first).
+
+Strings are compared exactly; only the blank padding of fixed-width `CHAR` columns is removed when a
+row is read, so a trailing-blank-only edit of a `VARCHAR` value is still synced.
 
 ## Daily reconciliation
 
@@ -112,7 +119,7 @@ Every difference must match an entry in the triage register `docs/pas/parallel-r
 
 | Classification | Meaning | Required | Day clean? |
 |---|---|---|---|
-| `bug` | Java is wrong | `reference` (defect / follow-up) | No, until the fix is in, `status` is `resolved` and the day is re-run |
+| `bug` | Java is wrong | `reference` (defect / follow-up) | Yes, also once `status` is `resolved`: the day only becomes clean when the Java outputs are regenerated, recaptured and the records no longer differ |
 | `approved_fix` | Java deliberately differs | `quirk` whose decision in `quirks.json` is `fix` (e.g. Q-03 territory factors) | Yes |
 | `data_issue` | Source data, not code (e.g. a DB2 row changed between the two runs, an orphan) | `reference` (data-fix ticket / runbook step) | Yes |
 | (no match) | `unexplained` | | No |
@@ -122,7 +129,10 @@ added by pull request so the history is reviewed. `make migration` rejects catch
 `approved_fix` without a `fix` quirk, and a `bug` or `data_issue` without a reference.
 
 `gate` passes only when every business day of the agreed cycle (`cycle.start`..`cycle.end`, minus
-weekends and `holidays`) has a clean report: zero unexplained differences and no open bug. Until the
+weekends and `holidays`) has a clean report: zero unexplained differences and zero bug differences, and the cycle has at least
+`cycle.min_business_days` business days. A candidate file that matches a tracked output pattern but
+has no captured counterpart is an `extra_file` difference; the monthly exposure file is required on
+the first business day of each month (`required_on`, convention to be confirmed under FU-529-2). Until the
 cycle dates are agreed (FU-529-2) it fails.
 
 ## Rollback
@@ -135,6 +145,13 @@ Rollback is a reverse sync, not a restore, so writes made on PostgreSQL after cu
    `ACMEINS.POLICY_SEQ` above the PostgreSQL high-water mark (no policy number is issued twice),
    reconciles, and only on a clean reconciliation sets the system of record back to DB2.
 3. Point the CICS region and the batch schedule back at DB2.
+
+Same-day underwriting decisions (Q-18): PostgreSQL keeps every decision (`decision_id`), DB2 keeps
+one per `(POLICY_NUMBER, DECISION_DATE)`. If PostgreSQL holds several decisions for one policy and
+day, the reverse sync refuses and reports how many pairs are affected. Export them from
+`acmeins.underwriting_decisions` (they stay on PostgreSQL), then rerun with
+`collapseSameDayDecisions=YES`, which sends the most recent decision of each day
+(`CREATED_TIMESTAMP`) to DB2, the same single row per day that the legacy key allows.
 
 The cutover decision itself is recorded with
 `PAS_BATCH_JOB=migrationSystemOfRecord system=PG confirm=YES changedBy=<id> "reason=<change ticket>"`.

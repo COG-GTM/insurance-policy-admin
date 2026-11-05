@@ -62,7 +62,32 @@ class ParallelRunTest(unittest.TestCase):
         self.assertEqual("NOT_CLEAN", report["status"])
         register["entries"][1]["status"] = "resolved"
         report = pr.compare_day("2026-11-02", self.tmp / "cap/2026-11-02", self.tmp / "cand/2026-11-02", PLAN, register)
+        self.assertEqual("NOT_CLEAN", report["status"], "a resolved bug still blocks until the outputs are recaptured")
+        self.assertEqual(0, report["open_bugs"])
+        self.day("cand", "2026-11-02", {"policy_extract.dat": b"POL000000001B\nPOL000000002A\n"})
+        report = pr.compare_day("2026-11-02", self.tmp / "cap/2026-11-02", self.tmp / "cand/2026-11-02", PLAN, register)
         self.assertEqual("CLEAN", report["status"])
+
+    def test_extra_tracked_candidate_files_are_differences(self):
+        self.day("cap", "2026-11-03", {"PREMRPT.D1.txt": b"A\n"})
+        self.day("cand", "2026-11-03", {"PREMRPT.D1.txt": b"A\n", "PREMRPT.D2.txt": b"B\n", "notes.log": b"x\n"})
+        report = pr.compare_day("2026-11-03", self.tmp / "cap/2026-11-03", self.tmp / "cand/2026-11-03", PLAN, triage())
+        self.assertEqual("NOT_CLEAN", report["status"])
+        self.assertEqual([("PREMRPT.D2.txt", "extra_file")], [(d["file"], d["kind"]) for d in report["differences"]])
+
+    def test_monthly_exposure_is_required_on_the_first_business_day_of_the_month(self):
+        files = {"PREMRPT.txt": b"A\n"}
+        for date in ("2026-11-02", "2026-11-03"):
+            self.day("cap", date, files)
+            self.day("cand", date, files)
+        plan = {**PLAN, "outputs": PLAN["outputs"] + [
+            {"pattern": "exposure_monthly.csv", "job": "actuarialMonthlyExposure",
+             "required_on": "first_business_day_of_month"}]}
+        first = pr.compare_day("2026-11-02", self.tmp / "cap/2026-11-02", self.tmp / "cand/2026-11-02", plan, triage())
+        self.assertEqual(["exposure_monthly.csv"], first["missing_outputs"])
+        self.assertEqual("NOT_CLEAN", first["status"])
+        second = pr.compare_day("2026-11-03", self.tmp / "cap/2026-11-03", self.tmp / "cand/2026-11-03", plan, triage())
+        self.assertEqual("CLEAN", second["status"])
 
     def test_missing_candidate_file_and_required_output(self):
         self.day("cap", "2026-11-02", {"policy_extract.dat": b"POL000000001A\n"})
@@ -72,13 +97,17 @@ class ParallelRunTest(unittest.TestCase):
         self.assertEqual("missing_file", report["differences"][0]["kind"])
 
     def test_gate_needs_every_business_day_of_the_cycle_clean(self):
-        clean = {"status": "CLEAN", "counts": {"unexplained": 0}, "open_bugs": 0, "missing_outputs": []}
+        clean = {"status": "CLEAN", "counts": {"unexplained": 0, "bug": 0}, "open_bugs": 0, "missing_outputs": []}
         reports = {d: dict(clean, business_date=d) for d in ("2026-11-02", "2026-11-03")}
         result = pr.gate(PLAN, reports)
         self.assertFalse(result["passed"])
         self.assertIn("2026-11-04: no parallel-run report", result["problems"])
         reports["2026-11-04"] = dict(clean, business_date="2026-11-04")
         self.assertTrue(pr.gate(PLAN, reports)["passed"])
+        short = {**PLAN, "cycle": {**PLAN["cycle"], "end": "2026-11-02"}}
+        result = pr.gate(short, reports)
+        self.assertFalse(result["passed"])
+        self.assertIn("cycle has 1 business days; at least 3 are required", result["problems"])
         self.assertFalse(pr.gate({**PLAN, "cycle": {"start": None, "end": None}}, reports)["passed"])
 
     def test_business_days_skip_weekends_and_holidays(self):

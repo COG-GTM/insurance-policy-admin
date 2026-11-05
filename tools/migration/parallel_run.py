@@ -9,7 +9,9 @@ day. Both sets of outputs are captured into one directory per business date:
 
 ``compare`` diffs every captured file against the candidate record by record, classifies each
 difference against the triage register (bug, approved_fix, data_issue) and writes a day report.
-``gate`` checks that one full billing cycle ran with zero unexplained differences and no open bug.
+``gate`` checks that one full billing cycle (at least ``cycle.min_business_days``) ran with zero
+unexplained differences and zero bug differences: a fixed bug only stops blocking once the outputs
+are regenerated and recaptured and the records no longer differ.
 ``check`` validates the plan and the triage register (run in CI). Reports never contain record
 content: only file name, record number, record key (policy number) and the classification.
 Nothing here executes cutover or retirement; those stay in the gated runbook (execute_on_branch
@@ -94,11 +96,31 @@ def classify(date: str, diff: dict, triage: dict) -> dict:
     return {**diff, "classification": UNEXPLAINED, "triage": None, "status": "open"}
 
 
+def first_business_day_of_month(date: str, holidays: set[str]) -> bool:
+    day = dt.date.fromisoformat(date)
+    return business_days(day.replace(day=1), day, holidays) == [date]
+
+
+def required_on(spec: dict, date: str, holidays: set[str]) -> bool:
+    when = spec.get("required_on")
+    if when == "first_business_day_of_month":
+        return first_business_day_of_month(date, holidays)
+    return bool(spec.get("required"))
+
+
+def list_files(directory: Path) -> list[str]:
+    return sorted(p.name for p in directory.iterdir() if p.is_file()) if directory.is_dir() else []
+
+
 def compare_day(date: str, captured: Path, candidate: Path, plan: dict, triage: dict) -> dict:
     differences = []
-    files = sorted(p.name for p in captured.iterdir() if p.is_file()) if captured.is_dir() else []
-    missing_outputs = [s["pattern"] for s in plan["outputs"] if s.get("required")
+    files = list_files(captured)
+    holidays = set(plan.get("cycle", {}).get("holidays", []))
+    missing_outputs = [s["pattern"] for s in plan["outputs"] if required_on(s, date, holidays)
                        and not any(fnmatch.fnmatch(f, s["pattern"]) for f in files)]
+    for name in list_files(candidate):
+        if name not in files and output_spec(plan, name) is not None:
+            differences.append({"file": name, "record": 0, "key": "", "kind": "extra_file"})
     for name in files:
         spec = output_spec(plan, name)
         other = candidate / name
@@ -110,7 +132,7 @@ def compare_day(date: str, captured: Path, candidate: Path, plan: dict, triage: 
     counts = {c: sum(1 for d in classified if d["classification"] == c)
               for c in CLASSIFICATIONS + (UNEXPLAINED,)}
     open_bugs = sum(1 for d in classified if d["classification"] == "bug" and d["status"] != "resolved")
-    clean = not missing_outputs and counts[UNEXPLAINED] == 0 and open_bugs == 0
+    clean = not missing_outputs and counts[UNEXPLAINED] == 0 and counts["bug"] == 0
     return {"business_date": date, "files": files, "missing_outputs": missing_outputs,
             "differences": classified, "counts": counts, "open_bugs": open_bugs,
             "status": "CLEAN" if clean else "NOT_CLEAN"}
@@ -152,7 +174,10 @@ def gate(plan: dict, reports: dict[str, dict]) -> dict:
             problems.append(f"{day}: no parallel-run report")
         elif report["status"] != "CLEAN":
             problems.append(f"{day}: {report['counts'][UNEXPLAINED]} unexplained, "
-                            f"{report['open_bugs']} open bug, missing {report['missing_outputs']}")
+                            f"{report['counts']['bug']} bug, missing {report['missing_outputs']}")
+    minimum = cycle.get("min_business_days", 1)
+    if len(expected) < minimum:
+        problems.append(f"cycle has {len(expected)} business days; at least {minimum} are required")
     return {"passed": not problems, "cycle": cycle, "business_days": len(expected), "problems": problems}
 
 
@@ -185,6 +210,8 @@ def check(plan: dict, triage: dict, quirks: dict) -> list[str]:
     for spec in plan["outputs"]:
         if "pattern" not in spec or "job" not in spec:
             problems.append(f"output {spec}: pattern and job are required")
+        if spec.get("required_on") not in (None, "first_business_day_of_month"):
+            problems.append(f"output {spec.get('pattern')}: required_on is first_business_day_of_month")
     for step in plan["runbook"]:
         if step.get("execute_on_branch") is not False:
             problems.append(f"runbook step {step.get('id')}: execute_on_branch must be false")

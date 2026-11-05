@@ -29,7 +29,7 @@
     {"pattern": "premiums.csv", "job": "premiumRecalculation", "legacy": "DSNTIAUL unload of ACMEINS.PREMIUMS after PAS0050, ordered by key", "required": true, "key": [0, 12]},
     {"pattern": "policy_extract.dat", "job": "claimsDailyExtract", "legacy": "DAILY-EXTRACT STEP010 (LRECL 200)", "required": true, "key": [0, 12]},
     {"pattern": "coverage_extract.dat", "job": "claimsDailyExtract", "legacy": "DAILY-EXTRACT STEP030 (LRECL 150)", "required": true, "key": [0, 12]},
-    {"pattern": "exposure_monthly.csv", "job": "actuarialMonthlyExposure", "legacy": "MONTHLY-EXPOSURE (1st of month only)", "required": false}
+    {"pattern": "exposure_monthly.csv", "job": "actuarialMonthlyExposure", "legacy": "MONTHLY-EXPOSURE (1st of month only)", "required": false, "required_on": "first_business_day_of_month"}
   ],
   "runbook": [
     {"id": "RB-01", "step": "Bulk load: pas-batch migrationBulkLoad into an empty PostgreSQL ACMEINS; reconciliation MATCH", "execute_on_branch": false, "dry_run_default": true},

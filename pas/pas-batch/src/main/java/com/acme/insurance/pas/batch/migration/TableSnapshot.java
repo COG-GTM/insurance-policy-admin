@@ -1,7 +1,10 @@
 package com.acme.insurance.pas.batch.migration;
 
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -34,7 +37,10 @@ public final class TableSnapshot {
     return rows;
   }
 
-  /** Keys seen more than once; only possible on PostgreSQL UNDERWRITING_DECISIONS (Q-18). */
+  /**
+   * Keys seen more than once; only possible on PostgreSQL UNDERWRITING_DECISIONS (Q-18). {@link
+   * #rows()} holds the most recent of them.
+   */
   public Set<String> duplicateKeys() {
     return duplicateKeys;
   }
@@ -67,14 +73,20 @@ public final class TableSnapshot {
     int columns = table.columns().size();
     List<Integer> keyIndexes =
         table.keyColumns().stream().map(k -> table.columns().indexOf(k)).toList();
+    int created = table.columns().indexOf("CREATED_TIMESTAMP");
     org.springframework.jdbc.core.RowCallbackHandler handler =
         rs -> {
           Object[] values = values(rs, columns);
           List<Object> key = new ArrayList<>(keyIndexes.size());
           keyIndexes.forEach(i -> key.add(values[i]));
           String k = RowCanonicalizer.key(key);
-          if (rows.putIfAbsent(k, new Row(values, RowCanonicalizer.hash(values))) != null) {
+          Row row = new Row(values, RowCanonicalizer.hash(values));
+          Row seen = rows.putIfAbsent(k, row);
+          if (seen != null) {
             duplicates.add(k);
+            if (later(row, seen, created)) {
+              rows.put(k, row);
+            }
           }
         };
     if (digits == 0) {
@@ -91,10 +103,36 @@ public final class TableSnapshot {
   }
 
   private static Object[] values(ResultSet rs, int columns) throws SQLException {
+    ResultSetMetaData meta = rs.getMetaData();
     Object[] values = new Object[columns];
     for (int i = 0; i < columns; i++) {
-      values[i] = rs.getObject(i + 1);
+      values[i] = normalize(rs.getObject(i + 1), meta.getColumnType(i + 1));
     }
     return values;
+  }
+
+  /**
+   * Removes the blank padding of fixed-width CHAR values, which DB2 and PostgreSQL drivers return
+   * differently; VARCHAR values are kept exactly, so a trailing-blank-only edit is still synced.
+   */
+  static Object normalize(Object value, int sqlType) {
+    if (value instanceof String s && (sqlType == Types.CHAR || sqlType == Types.NCHAR)) {
+      return s.stripTrailing();
+    }
+    return value;
+  }
+
+  /**
+   * For duplicate keys (PostgreSQL UNDERWRITING_DECISIONS, Q-18) the most recent row by
+   * CREATED_TIMESTAMP is kept, ties broken by hash so the choice is deterministic.
+   */
+  private static boolean later(Row candidate, Row current, int createdIndex) {
+    if (createdIndex >= 0
+        && candidate.values()[createdIndex] instanceof Timestamp a
+        && current.values()[createdIndex] instanceof Timestamp b
+        && !a.equals(b)) {
+      return a.after(b);
+    }
+    return candidate.hash().compareTo(current.hash()) > 0;
   }
 }

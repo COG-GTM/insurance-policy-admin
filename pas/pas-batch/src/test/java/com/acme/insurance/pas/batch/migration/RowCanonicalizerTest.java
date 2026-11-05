@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +14,7 @@ class RowCanonicalizerTest {
   @Test
   void db2AndPostgresqlRepresentationsHashTheSame() {
     Object[] db2 = {
-      "POL00000001 ",
+      TableSnapshot.normalize("POL00000001 ", Types.CHAR),
       (short) 1,
       new BigDecimal("12.50"),
       Date.valueOf("2026-01-01"),
@@ -42,6 +43,14 @@ class RowCanonicalizerTest {
     assertThat(RowCanonicalizer.hash(emptyInsteadOfNull)).isNotEqualTo(base);
     Object[] shifted = {"A\u001f", new BigDecimal("1.00")};
     assertThat(RowCanonicalizer.hash(shifted)).isNotEqualTo(base);
+  }
+
+  @Test
+  void trailingBlanksCountInVarcharValues() {
+    Object[] before = {TableSnapshot.normalize("LEE", Types.VARCHAR)};
+    Object[] after = {TableSnapshot.normalize("LEE ", Types.VARCHAR)};
+    assertThat(RowCanonicalizer.hash(after)).isNotEqualTo(RowCanonicalizer.hash(before));
+    assertThat(TableSnapshot.normalize("AP  ", Types.CHAR)).isEqualTo("AP");
   }
 
   @Test

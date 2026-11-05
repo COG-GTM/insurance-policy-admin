@@ -79,6 +79,11 @@ public class MigrationRunStore {
   }
 
   public void recordReconciliation(long runId, ReconciliationReport report) {
+    pg.sql(
+            "UPDATE acmeins_shadow.migration_run SET record_differences = :count WHERE run_id = :run")
+        .param("count", report.differenceCount())
+        .param("run", runId)
+        .update();
     pg.sql("DELETE FROM acmeins_shadow.recon_difference WHERE run_id = :run")
         .param("run", runId)
         .update();

@@ -48,18 +48,36 @@ public class TableSynchronizer {
   }
 
   public Result sync(MigrationTable table, Phase phase, JdbcClient from, JdbcTemplate to) {
+    return sync(table, phase, from, to, () -> {}, false);
+  }
+
+  /**
+   * @param guard runs before each bucket is written and throws to stop the sync, e.g. when the
+   *     system of record changed while the job was running
+   * @param collapseDuplicates sends only the most recent row of a duplicate sending-side key (the
+   *     rollback of same-day underwriting decisions into DB2's (POLICY_NUMBER, DECISION_DATE) key,
+   *     Q-18); otherwise duplicate keys stop the sync
+   */
+  public Result sync(
+      MigrationTable table,
+      Phase phase,
+      JdbcClient from,
+      JdbcTemplate to,
+      Runnable guard,
+      boolean collapseDuplicates) {
     JdbcClient toClient = JdbcClient.create(to);
     Set<String> buckets = new TreeSet<>(TableSnapshot.buckets(from, table, digits));
     buckets.addAll(TableSnapshot.buckets(toClient, table, digits));
     Result total = new Result(0, 0, 0, 0);
     for (String bucket : buckets) {
       TableSnapshot source = TableSnapshot.read(from, table, digits, bucket);
-      if (!source.duplicateKeys().isEmpty()) {
+      if (!source.duplicateKeys().isEmpty() && !collapseDuplicates) {
         throw new IllegalStateException(
             "%s has %d duplicate keys on the sending side; resolve them before syncing (Q-18)"
                 .formatted(table, source.duplicateKeys().size()));
       }
       TableSnapshot target = TableSnapshot.read(toClient, table, digits, bucket);
+      guard.run();
       total = total.plus(apply(table, phase, source, target, to));
     }
     return total;
