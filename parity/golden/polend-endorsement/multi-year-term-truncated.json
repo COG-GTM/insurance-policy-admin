@@ -1,0 +1,74 @@
+{
+  "suite": "polend-endorsement",
+  "case": "multi-year-term-truncated",
+  "program": "POLEND",
+  "description": "Three-year term (1096 days) is truncated to 096 in PIC 9(03)",
+  "legacy_source": {
+    "path": "cobol/programs/POLEND.cbl",
+    "sha256": "5f89fa94b3acb258854ddbbc8d0ffad07b03e59d949bc77f4cfd8e341dc39ce2"
+  },
+  "run_date": "2023-07-01",
+  "outcome": {
+    "status": "completed",
+    "return_code": 0
+  },
+  "effects": [
+    {
+      "op": "SQL INSERT ENDORSEMENTS",
+      "sqlcode": 0,
+      "text": {
+        "POLICY_NUMBER": "POL-00000310",
+        "ENDORSEMENT_TYPE": "\\x00\\x00\\x00",
+        "EFFECTIVE_DATE": "20230701",
+        "PROCESSED_BY": "POLEND"
+      },
+      "numbers": {
+        "ENDORSEMENT_SEQ": "3",
+        "PREMIUM_ADJUSTMENT": "0.00"
+      },
+      "probes": {
+        "WS-DAYS-IN-TERM": "96",
+        "WS-DAYS-REMAINING": "550",
+        "WS-PRORATA-FACTOR": "5.729166"
+      }
+    },
+    {
+      "op": "SQL UPDATE POLICIES",
+      "sqlcode": 0,
+      "text": {
+        "POLICY_NUMBER": "POL-00000310",
+        "UPDATED_BY": "POLEND"
+      },
+      "numbers": {
+        "TOTAL_PREMIUM": "1200.00"
+      }
+    },
+    {
+      "op": "CICS WRITEQ TS",
+      "text": {
+        "QUEUE": "ENDORSEMENT-AUDIT",
+        "POLICY_NUMBER": "POL-00000310",
+        "POLICY_STATUS": "AC"
+      },
+      "numbers": {
+        "TOTAL_PREMIUM": "1200.00"
+      }
+    },
+    {
+      "op": "CICS SEND MAP POLECONF",
+      "text": {
+        "POLICY_NUMBER": "POL-00000310",
+        "POLICY_STATUS": "AC"
+      },
+      "numbers": {
+        "TOTAL_PREMIUM": "1200.00"
+      }
+    },
+    {
+      "op": "CICS RETURN",
+      "text": {
+        "TRANSID": "PEND"
+      }
+    }
+  ]
+}

@@ -34,7 +34,9 @@
           { "context": "Build & tests" },
           { "context": "REST API contract" },
           { "context": "ADRs, component register & ARB pack" },
-          { "context": "Behaviour inventory & quirk register" }
+          { "context": "Behaviour inventory & quirk register" },
+          { "context": "COBOL characterization golden files" },
+          { "context": "Java vs COBOL parity (cent level)" }
         ]
       }
     }

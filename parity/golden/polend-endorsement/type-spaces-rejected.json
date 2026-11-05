@@ -1,0 +1,29 @@
+{
+  "suite": "polend-endorsement",
+  "case": "type-spaces-rejected",
+  "program": "POLEND",
+  "description": "Endorsement type SPACES (GnuCOBOL default storage): 'ENDORSEMENT TYPE IS REQUIRED', nothing written",
+  "legacy_source": {
+    "path": "cobol/programs/POLEND.cbl",
+    "sha256": "5f89fa94b3acb258854ddbbc8d0ffad07b03e59d949bc77f4cfd8e341dc39ce2"
+  },
+  "run_date": "2025-07-02",
+  "outcome": {
+    "status": "completed",
+    "return_code": 0
+  },
+  "effects": [
+    {
+      "op": "CICS SEND TEXT",
+      "text": {
+        "TEXT": "ENDORSEMENT TYPE IS REQUIRED"
+      }
+    },
+    {
+      "op": "CICS RETURN",
+      "text": {
+        "TRANSID": "PEND"
+      }
+    }
+  ]
+}

@@ -10,6 +10,15 @@
 | PAS container images & vulnerability scan | Builds `pas-policy-service` and `pas-batch` images and scans them (OS packages and every jar) with Trivy; HIGH/CRITICAL findings fail |
 | PAS local dev stack smoke test | Runs the documented start command `make pas-up` on a clean runner: PostgreSQL, Kafka and the policy service start, readiness is UP, metrics, deny-by-default, Flyway V1 and JSON logs are checked |
 
+`.github/workflows/parity.yml` (AB-520) runs the COBOL characterization harness on the same pull requests:
+
+| Job (status check) | What it checks |
+|---|---|
+| COBOL characterization golden files | `make parity-check`: harness unit tests, fixture and known-difference validation, then every fixture re-run under GnuCOBOL must reproduce the committed golden files |
+| Java vs COBOL parity (cent level) | `make parity-java`: every Java adapter registered in `parity/suites.json` against the golden files; any difference not covered by a known difference fails |
+
+See [parity/README.md](../../parity/README.md).
+
 The existing gates keep running: compat gate (schema, layouts and security; legacy build; REST API
 contract), ADR check and discovery inventory.
 

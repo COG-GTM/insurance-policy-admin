@@ -1,0 +1,17 @@
+{
+  "suite": "polrnw-renewal",
+  "case": "zero-premium",
+  "program": "POLRNW",
+  "description": "TOTAL_PREMIUM 0.00: the rate-change division by zero raises a decimal-divide exception (S0CB), the task abends and nothing is written",
+  "legacy_source": {
+    "path": "cobol/programs/POLRNW.cbl",
+    "sha256": "57d80017f7372ef3f9d1e452ad06e1180fd3ad426c7678f49d593e3614ce5e9d"
+  },
+  "run_date": "2025-03-01",
+  "outcome": {
+    "status": "abend",
+    "return_code": 12,
+    "abend_code": "S0CB"
+  },
+  "effects": []
+}

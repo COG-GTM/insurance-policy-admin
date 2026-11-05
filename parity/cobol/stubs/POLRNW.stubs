@@ -1,0 +1,92 @@
+# POLRNW harness stubs (AB-520). One @stub per EXEC block, in source order (see PREMBAT.stubs).
+# RECEIVE supplies the policy number (MAP_POLICY_NUMBER) and RESP; the DB2 reads come from fixtures.
+# DB2 is emulated for the writes: an invalid DATE value is rejected with SQLCODE -181 (Q-01).
+
+@stub 1 CICS ASKTIME
+           CONTINUE
+@end
+
+@stub 2 CICS FORMATTIME
+           ACCEPT WS-CURRENT-DATE FROM DATE YYYYMMDD
+@end
+
+@stub 3 CICS RECEIVE MAP('POLRMAP')
+           @get MAP_POLICY_NUMBER POLICY-NUMBER
+           @get-num RESP WS-RESPONSE-CODE
+@end
+
+# Fault injection SQLCODE_SELECT_POLICY=100: policy not found.
+@stub 4 SQL SELECT POLICY_NUMBER, POLICY_TYPE, POLICY_STATUS
+           @sqlcode SELECT_POLICY
+           IF SQLCODE = 0
+               @get POLICY_TYPE POLICY-TYPE
+               @get POLICY_STATUS POLICY-STATUS
+               @get-num TOTAL_PREMIUM POLICY-TOTAL-PREMIUM
+               @get-num EXPIRY_DATE POLICY-EXPIRY-DATE
+               @get-num RENEWAL_COUNT POLICY-RENEWAL-COUNT
+               @get UW_STATUS POLICY-UW-STATUS
+           END-IF
+@end
+
+# Q-02: the open-claims count is read into WS-SQLCODE and never used.
+@stub 5 SQL SELECT COUNT(*) INTO :WS-SQLCODE FROM ACMEINS.CLAIMS
+           @sqlcode SELECT_OPEN_CLAIMS
+           @get-num OPEN_CLAIM_COUNT WS-SQLCODE
+@end
+
+@stub 6 SQL UPDATE POLICIES SET POLICY_STATUS = :POLICY-STATUS
+           @sqlcode UPDATE_POLICIES
+           IF SQLCODE = 0
+               @db2-date POLICY-EFFECTIVE-DATE
+               @db2-date POLICY-EXPIRY-DATE
+           END-IF
+           @effect SQL UPDATE POLICIES
+           @effect-sqlcode
+           @text POLICY_NUMBER POLICY-NUMBER
+           @text POLICY_STATUS POLICY-STATUS
+           @text EFFECTIVE_DATE POLICY-EFFECTIVE-DATE
+           @text EXPIRY_DATE POLICY-EXPIRY-DATE
+           @num TOTAL_PREMIUM POLICY-TOTAL-PREMIUM 2
+           @num RENEWAL_COUNT POLICY-RENEWAL-COUNT 0
+           @text UW_STATUS POLICY-UW-STATUS
+           @text-literal UPDATED_BY POLRNW
+           @probe WS-OLD-PREMIUM WS-OLD-PREMIUM 2
+           @probe WS-NEW-PREMIUM WS-NEW-PREMIUM 2
+           @probe WS-RATE-CHANGE-PCT WS-RATE-CHANGE-PCT 2
+           @probe OPEN-CLAIM-COUNT WS-SQLCODE 0
+@end
+
+@stub 7 SQL UPDATE COVERAGES SET EFFECTIVE_DATE = :POLICY-EFFECTIVE-DATE
+           @sqlcode UPDATE_COVERAGES
+           IF SQLCODE = 0
+               @db2-date POLICY-EFFECTIVE-DATE
+               @db2-date POLICY-EXPIRY-DATE
+           END-IF
+           @effect SQL UPDATE COVERAGES
+           @effect-sqlcode
+           @text POLICY_NUMBER POLICY-NUMBER
+           @text EFFECTIVE_DATE POLICY-EFFECTIVE-DATE
+           @text EXPIRY_DATE POLICY-EXPIRY-DATE
+@end
+
+@stub 8 CICS SEND MAP('POLRCONF')
+           @effect CICS SEND MAP POLRCONF
+           @text POLICY_NUMBER POLICY-NUMBER
+           @text POLICY_STATUS POLICY-STATUS
+           @text EFFECTIVE_DATE POLICY-EFFECTIVE-DATE
+           @text EXPIRY_DATE POLICY-EXPIRY-DATE
+           @num TOTAL_PREMIUM POLICY-TOTAL-PREMIUM 2
+           @num RENEWAL_COUNT POLICY-RENEWAL-COUNT 0
+           @text UW_STATUS POLICY-UW-STATUS
+@end
+
+@stub 9 CICS SEND TEXT
+           @effect CICS SEND TEXT
+           @text TEXT WS-ERROR-MSG
+@end
+
+@stub 10 CICS RETURN TRANSID('PRWL')
+           @effect CICS RETURN
+           @text-literal TRANSID PRWL
+           STOP RUN
+@end

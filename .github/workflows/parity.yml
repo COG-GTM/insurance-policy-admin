@@ -1,0 +1,56 @@
+name: PAS parity harness
+
+on:
+  pull_request:
+    branches: [main, "devin/ab-516-v3"]
+  workflow_dispatch:
+
+concurrency:
+  group: parity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cobol-golden:
+    name: COBOL characterization golden files
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install GnuCOBOL
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends gnucobol3
+          cobc --version | head -1
+      # Harness unit tests, fixture/registry/known-difference validation, and a fresh COBOL run of
+      # every fixture: the result must equal the committed golden files byte for byte.
+      - name: make parity-check
+        run: make parity-check
+
+  java-parity:
+    name: Java vs COBOL parity (cent level)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # Every suite with a java_adapter in parity/suites.json runs against the golden files; any
+      # difference not covered by a known difference for a 'fix' quirk fails the job.
+      - name: make parity-java
+        run: make parity-java
+      - name: Upload parity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-report
+          path: |
+            pas/pas-parity/target/parity-report.md
+            pas/pas-parity/target/surefire-reports/
+          retention-days: 7

@@ -1,0 +1,98 @@
+# POLEND harness stubs (AB-520). One @stub per EXEC block, in source order (see PREMBAT.stubs).
+# RECEIVE supplies the policy number (MAP_POLICY_NUMBER) and RESP; the DB2 reads come from fixtures.
+#
+# Q-19: WS-ENDORSEMENT-TYPE is never set by the program, so its value is whatever the storage holds.
+# GnuCOBOL initialises it to SPACES; z/OS depends on the compile/runtime storage options (FU-05).
+# Fixture STORAGE_WS_ENDORSEMENT_TYPE states the assumed storage content explicitly: SPACES (default),
+# LOW-VALUES, or a literal. It is applied before the first statement that could read it.
+
+@stub 1 CICS ASKTIME
+           @get STORAGE_WS_ENDORSEMENT_TYPE PX-VALUE
+           EVALUATE TRUE
+               WHEN NOT PX-IS-FOUND
+                   CONTINUE
+               WHEN PX-VALUE = 'SPACES'
+                   MOVE SPACES TO WS-ENDORSEMENT-TYPE
+               WHEN PX-VALUE = 'LOW-VALUES'
+                   MOVE LOW-VALUES TO WS-ENDORSEMENT-TYPE
+               WHEN OTHER
+                   MOVE PX-VALUE TO WS-ENDORSEMENT-TYPE
+           END-EVALUATE
+@end
+
+@stub 2 CICS FORMATTIME
+           ACCEPT WS-CURRENT-DATE FROM DATE YYYYMMDD
+@end
+
+@stub 3 CICS RECEIVE MAP('POLEMAP')
+           @get MAP_POLICY_NUMBER POLICY-NUMBER
+           @get-num RESP WS-RESPONSE-CODE
+@end
+
+# Fault injection SQLCODE_SELECT_POLICY=100: policy not found.
+@stub 4 SQL SELECT POLICY_NUMBER, POLICY_STATUS, EFFECTIVE_DATE
+           @sqlcode SELECT_POLICY
+           IF SQLCODE = 0
+               @get POLICY_STATUS POLICY-STATUS
+               @get-num EFFECTIVE_DATE POLICY-EFFECTIVE-DATE
+               @get-num EXPIRY_DATE POLICY-EXPIRY-DATE
+               @get-num TOTAL_PREMIUM POLICY-TOTAL-PREMIUM
+           END-IF
+@end
+
+# Highest ENDORSEMENT_SEQ on file for the policy (fixture LAST_ENDORSEMENT_SEQ, default 0) + 1.
+@stub 5 SQL SELECT COALESCE(MAX(ENDORSEMENT_SEQ), 0) + 1
+           @sqlcode SELECT_ENDORSEMENT_SEQ
+           @get-num LAST_ENDORSEMENT_SEQ WS-ENDORSEMENT-SEQ
+           ADD 1 TO WS-ENDORSEMENT-SEQ
+@end
+
+@stub 6 SQL INSERT INTO ENDORSEMENTS
+           @sqlcode INSERT_ENDORSEMENTS
+           @effect SQL INSERT ENDORSEMENTS
+           @effect-sqlcode
+           @text POLICY_NUMBER POLICY-NUMBER
+           @num ENDORSEMENT_SEQ WS-ENDORSEMENT-SEQ 0
+           @text ENDORSEMENT_TYPE WS-ENDORSEMENT-TYPE
+           @text EFFECTIVE_DATE WS-CURRENT-DATE
+           @num PREMIUM_ADJUSTMENT WS-PREMIUM-ADJUST 2
+           @text-literal PROCESSED_BY POLEND
+           @probe WS-DAYS-IN-TERM WS-DAYS-IN-TERM 0
+           @probe WS-DAYS-REMAINING WS-DAYS-REMAINING 0
+           @probe WS-PRORATA-FACTOR WS-PRORATA-FACTOR 6
+@end
+
+@stub 7 SQL UPDATE POLICIES SET TOTAL_PREMIUM = :POLICY-TOTAL-PREMIUM
+           @sqlcode UPDATE_POLICIES
+           @effect SQL UPDATE POLICIES
+           @effect-sqlcode
+           @text POLICY_NUMBER POLICY-NUMBER
+           @num TOTAL_PREMIUM POLICY-TOTAL-PREMIUM 2
+           @text-literal UPDATED_BY POLEND
+@end
+
+@stub 8 CICS WRITEQ TS QUEUE('ENDORSEMENT-AUDIT')
+           @effect CICS WRITEQ TS
+           @text-literal QUEUE ENDORSEMENT-AUDIT
+           @text POLICY_NUMBER POLICY-NUMBER
+           @text POLICY_STATUS POLICY-STATUS
+           @num TOTAL_PREMIUM POLICY-TOTAL-PREMIUM 2
+@end
+
+@stub 9 CICS SEND MAP('POLECONF')
+           @effect CICS SEND MAP POLECONF
+           @text POLICY_NUMBER POLICY-NUMBER
+           @text POLICY_STATUS POLICY-STATUS
+           @num TOTAL_PREMIUM POLICY-TOTAL-PREMIUM 2
+@end
+
+@stub 10 CICS SEND TEXT
+           @effect CICS SEND TEXT
+           @text TEXT WS-ERROR-MSG
+@end
+
+@stub 11 CICS RETURN TRANSID('PEND')
+           @effect CICS RETURN
+           @text-literal TRANSID PEND
+           STOP RUN
+@end
