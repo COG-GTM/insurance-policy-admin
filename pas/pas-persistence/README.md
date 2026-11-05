@@ -32,6 +32,8 @@ location.
 | V11 | db2 | AB-521 | `PASAPP.CLASS_FACTORS` (DBA-applied) |
 | V12 | postgresql | AB-521 | PII column classification and `acmeins.policy_holders_masked` |
 | V13 | postgresql | AB-521 | `underwriting_decisions` keyed by `decision_id` (quirk Q-18) |
+| V20 | postgresql, db2 | AB-522 | Rate reference tables `pasapp.base_rates` and `pasapp.rating_parameters` (effective-dated) |
+| V21 | postgresql, db2 | AB-522 | Seeds the rates PREMBAT hardcodes today (Q-27); rate changes are new effective-dated rows |
 
 In local dev and CI `pas-policy-service` applies the migrations at start-up. Shared environments run Flyway
 as a separate migration job with the schema-owner account before the release starts, application pods run

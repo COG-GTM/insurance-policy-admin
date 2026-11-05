@@ -62,6 +62,7 @@ Generated from [`0001-components.json`](../0001-components.json). Full details (
 | DS-04 | Transactional outbox table (DB2 PASAPP.EVENT_OUTBOX during the transition, PostgreSQL pasapp.event_outbox after cutover) | CICS TD queue writes (Q-13) | Confidential | yes | AB-525 | pending | pending |
 | DS-05 | Policy audit table (DB2 PASAPP.POLICY_AUDIT during the transition, PostgreSQL pasapp.policy_audit after cutover) | CICS TS queue ENDORSEMENT-AUDIT (Q-23) and 8-character audit columns (Q-518-1) | Restricted | yes | AB-525 | pending | pending |
 | DS-06 | Class-factor reference table (PASAPP.CLASS_FACTORS / pasapp.class_factors) | Hardcoded 1.00 class factor in PREMBAT (Q-03) | Internal | no | AB-521 | pending | pending |
+| DS-07 | Rate reference tables (PASAPP.BASE_RATES and PASAPP.RATING_PARAMETERS / pasapp.base_rates and pasapp.rating_parameters) | Rates hardcoded in PREMBAT 3200-CALCULATE-PREMIUM (Q-27) | Internal | no | AB-522 | pending | pending |
 | MSG-01 | Kafka topics pas.policy.* and pas.underwriting.* with schema registry subjects | TD queue ACME routed to IBM MQ ACME.PAS.UNDERWRITING.REQUEST/DECISION | Confidential | yes | AB-528 | pending | pending |
 | MSG-02 | CDC pipeline DB2 to PostgreSQL (and reverse after cutover) | nothing (temporary, removed in AB-530) | Restricted | yes | AB-529 | pending | pending |
 | INT-01 | Kafka to IBM MQ bridge | nothing (temporary, removed in AB-528/AB-530) | Confidential | yes | AB-528 | pending | pending |

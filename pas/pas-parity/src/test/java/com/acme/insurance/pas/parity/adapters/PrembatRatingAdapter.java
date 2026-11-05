@@ -5,49 +5,44 @@ import com.acme.insurance.pas.parity.FixtureCase;
 import com.acme.insurance.pas.parity.ProgramAdapter;
 import com.acme.insurance.pas.parity.RunResult;
 import com.acme.insurance.pas.rating.PremiumBreakdown;
-import com.acme.insurance.pas.rating.PremiumCalculator;
+import com.acme.insurance.pas.rating.PremiumRater;
+import com.acme.insurance.pas.rating.RatingFactorMode;
 import com.acme.insurance.pas.rating.RatingFactors;
-import com.acme.insurance.pas.rating.RatingTable;
+import com.acme.insurance.pas.rating.RatingRequest;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 
 /**
- * Suite {@code prembat-rating}: rates each fixture policy row with {@link PremiumCalculator} and
- * reports the PREMIUMS row PREMBAT inserts for it ({@code 3300-WRITE-PREMIUM-RECORD}).
+ * Suite {@code prembat-rating}: rates each fixture policy row with the shared {@link PremiumRater}
+ * over the Flyway-migrated reference tables ({@link ReferenceDatabase}) and reports the PREMIUMS
+ * row PREMBAT inserts for it ({@code 3300-WRITE-PREMIUM-RECORD}). No rate is held here: the golden
+ * files prove the loaded reference rows reproduce PREMBAT's hardcoded values (AB-522).
  */
 public final class PrembatRatingAdapter implements ProgramAdapter {
 
-  /**
-   * The rates hard-coded in PREMBAT 3200-CALCULATE-PREMIUM today. AB-522 replaces this with the
-   * reference-table loader; the golden files keep proving the loaded values reproduce these.
-   */
-  static final RatingTable PREMBAT_RATES =
-      new RatingTable(
-          Map.of(
-              "AUT", new BigDecimal("850.00"),
-              "HOM", new BigDecimal("1200.00"),
-              "COM", new BigDecimal("5000.00"),
-              "LIF", new BigDecimal("400.00"),
-              "HLT", new BigDecimal("3500.00")),
-          new BigDecimal("1000.00"),
-          new BigDecimal("0.0350"),
-          new BigDecimal("25.00"));
-
   private static final DateTimeFormatter YYYYMMDD = DateTimeFormatter.BASIC_ISO_DATE;
 
-  private final PremiumCalculator calculator = new PremiumCalculator(PREMBAT_RATES);
+  private final PremiumRater rater;
+
+  /** The production default: factor source {@code legacy-neutral}. */
+  public PrembatRatingAdapter() {
+    this(ReferenceDatabase.rater(RatingFactorMode.LEGACY_NEUTRAL));
+  }
+
+  PrembatRatingAdapter(PremiumRater rater) {
+    this.rater = Objects.requireNonNull(rater, "rater");
+  }
 
   @Override
   public RunResult run(FixtureCase fixture) {
     List<Effect> effects = new ArrayList<>();
     for (JsonNode row : fixture.input().path("ROWS")) {
       String policyType = Cobol.alphanumeric(fixture.text(row, "POLICY_TYPE", ""), 3);
-      PremiumBreakdown premium = calculator.calculate(policyType, RatingFactors.NEUTRAL);
+      PremiumBreakdown premium = rater.rate(RatingRequest.of(policyType, fixture.runDate()));
       RatingFactors factors = premium.factors();
       effects.add(
           Effect.builder("SQL INSERT PREMIUMS")

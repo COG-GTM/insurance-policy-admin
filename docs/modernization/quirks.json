@@ -1095,6 +1095,30 @@
       ],
       "follow_up": "FU-05",
       "lands_in": "AB-525, AB-526"
+    },
+    {
+      "id": "Q-522-1",
+      "title": "PREMBAT premium arithmetic has no ON SIZE ERROR: overflow silently drops high-order digits",
+      "component": "PREMBAT",
+      "category": "numeric semantics",
+      "description": "No COMPUTE in 3200-CALCULATE-PREMIUM has ON SIZE ERROR. A result wider than its receiving field (WS-TERR/CLASS/MOD/FINAL-PREMIUM S9(09)V99, WS-TAX-AMOUNT S9(07)V99) keeps only the low-order digits, so a premium of 1,000,000,000.00 would be stored as 0.00. With today's hardcoded rates and 1.00 factors no input can reach the limit; table-driven factors (Q-03) or loaded base rates could.",
+      "owner": "Actuarial / Pricing lead",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Silently truncated premiums are never correct. The Java rating component (pas-rating PremiumCalculator) checks every step against the COBOL field width and throws RatingOverflowException instead; the batch job reports the policy as an error.",
+      "parity_note": "Unreachable with the current rates, so no golden file differs. PremiumCalculatorBoundaryTest covers the largest value that fits and the first that overflows for each field.",
+      "evidence": [
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "05  WS-TAX-AMOUNT         PIC S9(07)V99 COMP-3."
+        },
+        {
+          "file": "cobol/programs/PREMBAT.cbl",
+          "contains": "COMPUTE WS-FINAL-PREMIUM ="
+        }
+      ],
+      "follow_up": "FU-03",
+      "lands_in": "AB-522"
     }
   ]
 }
