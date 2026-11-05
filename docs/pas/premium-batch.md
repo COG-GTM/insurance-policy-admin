@@ -11,7 +11,7 @@ and writes the run report. The legacy JCL and COBOL stay untouched until retirem
 |---|---|---|
 | `premiumRating` (partitioned) | Splits the active book (`POLICY_STATUS = 'AC'`) into `pas.premium.partitions` contiguous policy-number ranges. Each worker (`premiumRatingPartition:partitionN`) reads its range in policy order, rates each policy and commits every `pas.premium.chunk-size` policies. | `3000-PROCESS-POLICIES` cursor loop, one unit of work (Q-38) |
 | rating | `RatingRequest.of(policyType, businessDate)` against **one** `PremiumRater.snapshot()` taken when the job starts, shared by all partitions and kept on restart of the same execution, so every policy in a run sees the same rates. | `3200-CALCULATE-PREMIUM` |
-| write | Upsert of `PREMIUMS` by key (policy, coverage seq 1, term effective date): update if present, insert otherwise. `CALC_BY = 'PREMBAT'`, `CALC_DATE` = business date, installment code `AN`. Outcome per policy in `pasapp.premium_run_item` (V30) in the same transaction. | `3300-WRITE-PREMIUM-RECORD` INSERT (Q-26) |
+| write | Upsert of `PREMIUMS` by key (policy, coverage seq 1, term effective date): update if present, insert otherwise. `INSTALLMENT_AMT` is never written, as in the PREMBAT INSERT (new rows get the column default, a rerun keeps the existing amount). `CALC_BY = 'PREMBAT'`, `CALC_DATE` = business date, installment code `AN`. Outcome per policy in `pasapp.premium_run_item` (V30) in the same transaction. | `3300-WRITE-PREMIUM-RECORD` INSERT (Q-26) |
 | errors | A policy whose rating fails (e.g. overflow, Q-522-1) or whose write the database rejects for data reasons (`DataIntegrityViolationException`) is recorded as an error (`status = 'E'`, error class, SQLSTATE and message) and the run continues, up to `pas.premium.skip-limit`. Infrastructure errors (connection lost, deadlock not resolved) fail the partition and therefore the job. | First INSERT error ends the loop (Q-25) |
 | `premiumReport` | Writes `ACME.PAS.REPORTS.PREMIUM.D<yymmdd>.txt` to `pas.premium.report-dir`: header, one 132-byte line per policy in policy order, totals READ / UPDATED / ERRORS from `premium_run_item`. Written to a temp file and moved atomically, so a rerun replaces it. | `PREMRPT` (LRECL 132) |
 | status | `COMPLETED` (exit 0), `COMPLETED_WITH_ERRORS` (exit 0, warning alert), `FAILED` (exit non-zero, page). | RC 0/4/16 and an inverted TSO `SEND` (Q-28) |
@@ -65,6 +65,10 @@ java -jar pas-batch-exec.jar businessDate=2025-03-01 rerun=1
    Spring Batch resumes the same instance: completed partitions are skipped, failed partitions resume
    after their last committed chunk, and the report counts the whole run. The Kubernetes Job's pod
    retry (`backoffLimit: 1`) does exactly this automatically.
+   If the rating reference data (base rates, parameters, factors) changed since the failed
+   execution, the restart fails at once with "rating reference data changed ... launch a same-day
+   rerun": the committed chunks were rated with the old rates and one run must not mix two rate
+   versions. Launch `rerun=<n>` instead, which re-rates the whole book with the current rates.
 4. If the execution is left `UNKNOWN` (the database connection died during rollback), mark it failed
    first: `UPDATE pasapp.batch_job_execution SET status = 'FAILED', exit_code = 'FAILED' WHERE
    job_execution_id = <id>` and the same for its `STARTED`/`UNKNOWN` step executions, then restart.

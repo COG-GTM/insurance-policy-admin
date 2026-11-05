@@ -57,16 +57,31 @@ public final class PremiumReport {
       Files.createDirectories(dir);
       Path target = dir.resolve(fileName(businessDate));
       Path temp = Files.createTempFile(dir, ".premium-report-", ".part");
-      try (OutputStream out = Files.newOutputStream(temp)) {
-        render(businessDate, details, totals, out);
-      } catch (IOException | RuntimeException e) {
-        Files.deleteIfExists(temp);
-        throw e;
+      boolean moved = false;
+      try {
+        try (OutputStream out = Files.newOutputStream(temp)) {
+          render(businessDate, details, totals, out);
+        }
+        Path written =
+            Files.move(
+                temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        moved = true;
+        return written;
+      } finally {
+        if (!moved) {
+          deleteQuietly(temp);
+        }
       }
-      return Files.move(
-          temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
+    }
+  }
+
+  private static void deleteQuietly(Path temp) {
+    try {
+      Files.deleteIfExists(temp);
+    } catch (IOException ignored) {
+      // the original failure is the one to report
     }
   }
 

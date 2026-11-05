@@ -82,8 +82,8 @@ public final class PremiumJobConfiguration {
   }
 
   @Bean
-  PremiumRunRaters premiumRunRaters(PremiumRater premiumRater) {
-    return new PremiumRunRaters(premiumRater);
+  PremiumRunRaters premiumRunRaters(PremiumRater premiumRater, JobRepository jobs) {
+    return new PremiumRunRaters(premiumRater, jobs);
   }
 
   @Bean
@@ -96,7 +96,10 @@ public final class PremiumJobConfiguration {
         new PremiumJobParameters(
             clock,
             properties.zone(),
-            () -> properties.reportDir() == null ? "pas.premium.report-dir is not set" : null);
+            () ->
+                properties.reportDir() == null || properties.reportDir().toString().isBlank()
+                    ? "pas.premium.report-dir is not set"
+                    : null);
     return new JobBuilder(JOB, jobs)
         .incrementer(parameters)
         .validator(parameters)

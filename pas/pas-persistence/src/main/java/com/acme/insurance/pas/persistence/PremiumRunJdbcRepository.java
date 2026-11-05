@@ -42,8 +42,7 @@ public class PremiumRunJdbcRepository {
       UPDATE acmeins.premiums
          SET term_expiry_date = ?, base_rate = ?, territory_factor = ?, class_factor = ?,
              experience_mod = ?, schedule_mod = ?, discount_pct = ?, surcharge_amt = ?,
-             tax_amt = ?, total_premium = ?, installment_code = ?, installment_amt = ?,
-             calc_date = ?, calc_by = ?
+             tax_amt = ?, total_premium = ?, installment_code = ?, calc_date = ?, calc_by = ?
        WHERE policy_number = ? AND coverage_seq = ? AND term_effective_date = ?
       """;
 
@@ -51,9 +50,9 @@ public class PremiumRunJdbcRepository {
       """
       INSERT INTO acmeins.premiums (term_expiry_date, base_rate, territory_factor, class_factor,
           experience_mod, schedule_mod, discount_pct, surcharge_amt, tax_amt, total_premium,
-          installment_code, installment_amt, calc_date, calc_by,
+          installment_code, calc_date, calc_by,
           policy_number, coverage_seq, term_effective_date)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       """;
 
   private final JdbcTemplate jdbc;
@@ -102,7 +101,9 @@ public class PremiumRunJdbcRepository {
   /**
    * Writes each premium as the row of its key {@code (policy_number, coverage_seq,
    * term_effective_date)}: an existing row is replaced, a missing one inserted. A same-day rerun
-   * therefore rewrites the rows instead of failing on the primary key (Q-26).
+   * therefore rewrites the rows instead of failing on the primary key (Q-26). Like the PREMBAT
+   * INSERT, {@code installment_amt} is never written: new rows get the column default and a rerun
+   * keeps the existing amount.
    */
   public void upsertPremiums(List<Premium> premiums) {
     if (premiums.isEmpty()) {
@@ -202,7 +203,6 @@ public class PremiumRunJdbcRepository {
       p.taxAmt(),
       p.totalPremium(),
       p.installmentCode(),
-      p.installmentAmt(),
       sqlDate(p.calcDate()),
       p.calcBy(),
       p.policyNumber(),

@@ -1,7 +1,12 @@
 package com.acme.insurance.pas.rating;
 
 import com.acme.insurance.pas.domain.RatingRateHistory;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Entry point shared by the premium batch job and the online flows: rates a request with the
@@ -13,10 +18,16 @@ public final class PremiumRater {
 
   private final ReferenceRatingTables tables;
   private final RatingFactorSource factors;
+  private final String version;
 
   public PremiumRater(ReferenceRatingTables tables, RatingFactorSource factors) {
+    this(tables, factors, null);
+  }
+
+  private PremiumRater(ReferenceRatingTables tables, RatingFactorSource factors, String version) {
     this.tables = Objects.requireNonNull(tables, "tables");
     this.factors = Objects.requireNonNull(factors, "factors");
+    this.version = version;
   }
 
   /**
@@ -28,7 +39,28 @@ public final class PremiumRater {
   public PremiumRater snapshot() {
     RatingRateHistory rows = tables.allRows(factors.readsFactorTables());
     return new PremiumRater(
-        ReferenceRatingTables.snapshotOf(RatingReferenceData.history(rows)), factors.pin(rows));
+        ReferenceRatingTables.snapshotOf(RatingReferenceData.history(rows)),
+        factors.pin(rows),
+        version(rows));
+  }
+
+  /**
+   * SHA-256 of the reference rows a snapshot rates from; equal versions rate identically. Empty for
+   * the live rater. A restarted batch run compares it to tell whether the rates changed meanwhile.
+   */
+  public Optional<String> version() {
+    return Optional.ofNullable(version);
+  }
+
+  private static String version(RatingRateHistory rows) {
+    try {
+      return HexFormat.of()
+          .formatHex(
+              MessageDigest.getInstance("SHA-256")
+                  .digest(rows.toString().getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   public PremiumBreakdown rate(RatingRequest request) {

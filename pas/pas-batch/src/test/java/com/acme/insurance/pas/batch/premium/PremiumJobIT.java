@@ -186,6 +186,31 @@ class PremiumJobIT {
   }
 
   @Test
+  void aRestartRefusesToMixRatesChangedSinceTheFailedRun() throws Exception {
+    db.book(12);
+    db.rejectPremiumsOf("POL-00000110", "P0001");
+    JobExecution failed = launcher.run(job, params("2025-03-01", null));
+    assertThat(failed.getStatus()).isEqualTo(BatchStatus.FAILED);
+    db.acceptAllPremiums();
+    jdbc.update("UPDATE pasapp.base_rates SET base_rate = base_rate + 1 WHERE policy_type = 'AUT'");
+    try {
+      JobExecution restarted = launcher.run(job, failed.getJobParameters());
+
+      assertThat(restarted.getStatus()).isEqualTo(BatchStatus.FAILED);
+      assertThat(restarted.getStepExecutions()).isEmpty();
+      assertThat(restarted.getAllFailureExceptions())
+          .anySatisfy(e -> assertThat(e).hasMessageContaining("same-day rerun"));
+
+      JobExecution rerun = launcher.run(job, params("2025-03-01", 1L));
+      assertThat(rerun.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+      assertThat(db.premiums()).hasSize(12);
+    } finally {
+      jdbc.update(
+          "UPDATE pasapp.base_rates SET base_rate = base_rate - 1 WHERE policy_type = 'AUT'");
+    }
+  }
+
+  @Test
   void anEmptyBookCompletesWithZeroTotals() throws Exception {
     JobExecution run = launcher.run(job, params("2025-03-02", null));
     assertThat(run.getStatus()).isEqualTo(BatchStatus.COMPLETED);
