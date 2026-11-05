@@ -114,7 +114,7 @@ public class PolicyInquiryController {
   }
 
   /** The OAuth client the token was issued to; bounded so it is safe as a metric tag. */
-  static String clientId(Authentication caller) {
+  public static String clientId(Authentication caller) {
     if (caller instanceof JwtAuthenticationToken jwt) {
       for (String claim : new String[] {"azp", "client_id"}) {
         Object value = jwt.getToken().getClaims().get(claim);

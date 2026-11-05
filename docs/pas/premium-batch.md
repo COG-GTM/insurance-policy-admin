@@ -141,8 +141,8 @@ balanced (`BATCH_STEP_EXECUTION.READ_COUNT` per partition) and that `ix_premiums
 ## Parity
 
 * `make parity` runs suite `prembat-batch-control` through `PrembatBatchControlAdapter`, which runs
-  this job against the Flyway-migrated reference database. Known differences KD-06 (Q-26: a
-  same-day duplicate is replaced, not an error) and KD-07 (Q-25: the run continues after an error)
+  this job against the Flyway-migrated reference database. Known differences KD-09 (Q-26: a
+  same-day duplicate is replaced, not an error) and KD-10 (Q-25: the run continues after an error)
   are pending sign-off. Suite `prembat-rating` (AB-522) covers the rating to the cent.
 * `PremiumJobIT` compares the PREMIUMS rows and the 132-byte report of case `report-totals` with the
   COBOL golden file byte for byte, and covers rerun, per-policy errors, restart and an empty book.
@@ -150,7 +150,7 @@ balanced (`BATCH_STEP_EXECUTION.READ_COUNT` per partition) and that `ix_premiums
 ## Cut-over
 
 1. Parallel run: run the job against a copy of the book after PAS0050 for at least 5 business days
-   and reconcile `PREMIUMS` rows (all columns) and report totals; differences beyond KD-06/KD-07
+   and reconcile `PREMIUMS` rows (all columns) and report totals; differences beyond KD-09/KD-10
    block cut-over.
 2. Put PAS0050 on hold in CA-7, enable the CronJob. Rollback: suspend the CronJob, release PAS0050.
 3. Retirement of `jcl/PREMIUM-BATCH.jcl` and `PREMBAT` follows the epic's decommission ticket;
@@ -160,8 +160,8 @@ balanced (`BATCH_STEP_EXECUTION.READ_COUNT` per partition) and that `ix_premiums
 
 | Item | Who | Status |
 |---|---|---|
-| Q-25 / KD-07 continue after a per-policy error | Mainframe team | pending |
-| Q-26 / KD-06 idempotent upsert, how production avoids -803 today (FU-11) | Actuarial / Pricing + Mainframe team | pending |
+| Q-25 / KD-10 continue after a per-policy error | Mainframe team | pending |
+| Q-26 / KD-09 idempotent upsert, how production avoids -803 today (FU-11) | Actuarial / Pricing + Mainframe team | pending |
 | Q-28 success/warning/failure alerting, paging target, CA-7 calendar and predecessors (FU-12) | Mainframe operations / CA-7 | pending |
 | Q-29 report format from a masked production sample (FU-13) | Mainframe team | pending |
 | Q-38 chunked, partitioned, restartable run | Mainframe team | pending |

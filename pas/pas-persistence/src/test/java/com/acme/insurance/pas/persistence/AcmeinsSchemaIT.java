@@ -80,7 +80,8 @@ class AcmeinsSchemaIT {
             "base_rates",
             "rating_parameters",
             "extract_delivery",
-            "premium_run_item");
+            "premium_run_item",
+            "policy_change_audit");
     assertThat(tables("pas_batch"))
         .containsExactlyInAnyOrder(
             "batch_job_instance",
