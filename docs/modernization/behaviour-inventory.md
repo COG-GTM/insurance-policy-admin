@@ -101,7 +101,7 @@ All five are pseudo-conversational BMS programs. Each RECEIVEs a map INTO `POLIC
 `cobol/programs/POLRNW.cbl`
 - **Input:** map `POLRMAPS/POLRMAP` → policy number.
 - **Reads:** POLICIES (number, type, status, premium, expiry, renewal count, UW status). Eligible statuses are `AC` or `EX`. Reads `ACMEINS.CLAIMS` count of OPEN claims, but the result is unused ([Q-02](quirk-register.md#q-02)).
-- **Rating:** new premium = old * 1.05, truncated ([Q-05](quirk-register.md#q-05), [Q-06](quirk-register.md#q-06)). Flat 15% cap, which cannot trigger ([Q-04](quirk-register.md#q-04)).
+- **Rating:** new premium = old * 1.05, truncated ([Q-05](quirk-register.md#q-05), [Q-06](quirk-register.md#q-06)). Flat 15% cap, which cannot trigger ([Q-04](quirk-register.md#q-04)). The rate-change percentage divides by the old premium with no zero guard, so a zero-premium policy most likely abends ([Q-41](quirk-register.md#q-41)).
 - **New term:** effective = old expiry. Expiry = old expiry + 10000 in YYYYMMDD arithmetic, which breaks on 29 Feb ([Q-01](quirk-register.md#q-01)). Renewal count +1, status `AC`, UW status `PN` with no UW request ([Q-39](quirk-register.md#q-39)).
 - **Writes:** UPDATE POLICIES. UPDATE COVERAGES sets the dates of active coverages to the new term, and still runs after a policy update failure ([Q-07](quirk-register.md#q-07)).
 - **Outputs:** map `POLRCONF` or error text. No messages and no files.

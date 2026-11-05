@@ -25,9 +25,12 @@ FACTS = f"{DOCS}/legacy-facts.json"
 QUIRKS = f"{DOCS}/quirks.json"
 INVENTORY = f"{DOCS}/behaviour-inventory.md"
 REGISTER = f"{DOCS}/quirk-register.md"
+OPEN_QUESTIONS = f"{DOCS}/open-questions.md"
 DDL = "sql/ddl/create-tables.sql"
 DECISIONS = {"preserve", "fix"}
-QUIRK_ID = re.compile(r"^Q-(\d{2}|\d+-\d+)$")
+EPIC_TICKETS = range(518, 531)  # AB-516 children after AB-517 (AB-518..AB-530)
+QUIRK_ID = re.compile(r"^Q-(?:(?!00)(\d{2})|(\d+)-([1-9]\d*))$")
+LANDS_IN = re.compile(r"^AB-\d+(?:, AB-\d+)*$")
 QUIRK_FIELDS = ("id", "title", "component", "category", "description", "owner",
                 "proposed_decision", "decision_status", "rationale", "parity_note", "lands_in", "evidence")
 SQL_SKIP = {"SYSIBM.SYSDUMMY1"}
@@ -298,15 +301,35 @@ def resolve_evidence(ev):
     return None
 
 
-def validate_quirks(quirks):
+def follow_up_ids():
+    return set(re.findall(r"^\|\s*(FU-\d+)\s*\|", read(OPEN_QUESTIONS), re.M))
+
+
+def valid_quirk_id(qid):
+    m = QUIRK_ID.match(qid)
+    return bool(m) and (m.group(1) is not None or int(m.group(2)) in EPIC_TICKETS)
+
+
+def validate_quirks(quirks, known_follow_ups=None):
     errors, seen = [], set()
+    if known_follow_ups is None:
+        known_follow_ups = follow_up_ids()
     for q in quirks:
         qid = q.get("id", "?")
         missing = [f for f in QUIRK_FIELDS if not q.get(f)]
         if missing:
             errors.append(f"{qid}: missing {', '.join(missing)}")
-        if not QUIRK_ID.match(qid):
-            errors.append(f"{qid}: id must be Q-NN (AB-517) or Q-<ticket>-<n>")
+        if not valid_quirk_id(qid):
+            errors.append(f"{qid}: id must be Q-01..Q-99 (AB-517) or Q-<ticket>-<n> with ticket "
+                          f"{EPIC_TICKETS[0]}..{EPIC_TICKETS[-1]} and n >= 1")
+        lands_in = q.get("lands_in", "")
+        if lands_in and (not LANDS_IN.match(lands_in)
+                         or any(int(t) not in EPIC_TICKETS for t in re.findall(r"AB-(\d+)", lands_in))):
+            errors.append(f"{qid}: lands_in must list epic tickets AB-{EPIC_TICKETS[0]}..AB-{EPIC_TICKETS[-1]}, "
+                          f"got {lands_in!r}")
+        for fu in re.findall(r"FU-\d+", q.get("follow_up", "")):
+            if fu not in known_follow_ups:
+                errors.append(f"{qid}: follow_up {fu} not found in {OPEN_QUESTIONS}")
         if qid in seen:
             errors.append(f"{qid}: duplicate id")
         seen.add(qid)

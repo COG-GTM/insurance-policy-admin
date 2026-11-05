@@ -101,6 +101,26 @@ class QuirkRegisterTest(unittest.TestCase):
         q = dict(self.quirks[0], id="Q-526-1")
         self.assertEqual(inv.validate_quirks([q]), [])
 
+    def test_quirk_ids_follow_epic_allocation(self):
+        for qid in ("Q-00", "Q-517-1", "Q-526-0", "Q-531-1", "Q-100", "Q-5"):
+            errors = inv.validate_quirks([dict(self.quirks[0], id=qid)])
+            self.assertTrue(any("id must be" in e for e in errors), qid)
+        for qid in ("Q-01", "Q-99", "Q-518-1", "Q-530-12"):
+            self.assertEqual(inv.validate_quirks([dict(self.quirks[0], id=qid)]), [], qid)
+
+    def test_lands_in_must_name_epic_tickets(self):
+        for bad in ("AB-517", "AB-531", "AB-526 (post-parity)", "TBD", "AB-522,AB-523"):
+            errors = inv.validate_quirks([dict(self.quirks[0], lands_in=bad)])
+            self.assertTrue(any("lands_in" in e for e in errors), bad)
+        self.assertEqual(inv.validate_quirks([dict(self.quirks[0], lands_in="AB-518, AB-530")]), [])
+
+    def test_follow_up_must_exist_in_open_questions(self):
+        known = inv.follow_up_ids()
+        self.assertIn("FU-01", known)
+        errors = inv.validate_quirks([dict(self.quirks[0], follow_up="FU-99")], known)
+        self.assertTrue(any("follow_up FU-99" in e for e in errors))
+        self.assertEqual(inv.validate_quirks([dict(self.quirks[0], follow_up="FU-19")], known), [])
+
 
 class GeneratedDocsTest(unittest.TestCase):
     def test_docs_are_current(self):

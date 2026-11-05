@@ -23,6 +23,7 @@ The ticket's acceptance criteria ask for open questions to be raised as follow-u
 | FU-17 | Agreed read interface for ACMEINS.CLAIMS | Define the interface (API/view) giving open-claim counts and 5-year incurred totals per policy, its SLA and its owner. | Claims team | Q-02, Q-15 | AB-525, AB-526 |
 | FU-18 | Broker Portal DB2 access inventory | Export the SQL Server linked-server definition and the queries used: which tables and columns, grants, refresh frequency. | Broker Portal team + DBA | none | AB-528 |
 | FU-19 | Name the owners | Replace the role placeholders (Product Owner, Claims team, Actuarial lead, Underwriting lead, Compliance, Broker Portal, ECM) with named people for the quirk register and the integration table. | Programme manager | all | AB-517 sign-off |
+| FU-20 | Zero-premium renewal behaviour | What does production do when PRWL renews a policy with TOTAL_PREMIUM 0 (abend ASRA / S0CB, or something else)? Should the Java renewal renew at 0% change or reject the renewal? Can zero-premium AC/EX policies exist in DBPD? | Product Owner + Mainframe team | Q-41 | AB-526 |
 
 ## Questions about the scope of this inventory
 

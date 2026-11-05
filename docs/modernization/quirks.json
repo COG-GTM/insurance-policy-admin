@@ -602,7 +602,7 @@
       "title": "Premium batch is not rerunnable: daily duplicate PREMIUMS key",
       "component": "PREMBAT",
       "category": "defect",
-      "description": "Every daily run INSERTs (POLICY_NUMBER, COVERAGE_SEQ=1, TERM_EFFECTIVE_DATE) for each active policy. PREMIUMS has that as its primary key, so from the second run in a term every insert hits -803. Combined with Q-25 the job processes one policy and stops. Only one row per policy (COVERAGE_SEQ 1) is written, and POLICIES.TOTAL_PREMIUM is never updated.",
+      "description": "Every daily run INSERTs (POLICY_NUMBER, COVERAGE_SEQ=1, TERM_EFFECTIVE_DATE) for each active policy. PREMIUMS has that as its primary key, so from the second run in a term every insert hits -803. Combined with Q-25, a rerun stops at the first policy: its INSERT gets -803, the loop ends, no PREMIUMS rows are written for any policy, and the job ends RC=4 (the report holds one detail line plus the summary). Only one row per policy (COVERAGE_SEQ 1) is written, and POLICIES.TOTAL_PREMIUM is never updated.",
       "owner": "Actuarial / Pricing lead + Mainframe team (mainframe-ops@acme.com)",
       "proposed_decision": "fix",
       "decision_status": "proposed - pending mainframe-team verification against production load module",
@@ -954,6 +954,30 @@
       ],
       "follow_up": "FU-05",
       "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-41",
+      "title": "Zero-premium renewal divides by zero (no guard, no ON SIZE ERROR)",
+      "component": "POLRNW",
+      "category": "numeric defect / needs verification",
+      "description": "4000-CALCULATE-NEW-PREMIUM computes WS-RATE-CHANGE-PCT as (new - old) / WS-OLD-PREMIUM * 100 with no zero check and no ON SIZE ERROR. A policy whose TOTAL_PREMIUM is 0 (POLNEW never rates new business, Q-12) therefore divides by zero. UNDWRT guards the same kind of division with `IF POLICY-TOTAL-PREMIUM > 0`. On z/OS a packed-decimal divide by zero most likely raises a decimal-divide exception (S0CB), so the PRWL task abends ASRA and CICS backs out the unit of work; the exact outcome depends on compiler options and must be verified by the mainframe team.",
+      "owner": "Product Owner, Policy Administration + Mainframe team (mainframe-ops@acme.com)",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "An abend is not a business behaviour worth preserving. The Java renewal must define the zero-premium case explicitly. Recommendation: treat the rate change as 0% (new premium stays 0, so the cap cannot apply) and renew normally, unless the Product Owner prefers to reject the renewal with a clear message.",
+      "parity_note": "Characterization records the legacy outcome for a zero-premium renewal (expected abend / no update) as a signed-off deviation. Every non-zero premium must match exactly.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "/ WS-OLD-PREMIUM) * 100"
+        },
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "IF POLICY-TOTAL-PREMIUM > 0"
+        }
+      ],
+      "follow_up": "FU-20",
+      "lands_in": "AB-526"
     }
   ]
 }

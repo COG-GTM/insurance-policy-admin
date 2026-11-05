@@ -58,6 +58,7 @@ Rules for this register:
 | [Q-38](#q-38) | Premium batch is one unit of work for the whole book | PREMBAT, PREMIUM-BATCH | Mainframe team (mainframe-ops@acme.com) | **fix** | proposed - pending business sign-off | AB-523 | `jcl/PREMIUM-BATCH.jcl:34`<br>`cobol/programs/PREMBAT.cbl:126` |
 | [Q-39](#q-39) | Renewal resets UW status to pending but never requests underwriting | POLRNW | Underwriting lead + Product Owner, Policy Administration | **preserve** | proposed - pending business sign-off | AB-526 | `cobol/programs/POLRNW.cbl:152`<br>`cobol/programs/POLRNW.cbl:35` |
 | [Q-40](#q-40) | Nothing in the repo moves a new policy from PN to AC | POLNEW, UNDWRT | Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration | **preserve** | proposed - pending mainframe-team verification against production load module | AB-525 | `cobol/programs/POLNEW.cbl:151`<br>`cobol/programs/UNDWRT.cbl:228` |
+| [Q-41](#q-41) | Zero-premium renewal divides by zero (no guard, no ON SIZE ERROR) | POLRNW | Product Owner, Policy Administration + Mainframe team (mainframe-ops@acme.com) | **fix** | proposed - pending mainframe-team verification against production load module | AB-526 | `cobol/programs/POLRNW.cbl:130`<br>`cobol/programs/UNDWRT.cbl:152` |
 <!-- END GENERATED: quirk-table -->
 
 ## Details
@@ -457,7 +458,7 @@ POLQRY reads POLICY_HOLDERS (SQLCODE unchecked) and up to 20 coverages into WS-C
 
 **Premium batch is not rerunnable: daily duplicate PREMIUMS key** (PREMBAT, defect)
 
-Every daily run INSERTs (POLICY_NUMBER, COVERAGE_SEQ=1, TERM_EFFECTIVE_DATE) for each active policy. PREMIUMS has that as its primary key, so from the second run in a term every insert hits -803. Combined with Q-25 the job processes one policy and stops. Only one row per policy (COVERAGE_SEQ 1) is written, and POLICIES.TOTAL_PREMIUM is never updated.
+Every daily run INSERTs (POLICY_NUMBER, COVERAGE_SEQ=1, TERM_EFFECTIVE_DATE) for each active policy. PREMIUMS has that as its primary key, so from the second run in a term every insert hits -803. Combined with Q-25, a rerun stops at the first policy: its INSERT gets -803, the loop ends, no PREMIUMS rows are written for any policy, and the job ends RC=4 (the report holds one detail line plus the summary). Only one row per policy (COVERAGE_SEQ 1) is written, and POLICIES.TOTAL_PREMIUM is never updated.
 
 - Owner: Actuarial / Pricing lead + Mainframe team (mainframe-ops@acme.com)
 - Proposed decision: **fix** (proposed - pending mainframe-team verification against production load module)
@@ -690,5 +691,21 @@ POLNEW inserts POLICY_STATUS 'PN'. UNDWRT updates only UW_STATUS and RISK_SCORE,
 - Evidence:
   - `cobol/programs/POLNEW.cbl:151`: `MOVE 'PN' TO POL-STAT`
   - `cobol/programs/UNDWRT.cbl:228`: `SET UW_STATUS = :WS-DECISION,`
+
+### Q-41
+
+**Zero-premium renewal divides by zero (no guard, no ON SIZE ERROR)** (POLRNW, numeric defect / needs verification)
+
+4000-CALCULATE-NEW-PREMIUM computes WS-RATE-CHANGE-PCT as (new - old) / WS-OLD-PREMIUM * 100 with no zero check and no ON SIZE ERROR. A policy whose TOTAL_PREMIUM is 0 (POLNEW never rates new business, Q-12) therefore divides by zero. UNDWRT guards the same kind of division with `IF POLICY-TOTAL-PREMIUM > 0`. On z/OS a packed-decimal divide by zero most likely raises a decimal-divide exception (S0CB), so the PRWL task abends ASRA and CICS backs out the unit of work; the exact outcome depends on compiler options and must be verified by the mainframe team.
+
+- Owner: Product Owner, Policy Administration + Mainframe team (mainframe-ops@acme.com)
+- Proposed decision: **fix** (proposed - pending mainframe-team verification against production load module)
+- Rationale: An abend is not a business behaviour worth preserving. The Java renewal must define the zero-premium case explicitly. Recommendation: treat the rate change as 0% (new premium stays 0, so the cap cannot apply) and renew normally, unless the Product Owner prefers to reject the renewal with a clear message.
+- Parity / characterization note: Characterization records the legacy outcome for a zero-premium renewal (expected abend / no update) as a signed-off deviation. Every non-zero premium must match exactly.
+- Lands in: AB-526
+- Follow-up: FU-20
+- Evidence:
+  - `cobol/programs/POLRNW.cbl:130`: `/ WS-OLD-PREMIUM) * 100`
+  - `cobol/programs/UNDWRT.cbl:152`: `IF POLICY-TOTAL-PREMIUM > 0`
 
 <!-- END GENERATED: quirk-details -->

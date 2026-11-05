@@ -33,4 +33,4 @@ The acceptance criteria require review by the mainframe team and the product own
 | Security items (Q-32, Q-36) | Security | quirk-register.md | pending | |
 | Data / schema items (Q-35, Q-37) | DBA team (db2-admin@acme.com) | quirk-register.md, §10 | pending | |
 | Integration owners I-1..I-10 | Claims, Actuarial, Broker Portal, ECM, UW ops | behaviour-inventory.md §7 | pending | |
-| Follow-up tickets FU-01..FU-19 filed in Jira | Programme manager | open-questions.md | pending | |
+| Follow-up tickets FU-01..FU-20 filed in Jira | Programme manager | open-questions.md | pending | |
