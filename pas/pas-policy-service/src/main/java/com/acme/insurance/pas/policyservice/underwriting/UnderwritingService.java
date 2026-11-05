@@ -76,6 +76,9 @@ public class UnderwritingService {
             pn -> subject(pn, entitlement),
             claims,
             policies::activeCoverageLimitForBranch);
+    if (validPolicyNumber(policyNumber)) {
+      policies.lockPolicy(policyNumber);
+    }
     UnderwritingOutcome outcome = underwriter.underwrite(policyNumber, clock.today());
     if (outcome instanceof UnderwritingOutcome.Rejected rejected) {
       return rejected.reason() == UnderwritingOutcome.Rejection.NOT_FOUND
@@ -120,6 +123,7 @@ public class UnderwritingService {
     if (policy.isEmpty()) {
       return new UnderwritingResult.NotFound();
     }
+    policies.lockPolicy(policyNumber);
     Optional<UnderwritingDecision> latest = decisions.findLatest(policyNumber);
     if (latest.isEmpty()) {
       return new UnderwritingResult.Conflict("NO UNDERWRITING DECISION TO OVERRIDE");
@@ -152,8 +156,12 @@ public class UnderwritingService {
         .map(p -> decisions.findByPolicy(p.policyNumber()));
   }
 
+  private static boolean validPolicyNumber(String policyNumber) {
+    return policyNumber != null && !policyNumber.isBlank() && policyNumber.length() <= 12;
+  }
+
   private Optional<Policy> visiblePolicy(String policyNumber, Entitlement entitlement) {
-    if (policyNumber == null || policyNumber.isBlank() || policyNumber.length() > 12) {
+    if (!validPolicyNumber(policyNumber)) {
       return Optional.empty();
     }
     return policies

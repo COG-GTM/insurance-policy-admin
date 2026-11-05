@@ -83,6 +83,19 @@ public class PolicyJdbcRepository {
         .single();
   }
 
+  /**
+   * Locks the policy row until the end of the transaction, so underwriting decisions and overrides
+   * of one policy run one after the other. Returns false when the policy does not exist.
+   */
+  public boolean lockPolicy(String policyNumber) {
+    return !jdbc.sql(
+            "SELECT policy_number FROM acmeins.policies WHERE policy_number = ? FOR UPDATE")
+        .param(policyNumber)
+        .query(String.class)
+        .list()
+        .isEmpty();
+  }
+
   public Optional<Policy> findPolicy(String policyNumber) {
     return jdbc.sql("SELECT * FROM acmeins.policies WHERE policy_number = ?")
         .param(policyNumber)

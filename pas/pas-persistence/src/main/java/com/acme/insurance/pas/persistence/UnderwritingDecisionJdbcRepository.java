@@ -63,8 +63,9 @@ public class UnderwritingDecisionJdbcRepository {
 
   /**
    * Stores a manual override on the decision row it overrides. The update only applies while the
-   * row still has the decision code the override was based on, so two concurrent overrides cannot
-   * both win; returns the number of rows changed (0 = the row moved on).
+   * row still has the decision code and override fields the override was based on, so two
+   * concurrent overrides cannot both win, even with the same code; returns the number of rows
+   * changed (0 = the row moved on). Callers also lock the policy row ({@code lockPolicy}).
    */
   public int applyOverride(UnderwritingDecision before, UnderwritingDecision after) {
     return jdbc.sql(
@@ -73,6 +74,7 @@ public class UnderwritingDecisionJdbcRepository {
                SET decision_code = ?, override_reason = ?, override_by = ?
              WHERE policy_number = ? AND decision_date = ? AND created_timestamp = ?
                AND decision_code = ?
+               AND COALESCE(override_reason, '') = ? AND COALESCE(override_by, '') = ?
             """)
         .params(
             after.decisionCode(),
@@ -81,7 +83,9 @@ public class UnderwritingDecisionJdbcRepository {
             before.policyNumber(),
             before.decisionDate(),
             before.createdTimestamp(),
-            before.decisionCode())
+            before.decisionCode(),
+            before.overrideReason() == null ? "" : before.overrideReason(),
+            before.overrideBy() == null ? "" : before.overrideBy())
         .update();
   }
 

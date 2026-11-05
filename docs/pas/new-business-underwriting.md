@@ -43,8 +43,9 @@ Field widths and decimal places of the DB2 columns are checked first (400). Busi
   `EXPIRY_DATE` (effective date + `pas.new-business.term-months`, default 12; POLNEW never set it, Q-09,
   FU-525-2), `CREATED_BY`/`UPDATED_BY` the caller's 8-character id (`pas_legacy_user`, default `PASAPI`).
 - **Default coverages** come from `PASAPP.DEFAULT_COVERAGES` (V52), seeded with the POLNEW table:
-  AUT `AUTL`, `AUTP`; HOM `PROP`, `LIAB`; COM `PROP`, `LIAB`, `WKCP`; LIF and HLT none. Each line copies
-  the policy limit and deductible, like POLNEW.
+  AUT `AUTL`, `AUTP`; HOM `PROP`, `LIAB`; COM `PROP`, `LIAB`, `WKCP`; LIF and HLT none. POLNEW never
+  set the coverage amounts; per the Q-10 decision they are written as an explicit 0 (limit, deductible,
+  premium) with sequence numbers from 1, until rating or an endorsement fills them in.
 - **Business date:** today in `pas.business-zone` (default `America/New_York`, FU-525-6).
 - Policy, coverages, audit row and events are one database transaction.
 
@@ -74,7 +75,9 @@ The decision inserts `UNDERWRITING_DECISIONS` (`UNDERWRITER_ID` `SYSTEM`), updat
 
 **Overrides:** `decisionCode` `AP` or `DC` and a `reason` (1-200 characters) are required. The latest
 decision gets `OVERRIDE_REASON` and `OVERRIDE_BY` (the caller's 8-character id) under an optimistic
-check (409 if it changed meanwhile), and `POLICIES.UW_STATUS` takes the override.
+check on its code and override fields (409 if it changed meanwhile), and `POLICIES.UW_STATUS` takes the
+override. Decisions and overrides lock the policy row (`SELECT ... FOR UPDATE`), so they run one after
+the other per policy and an override always applies to the latest decision.
 
 ## 4. Claims history (FU-17)
 

@@ -218,6 +218,31 @@ class NewBusinessPersistenceIT {
         .containsExactly("RS", "AP");
     assertThat(decisions.findLatest("POL-UWD00001").orElseThrow().overrideBy())
         .isEqualTo("UW00042");
+
+    UnderwritingDecision overridden = decisions.findLatest("POL-UWD00001").orElseThrow();
+    UnderwritingDecision again = withOverride(overridden, "AP", "Second look", "UW00043");
+    UnderwritingDecision racing = withOverride(overridden, "AP", "Racing look", "UW00044");
+    assertThat(decisions.applyOverride(overridden, again)).isEqualTo(1);
+    assertThat(decisions.applyOverride(overridden, racing))
+        .as("same-code override based on a stale row")
+        .isZero();
+    assertThat(decisions.findLatest("POL-UWD00001").orElseThrow().overrideReason())
+        .isEqualTo("Second look");
+  }
+
+  private static UnderwritingDecision withOverride(
+      UnderwritingDecision d, String code, String reason, String by) {
+    return new UnderwritingDecision(
+        null,
+        d.policyNumber(),
+        d.decisionDate(),
+        code,
+        d.riskScore(),
+        d.decisionReason(),
+        d.underwriterId(),
+        reason,
+        by,
+        d.createdTimestamp());
   }
 
   @Test

@@ -108,7 +108,10 @@ public class UnderwritingController {
       @PathVariable String policyNumber, Authentication caller) {
     return service
         .decisions(policyNumber, entitlements.resolve(caller))
-        .map(list -> ResponseEntity.ok(list.stream().map(d -> DecisionView.of(d, null)).toList()))
+        .map(
+            list ->
+                ResponseEntity.ok(
+                    list.reversed().stream().map(d -> DecisionView.of(d, null)).toList()))
         .orElseGet(() -> ResponseEntity.notFound().build());
   }
 

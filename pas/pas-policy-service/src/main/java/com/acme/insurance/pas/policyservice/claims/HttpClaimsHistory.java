@@ -44,10 +44,16 @@ public class HttpClaimsHistory implements ClaimsHistory {
       throw new ClaimsHistoryUnavailableException(
           "claims history request failed: " + e.getClass().getSimpleName(), e);
     }
-    if (body == null || body.claimCount() == null || body.totalIncurred() == null) {
+    if (body == null
+        || body.policyNumber() == null
+        || body.claimCount() == null
+        || body.totalIncurred() == null) {
       throw new ClaimsHistoryUnavailableException("claims history answer is incomplete");
     }
-    if (body.policyNumber() != null && !body.policyNumber().equals(policyNumber)) {
+    if (body.claimCount() < 0) {
+      throw new ClaimsHistoryUnavailableException("claims history answered a negative claim count");
+    }
+    if (!body.policyNumber().equals(policyNumber)) {
       throw new ClaimsHistoryUnavailableException("claims history answered for another policy");
     }
     return new ClaimsSummary(body.claimCount(), body.totalIncurred());
