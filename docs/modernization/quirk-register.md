@@ -60,6 +60,7 @@ Rules for this register:
 | [Q-40](#q-40) | Nothing in the repo moves a new policy from PN to AC | POLNEW, UNDWRT | Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration | **preserve** | proposed - pending mainframe-team verification against production load module | AB-525 | `cobol/programs/POLNEW.cbl:151`<br>`cobol/programs/UNDWRT.cbl:228` |
 | [Q-41](#q-41) | Zero-premium renewal divides by zero (no guard, no ON SIZE ERROR) | POLRNW | Product Owner, Policy Administration + Mainframe team (mainframe-ops@acme.com) | **fix** | proposed - pending mainframe-team verification against production load module | AB-526 | `cobol/programs/POLRNW.cbl:130`<br>`cobol/programs/UNDWRT.cbl:152` |
 | [Q-518-1](#q-518-1) | Audit user columns hold only 8 characters | POLICIES, ENDORSEMENTS, UNDERWRITING_DECISIONS, PREMIUMS; POLICY-RECORD, PREMIUM-RECORD | Security + DBA team (db2-admin@acme.com) | **preserve** | proposed - pending ARB and Security sign-off (ADR 0001 D5) | AB-521, AB-525, AB-526 | `sql/ddl/create-tables.sql:47`<br>`sql/ddl/create-tables.sql:120`<br>`cobol/copybooks/POLICY-RECORD.cpy:48`<br>`cobol/programs/POLRNW.cbl:163`<br>`cobol/programs/UNDWRT.cbl:223`<br>`cobol/programs/POLNEW.cbl:163` |
+| [Q-520-1](#q-520-1) | Failed map RECEIVE falls through the whole program | UNDWRT, POLRNW | Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration | **fix** | proposed - pending mainframe-team verification against production load module | AB-525, AB-526 | `cobol/programs/UNDWRT.cbl:94`<br>`cobol/programs/POLRNW.cbl:87`<br>`cobol/programs/UNDWRT.cbl:59` |
 <!-- END GENERATED: quirk-table -->
 
 ## Details
@@ -727,5 +728,22 @@ Every 'who changed this' column is CHAR(8): POLICIES.UPDATED_BY, ENDORSEMENTS.PR
   - `cobol/programs/POLRNW.cbl:163`: `UPDATED_BY = 'POLRNW'`
   - `cobol/programs/UNDWRT.cbl:223`: `'SYSTEM', CURRENT TIMESTAMP)`
   - `cobol/programs/POLNEW.cbl:163`: `MOVE 'POLNEW' TO POL-UPD-BY`
+
+### Q-520-1
+
+**Failed map RECEIVE falls through the whole program** (UNDWRT, POLRNW, error handling defect)
+
+When EXEC CICS RECEIVE MAP fails, 2000-READ-POLICY-DATA (UNDWRT) and 2000-READ-EXISTING-POLICY (POLRNW) set the error text and GO TO 2000-EXIT. The paragraph is PERFORMed without THRU, so GO TO leaves the PERFORM range: control continues at 2000-EXIT and falls through every following paragraph in source order instead of returning to 0000-MAIN-LOGIC. UNDWRT therefore scores an empty record (base 400), writes an UNDERWRITING_DECISIONS row and updates POLICIES for the received key, sends the TD message and result map, and only then sends the error text. POLRNW reaches 4000-CALCULATE-NEW-PREMIUM with a zero premium and divides by zero (as in Q-41). Found by the AB-520 characterization harness.
+
+- Owner: Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration
+- Proposed decision: **fix** (proposed - pending mainframe-team verification against production load module)
+- Rationale: Writing a decision or renewing after a failed screen receive is never intended. The Java APIs validate the request and reject it before any read or write. The legacy behaviour is recorded so the difference is explicit.
+- Parity / characterization note: Golden cases undwrt-decision/map-receive-failure and polrnw-renewal/map-receive-failure record today's fall-through. The Java versions return an error with no writes, recorded as known differences once this decision is signed off.
+- Lands in: AB-525, AB-526
+- Follow-up: FU-05
+- Evidence:
+  - `cobol/programs/UNDWRT.cbl:94`: `GO TO 2000-EXIT`
+  - `cobol/programs/POLRNW.cbl:87`: `GO TO 2000-EXIT`
+  - `cobol/programs/UNDWRT.cbl:59`: `PERFORM 2000-READ-POLICY-DATA`
 
 <!-- END GENERATED: quirk-details -->

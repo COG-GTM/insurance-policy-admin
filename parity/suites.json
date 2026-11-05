@@ -1,0 +1,82 @@
+{
+  "_comment": "Parity suites (AB-520). One fixture file and one golden directory per suite. java_adapter is the class in pas/pas-parity that runs the Java implementation against the same fixtures; null means the capability ticket has not wired it yet. See parity/README.md.",
+  "required_tags": [
+    "leap-year",
+    "zero-premium",
+    "policy-type-aut",
+    "policy-type-hom",
+    "policy-type-com",
+    "policy-type-lif",
+    "policy-type-hlt",
+    "policy-type-other",
+    "risk-score-299",
+    "risk-score-300",
+    "risk-score-599",
+    "risk-score-600",
+    "risk-score-799",
+    "risk-score-800",
+    "mid-term-endorsement"
+  ],
+  "suites": [
+    {
+      "suite": "prembat-rating",
+      "program": "PREMBAT",
+      "legacy_source": "cobol/programs/PREMBAT.cbl",
+      "stubs": "parity/cobol/stubs/PREMBAT.stubs",
+      "fixtures": "fixtures/prembat-rating.json",
+      "files": {
+        "PREMRPT": {
+          "record_length": 132
+        }
+      },
+      "owner_ticket": "AB-522",
+      "java_adapter": "com.acme.insurance.pas.parity.adapters.PrembatRatingAdapter",
+      "scope": "3200-CALCULATE-PREMIUM and the PREMIUMS row per policy"
+    },
+    {
+      "suite": "prembat-batch-control",
+      "program": "PREMBAT",
+      "legacy_source": "cobol/programs/PREMBAT.cbl",
+      "stubs": "parity/cobol/stubs/PREMBAT.stubs",
+      "fixtures": "fixtures/prembat-batch-control.json",
+      "files": {
+        "PREMRPT": {
+          "record_length": 132
+        }
+      },
+      "owner_ticket": "AB-523",
+      "java_adapter": null,
+      "scope": "Batch control flow: insert errors, return code, run report"
+    },
+    {
+      "suite": "undwrt-decision",
+      "program": "UNDWRT",
+      "legacy_source": "cobol/programs/UNDWRT.cbl",
+      "stubs": "parity/cobol/stubs/UNDWRT.stubs",
+      "fixtures": "fixtures/undwrt-decision.json",
+      "owner_ticket": "AB-525",
+      "java_adapter": null,
+      "scope": "Risk score, accumulation check, decision bands and the decision writes"
+    },
+    {
+      "suite": "polrnw-renewal",
+      "program": "POLRNW",
+      "legacy_source": "cobol/programs/POLRNW.cbl",
+      "stubs": "parity/cobol/stubs/POLRNW.stubs",
+      "fixtures": "fixtures/polrnw-renewal.json",
+      "owner_ticket": "AB-526",
+      "java_adapter": null,
+      "scope": "Eligibility, renewal premium and rate cap, new term dates, policy and coverage updates"
+    },
+    {
+      "suite": "polend-endorsement",
+      "program": "POLEND",
+      "legacy_source": "cobol/programs/POLEND.cbl",
+      "stubs": "parity/cobol/stubs/POLEND.stubs",
+      "fixtures": "fixtures/polend-endorsement.json",
+      "owner_ticket": "AB-526",
+      "java_adapter": null,
+      "scope": "Validation, pro-rata factor, endorsement row and premium update"
+    }
+  ]
+}

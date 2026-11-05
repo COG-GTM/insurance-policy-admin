@@ -1,0 +1,123 @@
+{
+  "suite": "prembat-batch-control",
+  "program": "PREMBAT",
+  "cases": [
+    {
+      "id": "insert-error-stops-run",
+      "description": "INSERT of the 2nd policy fails (-803 duplicate key): the fetch loop ends, the 3rd policy is never rated, return code 4",
+      "tags": [],
+      "quirks": [
+        "Q-25",
+        "Q-26",
+        "Q-28"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000031",
+            "POLICY_TYPE": "AUT",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          },
+          {
+            "POLICY_NUMBER": "POL-00000032",
+            "POLICY_TYPE": "HOM",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101",
+            "SQLCODE_INSERT_PREMIUMS": "-803"
+          },
+          {
+            "POLICY_NUMBER": "POL-00000033",
+            "POLICY_TYPE": "COM",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "invalid-term-date",
+      "description": "Term expiry 20250229 is not a date: DB2 rejects the INSERT (-181) and the run stops",
+      "tags": [
+        "leap-year"
+      ],
+      "quirks": [
+        "Q-25",
+        "Q-35"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000034",
+            "POLICY_TYPE": "AUT",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20240229",
+            "EXPIRY_DATE": "20250229"
+          },
+          {
+            "POLICY_NUMBER": "POL-00000035",
+            "POLICY_TYPE": "HOM",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "report-totals",
+      "description": "Clean run of three policies: report header, one line per policy, totals 3/3/0",
+      "tags": [],
+      "quirks": [
+        "Q-29"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000036",
+            "POLICY_TYPE": "AUT",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          },
+          {
+            "POLICY_NUMBER": "POL-00000037",
+            "POLICY_TYPE": "LIF",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          },
+          {
+            "POLICY_NUMBER": "POL-00000038",
+            "POLICY_TYPE": "HLT",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -8,6 +8,7 @@ Working documents for epic **AB-516** (migrating the PAS off COBOL/CICS/DB2 to J
 | [quirk-register.md](quirk-register.md) | AB-517 | Every quirk/defect with an owner and a preserve/fix decision (source: [quirks.json](quirks.json)) |
 | [open-questions.md](open-questions.md) | AB-517 | Open questions written as ready-to-file follow-up tickets |
 | [legacy-facts.json](legacy-facts.json) | AB-517 | Facts extracted from the COBOL/JCL/DDL by `tools/discovery/pas_inventory.py` (generated) |
+| [parity/](../../parity/README.md) | AB-520 | COBOL characterization harness: fixtures, golden files from GnuCOBOL runs, known differences linked to `fix` decisions (`make parity`) |
 
 ## Keeping the inventory honest
 

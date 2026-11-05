@@ -1,0 +1,94 @@
+# UNDWRT harness stubs (AB-520). One @stub per EXEC block, in source order (see PREMBAT.stubs).
+# The BMS map UWRTMAPS is not in the repository: RECEIVE only supplies the policy number (MAP_POLICY_NUMBER)
+# and the response code (RESP, default 0 = NORMAL). The DB2 reads come from fixture values.
+
+@stub 1 CICS ASKTIME
+           CONTINUE
+@end
+
+@stub 2 CICS FORMATTIME
+           ACCEPT WS-CURRENT-DATE FROM DATE YYYYMMDD
+@end
+
+@stub 3 CICS RECEIVE MAP('UWRTMAP')
+           @get MAP_POLICY_NUMBER POLICY-NUMBER
+           @get-num RESP WS-RESPONSE-CODE
+@end
+
+# Fault injection SQLCODE_SELECT_POLICY=100: policy or policyholder not found.
+@stub 4 SQL SELECT P.POLICY_NUMBER, P.POLICY_TYPE
+           @sqlcode SELECT_POLICY
+           IF SQLCODE = 0
+               @get POLICY_TYPE POLICY-TYPE
+               @get-num TOTAL_PREMIUM POLICY-TOTAL-PREMIUM
+               @get-num COVERAGE_LIMIT POLICY-LIMIT
+               @get BRANCH_CODE POLICY-BRANCH-CODE
+               @get CUST_TYPE CUST-TYPE
+               @get-num CREDIT_SCORE CUST-CREDIT-SCORE
+               @get RISK_TIER CUST-RISK-TIER
+           END-IF
+@end
+
+# ACMEINS.CLAIMS over the last 5 years (owned by the Claims team).
+@stub 5 SQL SELECT COUNT(*), COALESCE(SUM(INCURRED_AMOUNT), 0)
+           @sqlcode SELECT_CLAIMS
+           @get-num CLAIM_COUNT WS-CLAIM-COUNT
+           @get-num TOTAL_INCURRED WS-TOTAL-INCURRED
+@end
+
+@stub 6 SQL SELECT COALESCE(SUM(COVERAGE_LIMIT), 0)
+           @sqlcode SELECT_ACCUMULATION
+           @get-num BRANCH_ACCUMULATED_LIMIT WS-ACCUM-LIMIT
+@end
+
+@stub 7 SQL INSERT INTO UNDERWRITING_DECISIONS
+           @sqlcode INSERT_UNDERWRITING_DECISIONS
+           @effect SQL INSERT UNDERWRITING_DECISIONS
+           @effect-sqlcode
+           @text POLICY_NUMBER POLICY-NUMBER
+           @text DECISION_DATE WS-CURRENT-DATE
+           @text DECISION_CODE WS-DECISION
+           @num RISK_SCORE WS-RISK-SCORE 0
+           @text DECISION_REASON WS-DECISION-REASON
+           @text-literal UNDERWRITER_ID SYSTEM
+           @probe WS-CLAIM-COUNT WS-CLAIM-COUNT 0
+           @probe WS-LOSS-RATIO WS-LOSS-RATIO 2
+@end
+
+@stub 8 SQL UPDATE POLICIES SET UW_STATUS = :WS-DECISION
+           @sqlcode UPDATE_POLICIES
+           @effect SQL UPDATE POLICIES
+           @effect-sqlcode
+           @text POLICY_NUMBER POLICY-NUMBER
+           @text UW_STATUS WS-DECISION
+           @num RISK_SCORE WS-RISK-SCORE 0
+           @text-literal UPDATED_BY UNDWRT
+@end
+
+# The TD queue message is the whole POLICY-RECORD; the fields set by UNDWRT are recorded.
+@stub 9 CICS WRITEQ TD QUEUE(WS-MQ-QUEUE)
+           @effect CICS WRITEQ TD
+           @text QUEUE WS-MQ-QUEUE
+           @text POLICY_NUMBER POLICY-NUMBER
+           @text POLICY_UW_STATUS POLICY-UW-STATUS
+           @num POLICY_RISK_SCORE POLICY-RISK-SCORE 0
+           MOVE 0 TO WS-RESPONSE-CODE
+@end
+
+@stub 10 CICS SEND MAP('UWRTRES')
+           @effect CICS SEND MAP UWRTRES
+           @text POLICY_NUMBER POLICY-NUMBER
+           @text POLICY_UW_STATUS POLICY-UW-STATUS
+           @num POLICY_RISK_SCORE POLICY-RISK-SCORE 0
+@end
+
+@stub 11 CICS SEND TEXT
+           @effect CICS SEND TEXT
+           @text TEXT WS-ERROR-MSG
+@end
+
+@stub 12 CICS RETURN TRANSID('PUWR')
+           @effect CICS RETURN
+           @text-literal TRANSID PUWR
+           STOP RUN
+@end

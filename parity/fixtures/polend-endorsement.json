@@ -1,0 +1,262 @@
+{
+  "suite": "polend-endorsement",
+  "program": "POLEND",
+  "cases": [
+    {
+      "id": "mid-term-low-values-type",
+      "description": "Mid-term endorsement, endorsement type storage LOW-VALUES: passes validation, 183 of 365 days remain (factor 0.501369), adjustment 0.00, premium unchanged",
+      "tags": [
+        "mid-term-endorsement"
+      ],
+      "quirks": [
+        "Q-19",
+        "Q-20"
+      ],
+      "run_date": "2025-07-02",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000301",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250101",
+        "EXPIRY_DATE": "20260101",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "LOW-VALUES"
+      }
+    },
+    {
+      "id": "mid-term-cad-type",
+      "description": "Mid-term endorsement with type CAD in storage: same result, CAD has no type-specific processing",
+      "tags": [
+        "mid-term-endorsement"
+      ],
+      "quirks": [
+        "Q-19",
+        "Q-20",
+        "Q-21"
+      ],
+      "run_date": "2025-07-02",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000302",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250101",
+        "EXPIRY_DATE": "20260101",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "CAD"
+      }
+    },
+    {
+      "id": "mid-term-cancel-type",
+      "description": "Mid-term endorsement with type CAN: the policy is not cancelled",
+      "tags": [
+        "mid-term-endorsement"
+      ],
+      "quirks": [
+        "Q-21"
+      ],
+      "run_date": "2025-10-15",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000303",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250101",
+        "EXPIRY_DATE": "20260101",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "CAN"
+      }
+    },
+    {
+      "id": "type-spaces-rejected",
+      "description": "Endorsement type SPACES (GnuCOBOL default storage): 'ENDORSEMENT TYPE IS REQUIRED', nothing written",
+      "tags": [
+        "mid-term-endorsement"
+      ],
+      "quirks": [
+        "Q-19"
+      ],
+      "run_date": "2025-07-02",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000304",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250101",
+        "EXPIRY_DATE": "20260101",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "SPACES"
+      }
+    },
+    {
+      "id": "leap-year-term",
+      "description": "Term 1 Jan 2024 - 1 Jan 2025 has 366 days; endorsed 1 Mar 2024 with 306 days remaining",
+      "tags": [
+        "leap-year",
+        "mid-term-endorsement"
+      ],
+      "quirks": [
+        "Q-20"
+      ],
+      "run_date": "2024-03-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000305",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20240101",
+        "EXPIRY_DATE": "20250101",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "LOW-VALUES"
+      }
+    },
+    {
+      "id": "leap-day-start",
+      "description": "Term 29 Feb 2024 - 28 Feb 2025 (365 days), endorsed on 29 Feb 2024",
+      "tags": [
+        "leap-year",
+        "mid-term-endorsement"
+      ],
+      "quirks": [
+        "Q-20"
+      ],
+      "run_date": "2024-02-29",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000306",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20240229",
+        "EXPIRY_DATE": "20250228",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "LOW-VALUES"
+      }
+    },
+    {
+      "id": "zero-length-term",
+      "description": "Effective = expiry: days in term 0, the factor defaults to 1",
+      "tags": [],
+      "quirks": [
+        "Q-20"
+      ],
+      "run_date": "2025-06-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000307",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250601",
+        "EXPIRY_DATE": "20250601",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "LOW-VALUES"
+      }
+    },
+    {
+      "id": "term-start",
+      "description": "Endorsed on the effective date: all 365 days remain, factor 1.000000",
+      "tags": [
+        "mid-term-endorsement"
+      ],
+      "quirks": [
+        "Q-20"
+      ],
+      "run_date": "2025-01-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000308",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250101",
+        "EXPIRY_DATE": "20260101",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "LOW-VALUES"
+      }
+    },
+    {
+      "id": "after-expiry",
+      "description": "Endorsed 31 days after expiry: unsigned days remaining store 31, not -31",
+      "tags": [],
+      "quirks": [
+        "Q-20"
+      ],
+      "run_date": "2026-02-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000309",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250101",
+        "EXPIRY_DATE": "20260101",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "LOW-VALUES"
+      }
+    },
+    {
+      "id": "multi-year-term-truncated",
+      "description": "Three-year term (1096 days) is truncated to 096 in PIC 9(03)",
+      "tags": [
+        "leap-year",
+        "mid-term-endorsement"
+      ],
+      "quirks": [
+        "Q-20"
+      ],
+      "run_date": "2023-07-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000310",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20220101",
+        "EXPIRY_DATE": "20250101",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "LOW-VALUES"
+      }
+    },
+    {
+      "id": "zero-premium",
+      "description": "Mid-term endorsement on a 0.00 premium policy",
+      "tags": [
+        "zero-premium",
+        "mid-term-endorsement"
+      ],
+      "quirks": [
+        "Q-20"
+      ],
+      "run_date": "2025-07-02",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000311",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250101",
+        "EXPIRY_DATE": "20260101",
+        "TOTAL_PREMIUM": "0.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "LOW-VALUES"
+      }
+    },
+    {
+      "id": "inactive-policy-rejected",
+      "description": "Cancelled policy: 'ONLY ACTIVE POLICIES CAN BE ENDORSED', nothing written",
+      "tags": [],
+      "quirks": [],
+      "run_date": "2025-07-02",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000312",
+        "POLICY_STATUS": "CN",
+        "EFFECTIVE_DATE": "20250101",
+        "EXPIRY_DATE": "20260101",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "LOW-VALUES"
+      }
+    },
+    {
+      "id": "policy-not-found",
+      "description": "No POLICIES row: 'POLICY NOT FOUND', nothing written",
+      "tags": [],
+      "quirks": [],
+      "run_date": "2025-07-02",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000313",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250101",
+        "EXPIRY_DATE": "20260101",
+        "TOTAL_PREMIUM": "1200.00",
+        "LAST_ENDORSEMENT_SEQ": "2",
+        "STORAGE_WS_ENDORSEMENT_TYPE": "LOW-VALUES",
+        "SQLCODE_SELECT_POLICY": "100"
+      }
+    }
+  ]
+}

@@ -101,6 +101,8 @@ docker-compose.yml       local PostgreSQL 16, Kafka and the policy service
 
 Build, test and start it locally with one command (JDK 21, Maven 3.9+ and Docker required): `make pas`. If JDK 21 is not your default JDK, pass it: `make pas PAS_JAVA_HOME=/path/to/jdk-21` (on an older JDK the Maven enforcer stops the build). CI and repository conventions: [docs/pas/](docs/pas/ci-and-conventions.md).
 
+Parity with the COBOL is proven by the characterization harness in [`parity/`](parity/README.md): the legacy programs run under GnuCOBOL against controlled fixtures, their outputs are stored as golden files, and the Java implementation must match them to the cent. Run it with `make parity`.
+
 ## Team Contacts
 
 - **Mainframe Team:** mainframe-ops@acme.com
