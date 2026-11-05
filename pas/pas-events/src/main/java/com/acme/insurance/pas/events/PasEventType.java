@@ -10,6 +10,13 @@ import java.util.Optional;
 public enum PasEventType {
   /** A new policy was created (POLNEW). New: no TD queue carried it. */
   POLICY_CREATED("pas.policy.created", null),
+  /** A policy was renewed (POLRNW, AB-528). New: POLRNW wrote no queue. */
+  POLICY_RENEWED("pas.policy.renewed", null),
+  /**
+   * A policy was endorsed (POLEND, AB-528). Replaces the volatile TS queue {@code
+   * ENDORSEMENT-AUDIT} (quirk Q-23); the durable audit row stays in PASAPP.POLICY_CHANGE_AUDIT.
+   */
+  POLICY_ENDORSED("pas.policy.endorsed", "ENDORSEMENT-AUDIT"),
   /** A new policy waits for underwriting (POLNEW {@code 7000-SEND-MQ-MESSAGE}). */
   UNDERWRITING_REQUESTED("pas.underwriting.requested", "ACME.PAS.UNDERWRITING.REQUEST"),
   /** An underwriting decision or override (UNDWRT {@code 7000-SEND-MQ-NOTIFICATION}). */
