@@ -66,3 +66,22 @@ pas-scan: pas-images
 	    -v "$${HOME}/.cache/trivy:/root/.cache/trivy" $(TRIVY_IMAGE) image --scanners vuln \
 	    --severity HIGH,CRITICAL --ignorefile /.trivyignore --exit-code 1 --no-progress $$image || exit 1; \
 	done
+
+# --- COBOL characterization harness (parity/, AB-520). GnuCOBOL 3.x (cobc) for the COBOL side, JDK 21 for the Java side. ---
+.PHONY: parity parity-check parity-record parity-java
+
+# Both halves: the golden files are reproduced from COBOL, and Java matches them to the cent.
+parity: parity-check parity-java
+
+# Harness unit tests, registry/fixture/known-difference validation, COBOL re-run vs the golden files.
+parity-check:
+	python3 -m unittest discover -s tools/parity -p 'test_*.py'
+	python3 tools/parity/parity.py check
+
+# Re-record golden files from the COBOL run (all suites, or SUITE=<name>). Review the diff before committing.
+parity-record:
+	python3 tools/parity/parity.py record $(if $(SUITE),--suite $(SUITE))
+
+# Java adapters against the golden files (pas/pas-parity); fails on any unexplained difference.
+parity-java:
+	$(PAS_MVN) -pl pas-parity -am verify

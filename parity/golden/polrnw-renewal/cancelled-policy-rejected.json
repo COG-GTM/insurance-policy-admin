@@ -1,0 +1,29 @@
+{
+  "suite": "polrnw-renewal",
+  "case": "cancelled-policy-rejected",
+  "program": "POLRNW",
+  "description": "Status CN is not eligible: error text, no update",
+  "legacy_source": {
+    "path": "cobol/programs/POLRNW.cbl",
+    "sha256": "57d80017f7372ef3f9d1e452ad06e1180fd3ad426c7678f49d593e3614ce5e9d"
+  },
+  "run_date": "2025-03-01",
+  "outcome": {
+    "status": "completed",
+    "return_code": 0
+  },
+  "effects": [
+    {
+      "op": "CICS SEND TEXT",
+      "text": {
+        "TEXT": "POLICY NOT ELIGIBLE FOR RENEWAL"
+      }
+    },
+    {
+      "op": "CICS RETURN",
+      "text": {
+        "TRANSID": "PRWL"
+      }
+    }
+  ]
+}

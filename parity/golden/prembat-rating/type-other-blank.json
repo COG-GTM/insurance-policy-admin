@@ -1,0 +1,57 @@
+{
+  "suite": "prembat-rating",
+  "case": "type-other-blank",
+  "program": "PREMBAT",
+  "description": "Blank policy type takes the WHEN OTHER base 1000.00",
+  "legacy_source": {
+    "path": "cobol/programs/PREMBAT.cbl",
+    "sha256": "8fd460149e6cc7ca1d6bd639e0f2d0e0b92e951cededcd69c7d4c0125d575690"
+  },
+  "run_date": "2025-03-01",
+  "outcome": {
+    "status": "completed",
+    "return_code": 0
+  },
+  "effects": [
+    {
+      "op": "SQL INSERT PREMIUMS",
+      "sqlcode": 0,
+      "text": {
+        "POLICY_NUMBER": "POL-00000012",
+        "TERM_EFFECTIVE_DATE": "20250101",
+        "TERM_EXPIRY_DATE": "20260101",
+        "INSTALLMENT_CODE": "AN",
+        "CALC_DATE": "20250301",
+        "CALC_BY": "PREMBAT"
+      },
+      "numbers": {
+        "COVERAGE_SEQ": "1",
+        "BASE_RATE": "1000.0000",
+        "TERRITORY_FACTOR": "1.0000",
+        "CLASS_FACTOR": "1.0000",
+        "EXPERIENCE_MOD": "1.0000",
+        "SCHEDULE_MOD": "1.0000",
+        "DISCOUNT_PCT": "0.00",
+        "SURCHARGE_AMT": "25.00",
+        "TAX_AMT": "35.00",
+        "TOTAL_PREMIUM": "1060.00"
+      },
+      "probes": {
+        "WS-TERR-PREMIUM": "1000.00",
+        "WS-CLASS-PREMIUM": "1000.00",
+        "WS-MOD-PREMIUM": "1000.00"
+      }
+    }
+  ],
+  "artifacts": {
+    "PREMRPT": [
+      "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20250301",
+      "------------------------------------------------------------------------------------------------------------------------------------",
+      "POL-00000012 PREMIUM: \\x00\\x00\\x01\\x06\\x00\\x0C",
+      "====================================================================================================================================",
+      "TOTAL POLICIES READ:    0000001",
+      "TOTAL POLICIES UPDATED: 0000001",
+      "TOTAL ERRORS:           0000000"
+    ]
+  }
+}

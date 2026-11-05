@@ -62,6 +62,7 @@ Rules for this register:
 | [Q-518-1](#q-518-1) | Audit user columns hold only 8 characters | POLICIES, ENDORSEMENTS, UNDERWRITING_DECISIONS, PREMIUMS; POLICY-RECORD, PREMIUM-RECORD | Security + DBA team (db2-admin@acme.com) | **preserve** | proposed - pending ARB and Security sign-off (ADR 0001 D5) | AB-521, AB-525, AB-526 | `sql/ddl/create-tables.sql:47`<br>`sql/ddl/create-tables.sql:120`<br>`cobol/copybooks/POLICY-RECORD.cpy:48`<br>`cobol/programs/POLRNW.cbl:163`<br>`cobol/programs/UNDWRT.cbl:223`<br>`cobol/programs/POLNEW.cbl:163` |
 | [Q-521-1](#q-521-1) | Copybook last-updated fields hold a date, the columns a timestamp | POLICIES.LAST_UPDATED, POLICY_HOLDERS.LAST_UPDATED; POLICY-RECORD, CUSTOMER-RECORD | Data governance + DBA team | **preserve** | proposed - pending DBA and Data governance sign-off | AB-521 | `cobol/copybooks/POLICY-RECORD.cpy:47`<br>`cobol/copybooks/CUSTOMER-RECORD.cpy:41`<br>`sql/ddl/create-tables.sql:46` |
 | [Q-521-2](#q-521-2) | Nullable numeric columns have no null in the copybooks | POLICIES.RENEWAL_COUNT, POLICIES.RISK_SCORE, COVERAGES.COINSURANCE_PCT, POLICY_HOLDERS.CREDIT_SCORE; POLICY-RECORD, COVERAGE-RECORD, CUSTOMER-RECORD | Data governance + DBA team | **preserve** | proposed - pending DBA and Data governance sign-off | AB-521 | `cobol/copybooks/CUSTOMER-RECORD.cpy:32`<br>`sql/ddl/create-tables.sql:167` |
+| [Q-520-1](#q-520-1) | Failed map RECEIVE falls through the whole program | UNDWRT, POLRNW | Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration | **fix** | proposed - pending mainframe-team verification against production load module | AB-525, AB-526 | `cobol/programs/UNDWRT.cbl:94`<br>`cobol/programs/POLRNW.cbl:87`<br>`cobol/programs/UNDWRT.cbl:59` |
 <!-- END GENERATED: quirk-table -->
 
 ## Details
@@ -760,5 +761,22 @@ RENEWAL_COUNT, RISK_SCORE, COINSURANCE_PCT and CREDIT_SCORE are nullable SMALLIN
 - Evidence:
   - `cobol/copybooks/CUSTOMER-RECORD.cpy:32`: `CUST-CREDIT-SCORE`
   - `sql/ddl/create-tables.sql:167`: `CREDIT_SCORE SMALLINT`
+
+### Q-520-1
+
+**Failed map RECEIVE falls through the whole program** (UNDWRT, POLRNW, error handling defect)
+
+When EXEC CICS RECEIVE MAP fails, 2000-READ-POLICY-DATA (UNDWRT) and 2000-READ-EXISTING-POLICY (POLRNW) set the error text and GO TO 2000-EXIT. The paragraph is PERFORMed without THRU, so GO TO leaves the PERFORM range: control continues at 2000-EXIT and falls through every following paragraph in source order instead of returning to 0000-MAIN-LOGIC. UNDWRT therefore scores an empty record (base 400), writes an UNDERWRITING_DECISIONS row and updates POLICIES for the received key, sends the TD message and result map, and only then sends the error text. POLRNW reaches 4000-CALCULATE-NEW-PREMIUM with a zero premium and divides by zero (as in Q-41). Found by the AB-520 characterization harness.
+
+- Owner: Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration
+- Proposed decision: **fix** (proposed - pending mainframe-team verification against production load module)
+- Rationale: Writing a decision or renewing after a failed screen receive is never intended. The Java APIs validate the request and reject it before any read or write. The legacy behaviour is recorded so the difference is explicit.
+- Parity / characterization note: Golden cases undwrt-decision/map-receive-failure and polrnw-renewal/map-receive-failure record today's fall-through. The Java versions return an error with no writes, recorded as known differences once this decision is signed off.
+- Lands in: AB-525, AB-526
+- Follow-up: FU-05
+- Evidence:
+  - `cobol/programs/UNDWRT.cbl:94`: `GO TO 2000-EXIT`
+  - `cobol/programs/POLRNW.cbl:87`: `GO TO 2000-EXIT`
+  - `cobol/programs/UNDWRT.cbl:59`: `PERFORM 2000-READ-POLICY-DATA`
 
 <!-- END GENERATED: quirk-details -->

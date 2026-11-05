@@ -1,0 +1,337 @@
+{
+  "suite": "prembat-rating",
+  "program": "PREMBAT",
+  "cases": [
+    {
+      "id": "type-aut",
+      "description": "Auto: base 850.00, tax 3.5% truncated, flat 25.00 surcharge",
+      "tags": [
+        "policy-type-aut"
+      ],
+      "quirks": [
+        "Q-27",
+        "Q-03"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000001",
+            "POLICY_TYPE": "AUT",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "type-hom",
+      "description": "Home: base 1200.00, tax 3.5% truncated, flat 25.00 surcharge",
+      "tags": [
+        "policy-type-hom"
+      ],
+      "quirks": [
+        "Q-27",
+        "Q-03"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000002",
+            "POLICY_TYPE": "HOM",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "type-com",
+      "description": "Commercial: base 5000.00, tax 3.5% truncated, flat 25.00 surcharge",
+      "tags": [
+        "policy-type-com"
+      ],
+      "quirks": [
+        "Q-27",
+        "Q-03"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000003",
+            "POLICY_TYPE": "COM",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "type-lif",
+      "description": "Life: base 400.00, tax 3.5% truncated, flat 25.00 surcharge",
+      "tags": [
+        "policy-type-lif"
+      ],
+      "quirks": [
+        "Q-27",
+        "Q-03"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000004",
+            "POLICY_TYPE": "LIF",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "type-hlt",
+      "description": "Health: base 3500.00, tax 3.5% truncated, flat 25.00 surcharge",
+      "tags": [
+        "policy-type-hlt"
+      ],
+      "quirks": [
+        "Q-27",
+        "Q-03"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000005",
+            "POLICY_TYPE": "HLT",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "type-other-unknown-code",
+      "description": "Unknown policy type XYZ takes the WHEN OTHER base 1000.00",
+      "tags": [
+        "policy-type-other"
+      ],
+      "quirks": [
+        "Q-27"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000011",
+            "POLICY_TYPE": "XYZ",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "type-other-blank",
+      "description": "Blank policy type takes the WHEN OTHER base 1000.00",
+      "tags": [
+        "policy-type-other"
+      ],
+      "quirks": [
+        "Q-27",
+        "Q-35"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000012",
+            "POLICY_TYPE": "   ",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "type-other-lowercase",
+      "description": "Lower-case 'aut' does not match AUT (88-levels compare exactly) and takes WHEN OTHER",
+      "tags": [
+        "policy-type-other"
+      ],
+      "quirks": [
+        "Q-27",
+        "Q-35"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000013",
+            "POLICY_TYPE": "aut",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "leap-year-term",
+      "description": "Term starting 29 Feb 2024: term dates are copied unchanged into PREMIUMS",
+      "tags": [
+        "leap-year",
+        "policy-type-hom"
+      ],
+      "quirks": [],
+      "run_date": "2024-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000014",
+            "POLICY_TYPE": "HOM",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20240229",
+            "EXPIRY_DATE": "20250228"
+          }
+        ]
+      }
+    },
+    {
+      "id": "zero-premium",
+      "description": "Current TOTAL_PREMIUM 0.00 is fetched but not used: the premium is rated from the policy type only",
+      "tags": [
+        "zero-premium",
+        "policy-type-aut"
+      ],
+      "quirks": [
+        "Q-27"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000015",
+            "POLICY_TYPE": "AUT",
+            "TOTAL_PREMIUM": "0.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mixed-book",
+      "description": "Book of every policy type plus OTHER, rated in cursor order",
+      "tags": [
+        "policy-type-aut",
+        "policy-type-hom",
+        "policy-type-com",
+        "policy-type-lif",
+        "policy-type-hlt",
+        "policy-type-other"
+      ],
+      "quirks": [
+        "Q-27"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": [
+          {
+            "POLICY_NUMBER": "POL-00000021",
+            "POLICY_TYPE": "AUT",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          },
+          {
+            "POLICY_NUMBER": "POL-00000022",
+            "POLICY_TYPE": "COM",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          },
+          {
+            "POLICY_NUMBER": "POL-00000023",
+            "POLICY_TYPE": "HLT",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          },
+          {
+            "POLICY_NUMBER": "POL-00000024",
+            "POLICY_TYPE": "HOM",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          },
+          {
+            "POLICY_NUMBER": "POL-00000025",
+            "POLICY_TYPE": "LIF",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          },
+          {
+            "POLICY_NUMBER": "POL-00000026",
+            "POLICY_TYPE": "ZZZ",
+            "TOTAL_PREMIUM": "1000.00",
+            "DEDUCTIBLE": "500.00",
+            "COVERAGE_LIMIT": "250000.00",
+            "EFFECTIVE_DATE": "20250101",
+            "EXPIRY_DATE": "20260101"
+          }
+        ]
+      }
+    },
+    {
+      "id": "empty-book",
+      "description": "No active policies: no PREMIUMS rows, return code 0",
+      "tags": [],
+      "quirks": [],
+      "run_date": "2025-03-01",
+      "input": {
+        "ROWS": []
+      }
+    }
+  ]
+}

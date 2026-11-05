@@ -1,0 +1,82 @@
+# PREMBAT harness stubs (AB-520). One @stub per EXEC block, in source order; the fingerprint must
+# match the start of the block text, so any change to the legacy program fails the build.
+# Fixture names: PX_<NAME>, per policy row PX_R<nnnn>_<NAME>. Macros: see parity/README.md.
+# ACCEPT ... FROM DATE uses the fixture run date (COB_CURRENT_DATE). PREMRPT is written to DD_PREMRPT.
+
+@stub 1 SQL DECLARE TERR_CURSOR CURSOR FOR
+           CONTINUE
+@end
+
+# Q-03: the territory cursor is opened and closed without a FETCH.
+@stub 2 SQL OPEN TERR_CURSOR
+           @sqlcode OPEN_TERR_CURSOR
+@end
+
+@stub 3 SQL CLOSE TERR_CURSOR
+           @sqlcode CLOSE_TERR_CURSOR
+@end
+
+@stub 4 SQL DECLARE POL_CURSOR CURSOR FOR SELECT POLICY_NUMBER
+           CONTINUE
+@end
+
+# Active policies come from fixture ROWS (ORDER BY POLICY_NUMBER is the fixture order).
+@stub 5 SQL OPEN POL_CURSOR
+           @get-num ROWS PX-ROWS
+           MOVE 0 TO PX-ROW
+           @sqlcode OPEN_POL_CURSOR
+@end
+
+@stub 6 SQL CLOSE POL_CURSOR
+           @sqlcode CLOSE_POL_CURSOR
+@end
+
+@stub 7 SQL FETCH POL_CURSOR INTO :POLICY-NUMBER, :POLICY-TYPE
+           ADD 1 TO PX-ROW
+           IF PX-ROW > PX-ROWS
+               MOVE 100 TO SQLCODE
+           ELSE
+               @row-scope on
+               @get POLICY_NUMBER POLICY-NUMBER
+               @get POLICY_TYPE POLICY-TYPE
+               @get-num TOTAL_PREMIUM POLICY-TOTAL-PREMIUM
+               @get-num DEDUCTIBLE POLICY-DEDUCTIBLE
+               @get-num COVERAGE_LIMIT POLICY-LIMIT
+               @get-num EFFECTIVE_DATE POLICY-EFFECTIVE-DATE
+               @get-num EXPIRY_DATE POLICY-EXPIRY-DATE
+               @sqlcode FETCH_POL_CURSOR
+               @row-scope off
+           END-IF
+@end
+
+@stub 8 SQL INSERT INTO PREMIUMS
+           @row-scope on
+           @sqlcode INSERT_PREMIUMS
+           @row-scope off
+           IF SQLCODE = 0
+               @db2-date PREM-TERM-EFF-DATE
+               @db2-date PREM-TERM-EXP-DATE
+               @db2-date PREM-CALC-DATE
+           END-IF
+           @effect SQL INSERT PREMIUMS
+           @effect-sqlcode
+           @text POLICY_NUMBER PREM-POLICY-NUMBER
+           @num COVERAGE_SEQ PREM-COVERAGE-SEQ 0
+           @text TERM_EFFECTIVE_DATE PREM-TERM-EFF-DATE
+           @text TERM_EXPIRY_DATE PREM-TERM-EXP-DATE
+           @num BASE_RATE PREM-BASE-RATE 4
+           @num-literal TERRITORY_FACTOR 1.0000 4
+           @num-literal CLASS_FACTOR 1.0000 4
+           @num-literal EXPERIENCE_MOD 1.0000 4
+           @num-literal SCHEDULE_MOD 1.0000 4
+           @num-literal DISCOUNT_PCT 0.00 2
+           @num SURCHARGE_AMT PREM-SURCHARGE-AMT 2
+           @num TAX_AMT PREM-TAX-AMT 2
+           @num TOTAL_PREMIUM PREM-TOTAL-PREMIUM 2
+           @text-literal INSTALLMENT_CODE AN
+           @text CALC_DATE PREM-CALC-DATE
+           @text CALC_BY PREM-CALC-BY
+           @probe WS-TERR-PREMIUM WS-TERR-PREMIUM 2
+           @probe WS-CLASS-PREMIUM WS-CLASS-PREMIUM 2
+           @probe WS-MOD-PREMIUM WS-MOD-PREMIUM 2
+@end

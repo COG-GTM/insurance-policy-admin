@@ -24,6 +24,7 @@ If JDK 21 is not your default, pass it: `make pas PAS_JAVA_HOME=/path/to/jdk-21`
 | `make pas-down` | Stops the stack (the database volume is kept; `docker compose down -v` drops it) |
 | `make pas-images` | Builds both container images |
 | `make pas-scan` | Trivy scan of both images; HIGH/CRITICAL findings fail unless accepted in `pas/.trivyignore` |
+| `make parity` | COBOL characterization harness: re-runs the COBOL fixtures under GnuCOBOL against the golden files, then `pas-parity` checks Java against them to the cent ([parity/README.md](../parity/README.md)) |
 
 One-shot batch run against the local stack: `docker compose --profile batch run --rm pas-batch`.
 
@@ -39,6 +40,7 @@ One-shot batch run against the local stack: `docker compose --profile batch run 
 | `pas-policy-service` | application | REST API, security, policy use cases (SVC-01) | AB-524 | all libraries |
 | `pas-batch` | application | Spring Batch premium run and extracts (SVC-02) | AB-523/527 | all libraries, never `pas-policy-service` |
 | `pas-architecture-tests` | tests | ArchUnit rules over all modules | AB-519 | - |
+| `pas-parity` | tests | Java adapters run against the COBOL characterization golden files ([parity/](../parity/README.md)) | AB-520 | library modules (test scope) |
 
 The rules are enforced twice: the Maven enforcer (`bannedDependencies`) fails the build on a forbidden
 module dependency, and `pas-architecture-tests` checks the compiled classes (layer rules, no framework

@@ -1,0 +1,254 @@
+{
+  "suite": "polrnw-renewal",
+  "program": "POLRNW",
+  "cases": [
+    {
+      "id": "standard-renewal",
+      "description": "Active policy: premium x 1.05, new term from the old expiry, renewal count + 1, UW status PN",
+      "tags": [],
+      "quirks": [
+        "Q-05",
+        "Q-39"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000201",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "AC",
+        "TOTAL_PREMIUM": "1000.00",
+        "EXPIRY_DATE": "20250315",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0"
+      }
+    },
+    {
+      "id": "truncated-premium",
+      "description": "333.33 x 1.05 = 349.9965 is truncated to 349.99, rate change 4.99%",
+      "tags": [],
+      "quirks": [
+        "Q-06",
+        "Q-05"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000202",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "AC",
+        "TOTAL_PREMIUM": "333.33",
+        "EXPIRY_DATE": "20250315",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0"
+      }
+    },
+    {
+      "id": "leap-day-expiry",
+      "description": "Expiry 29 Feb 2024 + 10000 = 20250229: DB2 rejects both updates (-181), the error is sent and processing continues to the confirmation",
+      "tags": [
+        "leap-year"
+      ],
+      "quirks": [
+        "Q-01",
+        "Q-07"
+      ],
+      "run_date": "2024-02-20",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000203",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "AC",
+        "TOTAL_PREMIUM": "1000.00",
+        "EXPIRY_DATE": "20240229",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0"
+      }
+    },
+    {
+      "id": "leap-year-term-feb-28",
+      "description": "Expiry 28 Feb 2023: the new term ends 28 Feb 2024 (a leap year), valid",
+      "tags": [
+        "leap-year"
+      ],
+      "quirks": [
+        "Q-01"
+      ],
+      "run_date": "2023-02-20",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000204",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "AC",
+        "TOTAL_PREMIUM": "1000.00",
+        "EXPIRY_DATE": "20230228",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0"
+      }
+    },
+    {
+      "id": "leap-year-term-mar-01",
+      "description": "Expiry 1 Mar 2023: the new term spans 29 Feb 2024",
+      "tags": [
+        "leap-year"
+      ],
+      "quirks": [
+        "Q-01"
+      ],
+      "run_date": "2023-02-20",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000205",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "AC",
+        "TOTAL_PREMIUM": "1000.00",
+        "EXPIRY_DATE": "20230301",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0"
+      }
+    },
+    {
+      "id": "year-end-expiry",
+      "description": "Expiry 31 Dec 2024 renews to 31 Dec 2025",
+      "tags": [],
+      "quirks": [],
+      "run_date": "2024-12-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000206",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "AC",
+        "TOTAL_PREMIUM": "1000.00",
+        "EXPIRY_DATE": "20241231",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0"
+      }
+    },
+    {
+      "id": "zero-premium",
+      "description": "TOTAL_PREMIUM 0.00: the rate-change division by zero raises a decimal-divide exception (S0CB), the task abends and nothing is written",
+      "tags": [
+        "zero-premium"
+      ],
+      "quirks": [
+        "Q-41"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000207",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "AC",
+        "TOTAL_PREMIUM": "0.00",
+        "EXPIRY_DATE": "20250315",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0"
+      }
+    },
+    {
+      "id": "expired-policy-eligible",
+      "description": "Status EX is eligible for renewal",
+      "tags": [],
+      "quirks": [
+        "Q-02"
+      ],
+      "run_date": "2025-04-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000208",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "EX",
+        "TOTAL_PREMIUM": "1000.00",
+        "EXPIRY_DATE": "20250315",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0"
+      }
+    },
+    {
+      "id": "cancelled-policy-rejected",
+      "description": "Status CN is not eligible: error text, no update",
+      "tags": [],
+      "quirks": [],
+      "run_date": "2025-03-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000209",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "CN",
+        "TOTAL_PREMIUM": "1000.00",
+        "EXPIRY_DATE": "20250315",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0"
+      }
+    },
+    {
+      "id": "pending-policy-rejected",
+      "description": "Status PN is not eligible: error text, no update",
+      "tags": [],
+      "quirks": [
+        "Q-40"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000210",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "PN",
+        "TOTAL_PREMIUM": "1000.00",
+        "EXPIRY_DATE": "20250315",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0"
+      }
+    },
+    {
+      "id": "open-claims-not-enforced",
+      "description": "4 open claims: counted but not enforced, the policy renews",
+      "tags": [],
+      "quirks": [
+        "Q-02"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000211",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "AC",
+        "TOTAL_PREMIUM": "1000.00",
+        "EXPIRY_DATE": "20250315",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "4"
+      }
+    },
+    {
+      "id": "policy-not-found",
+      "description": "No POLICIES row: error text, no update",
+      "tags": [],
+      "quirks": [],
+      "run_date": "2025-03-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000212",
+        "POLICY_TYPE": "AUT",
+        "POLICY_STATUS": "AC",
+        "TOTAL_PREMIUM": "1000.00",
+        "EXPIRY_DATE": "20250315",
+        "RENEWAL_COUNT": "2",
+        "UW_STATUS": "AP",
+        "OPEN_CLAIM_COUNT": "0",
+        "SQLCODE_SELECT_POLICY": "100"
+      }
+    },
+    {
+      "id": "map-receive-failure",
+      "description": "RECEIVE MAP fails (MAPFAIL): GO TO 2000-EXIT leaves the PERFORM range and falls through to 4000-CALCULATE-NEW-PREMIUM, which divides by the zero premium (S0CB abend)",
+      "tags": [],
+      "quirks": [
+        "Q-520-1",
+        "Q-41"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000213",
+        "RESP": "36"
+      }
+    }
+  ]
+}

@@ -1067,6 +1067,34 @@
           "contains": "CREDIT_SCORE        SMALLINT"
         }
       ]
+    },
+    {
+      "id": "Q-520-1",
+      "title": "Failed map RECEIVE falls through the whole program",
+      "component": "UNDWRT, POLRNW",
+      "category": "error handling defect",
+      "description": "When EXEC CICS RECEIVE MAP fails, 2000-READ-POLICY-DATA (UNDWRT) and 2000-READ-EXISTING-POLICY (POLRNW) set the error text and GO TO 2000-EXIT. The paragraph is PERFORMed without THRU, so GO TO leaves the PERFORM range: control continues at 2000-EXIT and falls through every following paragraph in source order instead of returning to 0000-MAIN-LOGIC. UNDWRT therefore scores an empty record (base 400), writes an UNDERWRITING_DECISIONS row and updates POLICIES for the received key, sends the TD message and result map, and only then sends the error text. POLRNW reaches 4000-CALCULATE-NEW-PREMIUM with a zero premium and divides by zero (as in Q-41). Found by the AB-520 characterization harness.",
+      "owner": "Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending mainframe-team verification against production load module",
+      "rationale": "Writing a decision or renewing after a failed screen receive is never intended. The Java APIs validate the request and reject it before any read or write. The legacy behaviour is recorded so the difference is explicit.",
+      "parity_note": "Golden cases undwrt-decision/map-receive-failure and polrnw-renewal/map-receive-failure record today's fall-through. The Java versions return an error with no writes, recorded as known differences once this decision is signed off.",
+      "evidence": [
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "GO TO 2000-EXIT"
+        },
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "GO TO 2000-EXIT"
+        },
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "PERFORM 2000-READ-POLICY-DATA"
+        }
+      ],
+      "follow_up": "FU-05",
+      "lands_in": "AB-525, AB-526"
     }
   ]
 }

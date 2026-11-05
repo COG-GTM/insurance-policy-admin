@@ -1,0 +1,57 @@
+{
+  "suite": "prembat-rating",
+  "case": "type-hlt",
+  "program": "PREMBAT",
+  "description": "Health: base 3500.00, tax 3.5% truncated, flat 25.00 surcharge",
+  "legacy_source": {
+    "path": "cobol/programs/PREMBAT.cbl",
+    "sha256": "8fd460149e6cc7ca1d6bd639e0f2d0e0b92e951cededcd69c7d4c0125d575690"
+  },
+  "run_date": "2025-03-01",
+  "outcome": {
+    "status": "completed",
+    "return_code": 0
+  },
+  "effects": [
+    {
+      "op": "SQL INSERT PREMIUMS",
+      "sqlcode": 0,
+      "text": {
+        "POLICY_NUMBER": "POL-00000005",
+        "TERM_EFFECTIVE_DATE": "20250101",
+        "TERM_EXPIRY_DATE": "20260101",
+        "INSTALLMENT_CODE": "AN",
+        "CALC_DATE": "20250301",
+        "CALC_BY": "PREMBAT"
+      },
+      "numbers": {
+        "COVERAGE_SEQ": "1",
+        "BASE_RATE": "3500.0000",
+        "TERRITORY_FACTOR": "1.0000",
+        "CLASS_FACTOR": "1.0000",
+        "EXPERIENCE_MOD": "1.0000",
+        "SCHEDULE_MOD": "1.0000",
+        "DISCOUNT_PCT": "0.00",
+        "SURCHARGE_AMT": "25.00",
+        "TAX_AMT": "122.50",
+        "TOTAL_PREMIUM": "3647.50"
+      },
+      "probes": {
+        "WS-TERR-PREMIUM": "3500.00",
+        "WS-CLASS-PREMIUM": "3500.00",
+        "WS-MOD-PREMIUM": "3500.00"
+      }
+    }
+  ],
+  "artifacts": {
+    "PREMRPT": [
+      "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20250301",
+      "------------------------------------------------------------------------------------------------------------------------------------",
+      "POL-00000005 PREMIUM: \\x00\\x00\\x03du\\x0C",
+      "====================================================================================================================================",
+      "TOTAL POLICIES READ:    0000001",
+      "TOTAL POLICIES UPDATED: 0000001",
+      "TOTAL ERRORS:           0000000"
+    ]
+  }
+}
