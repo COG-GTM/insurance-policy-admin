@@ -20,7 +20,7 @@ public record PolicyHolder(
     @Pii(Level.PERSONAL) String lastName,
     @Pii(Level.PERSONAL) String firstName,
     @Pii(Level.PERSONAL) String middleInit,
-    String companyName,
+    @Pii(Level.PERSONAL) String companyName,
     @Pii(Level.PERSONAL) String addrLine1,
     @Pii(Level.PERSONAL) String addrLine2,
     @Pii(Level.PERSONAL) String city,

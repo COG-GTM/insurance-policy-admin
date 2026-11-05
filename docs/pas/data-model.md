@@ -120,7 +120,7 @@ never extended (ADR 0001 D3). Register entry: DS-06 in `docs/adr/0001-components
 | `SSN_LAST4` | RESTRICTED | Storage encryption + column-level tokenisation | Synthetic | Never |
 | `TAX_ID` | RESTRICTED | Storage encryption + column-level tokenisation | Synthetic | Never |
 | `CREDIT_SCORE` | RESTRICTED | Storage encryption | Synthetic | Never |
-| names, address lines, city, zip, phone, email | PERSONAL | Storage encryption | Masked or synthetic | Never |
+| names (incl. company name: may be a sole trader's own name), address lines, city, zip, phone, email | PERSONAL | Storage encryption | Masked or synthetic | Never |
 | `CUST_ID`, type, state, country, risk tier, consent, dates | internal | Storage encryption | As is | Allowed |
 
 What the code does today:
@@ -131,7 +131,7 @@ What the code does today:
 - Codec and constraint error messages name the field, never its content.
 - `PolicyHolderJdbcRepository` logs nothing; SQL errors carry bind markers, not values.
 - V12 records the class of every column as a column comment and adds
-  `acmeins.policy_holders_masked`: initials only for names, the domain only for email, birth year
+  `acmeins.policy_holders_masked`: initials only for names and company name, the domain only for email, birth year
   instead of date of birth, `****` for SSN last four and tax id, no address, phone or credit score.
   Reporting, support and every non-production reader get grants on the view only (DBA, per
   environment).

@@ -23,38 +23,30 @@ public class PolicyHolderJdbcRepository {
   }
 
   public void insert(PolicyHolder h) {
-    jdbc.sql(
-            """
-            INSERT INTO acmeins.policy_holders (cust_id, cust_type, last_name, first_name,
-              middle_init, company_name, addr_line1, addr_line2, city, state_code, zip_code,
-              country_code, phone, email, date_of_birth, ssn_last4, tax_id, credit_score,
-              risk_tier, gdpr_consent, created_date, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """)
-        .params(
-            h.custId(),
-            h.custTypeCode(),
-            h.lastName(),
-            h.firstName(),
-            h.middleInit(),
-            h.companyName(),
-            h.addrLine1(),
-            h.addrLine2(),
-            h.city(),
-            h.stateCode(),
-            h.zipCode(),
-            h.countryCode(),
-            h.phone(),
-            h.email(),
-            h.dateOfBirth(),
-            h.ssnLast4(),
-            h.taxId(),
-            h.creditScore(),
-            h.riskTierCode(),
-            h.gdprConsent(),
-            h.createdDate(),
-            h.lastUpdated())
-        .update();
+    new Insert("acmeins.policy_holders")
+        .set("cust_id", h.custId())
+        .set("cust_type", h.custTypeCode())
+        .set("last_name", h.lastName())
+        .set("first_name", h.firstName())
+        .set("middle_init", h.middleInit())
+        .set("company_name", h.companyName())
+        .set("addr_line1", h.addrLine1())
+        .set("addr_line2", h.addrLine2())
+        .set("city", h.city())
+        .set("state_code", h.stateCode())
+        .set("zip_code", h.zipCode())
+        .set("country_code", h.countryCode())
+        .set("phone", h.phone())
+        .set("email", h.email())
+        .set("date_of_birth", h.dateOfBirth())
+        .set("ssn_last4", h.ssnLast4())
+        .set("tax_id", h.taxId())
+        .set("credit_score", h.creditScore())
+        .set("risk_tier", h.riskTierCode())
+        .set("gdpr_consent", h.gdprConsent())
+        .set("created_date", h.createdDate())
+        .set("last_updated", h.lastUpdated())
+        .execute(jdbc);
   }
 
   public Optional<PolicyHolder> find(String custId) {

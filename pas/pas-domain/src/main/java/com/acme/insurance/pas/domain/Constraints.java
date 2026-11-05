@@ -43,7 +43,7 @@ public final class Constraints {
   /** Fails if {@code value} is outside {@code 0..max} (unsigned COBOL {@code 9(n)} fields). */
   public static Integer range(Integer value, int max, String field) {
     if (value != null && (value < 0 || value > max)) {
-      throw new IllegalArgumentException(field + " must be between 0 and " + max + ": " + value);
+      throw new IllegalArgumentException(field + " must be between 0 and " + max);
     }
     return value;
   }

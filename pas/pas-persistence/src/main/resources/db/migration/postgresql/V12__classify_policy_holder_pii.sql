@@ -9,6 +9,7 @@
 
 COMMENT ON COLUMN acmeins.policy_holders.last_name IS 'PII: PERSONAL';
 COMMENT ON COLUMN acmeins.policy_holders.first_name IS 'PII: PERSONAL';
+COMMENT ON COLUMN acmeins.policy_holders.company_name IS 'PII: PERSONAL; may hold a sole trader''s own name';
 COMMENT ON COLUMN acmeins.policy_holders.middle_init IS 'PII: PERSONAL';
 COMMENT ON COLUMN acmeins.policy_holders.addr_line1 IS 'PII: PERSONAL';
 COMMENT ON COLUMN acmeins.policy_holders.addr_line2 IS 'PII: PERSONAL';
@@ -27,7 +28,7 @@ SELECT
     cust_type,
     CASE WHEN last_name IS NULL THEN NULL ELSE left(last_name, 1) || '***' END AS last_name,
     CASE WHEN first_name IS NULL THEN NULL ELSE left(first_name, 1) || '***' END AS first_name,
-    company_name,
+    CASE WHEN company_name IS NULL THEN NULL ELSE left(company_name, 1) || '***' END AS company_name,
     state_code,
     country_code,
     CASE WHEN email IS NULL THEN NULL ELSE '***@' || split_part(email, '@', 2) END AS email,

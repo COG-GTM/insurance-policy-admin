@@ -187,6 +187,70 @@ class AcmeinsSchemaIT {
   }
 
   @Test
+  void repositoryInsertsLeaveDefaultedColumnsToTheDatabase() {
+    PolicyJdbcRepository policies = new PolicyJdbcRepository(jdbc);
+    PolicyHolderJdbcRepository holders = new PolicyHolderJdbcRepository(jdbc);
+
+    policies.insert(
+        new Policy(
+            "POL-REPODFLT",
+            "HOM",
+            null,
+            LocalDate.of(2024, 1, 1),
+            LocalDate.of(2025, 1, 1),
+            "CUST000088",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null));
+    holders.insert(
+        new PolicyHolder(
+            "CUST000088",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null));
+
+    Policy policy = policies.findPolicy("POL-REPODFLT").orElseThrow();
+    assertThat(policy.policyStatusCode()).isEqualTo("PN");
+    assertThat(policy.updatedBy()).isEqualTo("SYSTEM");
+    assertThat(policy.totalPremium()).isEqualTo(new BigDecimal("0.00"));
+    assertThat(policy.lastUpdated()).isNotNull();
+    assertThat(policy.agentCode()).isNull();
+    PolicyHolder holder = holders.find("CUST000088").orElseThrow();
+    assertThat(holder.custTypeCode()).isEqualTo("I");
+    assertThat(holder.countryCode()).isEqualTo("USA");
+    assertThat(holder.createdDate()).isNotNull();
+    assertThat(holder.lastUpdated()).isNotNull();
+  }
+
+  @Test
   void policyCoverageAndPremiumRoundTripAtColumnLimits() {
     PolicyJdbcRepository repository = new PolicyJdbcRepository(jdbc);
     Policy policy =
@@ -263,7 +327,7 @@ class AcmeinsSchemaIT {
             "Zzsynthetic",
             "Zztest",
             "Q",
-            null,
+            "Zz Holdings",
             "1 Example St",
             null,
             "Springfield",
@@ -291,6 +355,7 @@ class AcmeinsSchemaIT {
             .singleRow();
     assertThat(masked)
         .containsEntry("last_name", "Z***")
+        .containsEntry("company_name", "Z***")
         .containsEntry("email", "***@example.invalid")
         .containsEntry("ssn_last4", "****")
         .containsEntry("tax_id", "**********")

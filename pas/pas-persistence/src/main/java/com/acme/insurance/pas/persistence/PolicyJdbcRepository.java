@@ -28,35 +28,27 @@ public class PolicyJdbcRepository {
   }
 
   public void insert(Policy p) {
-    jdbc.sql(
-            """
-            INSERT INTO acmeins.policies (policy_number, policy_type, policy_status,
-              effective_date, expiry_date, policyholder_id, agent_code, branch_code, total_premium,
-              deductible, coverage_limit, inception_date, renewal_count, uw_status, risk_score,
-              web_indicator, api_flag, last_updated, updated_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """)
-        .params(
-            p.policyNumber(),
-            p.policyTypeCode(),
-            p.policyStatusCode(),
-            p.effectiveDate(),
-            p.expiryDate(),
-            p.policyholderId(),
-            p.agentCode(),
-            p.branchCode(),
-            p.totalPremium(),
-            p.deductible(),
-            p.coverageLimit(),
-            p.inceptionDate(),
-            p.renewalCount(),
-            p.uwStatusCode(),
-            p.riskScore(),
-            p.webIndicator(),
-            p.apiFlag(),
-            p.lastUpdated(),
-            p.updatedBy())
-        .update();
+    new Insert("acmeins.policies")
+        .set("policy_number", p.policyNumber())
+        .set("policy_type", p.policyTypeCode())
+        .set("policy_status", p.policyStatusCode())
+        .set("effective_date", p.effectiveDate())
+        .set("expiry_date", p.expiryDate())
+        .set("policyholder_id", p.policyholderId())
+        .set("agent_code", p.agentCode())
+        .set("branch_code", p.branchCode())
+        .set("total_premium", p.totalPremium())
+        .set("deductible", p.deductible())
+        .set("coverage_limit", p.coverageLimit())
+        .set("inception_date", p.inceptionDate())
+        .set("renewal_count", p.renewalCount())
+        .set("uw_status", p.uwStatusCode())
+        .set("risk_score", p.riskScore())
+        .set("web_indicator", p.webIndicator())
+        .set("api_flag", p.apiFlag())
+        .set("last_updated", p.lastUpdated())
+        .set("updated_by", p.updatedBy())
+        .execute(jdbc);
   }
 
   public Optional<Policy> findPolicy(String policyNumber) {
@@ -88,28 +80,21 @@ public class PolicyJdbcRepository {
   }
 
   public void insert(Coverage c) {
-    jdbc.sql(
-            """
-            INSERT INTO acmeins.coverages (policy_number, sequence_num, coverage_type, description,
-              coverage_limit, deductible, premium, effective_date, expiry_date, status,
-              coinsurance_pct, rating_territory, class_code)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """)
-        .params(
-            c.policyNumber(),
-            c.sequenceNum(),
-            c.coverageTypeCode(),
-            c.description(),
-            c.coverageLimit(),
-            c.deductible(),
-            c.premium(),
-            c.effectiveDate(),
-            c.expiryDate(),
-            c.statusCode(),
-            c.coinsurancePct(),
-            c.ratingTerritory(),
-            c.classCode())
-        .update();
+    new Insert("acmeins.coverages")
+        .set("policy_number", c.policyNumber())
+        .set("sequence_num", c.sequenceNum())
+        .set("coverage_type", c.coverageTypeCode())
+        .set("description", c.description())
+        .set("coverage_limit", c.coverageLimit())
+        .set("deductible", c.deductible())
+        .set("premium", c.premium())
+        .set("effective_date", c.effectiveDate())
+        .set("expiry_date", c.expiryDate())
+        .set("status", c.statusCode())
+        .set("coinsurance_pct", c.coinsurancePct())
+        .set("rating_territory", c.ratingTerritory())
+        .set("class_code", c.classCode())
+        .execute(jdbc);
   }
 
   public List<Coverage> findCoverages(String policyNumber) {
@@ -135,33 +120,25 @@ public class PolicyJdbcRepository {
   }
 
   public void insert(Premium p) {
-    jdbc.sql(
-            """
-            INSERT INTO acmeins.premiums (policy_number, coverage_seq, term_effective_date,
-              term_expiry_date, base_rate, territory_factor, class_factor, experience_mod,
-              schedule_mod, discount_pct, surcharge_amt, tax_amt, total_premium, installment_code,
-              installment_amt, calc_date, calc_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """)
-        .params(
-            p.policyNumber(),
-            p.coverageSeq(),
-            p.termEffectiveDate(),
-            p.termExpiryDate(),
-            p.baseRate(),
-            p.territoryFactor(),
-            p.classFactor(),
-            p.experienceMod(),
-            p.scheduleMod(),
-            p.discountPct(),
-            p.surchargeAmt(),
-            p.taxAmt(),
-            p.totalPremium(),
-            p.installmentCode(),
-            p.installmentAmt(),
-            p.calcDate(),
-            p.calcBy())
-        .update();
+    new Insert("acmeins.premiums")
+        .set("policy_number", p.policyNumber())
+        .set("coverage_seq", p.coverageSeq())
+        .set("term_effective_date", p.termEffectiveDate())
+        .set("term_expiry_date", p.termExpiryDate())
+        .set("base_rate", p.baseRate())
+        .set("territory_factor", p.territoryFactor())
+        .set("class_factor", p.classFactor())
+        .set("experience_mod", p.experienceMod())
+        .set("schedule_mod", p.scheduleMod())
+        .set("discount_pct", p.discountPct())
+        .set("surcharge_amt", p.surchargeAmt())
+        .set("tax_amt", p.taxAmt())
+        .set("total_premium", p.totalPremium())
+        .set("installment_code", p.installmentCode())
+        .set("installment_amt", p.installmentAmt())
+        .set("calc_date", p.calcDate())
+        .set("calc_by", p.calcBy())
+        .execute(jdbc);
   }
 
   public List<Premium> findPremiums(String policyNumber) {
