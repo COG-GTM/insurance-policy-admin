@@ -59,7 +59,11 @@ public class PolicyInquiryController {
   private static final Pattern NUMBER = Pattern.compile("[A-Z0-9-]{1,12}");
 
   /** A page of policies; pass {@code nextAfter} as {@code after} for the next page. */
-  public record PolicyPageView(List<PolicyView> policies, String nextAfter) {}
+  public record PolicyPageView(List<PolicyView> policies, String nextAfter) {
+    public PolicyPageView {
+      policies = List.copyOf(policies);
+    }
+  }
 
   /**
    * Policies of one agent or one branch (Broker Portal, AB-528), replacing the portal's

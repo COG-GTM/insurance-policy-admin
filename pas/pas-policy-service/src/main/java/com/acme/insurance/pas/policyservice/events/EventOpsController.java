@@ -57,9 +57,17 @@ public class EventOpsController {
     }
   }
 
-  public record ReplayRequest(List<String> eventIds) {}
+  public record ReplayRequest(List<String> eventIds) {
+    public ReplayRequest {
+      eventIds = eventIds == null ? null : List.copyOf(eventIds);
+    }
+  }
 
-  public record ReplayResult(List<String> replayed) {}
+  public record ReplayResult(List<String> replayed) {
+    public ReplayResult {
+      replayed = List.copyOf(replayed);
+    }
+  }
 
   private final EventOutboxJdbcRepository outbox;
   private final ObjectProvider<DeadLetterService> deadLetters;
