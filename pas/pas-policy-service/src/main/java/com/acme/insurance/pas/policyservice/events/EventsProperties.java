@@ -23,4 +23,5 @@ public record EventsProperties(
     @DefaultValue("100") int batchSize,
     @DefaultValue("PT10S") Duration sendTimeout,
     @DefaultValue("P7D") Duration retention,
-    @DefaultValue("3") int partitions) {}
+    @DefaultValue("3") int partitions,
+    @DefaultValue("10") int maxAttempts) {}

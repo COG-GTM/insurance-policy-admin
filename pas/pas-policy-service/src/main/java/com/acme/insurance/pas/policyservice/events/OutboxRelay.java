@@ -5,6 +5,8 @@ import com.acme.insurance.pas.persistence.OutboxRow;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
@@ -20,6 +22,10 @@ import org.springframework.scheduling.annotation.Scheduled;
  * {@code eventId}). Published rows are deleted after the retention period. Running more than one
  * relay can publish a row twice, which the idempotency key absorbs; a single active relay is
  * recommended (FU-525-7).
+ *
+ * <p>AB-528: a row that still fails after {@code pas.events.max-attempts} tries is parked (V80)
+ * instead of blocking the whole outbox; it and later rows of the same policy wait for a replay
+ * through {@code /api/v1/ops/events}, while other policies keep flowing.
  */
 public class OutboxRelay {
 
@@ -44,7 +50,11 @@ public class OutboxRelay {
   @Scheduled(fixedDelayString = "${pas.events.relay-interval:PT1S}")
   public void relay() {
     int published = 0;
+    Set<String> parkedKeys = new HashSet<>();
     for (OutboxRow row : outbox.pending(properties.batchSize())) {
+      if (parkedKeys.contains(row.messageKey())) {
+        continue;
+      }
       try {
         ProducerRecord<String, String> record =
             new ProducerRecord<>(row.topic(), row.messageKey(), row.payload());
@@ -65,7 +75,16 @@ public class OutboxRelay {
             row.eventType(),
             e.getClass().getSimpleName());
         outbox.markFailed(row.outboxSeq(), e.getClass().getSimpleName() + ": " + e.getMessage());
-        break;
+        if (row.attempts() + 1 < properties.maxAttempts()) {
+          break;
+        }
+        outbox.park(row.outboxSeq(), LocalDateTime.now(clock));
+        parkedKeys.add(row.messageKey());
+        LOG.error(
+            "outbox relay parked event after {} attempts: eventId={} eventType={}",
+            row.attempts() + 1,
+            row.eventId(),
+            row.eventType());
       }
     }
     if (published > 0) {
