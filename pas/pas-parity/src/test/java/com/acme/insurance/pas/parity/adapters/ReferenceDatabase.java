@@ -41,6 +41,12 @@ public final class ReferenceDatabase {
     return jdbc;
   }
 
+  /** The migrated reference database container, for adapters that run a whole application. */
+  public static synchronized PostgreSQLContainer<?> container() {
+    jdbc();
+    return POSTGRES;
+  }
+
   /** A rater over the reference tables, wired the way the applications wire it. */
   public static PremiumRater rater(RatingFactorMode mode) {
     RatingRateJdbcRepository rates = new RatingRateJdbcRepository(jdbc());

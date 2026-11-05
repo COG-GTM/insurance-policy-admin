@@ -1,0 +1,41 @@
+# AB-523 alert rules (Prometheus format) for job premiumRecalculation. Replace the TSO SEND to
+# PASADMIN, which fired on clean runs and stayed silent on failures (Q-28). The job is a short-lived
+# pod, so paging uses what outlives it: Kubernetes Job/CronJob state from kube-state-metrics (the
+# batch exits non-zero when the job fails) and the pas.premium.alert / pas.premium.warning log
+# lines. Routed to the PAS on-call rotation; who is paged today for PAS0050 is FU-12.
+groups:
+  - name: pas-premium
+    rules:
+      - alert: PasPremiumJobFailed
+        # Failed for good (the pod retry exited non-zero too). A failure whose retry restarts and
+        # completes does not page.
+        expr: max by (job_name) (kube_job_status_condition{namespace="pas", job_name=~"pas-premium-recalculation-.*", condition="Failed", status="true"}) == 1
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "{{ $labels.job_name }} failed"
+          runbook: docs/pas/premium-batch.md#failure-and-restart
+      - alert: PasPremiumRunMissing
+        # No successful run in 26 hours (the job starts at 01:00 and should end by 01:30).
+        # Also fires when the CronJob has never succeeded, measured from its creation.
+        expr: >-
+          (time() - kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-premium-recalculation"} > 26 * 3600)
+          or
+          (time() - kube_cronjob_created{namespace="pas", cronjob="pas-premium-recalculation"} > 26 * 3600
+            unless on (namespace, cronjob) kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-premium-recalculation"})
+        for: 30m
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "No successful premium recalculation in the last 26 hours"
+          runbook: docs/pas/premium-batch.md#failure-and-restart
+      - alert: PasPremiumRunSlow
+        # Still running 30 minutes after start: the full-book target (AB-516) is at risk.
+        expr: (time() - kube_job_status_start_time{namespace="pas", job_name=~"pas-premium-recalculation-.*"}) > 1800 and on (job_name) kube_job_status_active{namespace="pas", job_name=~"pas-premium-recalculation-.*"} > 0
+        labels: {severity: ticket, team: pas}
+        annotations:
+          summary: "{{ $labels.job_name }} has run for more than 30 minutes"
+          runbook: docs/pas/premium-batch.md#performance
+# Log-based rules for the log platform (ECS JSON logs, service.name = "pas-batch"):
+#   message starts with "pas.premium.alert"    -> page (job failed; names job, business date, reasons)
+#   message starts with "pas.premium.warning"  -> ticket (completed with policy errors; counts only)
+# Per-policy errors are logged as "pas.premium.policy.error" with the policy number and error class,
+# never premium amounts; the list is in pasapp.premium_run_item and the report.

@@ -30,6 +30,12 @@ logging:
 # AB-527: Claims and Actuarial feeds over SFTP (docs/pas/extracts.md). Endpoint, user, key file and
 # known-hosts file come from the secrets manager; there are no defaults for them.
 pas:
+  premium:
+    report-dir: ${PAS_PREMIUM_REPORT_DIR:}
+    zone: ${PAS_PREMIUM_ZONE:America/New_York}
+    partitions: ${PAS_PREMIUM_PARTITIONS:8}
+    chunk-size: ${PAS_PREMIUM_CHUNK_SIZE:500}
+    skip-limit: ${PAS_PREMIUM_SKIP_LIMIT:1000}
   extract:
     staging-dir: ${PAS_EXTRACT_STAGING_DIR:}
     claims:
