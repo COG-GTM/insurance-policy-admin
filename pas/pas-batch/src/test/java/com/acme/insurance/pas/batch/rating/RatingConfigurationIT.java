@@ -23,6 +23,8 @@ import org.testcontainers.utility.DockerImageName;
 class RatingConfigurationIT {
 
   static final String FLYWAY_LOCATIONS = "spring.flyway.locations=classpath:db/migration/{vendor}";
+  // pas-batch has several jobs (AB-527); none must run when the context starts.
+  static final String NO_JOB_RUN = "spring.batch.job.enabled=false";
   static final LocalDate RUN = LocalDate.of(2025, 3, 1);
   static final RatingRequest AUT_IN_T1 = new RatingRequest("AUT", RUN, "T1", null);
 
@@ -40,7 +42,7 @@ class RatingConfigurationIT {
   }
 
   @Nested
-  @SpringBootTest(properties = {"spring.flyway.enabled=true", FLYWAY_LOCATIONS})
+  @SpringBootTest(properties = {"spring.flyway.enabled=true", FLYWAY_LOCATIONS, NO_JOB_RUN})
   @Import(Postgres.class)
   class DefaultFlag {
     @Autowired PremiumRater rater;
@@ -59,6 +61,7 @@ class RatingConfigurationIT {
       properties = {
         "spring.flyway.enabled=true",
         FLYWAY_LOCATIONS,
+        NO_JOB_RUN,
         "pas.rating.factor-source=table-driven"
       })
   @Import(Postgres.class)
