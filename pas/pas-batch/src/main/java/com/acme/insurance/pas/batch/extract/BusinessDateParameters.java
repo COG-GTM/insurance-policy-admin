@@ -14,8 +14,10 @@ import org.springframework.batch.core.JobParametersValidator;
 
 /**
  * The {@code businessDate} job parameter (ISO date) replaces the legacy {@code CURRENT DATE}. When
- * the scheduler does not pass one, today in the business time zone is used. The validator also
- * checks the SFTP endpoint of the consumer, so a misconfigured job stops before any PII is staged.
+ * the scheduler does not pass one, Spring Boot's job runner asks the incrementer, which always
+ * answers today in the business time zone (never the previous instance's date); an explicit {@code
+ * businessDate=} argument overrides it. The validator also checks the SFTP endpoint of the
+ * consumer, so a misconfigured job stops before any PII is staged.
  */
 public class BusinessDateParameters implements JobParametersIncrementer, JobParametersValidator {
 
@@ -38,12 +40,9 @@ public class BusinessDateParameters implements JobParametersIncrementer, JobPara
 
   @Override
   public JobParameters getNext(JobParameters parameters) {
-    JobParametersBuilder next =
-        new JobParametersBuilder(parameters == null ? new JobParameters() : parameters);
-    if (parameters == null || parameters.getString(BUSINESS_DATE) == null) {
-      next.addString(BUSINESS_DATE, LocalDate.now(clock.withZone(zone)).toString());
-    }
-    return next.toJobParameters();
+    return new JobParametersBuilder(parameters == null ? new JobParameters() : parameters)
+        .addString(BUSINESS_DATE, LocalDate.now(clock.withZone(zone)).toString())
+        .toJobParameters();
   }
 
   @Override

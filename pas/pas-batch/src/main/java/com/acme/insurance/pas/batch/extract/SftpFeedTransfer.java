@@ -76,8 +76,7 @@ public class SftpFeedTransfer implements FeedTransfer {
     try (OutputStream out = sftp.write(partial)) {
       Files.copy(local, out);
     }
-    removeIfPresent(sftp, remote);
-    sftp.rename(partial, remote);
+    replace(sftp, partial, remote);
     long remoteSize = sftp.stat(remote).getSize();
     if (remoteSize != size) {
       throw new DeliveryException(remote + ": remote size " + remoteSize + ", expected " + size);
@@ -88,6 +87,44 @@ public class SftpFeedTransfer implements FeedTransfer {
     }
     if (!remoteSha.equals(sha256)) {
       throw new DeliveryException(remote + ": read-back SHA-256 does not match the staged file");
+    }
+  }
+
+  /**
+   * Moves the upload into place without ever leaving the consumer with no file: the previous
+   * delivery is renamed to {@code .prev} first and restored if the final rename fails.
+   */
+  static void replace(SftpClient sftp, String partial, String remote) throws IOException {
+    String previous = remote + ".prev";
+    removeIfPresent(sftp, previous);
+    boolean hadPrevious = renameIfPresent(sftp, remote, previous);
+    try {
+      sftp.rename(partial, remote);
+    } catch (IOException e) {
+      if (hadPrevious) {
+        try {
+          sftp.rename(previous, remote);
+        } catch (IOException restore) {
+          e.addSuppressed(restore);
+        }
+      }
+      throw e;
+    }
+    if (hadPrevious) {
+      removeIfPresent(sftp, previous);
+    }
+  }
+
+  private static boolean renameIfPresent(SftpClient sftp, String from, String to)
+      throws IOException {
+    try {
+      sftp.rename(from, to);
+      return true;
+    } catch (SftpException e) {
+      if (e.getStatus() != SftpConstants.SSH_FX_NO_SUCH_FILE) {
+        throw e;
+      }
+      return false;
     }
   }
 

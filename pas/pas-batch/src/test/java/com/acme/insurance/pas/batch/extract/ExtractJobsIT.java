@@ -8,6 +8,7 @@ import com.acme.insurance.pas.persistence.ExtractJdbcRepository;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -17,11 +18,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobInstance;
+import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.JobParametersInvalidException;
+import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.batch.JobLauncherApplicationRunner;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -34,7 +40,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(
     properties = {
       "spring.batch.job.enabled=false",
-      "spring.batch.jdbc.initialize-schema=always",
       "spring.flyway.enabled=true",
       "spring.flyway.locations=classpath:db/migration/postgresql"
     })
@@ -51,6 +56,8 @@ class ExtractJobsIT {
   }
 
   @Autowired JobLauncher launcher;
+  @Autowired JobExplorer explorer;
+  @Autowired JobRepository jobRepository;
 
   @Autowired
   @Qualifier(ExtractJobsConfiguration.CLAIMS_JOB)
@@ -194,8 +201,16 @@ class ExtractJobsIT {
   void aMissingBusinessDateIsDefaultedAndAMalformedOneIsRejected() {
     BusinessDateParameters parameters =
         (BusinessDateParameters) claims.getJobParametersIncrementer();
+    String today = LocalDate.now(ZoneId.of("America/New_York")).toString();
     assertThat(parameters.getNext(null).getString(BusinessDateParameters.BUSINESS_DATE))
-        .matches("\\d{4}-\\d{2}-\\d{2}");
+        .isEqualTo(today);
+    JobParameters previous =
+        new JobParametersBuilder()
+            .addString(BusinessDateParameters.BUSINESS_DATE, "2026-01-02")
+            .toJobParameters();
+    assertThat(parameters.getNext(previous).getString(BusinessDateParameters.BUSINESS_DATE))
+        .as("a scheduled run never inherits the previous instance's date")
+        .isEqualTo(today);
     assertThatThrownBy(
             () ->
                 launcher.run(
@@ -204,6 +219,21 @@ class ExtractJobsIT {
                         .addString(BusinessDateParameters.BUSINESS_DATE, "05/11/2026")
                         .toJobParameters()))
         .isInstanceOf(JobParametersInvalidException.class);
+  }
+
+  @Test
+  void theScheduledLaunchWithoutArgumentsRunsForTodayOnTheMigratedRepository() throws Exception {
+    JobLauncherApplicationRunner runner =
+        new JobLauncherApplicationRunner(launcher, explorer, jobRepository);
+    runner.setJobs(List.of(claims));
+    runner.setJobName(ExtractJobsConfiguration.CLAIMS_JOB);
+    runner.run();
+
+    JobInstance instance = explorer.getLastJobInstance(ExtractJobsConfiguration.CLAIMS_JOB);
+    JobExecution execution = explorer.getLastJobExecution(instance);
+    assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+    assertThat(execution.getJobParameters().getString(BusinessDateParameters.BUSINESS_DATE))
+        .isEqualTo(LocalDate.now(ZoneId.of("America/New_York")).toString());
   }
 
   static List<String> records(byte[] file, int lrecl) {

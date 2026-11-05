@@ -77,7 +77,12 @@ fails it.
   its SHA-256 with the staged file. Only then is the delivery confirmed. The manifest is delivered
   last, so its arrival tells the consumer the data file is complete.
 - Staged files live in `PAS_EXTRACT_STAGING_DIR` (directory 0700, files 0600) and are deleted after
-  confirmed delivery. After a failed delivery they are kept for the rerun.
+  confirmed delivery. After a failed delivery they are kept for inspection until the next run of
+  the feed rebuilds them; the example CronJobs mount a persistent encrypted volume so they survive
+  the pod.
+- Replacing a file on the endpoint never leaves the consumer without one: the previous delivery is
+  renamed to `<file>.prev`, the upload is renamed into place and `.prev` is removed; if the rename
+  fails the previous file is restored.
 - Every delivery writes a receipt to `pasapp.extract_delivery` (Flyway V70): feed, business date,
   file name, record and byte counts, SHA-256, destination without credentials, `CONFIRMED` or
   `FAILED`, attempts, Spring Batch execution id. Receipts hold no business data (DS-07).
@@ -104,13 +109,21 @@ the missing property names, never their values.
 
 - Example CronJobs: [pas/deploy/extracts/cronjobs.yaml](../../pas/deploy/extracts/cronjobs.yaml).
   `PAS_BATCH_JOB` selects the job; `concurrencyPolicy: Forbid` replaces the CA-7 exclusivity.
-- Retries: each file is attempted `max-attempts` times with doubling backoff inside a run. A
-  `FAILED` job can be restarted with the same `businessDate`; Spring Batch skips the completed
-  extract steps and the delivery step resends the kept staged files.
-- Alerting: failed jobs log `pas.extract.alert` at ERROR and increment `pas.extract.job.failures`;
-  deliveries increment `pas.extract.deliveries{feed,outcome}`. Example rules:
-  [pas/deploy/extracts/alerts.yaml](../../pas/deploy/extracts/alerts.yaml). Logs never contain
-  record content. Who is paged today is FU-12.
+- Job repository: Spring Batch metadata lives in schema `pas_batch` (DS-03), created by Flyway V71
+  with the other migrations; batch pods never create tables (`initialize-schema: never`).
+- Business date: a scheduled launch passes no arguments; the job incrementer sets `businessDate` to
+  today in `pas.extract.business-zone`. Pass `businessDate=YYYY-MM-DD` to run another day.
+- Retries: each file is attempted `max-attempts` times with doubling backoff inside a run, then the
+  job fails and the process exits non-zero. Relaunching the same `businessDate` (the Kubernetes Job
+  retry, or a manual launch) restarts the failed instance: the extract steps run again
+  (`allowStartIfComplete`) and rebuild the files from the book, then delivery runs. The policy delta
+  selects the same window because it is anchored to `businessDate`.
+- Alerting: failed jobs log `pas.extract.alert` at ERROR (job, business date, failure; never
+  record content) and exit non-zero. The example rules in
+  [pas/deploy/extracts/alerts.yaml](../../pas/deploy/extracts/alerts.yaml) use Kubernetes Job and
+  CronJob state and that log line, because the batch pod is gone before any scrape; the Micrometer
+  counters `pas.extract.deliveries{feed,outcome}` and `pas.extract.job.failures` are in-process
+  only. Who is paged today is FU-12.
 
 ## Failure and rerun
 
@@ -132,7 +145,7 @@ directory per run (`YYYY-MM-DD/policy_extract.dat` and so on) and run:
 make extract-parity CAPTURED=/path/to/mainframe CANDIDATE=/path/to/pas-batch
 ```
 
-Each feed needs 5 consecutive byte-identical runs (`--required`). Exposure rows that differ only in
+Each feed needs 5 consecutive byte-identical runs (`--required`); a missing scheduled run (a day for the Claims feeds, or a weekday with `--claims-calendar weekdays`; a month for exposure) breaks the streak, and every feed must pass. Exposure rows that differ only in
 order within `(POLICY_TYPE, BRANCH_CODE)` are reported as `ORDR` and count only with
 `--exposure-order-insensitive`, which needs Actuarial's agreement (Q-34).
 

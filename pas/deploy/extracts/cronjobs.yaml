@@ -2,6 +2,19 @@
 # (DAILY-EXTRACT, nightly 23:00) and PAS0200 (MONTHLY-EXPOSURE, 1st of month 02:00). Image, namespace
 # and the secret names are placeholders the platform team fills in; nothing here holds a credential.
 # Keys, passphrases and known_hosts are mounted read-only from the secrets manager (ADR 0001 D5/D6).
+# Staging is a persistent, encrypted volume shared by the retry pods so files kept after a failed
+# delivery survive the pod for inspection; the job runs as a non-root user and files are 0600.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pas-extract-staging
+  labels: {app: pas-batch, ticket: AB-527}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ENCRYPTED_STORAGE_CLASS
+  resources:
+    requests: {storage: 5Gi}
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -41,7 +54,7 @@ spec:
             - name: claims-transfer
               secret: {secretName: pas-extract-claims-sftp, defaultMode: 0400}
             - name: staging
-              emptyDir: {sizeLimit: 2Gi}
+              persistentVolumeClaim: {claimName: pas-extract-staging}
 ---
 apiVersion: batch/v1
 kind: CronJob

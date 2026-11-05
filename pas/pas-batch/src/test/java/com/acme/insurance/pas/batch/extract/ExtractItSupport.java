@@ -44,7 +44,6 @@ final class ExtractItSupport {
 
   static final String[] PROPERTIES = {
     "spring.batch.job.enabled=false",
-    "spring.batch.jdbc.initialize-schema=always",
     "spring.flyway.enabled=true",
     "spring.flyway.locations=classpath:db/migration/postgresql"
   };

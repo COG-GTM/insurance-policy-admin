@@ -38,7 +38,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(
     properties = {
       "spring.batch.job.enabled=false",
-      "spring.batch.jdbc.initialize-schema=always",
       "spring.flyway.enabled=true",
       "spring.flyway.locations=classpath:db/migration/postgresql"
     })

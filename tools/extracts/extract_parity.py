@@ -3,10 +3,13 @@
 
 compare: byte-for-byte comparison of captured mainframe feed files against the files written by
 pas-batch, one sub-directory per run (YYYY-MM-DD), and a check that each feed has at least
---required consecutive identical runs (acceptance criterion: 5).
+--required consecutive identical runs (acceptance criterion: 5). Consecutive means scheduled runs
+with nothing skipped: every calendar day (or every weekday with --claims-calendar weekdays) for the
+Claims feeds and every month for the exposure feed. A missing scheduled run breaks the streak, and
+every feed must pass.
 
     extract_parity.py compare --captured DIR --candidate DIR [--required 5] [--report FILE]
-        [--exposure-order-insensitive]
+        [--claims-calendar daily|weekdays] [--exposure-order-insensitive]
 
 The mainframe orders exposure rows only by POLICY_TYPE, BRANCH_CODE (Q-34). Until Actuarial
 confirms the order, --exposure-order-insensitive counts a run whose rows differ only in order
@@ -25,9 +28,9 @@ import os
 import sys
 
 FEEDS = {
-    "policy_extract.dat": {"lrecl": 200, "kind": "fixed"},
-    "coverage_extract.dat": {"lrecl": 150, "kind": "fixed"},
-    "exposure_monthly.csv": {"lrecl": 300, "kind": "csv"},
+    "policy_extract.dat": {"lrecl": 200, "kind": "fixed", "cadence": "daily"},
+    "coverage_extract.dat": {"lrecl": 150, "kind": "fixed", "cadence": "daily"},
+    "exposure_monthly.csv": {"lrecl": 300, "kind": "csv", "cadence": "monthly"},
 }
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CUTOVER = os.path.join(ROOT, "docs", "pas", "extracts-cutover.json")
@@ -68,7 +71,25 @@ def order_only(expected, actual):
     return eg == ag and dedup(ek) == dedup(ak)
 
 
-def compare_runs(captured, candidate, required, exposure_order_insensitive=False):
+def next_scheduled(date, cadence, claims_calendar="daily"):
+    if cadence == "monthly":
+        return (date.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
+    date += datetime.timedelta(days=1)
+    while claims_calendar == "weekdays" and date.weekday() >= 5:
+        date += datetime.timedelta(days=1)
+    return date
+
+
+def _scheduled_after(previous, run, cadence, claims_calendar):
+    prev, cur = datetime.date.fromisoformat(previous), datetime.date.fromisoformat(run)
+    if cadence == "monthly":
+        return (cur.year, cur.month) == (next_scheduled(prev, cadence).year,
+                                         next_scheduled(prev, cadence).month)
+    return cur == next_scheduled(prev, cadence, claims_calendar)
+
+
+def compare_runs(captured, candidate, required, exposure_order_insensitive=False,
+                 claims_calendar="daily"):
     runs = sorted(d for d in os.listdir(captured) if os.path.isdir(os.path.join(captured, d)))
     for run in runs:
         datetime.date.fromisoformat(run)
@@ -94,14 +115,19 @@ def compare_runs(captured, candidate, required, exposure_order_insensitive=False
                 entry["order_only"] = True
             results.append(entry)
         streak = best = 0
+        previous = None
         for r in results:
             matched = r["identical"] or (exposure_order_insensitive and r.get("order_only", False))
+            if previous is not None and not _scheduled_after(
+                    previous, r["run"], FEEDS[name]["cadence"], claims_calendar):
+                r["gap_before"] = True
+                streak = 0
             streak = streak + 1 if matched else 0
             best = max(best, streak)
+            previous = r["run"]
         report["feeds"][name] = {"runs": results, "consecutive_identical": best,
                                  "passed": best >= required}
-    compared = [f for f in report["feeds"].values() if f["runs"]]
-    report["passed"] = bool(compared) and all(f["passed"] for f in compared)
+    report["passed"] = all(f["passed"] for f in report["feeds"].values())
     return report
 
 
@@ -171,6 +197,7 @@ def main(argv=None):
     c.add_argument("--required", type=int, default=5)
     c.add_argument("--report")
     c.add_argument("--exposure-order-insensitive", action="store_true")
+    c.add_argument("--claims-calendar", choices=("daily", "weekdays"), default="daily")
     g = sub.add_parser("gate")
     g.add_argument("--file", default=CUTOVER)
     g.add_argument("--check", action="store_true", help="validate the file only")
@@ -178,13 +205,17 @@ def main(argv=None):
     if args.cmd == "gate":
         return gate(args.file, args.check)
     report = compare_runs(args.captured, args.candidate, args.required,
-                          args.exposure_order_insensitive)
+                          args.exposure_order_insensitive, args.claims_calendar)
     for name, feed in report["feeds"].items():
         for r in feed["runs"]:
             tag = "OK  " if r["identical"] else "ORDR" if r.get("order_only") else "DIFF"
+            if r.get("gap_before"):
+                print(f"GAP  scheduled run(s) missing before {r['run']} {name}")
             print(f"{tag} {r['run']} {name}"
                   + (f": {r['detail']}" if r["detail"] else ""))
-        if feed["runs"]:
+        if not feed["runs"]:
+            print(f"{name}: no captured runs, need {args.required}: FAIL")
+        else:
             print(f"{name}: {feed['consecutive_identical']} consecutive matching run(s), "
                   f"need {args.required}: {'PASS' if feed['passed'] else 'FAIL'}")
     if args.report:

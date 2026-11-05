@@ -22,19 +22,54 @@ class CompareTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def runs(self, n, differ_on=None):
-        for i in range(n):
-            run = f"2026-11-0{i + 1}"
+    def runs(self, n, differ_on=None, days=None, name="policy_extract.dat"):
+        for i, day in enumerate(days or range(1, n + 1)):
+            run = f"2026-11-{day:02d}"
             rec = b"POL000000001".ljust(200) + b"\r\n"
-            write(self.cap, run, "policy_extract.dat", rec)
-            write(self.cand, run, "policy_extract.dat",
+            write(self.cap, run, name, rec)
+            write(self.cand, run, name,
                   rec.replace(b"POL000000001", b"POL000000009") if i == differ_on else rec)
 
-    def test_five_consecutive_identical_runs_pass(self):
+    def exposure(self, months):
+        rec = b"POLICY_TYPE,BRANCH_CODE\r\nAUT,NE01\r\n"
+        for m in months:
+            write(self.cap, f"{m}-01", "exposure_monthly.csv", rec)
+            write(self.cand, f"{m}-01", "exposure_monthly.csv", rec)
+
+    def all_feeds(self):
         self.runs(5)
+        self.runs(5, name="coverage_extract.dat")
+        self.exposure(["2026-07", "2026-08", "2026-09", "2026-10", "2026-11"])
+
+    def test_five_consecutive_identical_runs_of_every_feed_pass(self):
+        self.all_feeds()
         report = ep.compare_runs(self.cap, self.cand, 5)
         self.assertTrue(report["passed"])
         self.assertEqual(report["feeds"]["policy_extract.dat"]["consecutive_identical"], 5)
+        self.assertEqual(report["feeds"]["exposure_monthly.csv"]["consecutive_identical"], 5)
+
+    def test_a_feed_without_captures_fails_the_gate(self):
+        self.runs(5)
+        report = ep.compare_runs(self.cap, self.cand, 5)
+        self.assertTrue(report["feeds"]["policy_extract.dat"]["passed"])
+        self.assertFalse(report["passed"])
+
+    def test_missing_scheduled_runs_break_the_streak(self):
+        self.runs(5, days=[1, 3, 5, 7, 9])
+        feed = ep.compare_runs(self.cap, self.cand, 5)["feeds"]["policy_extract.dat"]
+        self.assertEqual(feed["consecutive_identical"], 1)
+        self.assertTrue(feed["runs"][1]["gap_before"])
+        self.exposure(["2026-01", "2026-02", "2026-04"])
+        feed = ep.compare_runs(self.cap, self.cand, 5)["feeds"]["exposure_monthly.csv"]
+        self.assertEqual(feed["consecutive_identical"], 2)
+
+    def test_weekday_calendar_skips_weekends(self):
+        # 2026-11-06 is a Friday, 2026-11-09 the Monday after.
+        self.runs(5, days=[4, 5, 6, 9, 10])
+        daily = ep.compare_runs(self.cap, self.cand, 5)["feeds"]["policy_extract.dat"]
+        self.assertEqual(daily["consecutive_identical"], 3)
+        weekdays = ep.compare_runs(self.cap, self.cand, 5, claims_calendar="weekdays")
+        self.assertEqual(weekdays["feeds"]["policy_extract.dat"]["consecutive_identical"], 5)
 
     def test_a_difference_breaks_the_streak_and_is_located(self):
         self.runs(6, differ_on=2)
@@ -60,7 +95,7 @@ class CompareTest(unittest.TestCase):
         self.assertFalse(run["identical"])
         self.assertIn("Q-34", run["detail"])
         lenient = ep.compare_runs(self.cap, self.cand, 1, exposure_order_insensitive=True)
-        self.assertTrue(lenient["passed"])
+        self.assertTrue(lenient["feeds"]["exposure_monthly.csv"]["passed"])
         self.assertFalse(lenient["feeds"]["exposure_monthly.csv"]["runs"][0]["identical"])
         self.assertFalse(ep.compare_runs(self.cap, self.cand, 1)["passed"])
 
