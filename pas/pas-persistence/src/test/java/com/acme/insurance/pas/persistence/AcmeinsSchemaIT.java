@@ -80,6 +80,7 @@ class AcmeinsSchemaIT {
             "base_rates",
             "rating_parameters",
             "extract_delivery",
+            "policy_change_audit",
             "event_outbox",
             "policy_audit",
             "default_coverages");

@@ -121,7 +121,7 @@ UPDATE and DELETE with a trigger; on DB2 the application id only gets INSERT and
 
 Suite `undwrt-decision` runs `UndwrtDecisionAdapter` on every fixture, including the 299/300,
 599/600 and 799/800 boundaries (`make parity`). Known differences, all pending sign-off:
-KD-03 (Q-14), KD-04 (Q-15 score), KD-05 (Q-16), KD-06 (Q-15 loss-ratio probe), KD-07 (Q-520-1: a
+KD-03 (Q-14), KD-04 (Q-15 score), KD-05 (Q-16), KD-09 (Q-15 loss-ratio probe), KD-10 (Q-520-1: a
 failed receive is rejected before any write). POLNEW has no harness suite; `NewBusinessApiIT` covers
 it end to end against PostgreSQL and Kafka.
 
@@ -141,7 +141,7 @@ it end to end against PostgreSQL and Kafka.
 | Item | Owner | Status |
 |---|---|---|
 | Q-525-1, Q-525-2 fixes (FU-525-1) | Underwriting lead | pending |
-| KD-06, KD-07 known differences | Underwriting lead + Mainframe team | pending |
+| KD-09, KD-10 known differences | Underwriting lead + Mainframe team | pending |
 | Policy number format (FU-05) and term (FU-525-2) | Mainframe team + Product Owner | pending |
 | Claims interface contract (FU-525-4 / FU-17) | Claims team | pending |
 | Scopes and legacy user claim (FU-525-3) | Security | pending |
