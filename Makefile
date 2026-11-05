@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-build inventory
+.PHONY: compat compat-static compat-api compat-build inventory adr
 
 compat: compat-static compat-build compat-api
 
@@ -16,3 +16,7 @@ compat-api:
 inventory:
 	python3 tools/discovery/pas_inventory.py
 	python3 -m unittest discover -s tools/discovery -p 'test_*.py'
+
+adr:
+	python3 tools/adr/check_adr.py
+	python3 -m unittest discover -s tools/adr -p 'test_*.py'

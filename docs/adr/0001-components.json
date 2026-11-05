@@ -1,0 +1,309 @@
+{
+  "_comment": "New components and data stores introduced by ADR 0001 (AB-518). Source of truth for the generated tables in 0001-pas-target-architecture.md and arb/0001-arb-submission.md. Validate with `make adr`. Review status values: pending | n/a | approved by <name> <date> | rejected by <name> <date>.",
+  "components": [
+    {
+      "id": "SVC-01",
+      "name": "pas-policy-service",
+      "kind": "service",
+      "decision": "D1",
+      "purpose": "Spring Boot 3 / Java 21 API for inquiry, new business, underwriting, renewal and endorsement",
+      "replaces": "CICS PNEW, PRWL, PEND, PQRY, PUWR and java-facade",
+      "data": "Reads and writes all ACMEINS PAS tables, including POLICY_HOLDERS PII",
+      "classification": "Restricted",
+      "pii": true,
+      "encryption": "TLS in transit; no local persistence",
+      "retention": "n/a (stateless)",
+      "owner": "PAS engineering team",
+      "introduced_by": "AB-519",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "SVC-02",
+      "name": "pas-batch",
+      "kind": "batch",
+      "decision": "D1",
+      "purpose": "Spring Batch 5 jobs: premium run, daily Claims extract, monthly exposure feed",
+      "replaces": "PREMIUM-BATCH, DAILY-EXTRACT, MONTHLY-EXPOSURE JCL and CA-7 PAS0050/PAS0100/PAS0200",
+      "data": "Reads policies and coverages, writes PREMIUMS and extract files",
+      "classification": "Restricted",
+      "pii": true,
+      "encryption": "TLS in transit; staging files encrypted at rest",
+      "retention": "n/a (stateless); staging files purged after confirmed delivery",
+      "owner": "PAS engineering team",
+      "introduced_by": "AB-519",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "DS-01",
+      "name": "PostgreSQL schema acmeins (target system of record)",
+      "kind": "data-store",
+      "decision": "D3",
+      "purpose": "Target database for the ACMEINS tables; CDC replica of DB2 until cutover, system of record after",
+      "replaces": "DB2 for z/OS subsystem DBPD, schema ACMEINS (except CLAIMS)",
+      "data": "POLICIES, COVERAGES, PREMIUMS, ENDORSEMENTS, UNDERWRITING_DECISIONS, POLICY_HOLDERS, TERRITORY_FACTORS, class factors",
+      "classification": "Restricted",
+      "pii": true,
+      "encryption": "Storage encryption; column-level encryption or tokenisation for SSN_LAST4 and TAX_ID (D9); TLS connections",
+      "retention": "Per the PAS records retention policy (to be confirmed by Data governance)",
+      "owner": "PAS engineering team + DBA team",
+      "introduced_by": "AB-521",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "DS-02",
+      "name": "PostgreSQL schema acmeins_shadow (parallel-run outputs and reconciliation)",
+      "kind": "data-store",
+      "decision": "D3",
+      "purpose": "Outputs of shadow batch and extract runs and daily reconciliation results",
+      "replaces": "nothing (new)",
+      "data": "Shadow PREMIUMS rows, extract images, row counts, totals and record hashes",
+      "classification": "Restricted",
+      "pii": true,
+      "encryption": "Storage encryption; TLS connections",
+      "retention": "Until cutover sign-off plus the rollback window, then dropped",
+      "owner": "PAS engineering team",
+      "introduced_by": "AB-529",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "DS-03",
+      "name": "Spring Batch job repository (schema pas_batch)",
+      "kind": "data-store",
+      "decision": "D2",
+      "purpose": "Job and step execution metadata for restart and run summaries",
+      "replaces": "CA-7 run history and JES job logs",
+      "data": "Job parameters, step counts, exit codes; no business data",
+      "classification": "Internal",
+      "pii": false,
+      "encryption": "Storage encryption; TLS connections",
+      "retention": "13 months of run history",
+      "owner": "PAS engineering team",
+      "introduced_by": "AB-523",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "DS-04",
+      "name": "Transactional outbox table (DB2 PASAPP.EVENT_OUTBOX during the transition, PostgreSQL pasapp.event_outbox after cutover)",
+      "kind": "data-store",
+      "decision": "D4",
+      "purpose": "Events written in the business transaction and relayed to Kafka",
+      "replaces": "CICS TD queue writes (Q-13)",
+      "data": "Event envelopes with policy number, status fields and pseudonymous identifiers (policyholder id, agent code); no direct PII",
+      "classification": "Confidential",
+      "pii": true,
+      "encryption": "Storage encryption; TLS connections",
+      "retention": "Deleted 7 days after successful relay",
+      "owner": "PAS engineering team",
+      "introduced_by": "AB-525",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "DS-05",
+      "name": "Policy audit table (DB2 PASAPP.POLICY_AUDIT during the transition, PostgreSQL pasapp.policy_audit after cutover)",
+      "kind": "data-store",
+      "decision": "D5",
+      "purpose": "Durable, append-only audit of every write with the authenticated principal; AB-525 creates it for new business and underwriting, AB-526 adds renewal and endorsement (Q-23)",
+      "replaces": "CICS TS queue ENDORSEMENT-AUDIT (Q-23) and 8-character audit columns (Q-518-1)",
+      "data": "Principal, action, policy number, before/after values of changed fields, including policyholder PII when POLICY_HOLDERS fields change",
+      "classification": "Restricted",
+      "pii": true,
+      "encryption": "Storage encryption; column-level encryption/tokenisation of PII values as in D9; TLS connections; append-only grants",
+      "retention": "Set by Compliance (FU-09)",
+      "owner": "PAS engineering team + Compliance",
+      "introduced_by": "AB-525",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "MSG-01",
+      "name": "Kafka topics pas.policy.* and pas.underwriting.* with schema registry subjects",
+      "kind": "messaging",
+      "decision": "D4",
+      "purpose": "Domain events: policy created, renewed, endorsed; underwriting requested, decided; dead-letter topic",
+      "replaces": "TD queue ACME routed to IBM MQ ACME.PAS.UNDERWRITING.REQUEST/DECISION",
+      "data": "Event payloads with policy number, status, premium, risk score and pseudonymous identifiers (policyholder id, agent code); no direct PII",
+      "classification": "Confidential",
+      "pii": true,
+      "encryption": "TLS in transit; broker storage encryption; ACLs per topic",
+      "retention": "7 days on business topics, 30 days on the dead-letter topic",
+      "owner": "PAS engineering team + Platform team",
+      "introduced_by": "AB-528",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "MSG-02",
+      "name": "CDC pipeline DB2 to PostgreSQL (and reverse after cutover)",
+      "kind": "messaging",
+      "decision": "D3",
+      "purpose": "Log-based replication of ACMEINS for reconciliation, parallel run and rollback",
+      "replaces": "nothing (temporary, removed in AB-530)",
+      "data": "Full row images of all ACMEINS PAS tables and PASAPP.POLICY_AUDIT, including POLICY_HOLDERS PII",
+      "classification": "Restricted",
+      "pii": true,
+      "encryption": "TLS in transit; encrypted staging; access limited to the replication service account",
+      "retention": "Change staging kept 7 days; pipeline removed after the rollback window",
+      "owner": "DBA team",
+      "introduced_by": "AB-529",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "INT-01",
+      "name": "Kafka to IBM MQ bridge",
+      "kind": "integration",
+      "decision": "D4",
+      "purpose": "Delivers events to FileNet and the underwriting work queue in today's payload until the owners move to Kafka",
+      "replaces": "nothing (temporary, removed in AB-528/AB-530)",
+      "data": "125-byte POLICY-RECORD payloads, including POLICY-HOLDER-ID and POLICY-AGENT-CODE (pseudonymous personal identifiers)",
+      "classification": "Confidential",
+      "pii": true,
+      "encryption": "TLS to the queue manager",
+      "retention": "n/a (pass-through)",
+      "owner": "Platform team + MQ admins",
+      "introduced_by": "AB-528",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "INT-02",
+      "name": "SFTP / managed file transfer flows to Claims and Actuarial",
+      "kind": "integration",
+      "decision": "D6",
+      "purpose": "Encrypted delivery of the daily extract and monthly exposure files with checksum manifests",
+      "replaces": "z/OS FTP client steps in DAILY-EXTRACT STEP030 and MONTHLY-EXPOSURE STEP020 (Q-32)",
+      "data": "Policy and coverage extracts and exposure aggregates",
+      "classification": "Confidential",
+      "pii": false,
+      "encryption": "SSH transport; key-based authentication; keys in the secrets manager",
+      "retention": "MFT keeps delivery receipts per the MFT policy; payload purged after confirmation",
+      "owner": "PAS engineering team + Security",
+      "introduced_by": "AB-527",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "INT-03",
+      "name": "Claims history read interface",
+      "kind": "integration",
+      "decision": "D3",
+      "purpose": "Open-claim counts and 5-year incurred totals per policy for renewal and underwriting",
+      "replaces": "Direct reads of ACMEINS.CLAIMS by POLRNW and UNDWRT (I-7, FU-17)",
+      "data": "Claim counts and incurred amounts by policy number",
+      "classification": "Confidential",
+      "pii": false,
+      "encryption": "TLS; OAuth client credentials",
+      "retention": "n/a (Claims team owns the data)",
+      "owner": "Claims team",
+      "introduced_by": "AB-525",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "SEC-01",
+      "name": "Identity provider client registrations, scopes and entitlement claims",
+      "kind": "security",
+      "decision": "D5",
+      "purpose": "OAuth clients and scopes pas.policy.read/write, pas.underwriting.decide/override, pas.batch.operate; agent/branch/book claims",
+      "replaces": "Network segmentation only (Q-36)",
+      "data": "Client ids, scope grants, user entitlement attributes",
+      "classification": "Confidential",
+      "pii": false,
+      "encryption": "Managed by the IdP",
+      "retention": "Managed by the IdP",
+      "owner": "Security (IAM)",
+      "introduced_by": "AB-524",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "n/a"
+      }
+    },
+    {
+      "id": "SEC-02",
+      "name": "Secrets manager and KMS entries",
+      "kind": "security",
+      "decision": "D2",
+      "purpose": "Database credentials, SFTP keys, Kafka credentials, column-encryption keys",
+      "replaces": "Defaulted passwords in properties and Dockerfile (Q-36), FTP credentials in z/OS datasets",
+      "data": "Credentials and keys",
+      "classification": "Restricted",
+      "pii": false,
+      "encryption": "Managed by the secrets manager / KMS; rotation policy per Security",
+      "retention": "Per the rotation policy",
+      "owner": "Security + Platform team",
+      "introduced_by": "AB-519",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "PLT-01",
+      "name": "API gateway routes /api/v1/policies/** and new PAS APIs",
+      "kind": "platform",
+      "decision": "D7",
+      "purpose": "Per-capability routing between legacy and new paths; token pre-check",
+      "replaces": "Direct VPN access to java-facade",
+      "data": "Request metadata and access logs (no bodies)",
+      "classification": "Internal",
+      "pii": false,
+      "encryption": "TLS termination with re-encryption to the service",
+      "retention": "Access logs per the platform logging policy",
+      "owner": "Platform team",
+      "introduced_by": "AB-524",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "n/a"
+      }
+    },
+    {
+      "id": "PLT-02",
+      "name": "DB2 service account and grants for pas-policy-service and pas-batch (transition only)",
+      "kind": "platform",
+      "decision": "D3",
+      "purpose": "JDBC access to ACMEINS and the new PASAPP schema while DB2 is the system of record",
+      "replaces": "nothing (temporary, revoked at cutover)",
+      "data": "Grants on ACMEINS PAS tables and POLICY_SEQ; INSERT, SELECT, DELETE on PASAPP.EVENT_OUTBOX; INSERT and SELECT only on PASAPP.POLICY_AUDIT",
+      "classification": "Restricted",
+      "pii": true,
+      "encryption": "TLS to DB2 (DRDA over TLS)",
+      "retention": "Revoked after the rollback window",
+      "owner": "DBA team",
+      "introduced_by": "AB-525",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    }
+  ]
+}
