@@ -74,7 +74,7 @@ class AcmeinsSchemaIT {
             "policy_holders",
             "territory_factors")
         .doesNotContain("claims");
-    assertThat(tables("pasapp")).containsExactly("class_factors");
+    assertThat(tables("pasapp")).containsExactlyInAnyOrder("class_factors", "extract_delivery");
   }
 
   @Test
