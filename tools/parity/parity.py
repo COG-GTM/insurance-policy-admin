@@ -38,6 +38,11 @@ BUILD = ROOT / "target" / "parity"
 CASE_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 KD_ID = re.compile(r"^KD-\d{2,3}$")
 TICKET = re.compile(r"^AB-5(1[7-9]|2\d|30)$")
+# Known-difference result paths. No whole-case '*' and no 'effects[*].*': an entry must name what may
+# differ, so an unrelated cent difference in the same case still fails.
+RESULT_PATH = re.compile(
+    r"^(outcome\.(status|return_code|abend_code)|effects\.count|effects\[\d+\]\.\*"
+    r"|effects\[(\d+|\*)\]\.(op|sqlcode|(text|numbers|probes)\.[A-Z0-9][A-Z0-9_-]*))$")
 ENV_KEY = re.compile(r"^[A-Z][A-Z0-9_]*$")
 # CICS translator: DFHRESP(condition) becomes a numeric literal.
 DFHRESP = {"NORMAL": 0, "ERROR": 1, "NOTFND": 13, "DUPREC": 14, "MAPFAIL": 36, "QIDERR": 44}
@@ -361,11 +366,25 @@ def validate(registry, quirks, known):
             errors.append(f"{name}/{missing}: golden file missing (run: make parity-record)")
         for orphan in sorted(on_disk - ids):
             errors.append(f"{name}/{orphan}: golden file has no fixture case")
+        errors.extend(validate_ignored_probes(name, suite.get("ignored_probes", {}), ids & on_disk))
     for tag in registry.get("required_tags", []):
         if tag not in seen_tags:
             errors.append(f"required fixture tag '{tag}' is not covered by any case")
     errors.extend(validate_known_differences(known, suites, quirk_by_id))
     return errors
+
+
+def validate_ignored_probes(name, ignored, case_ids):
+    """ignored_probes: probe name -> why the Java adapter does not report it. Every other recorded
+    probe must be reported and match, so a missing probe fails instead of passing silently."""
+    if not isinstance(ignored, dict) or not all(isinstance(r, str) and r.strip() for r in ignored.values()):
+        return [f"suite {name}: ignored_probes must map each probe name to the reason Java does not report it"]
+    recorded = set()
+    for case_id in case_ids:
+        for effect in load_json(golden_path(name, case_id)).get("effects", []):
+            recorded.update(effect.get("probes", {}))
+    return [f"suite {name}: ignored probe {probe} is not recorded in any golden file"
+            for probe in sorted(set(ignored) - recorded)]
 
 
 def validate_known_differences(known, suites, quirk_by_id):
@@ -387,7 +406,11 @@ def validate_known_differences(known, suites, quirk_by_id):
         if not entry.get("cases"):
             errors.append(f"{kd}: cases must list case ids or '*'")
         if not entry.get("paths"):
-            errors.append(f"{kd}: paths must list result paths (or '*')")
+            errors.append(f"{kd}: paths must list the result paths that may differ")
+        for path in entry.get("paths", []):
+            if not RESULT_PATH.match(path):
+                errors.append(f"{kd}: path '{path}' must be a result path such as effects[*].numbers.RISK_SCORE, "
+                              "effects[1].* or outcome.status (whole-case '*' and effects[*].* are not allowed)")
         quirk = quirk_by_id.get(entry.get("quirk"))
         if quirk is None:
             errors.append(f"{kd}: unknown quirk {entry.get('quirk')}")

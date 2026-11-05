@@ -10,6 +10,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
@@ -50,11 +52,13 @@ class ParityTest {
         continue;
       }
       ProgramAdapter adapter = instantiate(adapterClass.asText());
+      Set<String> ignoredProbes = new TreeSet<>();
+      suite.path("ignored_probes").fieldNames().forEachRemaining(ignoredProbes::add);
       List<DynamicTest> tests = new ArrayList<>();
       for (FixtureCase fixture : DATA.fixtures(suite)) {
         tests.add(
             DynamicTest.dynamicTest(
-                fixture.id(), () -> assertParity(name, fixture, adapter, known)));
+                fixture.id(), () -> assertParity(name, fixture, adapter, known, ignoredProbes)));
       }
       REPORT.add(
           "| " + name + " | " + adapterClass.asText() + " | " + tests.size() + " cases | run |");
@@ -65,11 +69,15 @@ class ParityTest {
   }
 
   private static void assertParity(
-      String suite, FixtureCase fixture, ProgramAdapter adapter, List<KnownDifference> known) {
+      String suite,
+      FixtureCase fixture,
+      ProgramAdapter adapter,
+      List<KnownDifference> known,
+      Set<String> ignoredProbes) {
     RunResult golden = DATA.golden(suite, fixture.id());
     RunResult actual = adapter.run(fixture);
     List<String> unexplained = new ArrayList<>();
-    for (Difference difference : ParityComparator.compare(golden, actual)) {
+    for (Difference difference : ParityComparator.compare(golden, actual, ignoredProbes)) {
       Optional<KnownDifference> allowed =
           known.stream()
               .filter(kd -> kd.covers(suite, fixture.id(), difference.path()))

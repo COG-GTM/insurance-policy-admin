@@ -84,7 +84,10 @@ output, so golden files cannot be edited by hand or go stale.
 
 `pas-parity` compares a Java adapter's result with the golden file. It checks the outcome, the
 effect count and order, each operation and SQLCODE, every text field (exact after right-trim),
-every number (decimal compare, so one cent fails), and probes when the adapter reports them. File
+every number (decimal compare, so one cent fails), and every probe recorded on either side. A probe
+COBOL recorded but the adapter leaves out is a difference, unless the suite lists it in `suites.json`
+`ignored_probes` (probe name -> reason; `make parity-check` rejects an entry without a reason or for a
+probe no golden file records). File
 artifacts are not compared yet: byte-level report and extract comparison waits for production
 samples (FU-13, AB-523/AB-527). `pas/pas-parity/target/parity-report.md` lists what ran, which suites
 still lack an adapter and which known differences were used.
@@ -104,15 +107,29 @@ still lack an adapter and which known differences were used.
 `PrembatRatingAdapter` is the worked example: suite `prembat-rating` runs PREMBAT end to end in COBOL
 and `pas-rating`'s `PremiumCalculator` in Java, and all 12 cases match to the cent.
 
+What the PREMBAT fixtures cannot catch: today's PREMBAT premium depends only on the policy type (all
+factors are 1.0000), and 3.5% tax on every base rate is a whole number of cents. A rounding-mode
+regression in `PremiumCalculator` (for example HALF_UP instead of truncation) therefore still matches
+all 12 golden cases. Cent truncation is guarded by `PremiumCalculatorTest` in `pas-rating` until
+fixtures with real rating factors (AB-522) or pro-rata amounts (AB-526) arrive; those tickets must add
+cases whose intermediate values have sub-cent digits.
+
 ## Known differences
 
 `known-differences.json` entries need: the suite, the cases (or `*`), the result paths that may
-differ (`*` for the whole case, or globs like `effects[*].text.DECISION_REASON`), the quirk, the link
+differ, the quirk, the link
 to its decision (`docs/modernization/quirk-register.md#q-nn`), the ticket, the reason and `sign_off`.
 `make parity-check` rejects an entry whose quirk is not `fix` in the quirk register or whose link is
 wrong. While sign-off is `pending` the difference is allowed but listed in the report. Before a
 capability goes live (ADR 0001 cutover gate), run with `PARITY_REQUIRE_SIGNOFF=1`: then only entries
 with `sign_off: "approved: <who, date, reference>"` count.
+
+Paths are `outcome.status|return_code|abend_code`, `effects.count`, `effects[<n>|*].op|sqlcode`,
+`effects[<n>|*].text|numbers|probes.<NAME>`, or a whole effect `effects[<n>].*`. A whole-case `*` and
+`effects[*].*` are rejected: they would also hide cent differences unrelated to the quirk. Name only
+the fields the fix changes (KD-05 allows just `DECISION_REASON`; KD-03 just the score fields). Where
+the fix removes or adds an effect, the later effects shift, so their indexes are listed whole (KD-01);
+the capability ticket narrows them once its adapter exists.
 
 The seeded entries (KD-01..KD-05) cover the fixes the register already proposes for suites whose
 adapters land in AB-525 and AB-526.

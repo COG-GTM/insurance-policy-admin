@@ -106,7 +106,7 @@ class KnownDifferenceTest(unittest.TestCase):
     SUITES = {"s": {"suite": "s", "_case_ids": {"a"}}}
 
     def entry(self, **override):
-        base = {"id": "KD-01", "suite": "s", "cases": ["a"], "paths": ["*"], "quirk": "Q-01",
+        base = {"id": "KD-01", "suite": "s", "cases": ["a"], "paths": ["effects[*].numbers.RISK_SCORE"], "quirk": "Q-01",
                 "decision": "docs/modernization/quirk-register.md#q-01", "ticket": "AB-526",
                 "sign_off": "pending", "reason": "r"}
         base.update(override)
@@ -128,6 +128,27 @@ class KnownDifferenceTest(unittest.TestCase):
         errors = parity.validate_known_differences(self.entry(cases=["b"], sign_off="yes"), self.SUITES, self.QUIRKS)
         self.assertTrue(any("unknown case" in e for e in errors))
         self.assertTrue(any("sign_off" in e for e in errors))
+
+
+    def test_paths_must_be_narrow_result_paths(self):
+        for path in ("*", "effects[*].*", "effects*", "numbers.TOTAL_PREMIUM"):
+            errors = parity.validate_known_differences(self.entry(paths=[path]), self.SUITES, self.QUIRKS)
+            self.assertTrue(any("must be a result path" in e for e in errors), path)
+        ok = ["outcome.status", "outcome.abend_code", "effects.count", "effects[2].*", "effects[0].sqlcode",
+              "effects[*].text.DECISION_REASON", "effects[*].probes.WS-LOSS-RATIO"]
+        self.assertEqual(parity.validate_known_differences(self.entry(paths=ok), self.SUITES, self.QUIRKS), [])
+
+
+class IgnoredProbesTest(unittest.TestCase):
+    CASES = {"type-aut"}
+
+    def test_reason_required_and_probe_must_be_recorded(self):
+        self.assertEqual(parity.validate_ignored_probes(
+            "prembat-rating", {"WS-MOD-PREMIUM": "computed inside PremiumCalculator"}, self.CASES), [])
+        self.assertTrue(parity.validate_ignored_probes("prembat-rating", {"WS-MOD-PREMIUM": " "}, self.CASES))
+        self.assertTrue(parity.validate_ignored_probes("prembat-rating", ["WS-MOD-PREMIUM"], self.CASES))
+        errors = parity.validate_ignored_probes("prembat-rating", {"WS-NOPE": "r"}, self.CASES)
+        self.assertEqual(errors, ["suite prembat-rating: ignored probe WS-NOPE is not recorded in any golden file"])
 
 
 class RunSelectionTest(unittest.TestCase):
