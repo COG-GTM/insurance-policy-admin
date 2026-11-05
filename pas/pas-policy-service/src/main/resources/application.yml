@@ -79,3 +79,15 @@ pas:
     factor-source: ${PAS_RATING_FACTOR_SOURCE:legacy-neutral}
     # How long a loaded rate table is reused; new effective-dated rate rows are seen after this.
     cache-ttl: ${PAS_RATING_CACHE_TTL:PT5M}
+  policy-change:
+    # Renewal and endorsement (AB-526). Defaults reproduce POLRNW: +5% uplift (Q-05) and a flat 15%
+    # rate-increase cap (Q-04), configurable so state-specific caps can follow.
+    renewal-uplift-pct: ${PAS_RENEWAL_UPLIFT_PCT:5.00}
+    rate-increase-cap-pct: ${PAS_RENEWAL_RATE_INCREASE_CAP_PCT:15.00}
+    # Expiry of a renewed 29 February term: FEB_28 (recommended) or MAR_01 (Q-01, FU-01).
+    leap-day-expiry: ${PAS_RENEWAL_LEAP_DAY_EXPIRY:FEB_28}
+    # Open claims are counted but not enforced (Q-02, FU-02). Set a maximum only together with a
+    # Claims read interface (FU-17); the service does not start with a maximum and no interface.
+    max-open-claims: ${PAS_RENEWAL_MAX_OPEN_CLAIMS:}
+    # Zone of the business date an endorsement takes effect on (POLEND's CURRENT DATE).
+    business-zone: ${PAS_BUSINESS_ZONE:UTC}
