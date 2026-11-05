@@ -13,6 +13,7 @@ shipped in the jar under `openapi/`.
 | `GET /api/v1/policies/{policyNumber}` | facade `PolicyController.getPolicy`, POLQRY `2000-READ-POLICY` | Facade JSON, field for field |
 | `GET /api/v1/policies/{policyNumber}/coverages` | facade `getCoverages`, POLQRY `4000-READ-COVERAGES` | Facade JSON, `SEQUENCE_NUM` order, all rows (the facade had no 20-row cap; POLQRY's cap only applied to its unused table, Q-24) |
 | `GET /api/v1/policies/{policyNumber}/policyholder` | POLQRY `3000-READ-CUSTOMER` (read but never shown on screen, Q-24) | New, additive. Masked unless `pas.policyholder.read` |
+| `GET /api/v1/policies?agentCode=` or `?branchCode=` (`status`, `after`, `limit` <= 200) | Broker Portal linked-server reads of ACMEINS.POLICIES (I-3, AB-528) | New, additive. Keyset-paged by policy number, entitlement-filtered; `nextAfter` for the next page |
 
 Everything else on the API port is denied (403 with a token, 401 without).
 
