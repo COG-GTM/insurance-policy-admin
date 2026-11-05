@@ -48,7 +48,7 @@ public final class ReferenceDatabase {
     RatingReferenceData data =
         RatingReferenceData.of(rates::baseRatesInForce, rates::parametersInForce);
     return new PremiumRater(
-        new ReferenceRatingTables(data),
+        ReferenceRatingTables.snapshotOf(data),
         mode.source(factors::territoryFactor, factors::classFactor));
   }
 }

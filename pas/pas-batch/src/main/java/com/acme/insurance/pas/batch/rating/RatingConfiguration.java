@@ -6,6 +6,7 @@ import com.acme.insurance.pas.rating.PremiumRater;
 import com.acme.insurance.pas.rating.RatingFactorSource;
 import com.acme.insurance.pas.rating.RatingReferenceData;
 import com.acme.insurance.pas.rating.ReferenceRatingTables;
+import java.time.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -35,9 +36,12 @@ public class RatingConfiguration {
   }
 
   @Bean
-  ReferenceRatingTables referenceRatingTables(RatingRateJdbcRepository rates) {
+  ReferenceRatingTables referenceRatingTables(
+      RatingRateJdbcRepository rates, RatingProperties properties) {
     return new ReferenceRatingTables(
-        RatingReferenceData.of(rates::baseRatesInForce, rates::parametersInForce));
+        RatingReferenceData.of(rates::baseRatesInForce, rates::parametersInForce),
+        properties.cacheTtl(),
+        Clock.systemUTC());
   }
 
   @Bean

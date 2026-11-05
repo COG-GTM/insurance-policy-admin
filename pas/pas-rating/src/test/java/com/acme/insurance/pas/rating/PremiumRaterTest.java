@@ -19,7 +19,7 @@ class PremiumRaterTest {
 
   final List<LocalDate> loads = new ArrayList<>();
   final ReferenceRatingTables tables =
-      new ReferenceRatingTables(
+      ReferenceRatingTables.snapshotOf(
           RatingReferenceData.of(
               date -> {
                 loads.add(date);
@@ -124,5 +124,47 @@ class PremiumRaterTest {
     assertThat(rater.rate(RatingRequest.of("aut", RUN)).basePremium()).hasToString("900.00");
     assertThat(new BaseRate("AUT", RUN, BigDecimal.ONE).policyType()).isEqualTo("AUT");
     assertThat(RatingTableTest.parameters()).extracting(RatingParameter::code).hasSize(3);
+  }
+
+  @Test
+  void cachedTablesAreReloadedAfterTheirMaxAge() {
+    java.util.concurrent.atomic.AtomicReference<java.time.Instant> now =
+        new java.util.concurrent.atomic.AtomicReference<>(
+            java.time.Instant.parse("2025-06-01T00:00:00Z"));
+    java.time.Clock clock =
+        new java.time.Clock() {
+          @Override
+          public java.time.ZoneId getZone() {
+            return java.time.ZoneOffset.UTC;
+          }
+
+          @Override
+          public java.time.Clock withZone(java.time.ZoneId zone) {
+            return this;
+          }
+
+          @Override
+          public java.time.Instant instant() {
+            return now.get();
+          }
+        };
+    List<BaseRate> current = new ArrayList<>(RatingTableTest.baseRates());
+    ReferenceRatingTables fresh =
+        new ReferenceRatingTables(
+            RatingReferenceData.of(
+                date -> List.copyOf(current), date -> RatingTableTest.parameters()),
+            java.time.Duration.ofMinutes(5),
+            clock);
+    ReferenceRatingTables batchRun = fresh.snapshot();
+    LocalDate july = LocalDate.of(2025, 7, 1);
+    assertThat(fresh.tableFor(july).baseRate("AUT")).hasToString("700.00");
+    assertThat(batchRun.tableFor(july).baseRate("AUT")).hasToString("700.00");
+
+    current.set(0, new BaseRate("AUT", july, new BigDecimal("900.00")));
+    now.set(now.get().plusSeconds(300));
+    assertThat(fresh.tableFor(july).baseRate("AUT")).as("within max age").hasToString("700.00");
+    now.set(now.get().plusSeconds(1));
+    assertThat(fresh.tableFor(july).baseRate("AUT")).as("after max age").hasToString("900.00");
+    assertThat(batchRun.tableFor(july).baseRate("AUT")).as("snapshot").hasToString("700.00");
   }
 }

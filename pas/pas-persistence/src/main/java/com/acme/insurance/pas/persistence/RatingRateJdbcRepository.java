@@ -10,7 +10,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 /**
  * Effective-dated rate reference data for rating (AB-522): PASAPP.BASE_RATES and
  * PASAPP.RATING_PARAMETERS. Each read returns, per key, the row with the latest effective date on
- * or before the rating date, so a whole rating table is loaded in two queries per rating date.
+ * or before the rating date, so a whole rating table is loaded in two queries per rating date. The
+ * SQL is portable (correlated MAX, no DISTINCT ON) because the applications read DB2 until cutover.
  */
 public class RatingRateJdbcRepository {
 
@@ -23,9 +24,12 @@ public class RatingRateJdbcRepository {
   public List<BaseRate> baseRatesInForce(LocalDate ratingDate) {
     return jdbc.sql(
             """
-            SELECT DISTINCT ON (policy_type) policy_type, effective_date, base_rate
-            FROM pasapp.base_rates WHERE effective_date <= ?
-            ORDER BY policy_type, effective_date DESC
+            SELECT r.policy_type, r.effective_date, r.base_rate
+            FROM pasapp.base_rates r
+            WHERE r.effective_date = (
+              SELECT MAX(l.effective_date) FROM pasapp.base_rates l
+              WHERE l.policy_type = r.policy_type AND l.effective_date <= ?)
+            ORDER BY r.policy_type
             """)
         .param(ratingDate)
         .query(
@@ -40,9 +44,12 @@ public class RatingRateJdbcRepository {
   public List<RatingParameter> parametersInForce(LocalDate ratingDate) {
     return jdbc.sql(
             """
-            SELECT DISTINCT ON (parameter_code) parameter_code, effective_date, parameter_value
-            FROM pasapp.rating_parameters WHERE effective_date <= ?
-            ORDER BY parameter_code, effective_date DESC
+            SELECT r.parameter_code, r.effective_date, r.parameter_value
+            FROM pasapp.rating_parameters r
+            WHERE r.effective_date = (
+              SELECT MAX(l.effective_date) FROM pasapp.rating_parameters l
+              WHERE l.parameter_code = r.parameter_code AND l.effective_date <= ?)
+            ORDER BY r.parameter_code
             """)
         .param(ratingDate)
         .query(

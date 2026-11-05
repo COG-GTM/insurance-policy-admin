@@ -6,7 +6,7 @@ PREMBAT `3200-CALCULATE-PREMIUM` is ported to the framework-free module `pas/pas
 
 | Step | COBOL | Java |
 |---|---|---|
-| Load rates for the run | `2000-LOAD-RATING-TABLES` (cursor opened, never fetched, Q-03) | `ReferenceRatingTables.tableFor(ratingDate)`: reads `pasapp.base_rates` and `pasapp.rating_parameters` once per rating date |
+| Load rates for the run | `2000-LOAD-RATING-TABLES` (cursor opened, never fetched, Q-03) | `ReferenceRatingTables.tableFor(ratingDate)`: reads `pasapp.base_rates` and `pasapp.rating_parameters` per rating date and reuses the result for `pas.rating.cache-ttl` (default 5 minutes). A batch run takes `snapshot()` to keep one set of rates for the whole run. |
 | Base premium | `EVALUATE POL-POLICY-TYPE` with literals | `RatingTable.baseRate(policyType)`: exact match on the stored 3-character code, else `OTHER_BASE_RATE` (Q-35) |
 | Territory, class, experience | `* 1.00` | `RatingFactorSource` chosen by the flag below |
 | Tax | `WS-MOD-PREMIUM * WS-TAX-RATE` (0.0350) | `TAX_RATE` parameter |
@@ -25,7 +25,7 @@ No rate is in the Java code; `NoHardcodedRatesTest` fails on any decimal literal
 | `pasapp.base_rates` | `policy_type`, `effective_date` | `base_rate DECIMAL(9,2)` | AUT 850.00, HOM 1200.00, COM 5000.00, LIF 400.00, HLT 3500.00 |
 | `pasapp.rating_parameters` | `parameter_code`, `effective_date` | `parameter_value DECIMAL(11,4)` | `OTHER_BASE_RATE` 1000.00, `TAX_RATE` 0.0350, `SURCHARGE_AMT` 25.00 |
 
-All rows use `effective_date` 0001-01-01. The row in force is the latest one with `effective_date <= rating date`. To change a rate, insert a new row with a later date; never update an existing row. If a parameter has no row in force, rating fails with `RatingDataException` instead of using a default. The DB2 versions (`db/migration/db2/V20`, `V21`) are applied by the DBA team.
+All rows use `effective_date` 0001-01-01. The row in force is the latest one with `effective_date <= rating date`. To change a rate, insert a new row with a later date; never update an existing row. If a parameter has no row in force, rating fails with `RatingDataException` instead of using a default. The DB2 versions (`db/migration/db2/V20`, `V21`) are applied by the DBA team. The lookup SQL uses a correlated `MAX(effective_date)`, which both PostgreSQL and DB2 run.
 
 ## Feature flag: table-driven factors (Q-03, FU-03)
 
