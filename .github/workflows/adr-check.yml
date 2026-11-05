@@ -23,3 +23,5 @@ jobs:
           python-version: "3.12"
       - name: ADRs are valid and generated tables are current
         run: make adr
+      - name: Facade retirement plan is valid and gated (AB-524)
+        run: make facade-retirement

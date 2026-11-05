@@ -302,7 +302,7 @@ def resolve_evidence(ev):
 
 
 def follow_up_ids():
-    return set(re.findall(r"^\|\s*(FU-\d+)\s*\|", read(OPEN_QUESTIONS), re.M))
+    return set(re.findall(r"^\|\s*(FU-\d+(?:-\d+)?)\s*\|", read(OPEN_QUESTIONS), re.M))
 
 
 def valid_quirk_id(qid):
@@ -327,7 +327,7 @@ def validate_quirks(quirks, known_follow_ups=None):
                          or any(int(t) not in EPIC_TICKETS for t in re.findall(r"AB-(\d+)", lands_in))):
             errors.append(f"{qid}: lands_in must list epic tickets AB-{EPIC_TICKETS[0]}..AB-{EPIC_TICKETS[-1]}, "
                           f"got {lands_in!r}")
-        for fu in re.findall(r"FU-\d+", q.get("follow_up", "")):
+        for fu in re.findall(r"FU-\d+(?:-\d+)?", q.get("follow_up", "")):
             if fu not in known_follow_ups:
                 errors.append(f"{qid}: follow_up {fu} not found in {OPEN_QUESTIONS}")
         if qid in seen:

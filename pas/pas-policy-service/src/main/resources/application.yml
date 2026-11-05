@@ -62,6 +62,17 @@ logging:
         name: ${spring.application.name}
 
 pas:
+  security:
+    jwt:
+      # Access-token validation (ADR 0001 D5). No defaults for the issuer: the service does not start
+      # without one. Production uses the IdP's JWK set; local stacks and tests use a PEM public key.
+      issuer: ${PAS_JWT_ISSUER}
+      audience: ${PAS_JWT_AUDIENCE:pas-policy-service}
+      jwk-set-uri: ${PAS_JWT_JWK_SET_URI:}
+      public-key-location: ${PAS_JWT_PUBLIC_KEY_LOCATION:}
+  inquiry:
+    # Zone LAST_UPDATED is interpreted in when it is returned as epoch milliseconds (Q-524-1).
+    timestamp-zone: ${PAS_INQUIRY_TIMESTAMP_ZONE:UTC}
   rating:
     # Feature flag (AB-522): legacy-neutral keeps PREMBAT parity (every factor 1.0000, Q-03);
     # table-driven applies territory/class factors from the reference tables after FU-03 sign-off.
