@@ -106,7 +106,7 @@ parity-java:
 extract-parity:
 	python3 -m unittest discover -s tools/extracts -p 'test_*.py'
 	python3 tools/extracts/extract_parity.py gate --check
-	$(PAS_MVN) -pl pas-batch -am verify -Dtest='FeedLayoutTest,FeedDeliveryTest,SftpDestinationTest' -Dit.test='Extract*IT' -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false
+	$(PAS_MVN) -pl pas-batch -am verify -Dtest='FeedLayoutTest,FeedDeliveryTest,SftpDestinationTest,SftpFeedTransferTest' -Dit.test='Extract*IT' -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false
 ifdef CAPTURED
 	python3 tools/extracts/extract_parity.py compare --captured "$(CAPTURED)" --candidate "$(CANDIDATE)" --report extract-parity-report.json
 endif
