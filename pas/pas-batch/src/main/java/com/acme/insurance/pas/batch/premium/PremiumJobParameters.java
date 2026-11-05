@@ -6,8 +6,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.springframework.batch.core.BatchStatus;
@@ -22,13 +24,14 @@ import org.springframework.batch.core.JobParametersValidator;
  * Identifying parameters of a premium run: {@code businessDate} (YYYY-MM-DD, default today in the
  * configured zone) and {@code rerun}.
  *
- * <p>A launch without arguments (the scheduler, and its pod retry) asks the incrementer for the
- * parameters. If the latest run of today is {@code FAILED} or {@code STOPPED}, the incrementer
- * returns that run's own parameters, so the launcher restarts the same instance from the last
- * committed chunk of every partition. Otherwise (no run yet: the first run of the day; or the
- * latest run completed, was abandoned, or is left {@code STARTED}/{@code UNKNOWN} by a killed pod)
- * it returns today's date with the next {@code rerun} number when today already has a run: a new
- * instance that re-rates the whole book and replaces the day's PREMIUMS rows and report (Q-26).
+ * <p>As an incrementer it always names a new instance: today's date, with the next {@code rerun}
+ * number when today already has a run. That instance re-rates the whole book and replaces the day's
+ * PREMIUMS rows and report (Q-26). Spring Batch's next-instance operation relies on this.
+ *
+ * <p>Restarting a failed run is the scheduler's decision, not the incrementer's: {@link
+ * PremiumScheduledLauncher} asks {@link #restartableRunOfToday()} first, and if today's latest
+ * execution is {@code FAILED} or {@code STOPPED} it relaunches that instance with its own
+ * parameters, so it resumes from the last committed chunk of every partition.
  */
 public class PremiumJobParameters implements JobParametersIncrementer, JobParametersValidator {
 
@@ -41,8 +44,7 @@ public class PremiumJobParameters implements JobParametersIncrementer, JobParame
   private final Function<String, List<JobExecution>> runsOfBusinessDate;
 
   /**
-   * @param runsOfBusinessDate the last execution of every job instance of a business date, newest
-   *     instance first
+   * @param runsOfBusinessDate the last execution of every job instance of a business date
    */
   public PremiumJobParameters(
       Clock clock,
@@ -61,13 +63,9 @@ public class PremiumJobParameters implements JobParametersIncrementer, JobParame
 
   @Override
   public JobParameters getNext(JobParameters previous) {
-    String today = LocalDate.now(clock.withZone(zone)).toString();
-    List<JobExecution> runs = runsOfBusinessDate.apply(today);
-    if (!runs.isEmpty() && isRestartable(runs.get(0).getStatus())) {
-      return new JobParameters(runs.get(0).getJobParameters().getIdentifyingParameters());
-    }
+    String today = today();
     List<JobParameters> todays = new ArrayList<>();
-    runs.forEach(run -> todays.add(run.getJobParameters()));
+    runsOfBusinessDate.apply(today).forEach(run -> todays.add(run.getJobParameters()));
     if (previous != null && today.equals(previous.getString(BUSINESS_DATE))) {
       todays.add(previous);
     }
@@ -77,6 +75,22 @@ public class PremiumJobParameters implements JobParametersIncrementer, JobParame
         .max()
         .ifPresent(last -> next.addLong(RERUN, last + 1));
     return next.toJobParameters();
+  }
+
+  /**
+   * The identifying parameters of today's latest execution (highest execution id, whichever
+   * instance it belongs to) if it is {@code FAILED} or {@code STOPPED}. A {@code STARTED} or {@code
+   * UNKNOWN} execution (killed pod) cannot be restarted by Spring Batch and yields nothing.
+   */
+  public Optional<JobParameters> restartableRunOfToday() {
+    return runsOfBusinessDate.apply(today()).stream()
+        .max(Comparator.comparing(JobExecution::getId))
+        .filter(run -> isRestartable(run.getStatus()))
+        .map(run -> new JobParameters(run.getJobParameters().getIdentifyingParameters()));
+  }
+
+  private String today() {
+    return LocalDate.now(clock.withZone(zone)).toString();
   }
 
   private static boolean isRestartable(BatchStatus status) {

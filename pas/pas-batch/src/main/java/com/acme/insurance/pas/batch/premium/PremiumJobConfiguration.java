@@ -24,6 +24,7 @@ import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.core.step.tasklet.Tasklet;
@@ -35,6 +36,8 @@ import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.batch.JobLauncherApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,6 +45,7 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.util.StringUtils;
 
 /**
  * Job {@code premiumRecalculation} (AB-523), the replacement of PREMIUM-BATCH.jcl / PREMBAT (CA-7
@@ -94,21 +98,41 @@ public final class PremiumJobConfiguration {
   }
 
   @Bean
+  PremiumJobParameters premiumJobParameters(JobExplorer explorer) {
+    return new PremiumJobParameters(
+        clock,
+        properties.zone(),
+        () ->
+            properties.reportDir() == null || properties.reportDir().toString().isBlank()
+                ? "pas.premium.report-dir is not set"
+                : null,
+        businessDate -> runsOf(explorer, businessDate));
+  }
+
+  /** Replaces Spring Boot's job runner so the scheduler's retry restarts today's failed run. */
+  @Bean
+  @ConditionalOnBooleanProperty(name = "spring.batch.job.enabled", matchIfMissing = true)
+  JobLauncherApplicationRunner jobLauncherApplicationRunner(
+      JobLauncher launcher,
+      JobExplorer explorer,
+      JobRepository jobs,
+      PremiumJobParameters parameters,
+      @Value("${spring.batch.job.name:}") String jobName) {
+    PremiumScheduledLauncher runner =
+        new PremiumScheduledLauncher(launcher, explorer, jobs, parameters);
+    if (StringUtils.hasText(jobName)) {
+      runner.setJobName(jobName);
+    }
+    return runner;
+  }
+
+  @Bean
   Job premiumRecalculation(
       JobRepository jobs,
-      JobExplorer explorer,
+      PremiumJobParameters parameters,
       PremiumRunRaters raters,
       PremiumRunJdbcRepository repository,
       Step premiumRatingPartition) {
-    PremiumJobParameters parameters =
-        new PremiumJobParameters(
-            clock,
-            properties.zone(),
-            () ->
-                properties.reportDir() == null || properties.reportDir().toString().isBlank()
-                    ? "pas.premium.report-dir is not set"
-                    : null,
-            businessDate -> runsOf(explorer, businessDate));
     return new JobBuilder(JOB, jobs)
         .incrementer(parameters)
         .validator(parameters)
@@ -245,7 +269,7 @@ public final class PremiumJobConfiguration {
         .build();
   }
 
-  /** The last execution of each recent instance of {@code businessDate}, newest instance first. */
+  /** The last execution of each recent instance of {@code businessDate}. */
   static List<JobExecution> runsOf(JobExplorer explorer, String businessDate) {
     List<JobExecution> runs = new ArrayList<>();
     for (JobInstance instance : explorer.getJobInstances(JOB, 0, RECENT_INSTANCES)) {

@@ -65,27 +65,23 @@ class PremiumJobParametersTest {
   }
 
   @Test
-  void aLaunchWithoutArgumentsRestartsTodaysFailedOrStoppedRun() {
+  void todaysLatestFailedOrStoppedExecutionIsRestartableEvenIfItsInstanceIsOlder() {
     for (BatchStatus status : List.of(BatchStatus.FAILED, BatchStatus.STOPPED)) {
-      JobExecution failed = run(2L, "2025-03-01", 1L, status);
+      // Instance 1 failed, rerun instance 2 completed (execution 2), then an explicit restart of
+      // instance 1 failed again (execution 3): the latest execution belongs to the older instance.
       PremiumJobParameters withHistory =
-          new PremiumJobParameters(
-              CLOCK,
-              EASTERN,
-              () -> null,
-              date ->
-                  "2025-03-01".equals(date)
-                      ? List.of(failed, run(1L, "2025-03-01", null, BatchStatus.COMPLETED))
-                      : List.of());
+          history(
+              run(2L, 2L, "2025-03-01", 1L, BatchStatus.COMPLETED),
+              run(1L, 3L, "2025-03-01", null, status));
 
-      JobParameters next = withHistory.getNext(failed.getJobParameters());
-
-      assertThat(next).as(status.name()).isEqualTo(identifying("2025-03-01", 1L));
+      assertThat(withHistory.restartableRunOfToday())
+          .as(status.name())
+          .contains(identifying("2025-03-01", null));
     }
   }
 
   @Test
-  void aLaunchWithoutArgumentsAfterACompletedOrKilledRunIsTheNextRerun() {
+  void nothingIsRestartableAfterACompletedOrKilledLatestExecution() {
     for (BatchStatus status :
         List.of(
             BatchStatus.COMPLETED,
@@ -93,21 +89,48 @@ class PremiumJobParametersTest {
             BatchStatus.STARTED,
             BatchStatus.UNKNOWN)) {
       PremiumJobParameters withHistory =
-          new PremiumJobParameters(
-              CLOCK,
-              EASTERN,
-              () -> null,
-              date ->
-                  List.of(
-                      run(3L, "2025-03-01", 1L, status),
-                      run(2L, "2025-03-01", 2L, BatchStatus.COMPLETED),
-                      run(1L, "2025-03-01", null, BatchStatus.FAILED)));
+          history(
+              run(1L, "2025-03-01", null, BatchStatus.FAILED),
+              run(3L, "2025-03-01", 2L, status),
+              run(2L, "2025-03-01", 1L, BatchStatus.COMPLETED));
 
-      JobParameters next =
-          withHistory.getNext(run(9L, "2025-02-28", 7L, status).getJobParameters());
-
-      assertThat(next).as(status.name()).isEqualTo(identifying("2025-03-01", 3L));
+      assertThat(withHistory.restartableRunOfToday()).as(status.name()).isEmpty();
     }
+    assertThat(parameters.restartableRunOfToday()).isEmpty();
+  }
+
+  @Test
+  void theIncrementerAlwaysNamesANewInstanceEvenWhenTodaysLatestRunFailed() {
+    for (BatchStatus status :
+        List.of(
+            BatchStatus.FAILED,
+            BatchStatus.STOPPED,
+            BatchStatus.COMPLETED,
+            BatchStatus.ABANDONED,
+            BatchStatus.STARTED,
+            BatchStatus.UNKNOWN)) {
+      JobExecution latest = run(3L, "2025-03-01", 1L, status);
+      PremiumJobParameters withHistory =
+          history(
+              latest,
+              run(2L, "2025-03-01", 2L, BatchStatus.COMPLETED),
+              run(1L, "2025-03-01", null, BatchStatus.FAILED));
+
+      assertThat(withHistory.getNext(latest.getJobParameters()))
+          .as(status.name())
+          .isEqualTo(identifying("2025-03-01", 3L));
+      assertThat(withHistory.getNext(run(9L, "2025-02-28", 7L, status).getJobParameters()))
+          .as(status.name())
+          .isEqualTo(identifying("2025-03-01", 3L));
+    }
+    JobExecution onlyFailed = run(1L, "2025-03-01", null, BatchStatus.FAILED);
+    assertThat(history(onlyFailed).getNext(onlyFailed.getJobParameters()))
+        .isEqualTo(identifying("2025-03-01", 1L));
+  }
+
+  private static PremiumJobParameters history(JobExecution... runs) {
+    return new PremiumJobParameters(
+        CLOCK, EASTERN, () -> null, date -> "2025-03-01".equals(date) ? List.of(runs) : List.of());
   }
 
   private static JobParameters identifying(String businessDate, Long rerun) {
@@ -120,12 +143,18 @@ class PremiumJobParametersTest {
   }
 
   private static JobExecution run(long id, String businessDate, Long rerun, BatchStatus status) {
+    return run(id, id, businessDate, rerun, status);
+  }
+
+  private static JobExecution run(
+      long instanceId, long executionId, String businessDate, Long rerun, BatchStatus status) {
     JobParameters params =
         new JobParametersBuilder(identifying(businessDate, rerun))
-            .addLong("launch.nonIdentifying", id, false)
+            .addLong("launch.nonIdentifying", executionId, false)
             .toJobParameters();
     JobExecution execution =
-        new JobExecution(new JobInstance(id, PremiumJobConfiguration.JOB), id, params);
+        new JobExecution(
+            new JobInstance(instanceId, PremiumJobConfiguration.JOB), executionId, params);
     execution.setStatus(status);
     return execution;
   }

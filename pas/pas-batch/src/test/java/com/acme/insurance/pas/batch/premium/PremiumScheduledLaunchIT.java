@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Comparator;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,7 +14,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobInstance;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobLauncher;
@@ -73,6 +75,7 @@ class PremiumScheduledLaunchIT {
   Job job;
 
   @Autowired JdbcTemplate jdbc;
+  @Autowired PremiumJobParameters parameters;
 
   PremiumItSupport db;
 
@@ -80,6 +83,17 @@ class PremiumScheduledLaunchIT {
   void clean() {
     db = new PremiumItSupport(jdbc);
     db.reset();
+    // A launch without arguments decides from today's runs, so every test starts without any.
+    for (String table :
+        List.of(
+            "batch_step_execution_context",
+            "batch_job_execution_context",
+            "batch_step_execution",
+            "batch_job_execution_params",
+            "batch_job_execution",
+            "batch_job_instance")) {
+      jdbc.update("DELETE FROM pas_batch." + table);
+    }
   }
 
   @Test
@@ -149,14 +163,68 @@ class PremiumScheduledLaunchIT {
     }
   }
 
+  @Test
+  void theRetryRestartsTheLatestFailedExecutionEvenOfAnOlderInstance() throws Exception {
+    db.book(6);
+    db.rejectPremiumsOf("POL-00000104", "P0001");
+    JobExecution failed = scheduledLaunch();
+    assertThat(failed.getStatus()).isEqualTo(BatchStatus.FAILED);
+
+    db.acceptAllPremiums();
+    JobExecution rerun =
+        launcher.run(
+            job,
+            new JobParametersBuilder()
+                .addString(PremiumJobParameters.BUSINESS_DATE, TODAY)
+                .addLong(PremiumJobParameters.RERUN, 1L)
+                .toJobParameters());
+    assertThat(rerun.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+
+    db.rejectPremiumsOf("POL-00000104", "P0001");
+    JobExecution restartedAgain = launcher.run(job, failed.getJobParameters());
+    assertThat(restartedAgain.getJobInstance().getInstanceId())
+        .isEqualTo(failed.getJobInstance().getInstanceId());
+    assertThat(restartedAgain.getStatus()).isEqualTo(BatchStatus.FAILED);
+
+    db.acceptAllPremiums();
+    scheduledLaunch();
+    JobExecution retried = explorer.getLastJobExecution(failed.getJobInstance());
+
+    assertThat(retried.getId()).isGreaterThan(restartedAgain.getId());
+    assertThat(retried.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+    assertThat(explorer.getJobInstances(PremiumJobConfiguration.JOB, 0, 10)).hasSize(2);
+  }
+
+  @Test
+  void theNextInstanceAfterAFailedRunIsANewRerunNotARestart() throws Exception {
+    db.book(4);
+    db.rejectPremiumsOf("POL-00000102", "P0001");
+    JobExecution failed = scheduledLaunch();
+    assertThat(failed.getStatus()).isEqualTo(BatchStatus.FAILED);
+    db.acceptAllPremiums();
+
+    JobParameters next =
+        new JobParametersBuilder(explorer).getNextJobParameters(job).toJobParameters();
+
+    assertThat(next.getString(PremiumJobParameters.BUSINESS_DATE)).isEqualTo(TODAY);
+    assertThat(next.getLong(PremiumJobParameters.RERUN)).isEqualTo(1L);
+    assertThat(repository.isJobInstanceExists(PremiumJobConfiguration.JOB, next)).isFalse();
+  }
+
   /** {@code java -jar pas-batch-exec.jar} with PAS_BATCH_JOB=premiumRecalculation and no args. */
   private JobExecution scheduledLaunch() throws Exception {
     JobLauncherApplicationRunner runner =
-        new JobLauncherApplicationRunner(launcher, explorer, repository);
+        new PremiumScheduledLauncher(launcher, explorer, repository, parameters);
     runner.setJobName(PremiumJobConfiguration.JOB);
     runner.setJobs(List.of(job));
     runner.run();
-    List<JobInstance> instances = explorer.getJobInstances(PremiumJobConfiguration.JOB, 0, 1);
-    return explorer.getLastJobExecution(instances.get(0));
+    return latestExecution();
+  }
+
+  private JobExecution latestExecution() {
+    return explorer.getJobInstances(PremiumJobConfiguration.JOB, 0, 100).stream()
+        .map(explorer::getLastJobExecution)
+        .max(Comparator.comparing(JobExecution::getId))
+        .orElseThrow();
   }
 }

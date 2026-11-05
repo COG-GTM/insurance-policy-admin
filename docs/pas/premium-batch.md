@@ -77,8 +77,10 @@ java -jar pas-batch-exec.jar businessDate=2025-03-01 rerun=1
 ### What the scheduler does on failure
 
 The CronJob launches with no arguments, and the Kubernetes Job retries a failed pod once
-(`backoffLimit: 1`), also with no arguments. Without arguments `PremiumJobParameters` looks at
-today's runs (newest instance first; covered by `PremiumScheduledLaunchIT`):
+(`backoffLimit: 1`), also with no arguments. Without arguments the launcher
+(`PremiumScheduledLauncher`) looks at today's latest execution, i.e. the highest execution id across
+today's instances, so an explicit restart of an older instance counts as the latest (covered by
+`PremiumScheduledLaunchIT`):
 
 | Today's latest run | What a launch without arguments does |
 |---|---|
@@ -95,6 +97,9 @@ So after a failure:
   refused), the Job is failed and paged. Fix the cause, then restart (step 3; a launch with no
   arguments does the same). After a rate change the restart is refused every time, so launch
   `businessDate=<date> rerun=<n>` explicitly.
+* The restart decision belongs to the launcher only. The job's incrementer (`PremiumJobParameters`)
+  always names a new instance (`rerun=<highest + 1>`), so Spring Batch's next-instance operation
+  (`JobOperator.startNextInstance`) is always a same-day rerun, never a restart.
 * Check which instance ran with `SELECT job_instance_id, status, start_time FROM
   pas_batch.batch_job_execution ORDER BY job_execution_id DESC` before relaunching by hand.
 
