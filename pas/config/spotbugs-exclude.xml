@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Project-wide SpotBugs exclusions. Every entry needs a reason. -->
+<FindBugsFilter>
+  <!-- Spring injects collaborators through constructors; storing the injected bean is intended. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="~com\.acme\.insurance\.pas\..*(Config|Configuration|Controller|Filter|Properties)"/>
+  </Match>
+</FindBugsFilter>

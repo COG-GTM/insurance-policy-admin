@@ -1,0 +1,88 @@
+name: PAS platform CI
+
+on:
+  pull_request:
+    branches: [main, "devin/ab-516-v3"]
+  workflow_dispatch:
+
+concurrency:
+  group: pas-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: PAS build, tests & static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # Spotless format check, enforcer (JDK 21, dependency rules), SpotBugs, unit tests,
+      # Testcontainers integration tests (PostgreSQL 16) and ArchUnit module rules.
+      - name: mvn verify
+        run: make pas-verify
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pas-test-reports
+          path: pas/**/target/*-reports/
+          retention-days: 7
+      - name: Upload executable jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: pas-jars
+          path: pas/*/target/*-exec.jar
+          retention-days: 3
+
+  images:
+    name: PAS container images & vulnerability scan
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pas-jars
+          path: pas
+      - name: Build images
+        run: |
+          docker build -f pas/Dockerfile --build-arg APP=pas-policy-service -t pas-policy-service:local pas
+          docker build -f pas/Dockerfile --build-arg APP=pas-batch -t pas-batch:local pas
+      # Scans OS packages and every jar inside the images; HIGH/CRITICAL findings fail the job
+      # unless accepted in pas/.trivyignore with a reason and an expiry date.
+      - name: Trivy image scan
+        run: |
+          mkdir -p "$HOME/.cache/trivy"
+          for image in pas-policy-service:local pas-batch:local; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$PWD/pas/.trivyignore:/.trivyignore:ro" -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+              aquasec/trivy:0.67.2 image --scanners vuln --severity HIGH,CRITICAL \
+              --ignorefile /.trivyignore --exit-code 1 --no-progress "$image"
+          done
+
+  local-stack:
+    name: PAS local dev stack smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # The documented fresh-clone start command without the test phase (covered by `verify`).
+      - name: make pas-up
+        run: make pas-up
+      - name: Show logs
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop stack
+        if: always()
+        run: make pas-down

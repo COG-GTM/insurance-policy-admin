@@ -1,0 +1,62 @@
+# pas-policy-service (ADR 0001 D1/D2/D5/D8). Configuration comes from the environment and the
+# platform secrets manager; there are no credential defaults here (fixes the Q-36 pattern).
+spring:
+  application:
+    name: pas-policy-service
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${PAS_DB_URL}
+    username: ${PAS_DB_USERNAME}
+    password: ${PAS_DB_PASSWORD}
+  flyway:
+    locations: classpath:db/migration/{vendor}
+    # Placeholder replacement off: migrations are plain SQL that must also run in the DBA tooling.
+    placeholder-replacement: false
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: ${PAS_HTTP_PORT:8080}
+  shutdown: graceful
+  error:
+    include-stacktrace: never
+    include-message: never
+
+management:
+  server:
+    # Separate management port, not routed through ingress (D5).
+    port: ${PAS_MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+  info:
+    env:
+      enabled: false
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${PAS_TRACING_SAMPLING_PROBABILITY:0.1}
+
+logging:
+  structured:
+    # JSON logs (Elastic Common Schema) on stdout; the correlation id and trace ids come from the MDC.
+    format:
+      console: ${PAS_LOG_FORMAT:ecs}
+    ecs:
+      service:
+        name: ${spring.application.name}

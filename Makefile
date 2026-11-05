@@ -20,3 +20,49 @@ inventory:
 adr:
 	python3 tools/adr/check_adr.py
 	python3 -m unittest discover -s tools/adr -p 'test_*.py'
+
+# --- PAS target platform (pas/, AB-519). JDK 21 and Maven 3.9+ required; set PAS_JAVA_HOME if it is not the default. ---
+.PHONY: pas pas-verify pas-build pas-format pas-env pas-up pas-smoke pas-down pas-images pas-scan
+
+PAS_JAVA_HOME ?= $(JAVA_HOME)
+PAS_MVN = cd pas && JAVA_HOME="$(PAS_JAVA_HOME)" mvn -B -ntp
+TRIVY_IMAGE ?= aquasec/trivy:0.67.2
+
+# One command for a fresh clone: build, run every check and test, start the local stack, smoke-test it.
+pas: pas-verify pas-up
+
+# Formatting check, enforcer rules, SpotBugs, unit, integration (Testcontainers) and ArchUnit tests.
+pas-verify:
+	$(PAS_MVN) verify
+
+pas-build:
+	$(PAS_MVN) package -DskipTests -Dspotbugs.skip=true
+
+pas-format:
+	$(PAS_MVN) spotless:apply
+
+# Creates the git-ignored .env with a random local database password (never committed).
+pas-env:
+	@./pas/scripts/init-env.sh
+
+pas-up: pas-env pas-build
+	docker compose up -d --build --wait
+	./pas/scripts/smoke.sh
+
+pas-smoke:
+	./pas/scripts/smoke.sh
+
+pas-down:
+	docker compose --profile batch down
+
+pas-images: pas-build
+	docker build -f pas/Dockerfile --build-arg APP=pas-policy-service -t pas-policy-service:local pas
+	docker build -f pas/Dockerfile --build-arg APP=pas-batch -t pas-batch:local pas
+
+# Vulnerability scan of both images (OS packages and every jar), HIGH/CRITICAL fail the build.
+pas-scan: pas-images
+	for image in pas-policy-service:local pas-batch:local; do \
+	  docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$(CURDIR)/pas/.trivyignore:/.trivyignore:ro" \
+	    -v "$${HOME}/.cache/trivy:/root/.cache/trivy" $(TRIVY_IMAGE) image --scanners vuln \
+	    --severity HIGH,CRITICAL --ignorefile /.trivyignore --exit-code 1 --no-progress $$image || exit 1; \
+	done

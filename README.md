@@ -85,6 +85,22 @@ GET /manage/health                              - Health check
 
 Behaviour inventory, quirk register and open questions: [docs/modernization/](docs/modernization/README.md). Check them with `make inventory`.
 
+The new Java 21 / Spring Boot 3 platform is built in [`pas/`](pas/README.md), next to the legacy trees, which stay unchanged until cutover:
+
+```
+cobol/  jcl/  sql/       legacy COBOL/CICS programs, batch JCL, DB2 DDL (unchanged)
+java-facade/             legacy Java 8 REST facade (unchanged)
+pas/                     target platform (ADR 0001): Maven multi-module build
+  pas-domain/              domain types, no dependencies
+  pas-rating/  pas-underwriting/  pas-persistence/  pas-events/    library modules
+  pas-policy-service/      REST API deployable
+  pas-batch/               Spring Batch deployable
+  pas-architecture-tests/  module dependency rules (ArchUnit)
+docker-compose.yml       local PostgreSQL 16, Kafka and the policy service
+```
+
+Build, test and start it locally with one command (JDK 21, Maven 3.9+ and Docker required): `make pas`. If JDK 21 is not your default JDK, pass it: `make pas PAS_JAVA_HOME=/path/to/jdk-21` (on an older JDK the Maven enforcer stops the build). CI and repository conventions: [docs/pas/](docs/pas/ci-and-conventions.md).
+
 ## Team Contacts
 
 - **Mainframe Team:** mainframe-ops@acme.com

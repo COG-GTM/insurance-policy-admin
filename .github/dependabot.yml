@@ -1,0 +1,18 @@
+# Weekly dependency update PRs for the PAS platform, its images and the CI actions.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /pas
+    schedule:
+      interval: weekly
+    groups:
+      spring-boot:
+        patterns: ["org.springframework.boot*"]
+  - package-ecosystem: docker
+    directory: /pas
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
