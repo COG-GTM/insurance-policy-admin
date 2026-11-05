@@ -1,0 +1,161 @@
+openapi: 3.0.3
+info:
+  title: PAS policy inquiry API
+  version: 1.0.0
+  description: |
+    Policy inquiry for the Policy Administration System (AB-524). Replaces CICS transaction PQRY
+    (program POLQRY) and the Spring Boot 1.5 facade in java-facade/. The policy and coverage
+    endpoints keep the facade's paths and JSON (compat/api/snapshots/policies-v1.json); the
+    policyholder endpoint is new.
+
+    Every request needs an OAuth 2.0 access token (ADR 0001 D5) with scope pas.policy.read.
+    Results are limited to the caller's book of business, taken from the token claims pas_book
+    ("*" for the whole book), pas_agents and pas_branches. A policy outside that entitlement
+    answers 404 with an empty body, exactly like a policy that does not exist.
+servers:
+  - url: /
+security:
+  - oauth2: [pas.policy.read]
+paths:
+  /api/v1/policies/{policyNumber}:
+    get:
+      operationId: getPolicy
+      summary: Policy header (POLQRY 2000-READ-POLICY)
+      parameters:
+        - $ref: '#/components/parameters/PolicyNumber'
+      responses:
+        '200':
+          description: The policy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/policies/{policyNumber}/coverages:
+    get:
+      operationId: getCoverages
+      summary: Coverages of a policy in SEQUENCE_NUM order (POLQRY 4000-READ-COVERAGES)
+      parameters:
+        - $ref: '#/components/parameters/PolicyNumber'
+      responses:
+        '200':
+          description: The coverages, possibly empty.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Coverage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/policies/{policyNumber}/policyholder:
+    get:
+      operationId: getPolicyHolder
+      summary: Policyholder of a policy (POLQRY 3000-READ-CUSTOMER)
+      description: |
+        Personal values are masked as in acmeins.policy_holders_masked (phone omitted) unless the
+        token also has scope pas.policyholder.read. Date of birth, SSN, tax id and credit score are
+        never returned.
+      security:
+        - oauth2: [pas.policy.read]
+        - oauth2: [pas.policy.read, pas.policyholder.read]
+      parameters:
+        - $ref: '#/components/parameters/PolicyNumber'
+      responses:
+        '200':
+          description: The policyholder.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyHolder'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: Access token from the enterprise IdP (issuer and audience per environment).
+      flows:
+        clientCredentials:
+          tokenUrl: https://idp.example.invalid/oauth2/token
+          scopes:
+            pas.policy.read: Read policies within the caller's entitlement.
+            pas.policyholder.read: Read policyholder contact details in clear.
+  parameters:
+    PolicyNumber:
+      name: policyNumber
+      in: path
+      required: true
+      description: ACMEINS.POLICIES.POLICY_NUMBER, CHAR(12), e.g. POL-00000001.
+      schema:
+        type: string
+  responses:
+    Unauthenticated:
+      description: No access token, or the token is invalid or expired.
+    Forbidden:
+      description: The token lacks scope pas.policy.read.
+    NotFound:
+      description: No such policy, or outside the caller's entitlement. Empty body.
+  schemas:
+    Policy:
+      type: object
+      properties:
+        policyNumber: {type: string}
+        policyType: {type: string, nullable: true, description: Raw code (Q-35), e.g. HOM.}
+        policyStatus: {type: string, nullable: true, description: Raw code (Q-35), e.g. AC.}
+        effectiveDate: {type: string, format: date, nullable: true}
+        expiryDate: {type: string, format: date, nullable: true}
+        policyholderId: {type: string, nullable: true}
+        agentCode: {type: string, nullable: true}
+        branchCode: {type: string, nullable: true}
+        totalPremium: {type: number, nullable: true}
+        deductible: {type: number, nullable: true}
+        coverageLimit: {type: number, nullable: true}
+        inceptionDate: {type: string, format: date, nullable: true}
+        renewalCount: {type: integer, description: 0 when the column is null (facade behaviour).}
+        uwStatus: {type: string, nullable: true}
+        riskScore: {type: integer, description: 0 when the column is null (facade behaviour).}
+        webIndicator: {type: string, nullable: true}
+        apiFlag: {type: string, nullable: true, description: Informational only (Q-24, FU-10).}
+        lastUpdated: {type: integer, format: int64, nullable: true, description: Epoch milliseconds.}
+        updatedBy: {type: string, nullable: true}
+    Coverage:
+      type: object
+      properties:
+        policyNumber: {type: string}
+        sequenceNum: {type: integer}
+        coverageType: {type: string, nullable: true}
+        description: {type: string, nullable: true}
+        coverageLimit: {type: number, nullable: true}
+        deductible: {type: number, nullable: true}
+        premium: {type: number, nullable: true}
+        effectiveDate: {type: string, format: date, nullable: true}
+        expiryDate: {type: string, format: date, nullable: true}
+        status: {type: string, nullable: true}
+        coinsurancePct: {type: integer, description: 0 when the column is null (facade behaviour).}
+        ratingTerritory: {type: string, nullable: true}
+        classCode: {type: string, nullable: true}
+    PolicyHolder:
+      type: object
+      properties:
+        custId: {type: string}
+        custType: {type: string, nullable: true}
+        lastName: {type: string, nullable: true}
+        firstName: {type: string, nullable: true}
+        companyName: {type: string, nullable: true}
+        phone: {type: string, nullable: true, description: Null when masked.}
+        email: {type: string, nullable: true}
+        masked: {type: boolean, description: True when personal values are masked.}

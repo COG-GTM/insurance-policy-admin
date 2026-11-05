@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test of the running local stack (docker compose): probes, metrics, deny-by-default API, JSON logs.
+# Smoke test of the running local stack (docker compose): probes, metrics, token-protected API, JSON logs.
 set -euo pipefail
 
 fail() { echo "smoke: FAIL - $*" >&2; exit 1; }
@@ -16,13 +16,26 @@ for probe in liveness readiness; do
 done
 
 # Matchers read the whole stream (no -q / -m1) so an early exit cannot break the pipe under pipefail.
-curl -fsS "$MGMT/actuator/prometheus" | grep 'application="pas-policy-service"' >/dev/null \
+ops_jwt=$(pas/scripts/local-token.sh "pas.ops.read")
+status=$(curl -s -o /dev/null -w '%{http_code}' "$MGMT/actuator/prometheus")
+[[ "$status" == "401" ]] || fail "prometheus is reachable without a token (HTTP $status)"
+curl -fsS -H "Authorization: Bearer $ops_jwt" "$MGMT/actuator/prometheus" | grep 'application="pas-policy-service"' >/dev/null \
   || fail "prometheus metrics missing the application tag"
-echo "smoke: prometheus metrics OK"
+echo "smoke: prometheus metrics OK (token required)"
 
-status=$(curl -s -o /dev/null -w '%{http_code}' "$API/api/v1/policies/POL-00000001")
-[[ "$status" == "401" || "$status" == "403" ]] || fail "API is not deny-by-default (HTTP $status)"
-echo "smoke: API deny-by-default OK (HTTP $status)"
+expect() { # expect <status> <path> [jwt]
+  local auth=() got
+  [[ -n "${3:-}" ]] && auth=(-H "Authorization: Bearer $3")
+  got=$(curl -s -o /dev/null -w '%{http_code}' "${auth[@]}" "$API$2")
+  [[ "$got" == "$1" ]] || fail "GET $2 returned HTTP $got, expected $1"
+}
+expect 401 /api/v1/policies/POL-00000001
+expect 401 /api/v1/policies/POL-00000001 "not-a-jwt"
+expect 403 /api/v1/policies/POL-00000001 "$ops_jwt"
+read_jwt=$(pas/scripts/local-token.sh "pas.policy.read" '"pas_book":"*"')
+expect 404 /api/v1/policies/POL-99999999 "$read_jwt"
+expect 403 /api/v1/ping "$read_jwt"
+echo "smoke: API authentication OK (401 without a valid token, 403 without scope, 404 for a missing policy)"
 
 docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d pas -tAc "select version from flyway_schema_history where success order by installed_rank"' \
   | grep -x 1 >/dev/null || fail "Flyway V1 not applied"
