@@ -3,10 +3,10 @@ package com.acme.insurance.pas.policyservice.config;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.OPS_READ;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_ENDORSE;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_READ;
+import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_RENEW;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_WRITE;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.UNDERWRITING_DECIDE;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.UNDERWRITING_OVERRIDE;
-import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_RENEW;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.authority;
 
 import com.acme.insurance.pas.policyservice.security.DpopRejectingFilter;

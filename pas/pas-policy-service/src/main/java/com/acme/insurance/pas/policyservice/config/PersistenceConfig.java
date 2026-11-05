@@ -2,9 +2,9 @@ package com.acme.insurance.pas.policyservice.config;
 
 import com.acme.insurance.pas.persistence.DatabaseVendor;
 import com.acme.insurance.pas.persistence.DefaultCoverageJdbcRepository;
+import com.acme.insurance.pas.persistence.EndorsementJdbcRepository;
 import com.acme.insurance.pas.persistence.EventOutboxJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyAuditJdbcRepository;
-import com.acme.insurance.pas.persistence.EndorsementJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyChangeAuditJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyHolderJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyJdbcRepository;
