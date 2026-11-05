@@ -7,7 +7,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobInstance;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.JobParametersInvalidException;
@@ -18,7 +22,8 @@ class PremiumJobParametersTest {
   static final Clock CLOCK = Clock.fixed(Instant.parse("2025-03-02T04:30:00Z"), ZoneOffset.UTC);
   static final ZoneId EASTERN = ZoneId.of("America/New_York");
 
-  final PremiumJobParameters parameters = new PremiumJobParameters(CLOCK, EASTERN, () -> null);
+  final PremiumJobParameters parameters =
+      new PremiumJobParameters(CLOCK, EASTERN, () -> null, date -> List.of());
 
   @Test
   void theScheduledRunRatesTheEasternBusinessDate() {
@@ -53,8 +58,75 @@ class PremiumJobParametersTest {
                         .toJobParameters()))
         .hasMessageContaining("YYYY-MM-DD");
     PremiumJobParameters unconfigured =
-        new PremiumJobParameters(CLOCK, EASTERN, () -> "pas.premium.report-dir is not set");
+        new PremiumJobParameters(
+            CLOCK, EASTERN, () -> "pas.premium.report-dir is not set", date -> List.of());
     assertThatThrownBy(() -> unconfigured.validate(parameters.getNext(null)))
         .hasMessageContaining("report-dir");
+  }
+
+  @Test
+  void aLaunchWithoutArgumentsRestartsTodaysFailedOrStoppedRun() {
+    for (BatchStatus status : List.of(BatchStatus.FAILED, BatchStatus.STOPPED)) {
+      JobExecution failed = run(2L, "2025-03-01", 1L, status);
+      PremiumJobParameters withHistory =
+          new PremiumJobParameters(
+              CLOCK,
+              EASTERN,
+              () -> null,
+              date ->
+                  "2025-03-01".equals(date)
+                      ? List.of(failed, run(1L, "2025-03-01", null, BatchStatus.COMPLETED))
+                      : List.of());
+
+      JobParameters next = withHistory.getNext(failed.getJobParameters());
+
+      assertThat(next).as(status.name()).isEqualTo(identifying("2025-03-01", 1L));
+    }
+  }
+
+  @Test
+  void aLaunchWithoutArgumentsAfterACompletedOrKilledRunIsTheNextRerun() {
+    for (BatchStatus status :
+        List.of(
+            BatchStatus.COMPLETED,
+            BatchStatus.ABANDONED,
+            BatchStatus.STARTED,
+            BatchStatus.UNKNOWN)) {
+      PremiumJobParameters withHistory =
+          new PremiumJobParameters(
+              CLOCK,
+              EASTERN,
+              () -> null,
+              date ->
+                  List.of(
+                      run(3L, "2025-03-01", 1L, status),
+                      run(2L, "2025-03-01", 2L, BatchStatus.COMPLETED),
+                      run(1L, "2025-03-01", null, BatchStatus.FAILED)));
+
+      JobParameters next =
+          withHistory.getNext(run(9L, "2025-02-28", 7L, status).getJobParameters());
+
+      assertThat(next).as(status.name()).isEqualTo(identifying("2025-03-01", 3L));
+    }
+  }
+
+  private static JobParameters identifying(String businessDate, Long rerun) {
+    JobParametersBuilder builder =
+        new JobParametersBuilder().addString("businessDate", businessDate);
+    if (rerun != null) {
+      builder.addLong("rerun", rerun);
+    }
+    return builder.toJobParameters();
+  }
+
+  private static JobExecution run(long id, String businessDate, Long rerun, BatchStatus status) {
+    JobParameters params =
+        new JobParametersBuilder(identifying(businessDate, rerun))
+            .addLong("launch.nonIdentifying", id, false)
+            .toJobParameters();
+    JobExecution execution =
+        new JobExecution(new JobInstance(id, PremiumJobConfiguration.JOB), id, params);
+    execution.setStatus(status);
+    return execution;
   }
 }

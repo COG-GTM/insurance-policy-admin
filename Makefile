@@ -114,9 +114,10 @@ endif
 # --- AB-523 premium recalculation job. ---
 .PHONY: premium-batch premium-load-test
 
-# Unit and integration tests of job premiumRecalculation (golden report, rerun, errors, restart).
+# Unit and integration tests of job premiumRecalculation (golden report, rerun, errors, restart,
+# scheduler launch without arguments).
 premium-batch:
-	$(PAS_MVN) -pl pas-batch -am verify -Dtest='Premium*Test' -Dit.test='PremiumJobIT' -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false
+	$(PAS_MVN) -pl pas-batch -am verify -Dtest='Premium*Test' -Dit.test='PremiumJobIT,PremiumScheduledLaunchIT' -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false
 
 # Load test: POLICIES active policies (default 50,000), projected to FULL_BOOK (default 1,000,000).
 premium-load-test:

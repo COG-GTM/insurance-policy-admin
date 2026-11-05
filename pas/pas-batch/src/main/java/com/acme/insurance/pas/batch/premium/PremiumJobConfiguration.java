@@ -9,16 +9,20 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobInstance;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
@@ -45,7 +49,8 @@ import org.springframework.transaction.PlatformTransactionManager;
  * them in parallel, {@code chunk-size} policies per transaction, against one rating snapshot per
  * run. Step {@code premiumReport} writes the run report from the recorded outcomes and stores the
  * READ / UPDATED / ERRORS totals in the job execution context. Restarting a failed run resumes the
- * unfinished ranges from their last committed chunk.
+ * unfinished ranges from their last committed chunk; a launch without arguments restarts today's
+ * failed run itself ({@link PremiumJobParameters}).
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(PremiumProperties.class)
@@ -62,6 +67,8 @@ public final class PremiumJobConfiguration {
 
   private static final Logger log = LoggerFactory.getLogger(PremiumJobConfiguration.class);
   private static final PlatformTransactionManager NO_TX = new ResourcelessTransactionManager();
+  // How many recent job instances a launch without arguments searches for today's runs.
+  private static final int RECENT_INSTANCES = 100;
 
   private final PremiumProperties properties;
   private final MeterRegistry meters;
@@ -89,6 +96,7 @@ public final class PremiumJobConfiguration {
   @Bean
   Job premiumRecalculation(
       JobRepository jobs,
+      JobExplorer explorer,
       PremiumRunRaters raters,
       PremiumRunJdbcRepository repository,
       Step premiumRatingPartition) {
@@ -99,7 +107,8 @@ public final class PremiumJobConfiguration {
             () ->
                 properties.reportDir() == null || properties.reportDir().toString().isBlank()
                     ? "pas.premium.report-dir is not set"
-                    : null);
+                    : null,
+            businessDate -> runsOf(explorer, businessDate));
     return new JobBuilder(JOB, jobs)
         .incrementer(parameters)
         .validator(parameters)
@@ -234,6 +243,20 @@ public final class PremiumJobConfiguration {
         .tasklet(tasklet, NO_TX)
         .allowStartIfComplete(true)
         .build();
+  }
+
+  /** The last execution of each recent instance of {@code businessDate}, newest instance first. */
+  static List<JobExecution> runsOf(JobExplorer explorer, String businessDate) {
+    List<JobExecution> runs = new ArrayList<>();
+    for (JobInstance instance : explorer.getJobInstances(JOB, 0, RECENT_INSTANCES)) {
+      JobExecution last = explorer.getLastJobExecution(instance);
+      if (last != null
+          && businessDate.equals(
+              last.getJobParameters().getString(PremiumJobParameters.BUSINESS_DATE))) {
+        runs.add(last);
+      }
+    }
+    return runs;
   }
 
   private static LocalDate businessDate(JobExecution job) {

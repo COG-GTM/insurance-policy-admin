@@ -4,6 +4,9 @@
 # The report (ACME.PAS.REPORTS.PREMIUM equivalent, LRECL 132) goes to a persistent, encrypted volume
 # so a rerun replaces it and it survives the pod. The confirmed CA-7 calendar, predecessors and
 # paging target are FU-12.
+# Secret pas-batch-db must hold a PAS_DB_URL that enforces encrypted, server-verified connections
+# (PostgreSQL: sslmode=verify-full; DB2 for z/OS: sslConnection=true with the DBA's truststore).
+# The job does not add TLS itself; the platform/DBA review of the secret is FU-523-1.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -28,11 +31,15 @@ spec:
   startingDeadlineSeconds: 3600
   jobTemplate:
     spec:
-      # A failed pod is retried once; the retry restarts the same Spring Batch instance (same
-      # businessDate) from the last committed chunk of every partition. 45 min hard stop leaves room
-      # for one restart inside the 30-minute target's window before the 02:00 jobs.
+      # A failed pod is retried once. The retry launches with no args like the first pod; when today's
+      # latest run is FAILED it restarts that Spring Batch instance (same businessDate) from the last
+      # committed chunk of every partition (PremiumJobParameters, PremiumScheduledLaunchIT). A pod
+      # killed mid-run (OOM, node loss) leaves its execution STARTED, so the retry is a same-day
+      # rerun of the whole book instead (safe: the PREMIUMS upsert is idempotent).
       backoffLimit: 1
-      activeDeadlineSeconds: 5400
+      # 55 min hard stop for the run and its retry, so a run started on schedule is gone before the
+      # 02:00 jobs. A start delayed by startingDeadlineSeconds can still overlap them (FU-12).
+      activeDeadlineSeconds: 3300
       template:
         metadata:
           labels: {app: pas-batch, job: premium}

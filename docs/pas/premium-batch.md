@@ -12,7 +12,7 @@ and writes the run report. The legacy JCL and COBOL stay untouched until retirem
 | `premiumRating` (partitioned) | Splits the active book (`POLICY_STATUS = 'AC'`) into `pas.premium.partitions` contiguous policy-number ranges. Each worker (`premiumRatingPartition:partitionN`) reads its range in policy order, rates each policy and commits every `pas.premium.chunk-size` policies. | `3000-PROCESS-POLICIES` cursor loop, one unit of work (Q-38) |
 | rating | `RatingRequest.of(policyType, businessDate)` against **one** `PremiumRater.snapshot()` taken when the job starts, shared by all partitions and kept on restart of the same execution, so every policy in a run sees the same rates. | `3200-CALCULATE-PREMIUM` |
 | write | Upsert of `PREMIUMS` by key (policy, coverage seq 1, term effective date): update if present, insert otherwise. `INSTALLMENT_AMT` is never written, as in the PREMBAT INSERT (new rows get the column default, a rerun keeps the existing amount). `CALC_BY = 'PREMBAT'`, `CALC_DATE` = business date, installment code `AN`. Outcome per policy in `pasapp.premium_run_item` (V30) in the same transaction. | `3300-WRITE-PREMIUM-RECORD` INSERT (Q-26) |
-| errors | A policy whose rating fails (e.g. overflow, Q-522-1) or whose write the database rejects for data reasons (`DataIntegrityViolationException`) is recorded as an error (`status = 'E'`, error class, SQLSTATE and message) and the run continues, up to `pas.premium.skip-limit`. Infrastructure errors (connection lost, deadlock not resolved) fail the partition and therefore the job. | First INSERT error ends the loop (Q-25) |
+| errors | A policy whose rating fails (e.g. overflow, Q-522-1) or whose write the database rejects for data reasons (`DataIntegrityViolationException`) is recorded as an error (`status = 'E'`, error class, and for a database rejection the SQLSTATE, the vendor code (DB2 SQLCODE) and the root exception class; never the driver message, which can echo row contents) and the run continues, up to `pas.premium.skip-limit`. Infrastructure errors (connection lost, deadlock not resolved) fail the partition and therefore the job. | First INSERT error ends the loop (Q-25) |
 | `premiumReport` | Writes `ACME.PAS.REPORTS.PREMIUM.D<yymmdd>.txt` to `pas.premium.report-dir`: header, one 132-byte line per policy in policy order, totals READ / UPDATED / ERRORS from `premium_run_item`. Written to a temp file and moved atomically, so a rerun replaces it. | `PREMRPT` (LRECL 132) |
 | status | `COMPLETED` (exit 0), `COMPLETED_WITH_ERRORS` (exit 0, warning alert), `FAILED` (exit non-zero, page). | RC 0/4/16 and an inverted TSO `SEND` (Q-28) |
 
@@ -29,6 +29,7 @@ bytes (COMP-3, Q-29 preserve) in ISO-8859-1. Whether production really prints pa
 | `pas.premium.partitions` | `PAS_PREMIUM_PARTITIONS` | 8 | Parallel workers; needs as many DB connections plus 2. |
 | `pas.premium.chunk-size` | `PAS_PREMIUM_CHUNK_SIZE` | 500 | Policies per commit; a restart redoes at most one chunk per partition. |
 | `pas.premium.skip-limit` | `PAS_PREMIUM_SKIP_LIMIT` | 1000 | Per partition; above it the job fails instead of reporting thousands of errors. |
+| `spring.datasource.url` | `PAS_DB_URL` | (none) | From the secret. Must enforce TLS with server verification (PostgreSQL `sslmode=verify-full`; DB2 `sslConnection=true` plus truststore). Not enforced by the job; FU-523-1. |
 
 Rates and factors come from the AB-522 reference tables (`pas.rating.*`, `docs/pas/rating.md`).
 
@@ -63,8 +64,7 @@ java -jar pas-batch-exec.jar businessDate=2025-03-01 rerun=1
 2. Fix the cause (database, network, a bad reference row).
 3. Restart with the **same** parameters (no `rerun`): `java -jar pas-batch-exec.jar businessDate=<same date>`.
    Spring Batch resumes the same instance: completed partitions are skipped, failed partitions resume
-   after their last committed chunk, and the report counts the whole run. The Kubernetes Job's pod
-   retry (`backoffLimit: 1`) does exactly this automatically.
+   after their last committed chunk, and the report counts the whole run.
    If the rating reference data (base rates, parameters, factors) changed since the failed
    execution, the restart fails at once with "rating reference data changed ... launch a same-day
    rerun": the committed chunks were rated with the old rates and one run must not mix two rate
@@ -73,6 +73,30 @@ java -jar pas-batch-exec.jar businessDate=2025-03-01 rerun=1
    first: `UPDATE pasapp.batch_job_execution SET status = 'FAILED', exit_code = 'FAILED' WHERE
    job_execution_id = <id>` and the same for its `STARTED`/`UNKNOWN` step executions, then restart.
    This needs the DBA change process (FU-12).
+
+### What the scheduler does on failure
+
+The CronJob launches with no arguments, and the Kubernetes Job retries a failed pod once
+(`backoffLimit: 1`), also with no arguments. Without arguments `PremiumJobParameters` looks at
+today's runs (newest instance first; covered by `PremiumScheduledLaunchIT`):
+
+| Today's latest run | What a launch without arguments does |
+|---|---|
+| none | First run: `businessDate=<today>` |
+| `FAILED` or `STOPPED` | **Restart** of that instance with its own parameters (step 3 above, incl. the rate-version check) |
+| `COMPLETED` or `ABANDONED` | Same-day rerun: `businessDate=<today> rerun=<highest + 1>` |
+| `STARTED` or `UNKNOWN` (pod killed, connection lost in rollback) | Same-day rerun as well: Spring Batch cannot restart these. The rerun re-rates the whole book; to resume the old instance instead, apply step 4 first and restart it explicitly |
+
+So after a failure:
+
+* If the pod retry completed, the day is done. Nothing to restart; the earlier execution of the
+  same instance stays `FAILED` in `BATCH_JOB_EXECUTION` with a `COMPLETED` one after it.
+* If the pod retry failed too (the cause is not fixed, or the rates changed and the restart was
+  refused), the Job is failed and paged. Fix the cause, then restart (step 3; a launch with no
+  arguments does the same). After a rate change the restart is refused every time, so launch
+  `businessDate=<date> rerun=<n>` explicitly.
+* Check which instance ran with `SELECT job_instance_id, status, start_time FROM
+  pas_batch.batch_job_execution ORDER BY job_execution_id DESC` before relaunching by hand.
 
 ### Completed with errors
 
@@ -142,4 +166,5 @@ balanced (`BATCH_STEP_EXECUTION.READ_COUNT` per partition) and that `ix_premiums
 | Q-29 report format from a masked production sample (FU-13) | Mainframe team | pending |
 | Q-38 chunked, partitioned, restartable run | Mainframe team | pending |
 | Full-book load test on production-sized DB2 | Platform / DBA | pending |
+| TLS on the batch database connection (FU-523-1) | Security + Platform / DBA | pending |
 | Parallel-run reconciliation and PAS0050 hold | PAS product owner + Operations | pending |

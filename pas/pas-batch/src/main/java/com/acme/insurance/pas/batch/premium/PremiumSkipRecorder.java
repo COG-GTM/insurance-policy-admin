@@ -51,22 +51,30 @@ public class PremiumSkipRecorder implements SkipListener<Object, PremiumOutcome>
             PremiumRunItem.Status.ERROR,
             item.rated() ? item.premium().totalPremium() : null,
             t.getClass().getSimpleName(),
-            rootMessage(t));
+            detail(t));
     requiresNew.executeWithoutResult(
         status -> repository.recordOutcomes(runId, businessDate, List.of(error)));
   }
 
-  /** The root cause message, prefixed with the SQLSTATE when the database rejected the write. */
-  static String rootMessage(Throwable t) {
+  /**
+   * What the database said, without the driver's message text: some drivers echo the rejected row
+   * in it (PostgreSQL "Failing row contains ..."). Keeps the SQLSTATE, the vendor error code (the
+   * DB2 SQLCODE) and the root exception class.
+   */
+  static String detail(Throwable t) {
     Throwable root = t;
-    String sqlState = null;
+    SQLException sql = null;
     for (Throwable c = t; c != null; c = c.getCause() == c ? null : c.getCause()) {
-      if (c instanceof SQLException sql && sql.getSQLState() != null) {
-        sqlState = sql.getSQLState();
+      if (c instanceof SQLException e && e.getSQLState() != null) {
+        sql = e;
       }
       root = c;
     }
-    String message = String.valueOf(root.getMessage());
-    return sqlState == null ? message : "SQLSTATE " + sqlState + ": " + message;
+    String rootClass = root.getClass().getSimpleName();
+    if (sql == null) {
+      return rootClass;
+    }
+    String vendor = sql.getErrorCode() == 0 ? "" : " vendor code " + sql.getErrorCode();
+    return "SQLSTATE " + sql.getSQLState() + vendor + " (" + rootClass + ")";
   }
 }
