@@ -1,0 +1,107 @@
+# AB-527 example schedule for the platform scheduler (Kubernetes CronJob). Replaces CA-7 PAS0100
+# (DAILY-EXTRACT, nightly 23:00) and PAS0200 (MONTHLY-EXPOSURE, 1st of month 02:00). Image, namespace
+# and the secret names are placeholders the platform team fills in; nothing here holds a credential.
+# Keys, passphrases and known_hosts are mounted read-only from the secrets manager (ADR 0001 D5/D6).
+# Staging is a persistent, encrypted volume per feed, shared by the retry pods of that feed, so files
+# kept after a failed delivery survive the pod for inspection; the job runs as a non-root user and
+# files are 0600. One claim per feed keeps the two ReadWriteOnce volumes independent of node placement.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pas-extract-staging
+  labels: {app: pas-batch, ticket: AB-527}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ENCRYPTED_STORAGE_CLASS
+  resources:
+    requests: {storage: 5Gi}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pas-extract-staging-actuarial
+  labels: {app: pas-batch, ticket: AB-527}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ENCRYPTED_STORAGE_CLASS
+  resources:
+    requests: {storage: 1Gi}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pas-claims-daily-extract
+  labels: {app: pas-batch, feed: claims, ticket: AB-527}
+spec:
+  schedule: "0 23 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      # Spring Batch restarts a failed run with the same businessDate; delivery itself retries
+      # pas.extract.retry.max-attempts times inside one run.
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, fsGroup: 10001}
+          containers:
+            - name: pas-batch
+              image: REGISTRY/pas-batch:VERSION
+              # businessDate defaults to today in pas.extract.business-zone; add args: ["businessDate=YYYY-MM-DD"] to run another day.
+              envFrom:
+                - secretRef: {name: pas-batch-db}
+              env:
+                - {name: PAS_BATCH_JOB, value: claimsDailyExtract}
+                - {name: PAS_EXTRACT_STAGING_DIR, value: /var/pas/staging}
+                - {name: PAS_EXTRACT_CLAIMS_SFTP_URI, valueFrom: {configMapKeyRef: {name: pas-extract-endpoints, key: claims-uri}}}
+                - {name: PAS_EXTRACT_CLAIMS_SFTP_USERNAME, valueFrom: {configMapKeyRef: {name: pas-extract-endpoints, key: claims-username}}}
+                - {name: PAS_EXTRACT_CLAIMS_SFTP_KEY_FILE, value: /var/run/pas-extract/claims/id_ed25519}
+                - {name: PAS_EXTRACT_CLAIMS_SFTP_KNOWN_HOSTS_FILE, value: /var/run/pas-extract/claims/known_hosts}
+              volumeMounts:
+                - {name: claims-transfer, mountPath: /var/run/pas-extract/claims, readOnly: true}
+                - {name: staging, mountPath: /var/pas/staging}
+          volumes:
+            - name: claims-transfer
+              secret: {secretName: pas-extract-claims-sftp, defaultMode: 0400}
+            - name: staging
+              persistentVolumeClaim: {claimName: pas-extract-staging}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pas-actuarial-monthly-exposure
+  labels: {app: pas-batch, feed: actuarial, ticket: AB-527}
+spec:
+  schedule: "0 2 1 * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 7200
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, fsGroup: 10001}
+          containers:
+            - name: pas-batch
+              image: REGISTRY/pas-batch:VERSION
+              envFrom:
+                - secretRef: {name: pas-batch-db}
+              env:
+                - {name: PAS_BATCH_JOB, value: actuarialMonthlyExposure}
+                - {name: PAS_EXTRACT_STAGING_DIR, value: /var/pas/staging}
+                - {name: PAS_EXTRACT_ACTUARIAL_SFTP_URI, valueFrom: {configMapKeyRef: {name: pas-extract-endpoints, key: actuarial-uri}}}
+                - {name: PAS_EXTRACT_ACTUARIAL_SFTP_USERNAME, valueFrom: {configMapKeyRef: {name: pas-extract-endpoints, key: actuarial-username}}}
+                - {name: PAS_EXTRACT_ACTUARIAL_SFTP_KEY_FILE, value: /var/run/pas-extract/actuarial/id_ed25519}
+                - {name: PAS_EXTRACT_ACTUARIAL_SFTP_KNOWN_HOSTS_FILE, value: /var/run/pas-extract/actuarial/known_hosts}
+              volumeMounts:
+                - {name: actuarial-transfer, mountPath: /var/run/pas-extract/actuarial, readOnly: true}
+                - {name: staging, mountPath: /var/pas/staging}
+          volumes:
+            - name: actuarial-transfer
+              secret: {secretName: pas-extract-actuarial-sftp, defaultMode: 0400}
+            - name: staging
+              persistentVolumeClaim: {claimName: pas-extract-staging-actuarial}

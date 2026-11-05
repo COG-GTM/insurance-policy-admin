@@ -15,7 +15,9 @@ import org.springframework.context.annotation.Import;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
-@SpringBootTest
+// With more than one job Spring Boot needs PAS_BATCH_JOB to launch one; this test only starts the
+// application and checks the catalog.
+@SpringBootTest(properties = "spring.batch.job.enabled=false")
 @Import(PasBatchApplicationIT.Postgres.class)
 @ExtendWith(OutputCaptureExtension.class)
 class PasBatchApplicationIT {
@@ -32,8 +34,8 @@ class PasBatchApplicationIT {
   @Autowired JobCatalogReporter catalog;
 
   @Test
-  void startsWithoutJobsAndLogsTheCatalogAsJson(CapturedOutput output) {
-    assertThat(catalog.jobNames()).isEmpty();
+  void startsAndLogsTheJobCatalogAsJson(CapturedOutput output) {
+    assertThat(catalog.jobNames()).contains("actuarialMonthlyExposure", "claimsDailyExtract");
     String line =
         output
             .getOut()

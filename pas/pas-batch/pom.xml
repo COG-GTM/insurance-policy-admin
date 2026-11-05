@@ -14,6 +14,10 @@
   <name>pas-batch</name>
   <description>Spring Boot application: Spring Batch 5 jobs for the premium run and the extracts (ADR 0001 D1, SVC-02).</description>
 
+  <properties>
+    <sshd.version>2.15.0</sshd.version>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>com.acme.insurance.pas</groupId>
@@ -42,6 +46,12 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <!-- AB-527: SFTP client for the Claims and Actuarial feeds (ADR 0001 D6). -->
+    <dependency>
+      <groupId>org.apache.sshd</groupId>
+      <artifactId>sshd-sftp</artifactId>
+      <version>${sshd.version}</version>
     </dependency>
 
     <dependency>

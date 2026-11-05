@@ -1,5 +1,5 @@
 # pas-batch (ADR 0001 D1/D2/D8). Configuration from the environment and the secrets manager; no
-# credential defaults. The job repository schema (pas_batch, DS-03) and the jobs arrive in AB-523.
+# credential defaults. The job repository (schema pas_batch, DS-03) is created by Flyway V71.
 spring:
   application:
     name: pas-batch
@@ -15,6 +15,7 @@ spring:
   batch:
     jdbc:
       initialize-schema: never
+      table-prefix: pas_batch.BATCH_
     job:
       name: ${PAS_BATCH_JOB:}
 
@@ -25,3 +26,21 @@ logging:
     ecs:
       service:
         name: ${spring.application.name}
+
+# AB-527: Claims and Actuarial feeds over SFTP (docs/pas/extracts.md). Endpoint, user, key file and
+# known-hosts file come from the secrets manager; there are no defaults for them.
+pas:
+  extract:
+    staging-dir: ${PAS_EXTRACT_STAGING_DIR:}
+    claims:
+      uri: ${PAS_EXTRACT_CLAIMS_SFTP_URI:}
+      username: ${PAS_EXTRACT_CLAIMS_SFTP_USERNAME:}
+      private-key-file: ${PAS_EXTRACT_CLAIMS_SFTP_KEY_FILE:}
+      private-key-passphrase-file: ${PAS_EXTRACT_CLAIMS_SFTP_KEY_PASSPHRASE_FILE:}
+      known-hosts-file: ${PAS_EXTRACT_CLAIMS_SFTP_KNOWN_HOSTS_FILE:}
+    actuarial:
+      uri: ${PAS_EXTRACT_ACTUARIAL_SFTP_URI:}
+      username: ${PAS_EXTRACT_ACTUARIAL_SFTP_USERNAME:}
+      private-key-file: ${PAS_EXTRACT_ACTUARIAL_SFTP_KEY_FILE:}
+      private-key-passphrase-file: ${PAS_EXTRACT_ACTUARIAL_SFTP_KEY_PASSPHRASE_FILE:}
+      known-hosts-file: ${PAS_EXTRACT_ACTUARIAL_SFTP_KNOWN_HOSTS_FILE:}
