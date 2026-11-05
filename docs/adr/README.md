@@ -9,9 +9,9 @@ Architecture decisions for the PAS modernization (epic AB-516). Each ADR records
 ## Conventions
 
 - File name `NNNN-short-title.md`; numbers are never reused. A changed decision gets a new ADR that supersedes the old one (`Status: Superseded by NNNN`).
-- Header fields: Status (`Proposed`, `Accepted`, `Rejected`, `Deprecated`, `Superseded by NNNN`), Date, Ticket, Deciders.
+- Header fields: Status (`Proposed`, `Accepted`, `Rejected`, `Deprecated`, `Superseded by NNNN`), Date, Ticket, New components (a link to `NNNN-components.json`, or `none`), Deciders.
 - Required sections: Context, Decision drivers, Decisions, Consequences. Each decision `### Dn: ...` has an "Alternatives considered" table with the chosen option and at least one rejected option.
-- New components and data stores go into the ADR's `NNNN-components.json` register; the tables in the ADR and the ARB pack are generated from it.
+- New components and data stores go into the ADR's `NNNN-components.json` register (required unless the header says `New components: none`); the tables in the ADR and the ARB pack are generated from it.
 - References to quirks (`Q-..`), follow-ups (`FU-..`), integrations (`I-..`) and epic tickets must exist in [`docs/modernization/`](../modernization/README.md).
 
 ```

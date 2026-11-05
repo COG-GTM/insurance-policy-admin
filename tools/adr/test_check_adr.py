@@ -12,6 +12,7 @@ ADR = """# ADR 0099: Sample
 - **Status:** Proposed
 - **Date:** 2026-11-05
 - **Ticket:** AB-518
+- **New components:** none
 - **Deciders:** ARB
 
 ## Context
@@ -70,6 +71,31 @@ class AdrStructureTest(unittest.TestCase):
         errors, _ = ca.check_adr("x.md", ADR.replace("Proposed", "Maybe").replace("## Consequences", "## Other"))
         self.assertTrue(any("invalid Status" in e for e in errors))
         self.assertTrue(any("'## Consequences'" in e for e in errors))
+
+
+class RegisterRequirementTest(unittest.TestCase):
+    LINKED = ADR.replace("- **New components:** none", "- **New components:** see [`0099-components.json`](0099-components.json)")
+
+    def test_none_without_register(self):
+        self.assertEqual(ca.register_errors("x.md", ADR, "0099", False), [])
+
+    def test_none_with_register_fails(self):
+        self.assertTrue(ca.register_errors("x.md", ADR, "0099", True))
+
+    def test_components_without_register_fail(self):
+        errs = ca.register_errors("x.md", self.LINKED, "0099", False)
+        self.assertTrue(any("needs a component register" in e for e in errs))
+
+    def test_linked_register_passes(self):
+        self.assertEqual(ca.register_errors("x.md", self.LINKED, "0099", True), [])
+
+    def test_header_must_link_register(self):
+        text = ADR.replace("- **New components:** none", "- **New components:** several")
+        self.assertTrue(any("must link" in e for e in ca.register_errors("x.md", text, "0099", True)))
+
+    def test_missing_header_is_reported(self):
+        errors, _ = ca.check_adr("x.md", ADR.replace("- **New components:** none\n", ""))
+        self.assertTrue(any("'New components'" in e for e in errors))
 
 
 class ComponentRegisterTest(unittest.TestCase):

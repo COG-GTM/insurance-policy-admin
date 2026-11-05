@@ -28,7 +28,7 @@ INVENTORY = f"{MOD}/behaviour-inventory.md"
 
 ADR_FILE = re.compile(r"^(\d{4})-[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
 STATUS = re.compile(r"^(Proposed|Accepted|Rejected|Deprecated|Superseded by \d{4})$")
-HEADER_FIELDS = ("Status", "Date", "Ticket", "Deciders")
+HEADER_FIELDS = ("Status", "Date", "Ticket", "New components", "Deciders")
 SECTIONS = ("Context", "Decision drivers", "Decisions", "Consequences")
 COMPONENT_ID = re.compile(r"^(SVC|DS|MSG|INT|SEC|PLT)-\d{2}$")
 KINDS = {"service", "batch", "data-store", "messaging", "integration", "security", "platform"}
@@ -144,6 +144,21 @@ def validate_components(path, components, decision_ids):
     return errors
 
 
+def register_errors(path, text, num, register_exists):
+    """An ADR either links its NNNN-components.json register or declares 'New components: none'."""
+    declared = (header(text, "New components") or "").strip()
+    comp = f"{num}-components.json"
+    if not declared:
+        return []  # reported as a missing header field
+    if declared.lower() == "none":
+        return [f"{path}: declares 'New components: none' but {comp} exists"] if register_exists else []
+    if not register_exists:
+        return [f"{path}: needs a component register {ADR_DIR}/{comp} (or 'New components: none')"]
+    if f"]({comp})" not in declared:
+        return [f"{path}: 'New components' header must link {comp}"]
+    return []
+
+
 def components_table(components):
     rows = ["| ID | Component | Kind | Decision | Purpose | Data held | Classification | PII | Encryption | Retention | "
             "Owner | Introduced by | Security review | Data governance review |",
@@ -232,7 +247,9 @@ def run(write=False):
         if header(text, "Status") == "Proposed" and arb_text is None:
             errors.append(f"{path}: Proposed ADR needs an ARB submission at {arb}")
         comp_path = f"{ADR_DIR}/{num}-components.json"
-        if exists(comp_path):
+        reg_errors = register_errors(path, text, num, exists(comp_path))
+        errors += reg_errors
+        if exists(comp_path) and not reg_errors:
             components = json.loads(read(comp_path))["components"]
             errors += validate_components(comp_path, components, set(ds))
             if not any(e.startswith(comp_path) for e in errors):

@@ -59,7 +59,7 @@ Generated from [`0001-components.json`](../0001-components.json). Full details (
 | DS-02 | PostgreSQL schema acmeins_shadow (parallel-run outputs and reconciliation) | nothing (new) | Restricted | yes | AB-529 | pending | pending |
 | DS-03 | Spring Batch job repository (schema pas_batch) | CA-7 run history and JES job logs | Internal | no | AB-523 | pending | pending |
 | DS-04 | Transactional outbox table (acmeins.event_outbox) | CICS TD queue writes (Q-13) | Confidential | no | AB-525 | pending | pending |
-| DS-05 | Policy audit table (acmeins.policy_audit) | CICS TS queue ENDORSEMENT-AUDIT (Q-23) and 8-character audit columns (Q-518-1) | Confidential | no | AB-526 | pending | pending |
+| DS-05 | Policy audit table (acmeins.policy_audit) | CICS TS queue ENDORSEMENT-AUDIT (Q-23) and 8-character audit columns (Q-518-1) | Restricted | yes | AB-526 | pending | pending |
 | MSG-01 | Kafka topics pas.policy.* and pas.underwriting.* with schema registry subjects | TD queue ACME routed to IBM MQ ACME.PAS.UNDERWRITING.REQUEST/DECISION | Confidential | no | AB-528 | pending | pending |
 | MSG-02 | CDC pipeline DB2 to PostgreSQL (and reverse after cutover) | nothing (temporary, removed in AB-530) | Restricted | yes | AB-529 | pending | pending |
 | INT-01 | Kafka to IBM MQ bridge | nothing (temporary, removed in AB-528/AB-530) | Confidential | no | AB-528 | pending | n/a |
