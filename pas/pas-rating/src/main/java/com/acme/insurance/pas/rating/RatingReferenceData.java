@@ -24,10 +24,18 @@ public interface RatingReferenceData {
   List<RatingParameter> parametersInForce(LocalDate ratingDate);
 
   /**
+   * Every rate and factor row of every effective date, read as one consistent version of the
+   * reference tables.
+   */
+  RatingRateHistory allRows();
+
+  /**
    * An immutable copy of every row (all effective dates), so a batch run resolves every rating date
    * against the same version of the rates even if a row is inserted while it runs.
    */
-  RatingReferenceData pin();
+  default RatingReferenceData pin() {
+    return history(allRows());
+  }
 
   /**
    * Live data: per-date lookups, and the full row history for {@link #pin()}, which must be read as
@@ -52,9 +60,35 @@ public interface RatingReferenceData {
       }
 
       @Override
+      public RatingRateHistory allRows() {
+        return history.get();
+      }
+    };
+  }
+
+  /** In-memory copy of {@code rows}; see {@link #history(Collection, Collection)}. */
+  static RatingReferenceData history(RatingRateHistory rows) {
+    Objects.requireNonNull(rows, "rows");
+    return new RatingReferenceData() {
+      @Override
+      public List<BaseRate> baseRatesInForce(LocalDate ratingDate) {
+        return latest(rows.baseRates(), BaseRate::policyType, BaseRate::effectiveDate, ratingDate);
+      }
+
+      @Override
+      public List<RatingParameter> parametersInForce(LocalDate ratingDate) {
+        return latest(
+            rows.parameters(), RatingParameter::code, RatingParameter::effectiveDate, ratingDate);
+      }
+
+      @Override
+      public RatingRateHistory allRows() {
+        return rows;
+      }
+
+      @Override
       public RatingReferenceData pin() {
-        RatingRateHistory rows = history.get();
-        return history(rows.baseRates(), rows.parameters());
+        return this;
       }
     };
   }
@@ -64,24 +98,7 @@ public interface RatingReferenceData {
    */
   static RatingReferenceData history(
       Collection<BaseRate> baseRates, Collection<RatingParameter> parameters) {
-    List<BaseRate> rates = List.copyOf(baseRates);
-    List<RatingParameter> params = List.copyOf(parameters);
-    return new RatingReferenceData() {
-      @Override
-      public List<BaseRate> baseRatesInForce(LocalDate ratingDate) {
-        return latest(rates, BaseRate::policyType, BaseRate::effectiveDate, ratingDate);
-      }
-
-      @Override
-      public List<RatingParameter> parametersInForce(LocalDate ratingDate) {
-        return latest(params, RatingParameter::code, RatingParameter::effectiveDate, ratingDate);
-      }
-
-      @Override
-      public RatingReferenceData pin() {
-        return this;
-      }
-    };
+    return history(new RatingRateHistory(List.copyOf(baseRates), List.copyOf(parameters)));
   }
 
   private static <T, K> List<T> latest(

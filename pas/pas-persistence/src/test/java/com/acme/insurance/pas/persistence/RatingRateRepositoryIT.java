@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.acme.insurance.pas.domain.BaseRate;
+import com.acme.insurance.pas.domain.ClassFactor;
 import com.acme.insurance.pas.domain.RatingParameter;
 import com.acme.insurance.pas.domain.RatingParameterCode;
 import com.acme.insurance.pas.domain.RatingRateHistory;
+import com.acme.insurance.pas.domain.TerritoryFactor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
@@ -103,6 +105,25 @@ class RatingRateRepositoryIT {
         .extracting(BaseRate::policyType)
         .containsExactly("AU ");
     assertThat(rates.baseRatesInForce(date)).extracting(BaseRate::policyType).contains("AU ");
+  }
+
+  @Test
+  void historyAlsoCopiesTerritoryAndClassFactorsWithTheirPadding() {
+    LocalDate date = LocalDate.of(2033, 1, 1);
+    RatingFactorJdbcRepository factors = new RatingFactorJdbcRepository(jdbc);
+    factors.insert(new TerritoryFactor("T9", date, new BigDecimal("1.2500")));
+    factors.insert(new ClassFactor("C9", date, new BigDecimal("0.8000")));
+
+    RatingRateHistory history = rates.history();
+
+    assertThat(history.territoryFactors())
+        .filteredOn(f -> f.effectiveDate().equals(date))
+        .extracting(TerritoryFactor::territoryCode, f -> f.ratingFactor().toPlainString())
+        .containsExactly(org.assertj.core.groups.Tuple.tuple("T9    ", "1.2500"));
+    assertThat(history.classFactors())
+        .filteredOn(f -> f.effectiveDate().equals(date))
+        .extracting(ClassFactor::classCode, f -> f.ratingFactor().toPlainString())
+        .containsExactly(org.assertj.core.groups.Tuple.tuple("C9   ", "0.8000"));
   }
 
   @Test

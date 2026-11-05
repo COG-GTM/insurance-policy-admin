@@ -1,9 +1,11 @@
 package com.acme.insurance.pas.persistence;
 
 import com.acme.insurance.pas.domain.BaseRate;
+import com.acme.insurance.pas.domain.ClassFactor;
 import com.acme.insurance.pas.domain.RatingParameter;
 import com.acme.insurance.pas.domain.RatingParameterCode;
 import com.acme.insurance.pas.domain.RatingRateHistory;
+import com.acme.insurance.pas.domain.TerritoryFactor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -45,13 +47,16 @@ public class RatingRateJdbcRepository {
   }
 
   /**
-   * Every base-rate and parameter row of every effective date, read by one statement so both tables
-   * come from the same committed version (a rate release that commits a base rate and a parameter
-   * together is seen entirely or not at all). Used to pin a batch run.
+   * Every base-rate, parameter, territory-factor and class-factor row of every effective date, read
+   * by one statement so all four tables come from the same committed version (a release that
+   * commits a base rate, a parameter and a factor together is seen entirely or not at all). Used to
+   * pin a batch run.
    */
   public RatingRateHistory history() {
     List<BaseRate> baseRates = new ArrayList<>();
     List<RatingParameter> parameters = new ArrayList<>();
+    List<TerritoryFactor> territoryFactors = new ArrayList<>();
+    List<ClassFactor> classFactors = new ArrayList<>();
     jdbc.sql(
             """
             SELECT 'B' AS row_kind, policy_type AS row_key, effective_date,
@@ -60,21 +65,34 @@ public class RatingRateJdbcRepository {
             UNION ALL
             SELECT 'P', parameter_code, effective_date, parameter_value
             FROM pasapp.rating_parameters
+            UNION ALL
+            SELECT 'T', territory_code, effective_date, CAST(rating_factor AS DECIMAL(11,4))
+            FROM acmeins.territory_factors
+            UNION ALL
+            SELECT 'C', class_code, effective_date, CAST(rating_factor AS DECIMAL(11,4))
+            FROM pasapp.class_factors
             """)
         .query(
             rs -> {
               String key = rs.getString("row_key");
               LocalDate effective = rs.getObject("effective_date", LocalDate.class);
               BigDecimal value = rs.getBigDecimal("row_value");
-              if ("B".equals(rs.getString("row_kind"))) {
-                // The UNION coerces CHAR(3) to a varying type, which may drop trailing blanks.
-                baseRates.add(new BaseRate(String.format("%-3s", key), effective, value));
-              } else {
-                parameters.add(
-                    new RatingParameter(RatingParameterCode.valueOf(key.trim()), effective, value));
+              // The UNION coerces CHAR(n) to a varying type, which may drop trailing blanks.
+              switch (rs.getString("row_kind")) {
+                case "B" ->
+                    baseRates.add(new BaseRate(String.format("%-3s", key), effective, value));
+                case "P" ->
+                    parameters.add(
+                        new RatingParameter(
+                            RatingParameterCode.valueOf(key.trim()), effective, value));
+                case "T" ->
+                    territoryFactors.add(
+                        new TerritoryFactor(String.format("%-6s", key), effective, value));
+                default ->
+                    classFactors.add(new ClassFactor(String.format("%-5s", key), effective, value));
               }
             });
-    return new RatingRateHistory(baseRates, parameters);
+    return new RatingRateHistory(baseRates, parameters, territoryFactors, classFactors);
   }
 
   public List<RatingParameter> parametersInForce(LocalDate ratingDate) {

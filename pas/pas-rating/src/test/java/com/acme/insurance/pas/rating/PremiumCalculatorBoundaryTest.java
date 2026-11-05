@@ -65,12 +65,62 @@ class PremiumCalculatorBoundaryTest {
   }
 
   @Test
-  void largestPremiumThatFitsWsFinalPremium() {
-    // 9999999.99 + 349999.99 + 0.00 fits S9(09)V99.
+  void largestTaxedPremiumWithTheLargestBase() {
+    // 9999999.99 + 349999.99 + 0.00: the largest base that also fits PREMIUMS.BASE_RATE.
     PremiumBreakdown premium =
         calculator("9999999.99", "0.0350", "0.00").calculate("AUT", RatingFactors.NEUTRAL);
     assertThat(premium.tax()).hasToString("349999.99");
     assertThat(premium.totalPremium()).hasToString("10349999.98");
+  }
+
+  @Test
+  void largestPremiumThatFitsWsFinalPremium() {
+    // 999999999.99 is the S9(09)V99 maximum, reached by the base alone with no tax or surcharge.
+    PremiumBreakdown premium =
+        calculator("999999999.99", "0.0000", "0.00").calculate("AUT", RatingFactors.NEUTRAL);
+    assertThat(premium.modifiedPremium()).hasToString("999999999.99");
+    assertThat(premium.totalPremium()).hasToString("999999999.99");
+  }
+
+  @Test
+  void aTotalOneCentAboveWsFinalPremiumFails() {
+    // 999999999.99 + 0.00 + 0.01 = 1000000000.00 needs 10 integer digits.
+    assertThatThrownBy(
+            () ->
+                calculator("999999999.99", "0.0000", "0.01")
+                    .calculate("AUT", RatingFactors.NEUTRAL))
+        .isInstanceOf(RatingOverflowException.class)
+        .hasMessageContaining("WS-FINAL-PREMIUM");
+  }
+
+  @Test
+  void aBaseRateWiderThanWsBasePremiumFails() {
+    assertThatThrownBy(
+            () ->
+                calculator("1000000000.00", "0.0000", "0.00")
+                    .calculate("AUT", RatingFactors.NEUTRAL))
+        .isInstanceOf(RatingOverflowException.class)
+        .hasMessageContaining("WS-BASE-PREMIUM");
+  }
+
+  @ParameterizedTest(name = "{3} overflows")
+  @CsvSource({
+    // territory 100.0000 gives 999999999.00, which fits; the next factor 1.0100 does not.
+    "100.0000, 1.0100, 1.0000, WS-CLASS-PREMIUM",
+    "100.0000, 1.0000, 1.0100, WS-MOD-PREMIUM",
+  })
+  void classAndModPremiumsThatOverflowS9_09_V99Fail(
+      String territory, String clazz, String mod, String field) {
+    RatingFactors factors =
+        new RatingFactors(
+            new BigDecimal(territory),
+            new BigDecimal(clazz),
+            new BigDecimal(mod),
+            new BigDecimal("1.0000"),
+            new BigDecimal("0.00"));
+    assertThatThrownBy(() -> calculator("9999999.99", "0.0000", "0.00").calculate("AUT", factors))
+        .isInstanceOf(RatingOverflowException.class)
+        .hasMessageContaining(field);
   }
 
   @Test

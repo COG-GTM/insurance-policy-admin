@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.acme.insurance.pas.domain.BaseRate;
 import com.acme.insurance.pas.domain.RatingParameter;
 import com.acme.insurance.pas.domain.RatingRateHistory;
+import com.acme.insurance.pas.domain.TerritoryFactor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -208,5 +209,114 @@ class PremiumRaterTest {
         .filteredOn(r -> r.policyType().equals("AUT"))
         .extracting(r -> r.baseRate().toPlainString())
         .containsExactly("700.00");
+  }
+
+  @Test
+  void aRaterSnapshotPinsRatesAndFactorsCopiedAtItsStart() {
+    LocalDate july = LocalDate.of(2025, 7, 1);
+    List<BaseRate> liveRates = new ArrayList<>(RatingTableTest.baseRates());
+    List<TerritoryFactor> liveTerritories =
+        new ArrayList<>(
+            List.of(
+                new TerritoryFactor("T1    ", LocalDate.of(2025, 1, 1), new BigDecimal("1.1000"))));
+    RatingReferenceData data =
+        RatingReferenceData.of(
+            date ->
+                RatingReferenceData.history(liveRates, RatingTableTest.parameters())
+                    .baseRatesInForce(date),
+            date -> RatingTableTest.parameters(),
+            () ->
+                new RatingRateHistory(
+                    liveRates, RatingTableTest.parameters(), liveTerritories, List.of()));
+    FactorLookup liveTerritory =
+        (code, date) ->
+            FactorLookup.of(
+                    liveTerritories,
+                    TerritoryFactor::territoryCode,
+                    TerritoryFactor::effectiveDate,
+                    TerritoryFactor::ratingFactor)
+                .factor(code, date);
+    PremiumRater live =
+        new PremiumRater(
+            new ReferenceRatingTables(data, java.time.Duration.ZERO, java.time.Clock.systemUTC()),
+            RatingFactorMode.TABLE_DRIVEN.source(liveTerritory, (code, date) -> Optional.empty()));
+    RatingRequest request = new RatingRequest("AUT", july, "T1", null);
+
+    PremiumRater batchRun = live.snapshot();
+    assertThat(batchRun.rate(request).territoryPremium()).hasToString("770.00");
+
+    liveRates.add(new BaseRate("AUT", july, new BigDecimal("800.00")));
+    liveTerritories.add(new TerritoryFactor("T1", july, new BigDecimal("1.5000")));
+
+    // 800.00 * 1.5000 live; the run keeps 700.00 * 1.1000, also for a date first rated now.
+    assertThat(live.rate(request).territoryPremium()).hasToString("1200.00");
+    assertThat(batchRun.rate(request).territoryPremium()).hasToString("770.00");
+    assertThat(batchRun.rate(new RatingRequest("AUT", july.plusMonths(1), "T1", null)).factors())
+        .extracting(RatingFactors::territoryFactor)
+        .hasToString("1.1000");
+  }
+
+  @Test
+  void aLegacyNeutralSnapshotStaysNeutral() {
+    PremiumRater batchRun =
+        new PremiumRater(tables, RatingFactorMode.LEGACY_NEUTRAL.source(TERRITORY, CLASS))
+            .snapshot();
+    assertThat(batchRun.rate(new RatingRequest("AUT", RUN, "T1", "C1")).totalPremium())
+        .hasToString("738.00");
+  }
+
+  @Test
+  void pinnedFactorLookupsTakeTheLatestRowAndIgnoreTrailingBlanks() {
+    FactorLookup lookup =
+        FactorLookup.of(
+            List.of(
+                new TerritoryFactor("T1    ", LocalDate.of(2025, 1, 1), new BigDecimal("1.1000")),
+                new TerritoryFactor("T1    ", LocalDate.of(2025, 6, 1), new BigDecimal("1.2000"))),
+            TerritoryFactor::territoryCode,
+            TerritoryFactor::effectiveDate,
+            TerritoryFactor::ratingFactor);
+    assertThat(lookup.factor("T1", LocalDate.of(2024, 12, 31))).isEmpty();
+    assertThat(lookup.factor("T1", LocalDate.of(2025, 5, 31)))
+        .hasValueSatisfying(f -> assertThat(f).hasToString("1.1000"));
+    assertThat(lookup.factor("T1    ", LocalDate.of(2025, 6, 1)))
+        .hasValueSatisfying(f -> assertThat(f).hasToString("1.2000"));
+    assertThat(lookup.factor(" T1", LocalDate.of(2025, 6, 1))).isEmpty();
+  }
+
+  @Test
+  void expiredDatesAreDroppedFromTheCacheOnTheNextLoad() {
+    java.util.concurrent.atomic.AtomicReference<java.time.Instant> now =
+        new java.util.concurrent.atomic.AtomicReference<>(
+            java.time.Instant.parse("2025-06-01T00:00:00Z"));
+    java.time.Clock clock =
+        new java.time.Clock() {
+          @Override
+          public java.time.ZoneId getZone() {
+            return java.time.ZoneOffset.UTC;
+          }
+
+          @Override
+          public java.time.Clock withZone(java.time.ZoneId zone) {
+            return this;
+          }
+
+          @Override
+          public java.time.Instant instant() {
+            return now.get();
+          }
+        };
+    ReferenceRatingTables cache =
+        new ReferenceRatingTables(
+            RatingReferenceData.history(RatingTableTest.baseRates(), RatingTableTest.parameters()),
+            java.time.Duration.ofMinutes(5),
+            clock);
+    for (int day = 0; day < 10; day++) {
+      cache.tableFor(RUN.plusDays(day));
+    }
+    assertThat(cache.cachedDates()).isEqualTo(10);
+
+    now.set(now.get().plusSeconds(301));
+    cache.tableFor(RUN.plusDays(100));
+    assertThat(cache.cachedDates()).isEqualTo(1);
   }
 }

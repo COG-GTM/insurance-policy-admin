@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.rating;
 
+import com.acme.insurance.pas.domain.RatingRateHistory;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -51,19 +52,44 @@ public final class ReferenceRatingTables {
     return snapshotOf(data.pin());
   }
 
+  /** Every rate and factor row, read as one consistent version (see {@link #snapshot()}). */
+  public RatingRateHistory allRows() {
+    return data.allRows();
+  }
+
+  /**
+   * The table in force on {@code ratingDate}. A load also drops every entry older than {@code
+   * maxAge}, so the cache holds only dates rated within the last {@code maxAge}. A snapshot keeps
+   * its dates for the life of the run, from rows that are already in memory.
+   */
   public RatingTable tableFor(LocalDate ratingDate) {
     Objects.requireNonNull(ratingDate, "ratingDate");
     Instant now = clock.instant();
-    return byDate
-        .compute(
+    Loaded cached = byDate.get(ratingDate);
+    if (cached != null && fresh(cached, now)) {
+      return cached.table();
+    }
+    Loaded loaded =
+        byDate.compute(
             ratingDate,
-            (date, cached) ->
-                cached != null && (maxAge == null || !now.isAfter(cached.loadedAt().plus(maxAge)))
-                    ? cached
+            (date, current) ->
+                current != null && fresh(current, now)
+                    ? current
                     : new Loaded(
                         RatingTable.from(data.baseRatesInForce(date), data.parametersInForce(date)),
-                        now))
-        .table();
+                        now));
+    if (maxAge != null) {
+      byDate.values().removeIf(entry -> !fresh(entry, now));
+    }
+    return loaded.table();
+  }
+
+  int cachedDates() {
+    return byDate.size();
+  }
+
+  private boolean fresh(Loaded entry, Instant now) {
+    return maxAge == null || !now.isAfter(entry.loadedAt().plus(maxAge));
   }
 
   public void evict() {

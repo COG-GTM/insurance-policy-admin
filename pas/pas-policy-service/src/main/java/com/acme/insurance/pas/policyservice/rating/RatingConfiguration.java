@@ -51,6 +51,11 @@ public class RatingConfiguration {
     return properties.factorSource().source(factors::territoryFactor, factors::classFactor);
   }
 
+  /**
+   * Live rater: rates cached for {@code pas.rating.cache-ttl}, factors read per request. A batch
+   * run (AB-523) must rate through {@code premiumRater.snapshot()}, taken once at the start of the
+   * run, so every policy of the run sees the same rates and factors.
+   */
   @Bean
   PremiumRater premiumRater(ReferenceRatingTables tables, RatingFactorSource factorSource) {
     return new PremiumRater(tables, factorSource);
