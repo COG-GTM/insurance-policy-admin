@@ -220,7 +220,7 @@ class NewBusinessPersistenceIT {
         .isEqualTo("UW00042");
 
     UnderwritingDecision overridden = decisions.findLatest("POL-UWD00001").orElseThrow();
-    UnderwritingDecision again = withOverride(overridden, "AP", "Second look", "UW00043");
+    UnderwritingDecision again = withOverride(overridden, "AP", "Second look  ", "UW00043");
     UnderwritingDecision racing = withOverride(overridden, "AP", "Racing look", "UW00044");
     assertThat(decisions.applyOverride(overridden, again)).isEqualTo(1);
     assertThat(decisions.applyOverride(overridden, racing))
@@ -228,6 +228,10 @@ class NewBusinessPersistenceIT {
         .isZero();
     assertThat(decisions.findLatest("POL-UWD00001").orElseThrow().overrideReason())
         .isEqualTo("Second look");
+    UnderwritingDecision trimmed = decisions.findLatest("POL-UWD00001").orElseThrow();
+    assertThat(decisions.applyOverride(trimmed, withOverride(trimmed, "DC", "Third", "UW00045")))
+        .as("reason stored with trailing spaces does not block the next override")
+        .isEqualTo(1);
   }
 
   private static UnderwritingDecision withOverride(

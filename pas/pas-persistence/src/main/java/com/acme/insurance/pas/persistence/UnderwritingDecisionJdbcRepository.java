@@ -74,7 +74,7 @@ public class UnderwritingDecisionJdbcRepository {
                SET decision_code = ?, override_reason = ?, override_by = ?
              WHERE policy_number = ? AND decision_date = ? AND created_timestamp = ?
                AND decision_code = ?
-               AND COALESCE(override_reason, '') = ? AND COALESCE(override_by, '') = ?
+               AND COALESCE(RTRIM(override_reason), '') = ? AND COALESCE(RTRIM(override_by), '') = ?
             """)
         .params(
             after.decisionCode(),
