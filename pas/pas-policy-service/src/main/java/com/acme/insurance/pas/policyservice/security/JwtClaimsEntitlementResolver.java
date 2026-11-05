@@ -11,9 +11,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * Reads the entitlement from access-token claims: {@value #BOOK_CLAIM} set to {@value #WHOLE_BOOK}
- * grants the whole book, {@value #AGENTS_CLAIM} and {@value #BRANCHES_CLAIM} list agent and branch
- * codes. The claims may be JSON arrays or space-separated strings. Unknown or malformed claims
- * grant nothing.
+ * (a string, or a single-element array, as IdPs emit either form) grants the whole book; {@value
+ * #AGENTS_CLAIM} and {@value #BRANCHES_CLAIM} list agent and branch codes. The claims may be JSON
+ * arrays or space-separated strings. Unknown or malformed claims grant nothing.
  */
 @Component
 public class JwtClaimsEntitlementResolver implements EntitlementResolver {
@@ -29,8 +29,15 @@ public class JwtClaimsEntitlementResolver implements EntitlementResolver {
       return Entitlement.NONE;
     }
     Jwt jwt = token.getToken();
-    boolean wholeBook = WHOLE_BOOK.equals(jwt.getClaims().get(BOOK_CLAIM));
+    boolean wholeBook = isWholeBook(jwt.getClaims().get(BOOK_CLAIM));
     return new Entitlement(wholeBook, codes(jwt, AGENTS_CLAIM), codes(jwt, BRANCHES_CLAIM));
+  }
+
+  private static boolean isWholeBook(Object value) {
+    if (value instanceof Collection<?> list && list.size() == 1) {
+      value = list.iterator().next();
+    }
+    return value instanceof String text && WHOLE_BOOK.equals(text.trim());
   }
 
   private static Set<String> codes(Jwt jwt, String claim) {

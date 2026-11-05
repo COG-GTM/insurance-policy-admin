@@ -4,9 +4,9 @@
   "protected_branches": ["main", "devin/ab-516-v3"],
   "gates": [
     {"id": "G1", "description": "Consumer inventory complete: every caller of the facade identified with an owner (FU-10, gateway and VPN flow logs)", "owner": "Facade owner (t.nguyen@acme.com)", "status": "pending", "evidence": ""},
-    {"id": "G2", "description": "Every consumer has an IdP client registration with pas.policy.read and an entitlement (SEC-01) and calls the new API", "owner": "Security + consumer owners", "status": "pending", "evidence": ""},
+    {"id": "G2", "description": "Every consumer has an IdP client registration with pas.policy.read and an entitlement (SEC-01) and calls the new API; before the first consumer is routed in an environment, PAS_INQUIRY_TIMESTAMP_ZONE is set there to the facade JVM time zone (FU-524-2)", "owner": "Security + consumer owners", "status": "pending", "evidence": ""},
     {"id": "G3", "description": "Facade traffic is zero for 30 consecutive days at the gateway (PLT-01) while pas_inquiry_requests_total shows every consumer client on the new API", "owner": "Platform operations", "status": "pending", "evidence": ""},
-    {"id": "G4", "description": "compat-api gate repointed at pas-policy-service (pas/scripts/api-contract.sh) and the authentication status changes approved in compat/allowed-changes.json", "owner": "PAS team", "status": "pending", "evidence": ""},
+    {"id": "G4", "description": "compat-api gate repointed at pas-policy-service (pas/scripts/api-contract.sh) and the authentication status changes approved in compat/allowed-changes.json; lastUpdated epoch millis compared value for value against facade responses in every environment (the gate only type-checks it, FU-524-2)", "owner": "PAS team", "status": "pending", "evidence": ""},
     {"id": "G5", "description": "Sign-offs: Security, Product Owner, facade owner, downstream consumers, ARB", "owner": "ARB", "status": "pending", "evidence": ""},
     {"id": "G6", "description": "Rollback window closed: facade deployment scaled to zero for one full release cycle without a rollback request", "owner": "Platform operations", "status": "pending", "evidence": ""}
   ],

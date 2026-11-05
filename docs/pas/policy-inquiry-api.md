@@ -26,7 +26,8 @@ Everything else on the API port is denied (403 with a token, 401 without).
 - **Scopes:** `pas.policy.read` for all three endpoints (403 without it); `pas.policyholder.read` to
   see holder contact details in clear; `pas.ops.read` for `/actuator/info` and `/actuator/prometheus`.
 - **Object-level entitlement:** `JwtClaimsEntitlementResolver` reads `pas_book` (`"*"` = the whole
-  book, for back-office and system clients), `pas_agents` and `pas_branches` (JSON arrays or
+  book, for back-office and system clients; the string `"*"` and the single-element array `["*"]` are
+  both accepted, any other value grants nothing), `pas_agents` and `pas_branches` (JSON arrays or
   space-separated strings). A policy is visible when the caller holds the whole book, or its
   `AGENT_CODE` or `BRANCH_CODE` is listed. No claims means no policies. Coverages and the holder are
   only read after the policy check passes. `EntitlementResolver` is an interface so a PAS-owned
@@ -60,6 +61,9 @@ personal data.
   `compat/api/snapshots/policies-v1.json` recorded from the facade) against the new service loaded
   with the facade's seed data, called with whole-book read access: the checker passes. Called
   anonymously it fails on 401s; that authentication change is the one deliberate contract change.
+  The checker compares parsed JSON numbers, so `FacadeContractIT` also asserts on the raw response
+  text that every money field (`totalPremium`, `premium`, `deductible`, `coverageLimit`) is written
+  with two decimals, as the facade wrote its `DECIMAL(n,2)` values.
 - `make pas-api-contract` does the same against the running local stack.
 - `compat/allowed-changes.json` is unchanged: `make compat-api` still targets `java-facade`, which is
   unchanged, so it reports no findings. When the gate is repointed at the new service (retirement

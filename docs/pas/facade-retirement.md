@@ -22,6 +22,8 @@ python3 tools/retirement/facade_retirement.py --execute  # refuses until every g
 2. **Register and entitle (G2).** One IdP client per consumer with `pas.policy.read` and the narrowest
    entitlement (`pas_agents` / `pas_branches`; `pas_book: "*"` only for back-office systems).
    `pas.policyholder.read` only where Data governance approves.
+   Before the first consumer is routed in an environment, set `PAS_INQUIRY_TIMESTAMP_ZONE` there to
+   the facade's JVM time zone (FU-524-2), otherwise `lastUpdated` epoch millis shift by the offset.
 3. **Route.** The gateway (PLT-01) exposes the new service at the same paths. Consumers switch base
    URL and add the bearer token; payloads are unchanged (`FacadeContractIT`). Weighted routing is
    possible because the paths are identical, but unauthenticated callers will get 401 from the new
@@ -30,6 +32,8 @@ python3 tools/retirement/facade_retirement.py --execute  # refuses until every g
    `sum by (client) (rate(pas_inquiry_requests_total[1d]))` shows every inventoried client.
 5. **Repoint the gate (G4).** `make compat-api` runs against the new service (`pas/scripts/api-contract.sh`);
    approve the unauthenticated-status findings in `compat/allowed-changes.json` with AB-524 as reason.
+   The gate only type-checks `lastUpdated` (volatile), so compare its values against facade
+   responses in each environment as part of G4.
 6. **Sign-off (G5)** and **rollback window (G6):** facade scaled to zero for one release cycle.
 7. **Delete.** Run `--execute` on a dedicated branch, finish the manual steps (S3, S4), open a PR.
 

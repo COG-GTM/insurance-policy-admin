@@ -29,10 +29,24 @@ class JwtClaimsEntitlementResolverTest {
   }
 
   @Test
-  void wildcardsInsideListsAndMalformedClaimsGrantNothing() {
+  void wholeBookAcceptsTheStringAndTheSingleElementArrayForm() {
+    assertThat(resolve(Map.of("pas_book", "*")).wholeBook()).isTrue();
+    assertThat(resolve(Map.of("pas_book", List.of("*"))).wholeBook()).isTrue();
+    assertThat(resolve(Map.of("pas_book", " * ")).wholeBook()).isTrue();
+  }
+
+  @Test
+  void otherBookValuesGrantNothing() {
+    for (Object book :
+        List.of("", "all", "* AG1001", List.of(), List.of("*", "x"), List.of(42), 1)) {
+      assertThat(resolve(Map.of("pas_book", book)).wholeBook()).as(String.valueOf(book)).isFalse();
+    }
+  }
+
+  @Test
+  void wildcardsInAgentAndBranchClaimsAndMalformedClaimsGrantNothing() {
     Entitlement e =
-        resolve(
-            Map.of("pas_book", List.of("*"), "pas_agents", List.of("*", 42), "pas_branches", 7));
+        resolve(Map.of("pas_book", "no", "pas_agents", List.of("*", 42), "pas_branches", 7));
     assertThat(e).isEqualTo(new Entitlement(false, Set.of(), Set.of()));
   }
 
