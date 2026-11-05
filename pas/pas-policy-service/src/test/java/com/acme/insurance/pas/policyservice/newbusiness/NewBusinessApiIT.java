@@ -260,6 +260,13 @@ class NewBusinessApiIT {
         post("/api/v1/policies/" + pn + "/underwriting-decisions/override", manager, override);
     assertThat(overridden.statusCode()).as(overridden.body()).isEqualTo(200);
     assertThat(json.readTree(overridden.body()).get("overrideBy").asText()).isEqualTo("UW00042");
+    assertThat(
+            jdbc.sql("SELECT updated_by FROM acmeins.policies WHERE policy_number = ?")
+                .param(pn)
+                .query(String.class)
+                .single()
+                .trim())
+        .isEqualTo("UW00042");
     JsonNode history =
         json.readTree(get("/api/v1/policies/" + pn + "/underwriting-decisions", manager).body());
     assertThat(history).hasSize(1);
@@ -350,5 +357,120 @@ class NewBusinessApiIT {
             body("HOMES", "C525000003", "AG0001", "B001", today(), "1.001"));
     assertThat(wide.statusCode()).isEqualTo(400);
     assertThat(json.readTree(wide.body()).get("violations")).hasSize(2);
+  }
+
+  @Test
+  void overrideRequiresTheCallersOwnUserIdAndAnEntitledDecidedPolicy() throws Exception {
+    holder("C525000004", 700, "S");
+    String writer = TestJwt.wholeBook(POLICY_WRITE + " " + UNDERWRITING_DECIDE);
+    HttpResponse<String> created =
+        post(
+            "/api/v1/policies",
+            writer,
+            body("AUT", "C525000004", "AG0004", "B004", today(), "100000.00"));
+    assertThat(created.statusCode()).as(created.body()).isEqualTo(201);
+    String pn = json.readTree(created.body()).get("policyNumber").asText();
+    String path = "/api/v1/policies/" + pn + "/underwriting-decisions/override";
+    String override = "{\"decisionCode\":\"DC\",\"reason\":\"Declined after review\"}";
+
+    // Nothing to override yet.
+    assertThat(post(path, overrider("UW00042", "*"), override).statusCode()).isEqualTo(409);
+
+    CLAIMS.put(pn, "{\"policyNumber\":\"" + pn + "\",\"claimCount\":0,\"totalIncurred\":0}");
+    HttpResponse<String> decided =
+        post("/api/v1/policies/" + pn + "/underwriting-decisions", writer, "");
+    assertThat(decided.statusCode()).as(decided.body()).isEqualTo(201);
+    String code = json.readTree(decided.body()).get("decisionCode").asText();
+
+    // No personal id in the token, or one that is not a valid 8-character id: 403, nothing stored.
+    HttpResponse<String> missing = post(path, overrider(null, "*"), override);
+    assertThat(missing.statusCode()).isEqualTo(403);
+    assertThat(json.readTree(missing.body()).get("message").asText()).contains("pas_legacy_user");
+    assertThat(post(path, overrider("uw00042", "*"), override).statusCode()).isEqualTo(403);
+    assertThat(post(path, overrider("UW000420X", "*"), override).statusCode()).isEqualTo(403);
+    // Outside the caller's book: looks like a missing policy.
+    assertThat(post(path, overrider("UW00042", null), override).statusCode()).isEqualTo(404);
+    assertThat(
+            jdbc.sql(
+                    "SELECT decision_code || COALESCE(override_by, '-') FROM acmeins.underwriting_decisions WHERE policy_number = ?")
+                .param(pn)
+                .query(String.class)
+                .single()
+                .trim())
+        .isEqualTo(code + "-");
+    assertThat(
+            jdbc.sql(
+                    "SELECT COUNT(*) FROM pasapp.policy_audit WHERE policy_number = ? AND action = 'UNDERWRITING_OVERRIDDEN'")
+                .param(pn)
+                .query(Integer.class)
+                .single())
+        .isZero();
+
+    HttpResponse<String> ok = post(path, overrider("UW00042", "*"), override);
+    assertThat(ok.statusCode()).as(ok.body()).isEqualTo(200);
+    assertThat(json.readTree(ok.body()).get("overrideBy").asText()).isEqualTo("UW00042");
+  }
+
+  @Test
+  void policyTypesAndAmountsAreCheckedBeforeTheHolderLookup() throws Exception {
+    holder("C525000005", 700, "S");
+    String jwt = TestJwt.wholeBook(POLICY_WRITE);
+    for (String type : List.of("LIF", "HLT")) {
+      HttpResponse<String> r =
+          post(
+              "/api/v1/policies",
+              jwt,
+              body(type, "C525000005", "AG0005", "B005", today(), "50000.00"));
+      assertThat(r.statusCode()).as(r.body()).isEqualTo(201);
+      assertThat(json.readTree(r.body()).get("coverages")).isEmpty();
+    }
+    for (String type : List.of("XYZ", "aut")) {
+      HttpResponse<String> r =
+          post(
+              "/api/v1/policies",
+              jwt,
+              body(type, "C525000005", "AG0005", "B005", today(), "50000.00"));
+      assertThat(r.statusCode()).as(r.body()).isEqualTo(400);
+      assertThat(json.readTree(r.body()).get("violations").findValuesAsText("field"))
+          .containsExactly("policyType");
+    }
+    HttpResponse<String> negative =
+        post(
+            "/api/v1/policies",
+            jwt,
+            "{\"policyType\":\"AUT\",\"policyholderId\":\"C525000005\",\"effectiveDate\":\"%s\",\"totalPremium\":-1.00,\"deductible\":-250.00,\"coverageLimit\":1000.00}"
+                .formatted(today()));
+    assertThat(negative.statusCode()).isEqualTo(400);
+    assertThat(json.readTree(negative.body()).get("violations").findValuesAsText("field"))
+        .containsExactly("totalPremium", "deductible");
+    // A narrow book learns nothing about holder ids outside its own policies.
+    String narrow = TestJwt.branches(POLICY_WRITE, "B005");
+    assertThat(
+            post(
+                    "/api/v1/policies",
+                    narrow,
+                    body("AUT", "C525999999", "AG0009", "B009", today(), "50000.00"))
+                .statusCode())
+        .isEqualTo(403);
+    assertThat(
+            post(
+                    "/api/v1/policies",
+                    narrow,
+                    body("AUT", "C525999999", "AG0005", "B005", today(), "50000.00"))
+                .statusCode())
+        .isEqualTo(422);
+  }
+
+  static String overrider(String legacyUser, String book) {
+    var claims = TestJwt.claims(UNDERWRITING_OVERRIDE + " " + POLICY_READ);
+    if (book != null) {
+      claims.claim("pas_book", book);
+    } else {
+      claims.claim("pas_branches", List.of("B999"));
+    }
+    if (legacyUser != null) {
+      claims.claim("pas_legacy_user", legacyUser);
+    }
+    return TestJwt.sign(claims.build());
   }
 }

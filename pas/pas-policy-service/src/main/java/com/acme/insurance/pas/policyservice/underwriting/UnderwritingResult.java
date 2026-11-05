@@ -20,6 +20,9 @@ public sealed interface UnderwritingResult {
     }
   }
 
+  /** 403: the caller may not make this change (e.g. an override without a personal user id). */
+  record Forbidden(String message) implements UnderwritingResult {}
+
   /** 404: no such policy, or not visible to the caller. */
   record NotFound() implements UnderwritingResult {}
 

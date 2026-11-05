@@ -6,10 +6,10 @@ import java.util.Objects;
 
 /**
  * Port of UNDWRT {@code 3000-CALCULATE-RISK-SCORE} and {@code 4000-CHECK-ACCUMULATION}, step by
- * step. Integer division truncates as in COBOL (quirk Q-06). Two signed-off fixes differ from the
- * COBOL: a step that would go below zero stores 0 instead of the absolute value the unsigned {@code
- * PIC 9(04)} keeps (Q-14), and the loss ratio keeps all its integer digits instead of overflowing
- * {@code PIC S9(03)V99} at 1000% (Q-15).
+ * step. Integer division truncates as in COBOL (quirk Q-06). Two proposed fixes (pending business
+ * sign-off) differ from the COBOL: a step that would go below zero stores 0 instead of the absolute
+ * value the unsigned {@code PIC 9(04)} keeps (Q-14; this can move the band, KD-08), and the loss
+ * ratio keeps all its integer digits instead of overflowing {@code PIC S9(03)V99} at 1000% (Q-15).
  */
 public final class RiskScorer {
 

@@ -1,9 +1,11 @@
 package com.acme.insurance.pas.policyservice.newbusiness;
 
+import com.acme.insurance.pas.domain.PolicyType;
 import com.acme.insurance.pas.policyservice.newbusiness.ApiError.Violation;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -12,7 +14,8 @@ import java.util.function.Predicate;
  * failing one (quirk Q-11), so precedence is: holder not found > limit not positive > effective
  * date in the past > type required > holder id required. The holder lookup runs even when earlier
  * checks failed, as in the COBOL; a blank holder id is "not found". Field-format problems (widths,
- * decimal places) are reported separately and answered 400 before any business check.
+ * decimal places, an unknown policy type, a negative premium or deductible: Q-525-3) are reported
+ * separately and answered 400 before any business check.
  */
 final class NewPolicyValidator {
 
@@ -22,16 +25,24 @@ final class NewPolicyValidator {
   static final String LIMIT_ZERO = "POLICY LIMIT MUST BE GREATER THAN ZERO";
   static final String HOLDER_NOT_FOUND = "POLICYHOLDER NOT FOUND IN SYSTEM";
   static final String INVALID_INPUT = "INVALID INPUT";
+  static final List<String> TYPES =
+      Arrays.stream(PolicyType.values()).map(PolicyType::code).sorted().toList();
 
   private NewPolicyValidator() {}
 
   /** Width and scale problems, mirroring the map fields and DB2 columns. */
   static List<Violation> format(NewPolicyRequest r) {
     List<Violation> v = new ArrayList<>();
-    width(v, "policyType", r.policyType(), 3);
+    if (width(v, "policyType", r.policyType(), 3)
+        && !blank(r.policyType())
+        && PolicyType.fromCode(r.policyType()).isEmpty()) {
+      v.add(new Violation("policyType", "must be one of " + TYPES));
+    }
     width(v, "policyholderId", r.policyholderId(), 10);
     width(v, "agentCode", r.agentCode(), 6);
     width(v, "branchCode", r.branchCode(), 4);
+    notNegative(v, "totalPremium", r.totalPremium());
+    notNegative(v, "deductible", r.deductible());
     money(v, "totalPremium", r.totalPremium(), 11);
     money(v, "deductible", r.deductible(), 9);
     money(v, "coverageLimit", r.coverageLimit(), 13);
@@ -64,9 +75,17 @@ final class NewPolicyValidator {
     return s == null || s.isBlank();
   }
 
-  private static void width(List<Violation> v, String field, String value, int max) {
+  private static boolean width(List<Violation> v, String field, String value, int max) {
     if (value != null && value.length() > max) {
       v.add(new Violation(field, "must be at most " + max + " characters"));
+      return false;
+    }
+    return true;
+  }
+
+  private static void notNegative(List<Violation> v, String field, BigDecimal value) {
+    if (value != null && value.signum() < 0) {
+      v.add(new Violation(field, "must not be negative"));
     }
   }
 

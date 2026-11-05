@@ -17,7 +17,11 @@ is [`new-business-underwriting-v1.yaml`](../../pas/pas-policy-service/src/main/r
 
 No token: 401. Token without the scope: 403. Object-level entitlement (`pas_book`, `pas_agents`,
 `pas_branches`, as in AB-524): a new policy outside the caller's book answers 403; an existing policy
-outside it answers 404, exactly like a missing policy. Covered by `NewBusinessApiIT`.
+outside it answers 404, exactly like a missing policy. Entitlement is checked before anything that
+could reveal data: create-policy answers 403 before the holder lookup, and decisions check the book
+before locking the policy row. An override additionally needs a valid `pas_legacy_user` claim (the
+caller's own 8-character id, `[A-Z0-9#@$]{1,8}`); without one it answers 403 and nothing is written,
+so `OVERRIDE_BY` never falls back to the service id `PASAPI`. Covered by `NewBusinessApiIT`.
 
 ## 2. Create policy (POLNEW)
 
@@ -42,6 +46,10 @@ Field widths and decimal places of the DB2 columns are checked first (400). Busi
   (Q-12, rating stays with PREMBAT / `pas-rating`), explicit `ISSUE_DATE` (business date) and
   `EXPIRY_DATE` (effective date + `pas.new-business.term-months`, default 12; POLNEW never set it, Q-09,
   FU-525-2), `CREATED_BY`/`UPDATED_BY` the caller's 8-character id (`pas_legacy_user`, default `PASAPI`).
+  The expiry uses `plusMonths`, so a 29 Feb effective date expires on 28 Feb (FU-525-2).
+- **Format checks (400, Q-525-3):** `policyType` must be one of AUT, HOM, COM, LIF, HLT (upper
+  case; POLNEW accepted any non-blank type and then added no coverages); `totalPremium` and
+  `deductible` must not be negative.
 - **Default coverages** come from `PASAPP.DEFAULT_COVERAGES` (V52), seeded with the POLNEW table:
   AUT `AUTL`, `AUTP`; HOM `PROP`, `LIAB`; COM `PROP`, `LIAB`, `WKCP`; LIF and HLT none. POLNEW never
   set the coverage amounts; per the Q-10 decision they are written as an explicit 0 (limit, deductible,
@@ -72,11 +80,18 @@ The decision inserts `UNDERWRITING_DECISIONS` (`UNDERWRITER_ID` `SYSTEM`), updat
 `POLICIES.UW_STATUS`/`RISK_SCORE` (`UPDATED_BY` `UNDWRT`), writes the audit row and publishes
 `pas.underwriting.decided`, in one transaction. DB2's `UNDERWRITING_DECISIONS` key is
 (policy, date), so a second decision on the same day answers 409 there; PostgreSQL keeps both rows.
+A policy without a branch code skips the branch accumulation step (UNDWRT would sum the active
+policies with a blank branch); policies created through the API always have the branch they were
+entered with, so this only affects legacy rows (FU-525-3). The Claims interface is called before the
+policy row is locked, so the lock is never held during the HTTP round trip.
 
 **Overrides:** `decisionCode` `AP` or `DC` and a `reason` (1-200 characters) are required. The latest
-decision gets `OVERRIDE_REASON` and `OVERRIDE_BY` (the caller's 8-character id) under an optimistic
-check on its code and override fields (409 if it changed meanwhile), and `POLICIES.UW_STATUS` takes the
-override. Decisions and overrides lock the policy row (`SELECT ... FOR UPDATE`), so they run one after
+decision gets `OVERRIDE_REASON` and `OVERRIDE_BY` (the caller's 8-character id, required: 403
+without a valid `pas_legacy_user`) under an optimistic check on its code and override fields (409 if
+it changed meanwhile, 409 if there is no decision yet), and `POLICIES.UW_STATUS` takes the override
+with `UPDATED_BY` the overrider. The override replaces `DECISION_CODE` on the latest (SYSTEM) row;
+`DECISION_REASON` keeps the system text and the original code survives only in the
+`POLICY_AUDIT` before-image (Q-525-4, pending Underwriting sign-off). Decisions and overrides lock the policy row (`SELECT ... FOR UPDATE`), so they run one after
 the other per policy and an override always applies to the latest decision.
 
 ## 4. Claims history (FU-17)
@@ -108,7 +123,9 @@ Envelope (`pas-events` `PasEvent`): `eventId` (UUID), `type`, `schemaVersion`, `
 `PASAPP.EVENT_OUTBOX` (V50) in the business transaction; `OutboxRelay` publishes them to Kafka with
 headers `eventId`, `eventType` and `schemaVersion` and marks them sent. Delivery is
 at-least-once: consumers deduplicate on `eventId`. The relay is off unless
-`pas.events.relay-enabled=true`; run one relay per environment (FU-525-7). Sent rows are purged after
+`pas.events.relay-enabled=true`; run exactly one relay per environment (FU-525-7): `OutboxRelay`
+does not claim rows, so a second instance would publish them twice. Add ShedLock or a leader lease
+before scaling the relay out. Sent rows are purged after
 `pas.events.retention`.
 
 ## 6. Audit
@@ -122,7 +139,10 @@ UPDATE and DELETE with a trigger; on DB2 the application id only gets INSERT and
 Suite `undwrt-decision` runs `UndwrtDecisionAdapter` on every fixture, including the 299/300,
 599/600 and 799/800 boundaries (`make parity`). Known differences, all pending sign-off:
 KD-03 (Q-14), KD-04 (Q-15 score), KD-05 (Q-16), KD-06 (Q-15 loss-ratio probe), KD-07 (Q-520-1: a
-failed receive is rejected before any write). POLNEW has no harness suite; `NewBusinessApiIT` covers
+failed receive is rejected before any write), KD-08 (Q-14 moving the band: COBOL 325 `RS`, Java 250
+`AP`). PRs #101 and #102 also add KD-06/KD-07; whichever merges after another renumbers its own
+entries. The events are JSON, so the WRITEQ TD effect is compared field by field from the decision
+row, not byte for byte (Q-13). POLNEW has no harness suite; `NewBusinessApiIT` covers
 it end to end against PostgreSQL and Kafka.
 
 ## 8. Configuration
@@ -140,8 +160,9 @@ it end to end against PostgreSQL and Kafka.
 
 | Item | Owner | Status |
 |---|---|---|
-| Q-525-1, Q-525-2 fixes (FU-525-1) | Underwriting lead | pending |
-| KD-06, KD-07 known differences | Underwriting lead + Mainframe team | pending |
+| Q-525-1, Q-525-2, Q-525-3 fixes (FU-525-1) | Underwriting lead + Product Owner | pending |
+| Override storage and attribution (Q-525-4) | Underwriting lead + Security | pending |
+| KD-06, KD-07, KD-08 known differences (KD-08: Q-14 band change) | Underwriting lead + Mainframe team | pending |
 | Policy number format (FU-05) and term (FU-525-2) | Mainframe team + Product Owner | pending |
 | Claims interface contract (FU-525-4 / FU-17) | Claims team | pending |
 | Scopes and legacy user claim (FU-525-3) | Security | pending |

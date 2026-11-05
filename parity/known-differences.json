@@ -127,6 +127,26 @@
       "ticket": "AB-525",
       "sign_off": "pending",
       "reason": "A request that cannot be read is rejected before any write: Java sends only the 'ERROR RECEIVING UNDERWRITING DATA' text and returns, so the decision insert, POLICIES update, TD message and result map of the COBOL fall-through disappear and the remaining effects shift. Covers the whole effect list because the effect count changes; the outcome must still match."
+    },
+    {
+      "id": "KD-08",
+      "suite": "undwrt-decision",
+      "cases": [
+        "preferred-high-credit-band-crossing"
+      ],
+      "paths": [
+        "effects[*].numbers.RISK_SCORE",
+        "effects[*].numbers.POLICY_RISK_SCORE",
+        "effects[*].text.DECISION_CODE",
+        "effects[*].text.DECISION_REASON",
+        "effects[*].text.UW_STATUS",
+        "effects[*].text.POLICY_UW_STATUS"
+      ],
+      "quirk": "Q-14",
+      "decision": "docs/modernization/quirk-register.md#q-14",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "The Q-14 clamp can move the band: COBOL keeps -75 as 75 (75 + 150 claims + 100 limit = 325, RS) while Java clamps to 0 (250, AP). Score, decision code, reason and UW status may differ; policy number, dates, operations and SQLCODEs must match. Underwriting must sign off the band change, not only the score."
     }
   ]
 }

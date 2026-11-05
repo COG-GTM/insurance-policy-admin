@@ -138,6 +138,8 @@ public class UnderwritingController {
                   new ApiError(
                       i.message(),
                       i.violations().stream().map(v -> new ApiError.Violation(null, v)).toList()));
+      case UnderwritingResult.Forbidden f ->
+          ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiError(f.message(), List.of()));
       case UnderwritingResult.NotFound n -> ResponseEntity.notFound().build();
       case UnderwritingResult.Conflict c ->
           ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiError(c.message(), List.of()));

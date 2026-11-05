@@ -293,7 +293,7 @@
       "proposed_decision": "fix",
       "decision_status": "proposed - pending mainframe-team verification against production load module",
       "rationale": "The target publishes two distinct, durable events (underwriting.requested, underwriting.decided) with at-least-once delivery. The mainframe team must supply the real queue/route definitions and the consumers (FileNet, UW queue) must confirm the payload (raw POLICY-RECORD bytes, 125 bytes).",
-      "parity_note": "The event payload is compared byte-for-byte against the POLICY-RECORD layout until consumers agree a new schema.",
+      "parity_note": "The new events are JSON (pas-events PasEvent), so there is no byte payload to compare. AB-525 compares the decision fields of the POLICY-RECORD (policy number, UW status, risk score) field by field (UndwrtDecisionAdapter); a byte-for-byte POLICY-RECORD check returns only if consumers keep the 125-byte payload through the AB-528 MQ bridge (FU-525-7).",
       "evidence": [
         {
           "file": "cobol/programs/POLNEW.cbl",
@@ -321,7 +321,7 @@
       "proposed_decision": "fix",
       "decision_status": "proposed - pending business sign-off",
       "rationale": "Accept/refer/decline uses the full WS value, so the decision itself is not affected by the truncation. The fix: clamp at 0, never truncate, and send the full score in the event. Underwriting must confirm the clamp (sign loss can move a score a few points).",
-      "parity_note": "Characterization covers credit 850+/preferred and scores of 1000+. Java differs only in the message/display score and in negative clamping. Record both as signed-off deviations.",
+      "parity_note": "Characterization covers credit 850+/preferred and scores of 1000+. Java differs only in the message/display score and in negative clamping. Record both as signed-off deviations. The clamp is not only cosmetic: when the absolute value pushed the COBOL score over a band boundary, Java decides differently (credit 850 preferred, 4 claims, limit over 5,000,000: COBOL 325 RS, Java 250 AP). Fixture preferred-high-credit-band-crossing and known difference KD-08 cover it; Underwriting must sign off the band change.",
       "evidence": [
         {
           "file": "cobol/programs/UNDWRT.cbl",
@@ -1230,6 +1230,46 @@
         }
       ],
       "follow_up": "FU-525-1",
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-525-3",
+      "title": "POLNEW accepts any policy type and negative amounts",
+      "component": "POLNEW",
+      "category": "validation defect",
+      "description": "3000-VALIDATE-INPUT only checks that POLICY-TYPE is not blank and never checks TOTAL_PREMIUM or DEDUCTIBLE. An unknown or lower-case type (e.g. 'XYZ', 'aut') is stored with no default coverages, because 6000-INSERT-COVERAGES matches only AUT/HOM/COM; a negative premium or deductible is stored as entered.",
+      "owner": "Product Owner, Policy Administration",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "Every reader of POLICIES (rating, renewal, underwriting, extracts) assumes one of AUT/HOM/COM/LIF/HLT and non-negative amounts. The create-policy API answers 400 for a type outside that list and for a negative premium or deductible, before any business check.",
+      "parity_note": "POLNEW has no parity suite yet; NewBusinessApiIT covers unknown and lower-case types and negative amounts.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "POLICY TYPE IS REQUIRED"
+        }
+      ],
+      "follow_up": "FU-525-1",
+      "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-525-4",
+      "title": "Where an underwriting override is stored",
+      "component": "UNDWRT",
+      "category": "data handling",
+      "description": "UNDWRT writes one UNDERWRITING_DECISIONS row per decision with UNDERWRITER_ID 'SYSTEM' and never sets OVERRIDE_REASON / OVERRIDE_BY, and sets POLICIES.UPDATED_BY to 'UNDWRT'. No program performs overrides today, so their storage is a new decision.",
+      "owner": "Underwriting lead",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending business sign-off",
+      "rationale": "The override API updates the latest decision row in place: DECISION_CODE takes the override, OVERRIDE_REASON and OVERRIDE_BY (the caller's own 8-character id from pas_legacy_user, required) are set, UNDERWRITER_ID stays 'SYSTEM' and DECISION_REASON keeps the system text. POLICIES.UW_STATUS follows and POLICIES.UPDATED_BY becomes the overrider. The original system decision code is kept only in the PASAPP.POLICY_AUDIT before-image. Alternative for sign-off: a separate override row, which the DB2 (policy, date) key does not allow on the same day.",
+      "parity_note": "No COBOL equivalent; NewBusinessApiIT covers the stored columns and the 403 without a valid pas_legacy_user.",
+      "evidence": [
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "UPDATED_BY = 'UNDWRT'"
+        }
+      ],
+      "follow_up": "FU-525-3",
       "lands_in": "AB-525"
     }
   ]

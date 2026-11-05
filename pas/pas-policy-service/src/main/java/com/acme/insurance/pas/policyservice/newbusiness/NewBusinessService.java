@@ -76,15 +76,16 @@ public class NewBusinessService {
     if (!format.isEmpty()) {
       return new NewPolicyResult.Malformed(new ApiError(NewPolicyValidator.INVALID_INPUT, format));
     }
+    // Entitlement before the holder lookup, so a narrow book cannot probe which holder ids exist.
+    if (!entitlement.permits(request.agentCode(), request.branchCode())) {
+      return new NewPolicyResult.Forbidden();
+    }
     LocalDate today = clock.today();
     List<ApiError.Violation> violations =
         NewPolicyValidator.business(request, today, id -> holders.find(id).isPresent());
     if (!violations.isEmpty()) {
       return new NewPolicyResult.Invalid(
           new ApiError(violations.get(violations.size() - 1).message(), violations));
-    }
-    if (!entitlement.permits(request.agentCode(), request.branchCode())) {
-      return new NewPolicyResult.Forbidden();
     }
     String policyNumber = properties.policyNumber(sequence.next());
     LocalDate effective = request.effectiveDate();

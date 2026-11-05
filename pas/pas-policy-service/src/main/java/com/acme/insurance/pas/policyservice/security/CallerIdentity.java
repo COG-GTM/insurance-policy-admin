@@ -7,10 +7,13 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 /**
  * Who makes a write: the token subject for the audit table, the OAuth client, and the 8-character
  * id for the ACMEINS audit columns (quirk Q-518-1). The 8-character id comes from the token claim
- * {@value #LEGACY_USER_CLAIM} when the IdP issues one; otherwise {@value #SERVICE_USER} (the user
- * id mapping is FU-525-3).
+ * {@value #LEGACY_USER_CLAIM} when the IdP issues a valid one ({@code legacyUserFromToken});
+ * otherwise {@code legacyUser} is the service id {@value #SERVICE_USER} (the user id mapping is
+ * FU-525-3). Writes that must name the person, such as an override's OVERRIDE_BY, require {@code
+ * legacyUserFromToken}.
  */
-public record CallerIdentity(String principal, String clientId, String legacyUser) {
+public record CallerIdentity(
+    String principal, String clientId, String legacyUser, boolean legacyUserFromToken) {
 
   public static final String LEGACY_USER_CLAIM = "pas_legacy_user";
   public static final String SERVICE_USER = "PASAPI";
@@ -33,6 +36,9 @@ public record CallerIdentity(String principal, String clientId, String legacyUse
       }
     }
     return new CallerIdentity(
-        principal == null ? "unknown" : principal, client, legacy == null ? SERVICE_USER : legacy);
+        principal == null ? "unknown" : principal,
+        client,
+        legacy == null ? SERVICE_USER : legacy,
+        legacy != null);
   }
 }

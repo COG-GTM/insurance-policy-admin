@@ -127,7 +127,13 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: >-
+            Token without pas.underwriting.override, or without a valid pas_legacy_user claim
+            (the caller's 8-character id, [A-Z0-9#@$]{1,8}) to record in OVERRIDE_BY.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
