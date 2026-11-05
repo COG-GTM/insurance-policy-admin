@@ -155,6 +155,25 @@
     },
     {
       "id": "DS-07",
+      "name": "Extract delivery receipts and staging (pasapp.extract_delivery, pas-batch staging volume)",
+      "kind": "data-store",
+      "decision": "D6",
+      "purpose": "One receipt per delivered or failed feed file (name, business date, counts, SHA-256, redacted destination, status); staged files wait here until delivery is confirmed",
+      "replaces": "Catalogued ACMEINS.EXTRACT.* datasets and FTP job logs",
+      "data": "Receipts: metadata only, no business data. Staging volume: the extract files (policy, coverage, exposure) for the duration of one run",
+      "classification": "Confidential",
+      "pii": false,
+      "encryption": "Storage encryption; staging directory and files owner-only (0700/0600); TLS connections",
+      "retention": "Receipts 13 months; staged files purged after confirmed delivery, kept for investigation after a failed one",
+      "owner": "PAS engineering team",
+      "introduced_by": "AB-527",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
+      "id": "DS-08",
       "name": "Rate reference tables (PASAPP.BASE_RATES and PASAPP.RATING_PARAMETERS / pasapp.base_rates and pasapp.rating_parameters)",
       "kind": "data-store",
       "decision": "D3",
@@ -239,8 +258,8 @@
       "data": "Policy and coverage extracts and exposure aggregates",
       "classification": "Confidential",
       "pii": false,
-      "encryption": "SSH transport; key-based authentication; keys in the secrets manager",
-      "retention": "MFT keeps delivery receipts per the MFT policy; payload purged after confirmation",
+      "encryption": "SSH transport; key-based authentication only; server host keys pinned in a known_hosts file; keys and known_hosts mounted from the secrets manager",
+      "retention": "Receipts in pasapp.extract_delivery (DS-07); MFT keeps its own receipts per the MFT policy; local payload purged after readback confirmation",
       "owner": "PAS engineering team + Security",
       "introduced_by": "AB-527",
       "reviews": {

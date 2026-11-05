@@ -59,5 +59,5 @@ The factor tables are empty, so `table-driven` gives the same premiums as `legac
 | Approve the premium impact report before setting `table-driven` (Q-03) | Actuarial / Pricing + Product Owner | pending |
 | Fail instead of silently truncating on overflow (Q-522-1) | Actuarial / Pricing | pending |
 | Review DB2 `PASAPP.BASE_RATES` / `RATING_PARAMETERS` DDL, tablespace and grants | DBA team | pending |
-| DS-07 security and data-governance review | Security + Data governance | pending |
+| DS-08 security and data-governance review | Security + Data governance | pending |
 | State-specific tax rates (FU-04) | Compliance + Actuarial | post-epic |

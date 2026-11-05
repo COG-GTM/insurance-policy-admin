@@ -77,6 +77,8 @@ types in `pas-domain`, no direct `ACMEINS.CLAIMS` access). Every class lives in 
 | `PAS_LOG_FORMAT` | both | `ecs` (also `logstash`, `gelf`) |
 | `PAS_TRACING_SAMPLING_PROBABILITY` | policy service | 0.1 |
 | `PAS_BATCH_JOB` | batch | none (no job runs) |
+| `PAS_EXTRACT_STAGING_DIR` | batch (AB-527 extracts) | none (required by the extract jobs) |
+| `PAS_EXTRACT_{CLAIMS,ACTUARIAL}_SFTP_URI`, `_USERNAME`, `_KEY_FILE`, `_KEY_PASSPHRASE_FILE`, `_KNOWN_HOSTS_FILE` | batch (AB-527 extracts) | none; see [docs/pas/extracts.md](../docs/pas/extracts.md) |
 
 In shared environments the values come from the secrets manager (ADR 0001 D5); `.env` is for local
 development only and is git-ignored.

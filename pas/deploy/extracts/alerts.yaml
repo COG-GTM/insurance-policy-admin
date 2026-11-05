@@ -1,0 +1,44 @@
+# AB-527 example alert rules (Prometheus format). The extracts are short-lived batch pods, so the
+# rules use what outlives the pod: Kubernetes Job/CronJob state from kube-state-metrics (the batch
+# exits non-zero when the job fails) and the pas.extract.alert ERROR log line. The in-process
+# Micrometer counters (pas.extract.deliveries, pas.extract.job.failures) are not scraped.
+# Routed to the PAS on-call rotation. Who is paged today for PAS0100/PAS0200 is FU-12.
+groups:
+  - name: pas-extracts
+    rules:
+      - alert: PasExtractJobFailed
+        # The Job failed for good (every pod retry up to backoffLimit exited non-zero). A failed pod
+        # whose retry succeeds does not page.
+        expr: max by (job_name) (kube_job_status_condition{namespace="pas", job_name=~"pas-(claims-daily-extract|actuarial-monthly-exposure)-.*", condition="Failed", status="true"}) == 1
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "{{ $labels.job_name }} failed"
+          runbook: docs/pas/extracts.md#failure-and-rerun
+      - alert: PasClaimsExtractMissing
+        # No successful Claims run in 26 hours (the job starts at 23:00).
+        # Also fires when the CronJob has never succeeded, measured from its creation.
+        expr: >-
+          (time() - kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-claims-daily-extract"} > 26 * 3600)
+          or
+          (time() - kube_cronjob_created{namespace="pas", cronjob="pas-claims-daily-extract"} > 26 * 3600
+            unless on (namespace, cronjob) kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-claims-daily-extract"})
+        for: 30m
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "No successful Claims extract in the last 26 hours"
+          runbook: docs/pas/extracts.md#failure-and-rerun
+      - alert: PasActuarialExposureMissing
+        # No successful monthly exposure run in 32 days.
+        # Also fires when the CronJob has never succeeded, measured from its creation.
+        expr: >-
+          (time() - kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-actuarial-monthly-exposure"} > 32 * 86400)
+          or
+          (time() - kube_cronjob_created{namespace="pas", cronjob="pas-actuarial-monthly-exposure"} > 32 * 86400
+            unless on (namespace, cronjob) kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-actuarial-monthly-exposure"})
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "No successful Actuarial exposure extract in the last 32 days"
+          runbook: docs/pas/extracts.md#failure-and-rerun
+# Log-based rule for the log platform (ECS JSON logs): page on any record with
+#   service.name = "pas-batch" AND message starts with "pas.extract.alert"
+# It names the job, business date and failure, never record content.
