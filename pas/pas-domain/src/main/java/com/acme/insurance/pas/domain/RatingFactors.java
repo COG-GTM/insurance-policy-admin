@@ -16,4 +16,11 @@ public final class RatingFactors {
     }
     return factor;
   }
+
+  static BigDecimal notNegative(BigDecimal amount) {
+    if (amount.signum() < 0) {
+      throw new IllegalArgumentException("rate must not be negative: " + amount);
+    }
+    return amount;
+  }
 }

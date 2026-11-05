@@ -73,3 +73,9 @@ pas:
   inquiry:
     # Zone LAST_UPDATED is interpreted in when it is returned as epoch milliseconds (Q-524-1).
     timestamp-zone: ${PAS_INQUIRY_TIMESTAMP_ZONE:UTC}
+  rating:
+    # Feature flag (AB-522): legacy-neutral keeps PREMBAT parity (every factor 1.0000, Q-03);
+    # table-driven applies territory/class factors from the reference tables after FU-03 sign-off.
+    factor-source: ${PAS_RATING_FACTOR_SOURCE:legacy-neutral}
+    # How long a loaded rate table is reused; new effective-dated rate rows are seen after this.
+    cache-ttl: ${PAS_RATING_CACHE_TTL:PT5M}

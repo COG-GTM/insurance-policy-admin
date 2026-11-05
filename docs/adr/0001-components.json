@@ -173,6 +173,25 @@
       }
     },
     {
+      "id": "DS-08",
+      "name": "Rate reference tables (PASAPP.BASE_RATES and PASAPP.RATING_PARAMETERS / pasapp.base_rates and pasapp.rating_parameters)",
+      "kind": "data-store",
+      "decision": "D3",
+      "purpose": "Effective-dated base premium per policy type, WHEN OTHER base, premium tax rate and flat surcharge read by the shared rating component (AB-522)",
+      "replaces": "Rates hardcoded in PREMBAT 3200-CALCULATE-PREMIUM (Q-27)",
+      "data": "POLICY_TYPE, PARAMETER_CODE, EFFECTIVE_DATE, BASE_RATE, PARAMETER_VALUE",
+      "classification": "Internal",
+      "pii": false,
+      "encryption": "Storage encryption; TLS connections",
+      "retention": "Kept while referenced by premiums (to be confirmed by Data governance)",
+      "owner": "PAS engineering team + Actuarial / Pricing (values) + DBA team",
+      "introduced_by": "AB-522",
+      "reviews": {
+        "security": "pending",
+        "data_governance": "pending"
+      }
+    },
+    {
       "id": "MSG-01",
       "name": "Kafka topics pas.policy.* and pas.underwriting.* with schema registry subjects",
       "kind": "messaging",

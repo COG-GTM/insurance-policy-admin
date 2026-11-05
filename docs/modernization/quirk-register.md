@@ -64,6 +64,7 @@ Rules for this register:
 | [Q-521-1](#q-521-1) | Copybook last-updated fields hold a date, the columns a timestamp | POLICIES.LAST_UPDATED, POLICY_HOLDERS.LAST_UPDATED; POLICY-RECORD, CUSTOMER-RECORD | Data governance + DBA team | **preserve** | proposed - pending DBA and Data governance sign-off | AB-521 | `cobol/copybooks/POLICY-RECORD.cpy:47`<br>`cobol/copybooks/CUSTOMER-RECORD.cpy:41`<br>`sql/ddl/create-tables.sql:46` |
 | [Q-521-2](#q-521-2) | Nullable numeric columns have no null in the copybooks | POLICIES.RENEWAL_COUNT, POLICIES.RISK_SCORE, COVERAGES.COINSURANCE_PCT, POLICY_HOLDERS.CREDIT_SCORE; POLICY-RECORD, COVERAGE-RECORD, CUSTOMER-RECORD | Data governance + DBA team | **preserve** | proposed - pending DBA and Data governance sign-off | AB-521 | `cobol/copybooks/CUSTOMER-RECORD.cpy:32`<br>`sql/ddl/create-tables.sql:167` |
 | [Q-520-1](#q-520-1) | Failed map RECEIVE falls through the whole program | UNDWRT, POLRNW | Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration | **fix** | proposed - pending mainframe-team verification against production load module | AB-525, AB-526 | `cobol/programs/UNDWRT.cbl:94`<br>`cobol/programs/POLRNW.cbl:87`<br>`cobol/programs/UNDWRT.cbl:59` |
+| [Q-522-1](#q-522-1) | PREMBAT premium arithmetic has no ON SIZE ERROR: overflow silently drops high-order digits | PREMBAT | Actuarial / Pricing lead | **fix** | proposed - pending business sign-off | AB-522 | `cobol/programs/PREMBAT.cbl:66`<br>`cobol/programs/PREMBAT.cbl:186` |
 | [Q-527-1](#q-527-1) | Daily extract window depends on when the job starts | DAILY-EXTRACT STEP010 (policy delta) | Claims team + Mainframe operations | **fix** | proposed - pending Claims sign-off | AB-527 | `jcl/DAILY-EXTRACT.jcl:54` |
 | [Q-527-2](#q-527-2) | Extract record bytes are not specified anywhere | DAILY-EXTRACT POLOUT/COVOUT, MONTHLY-EXPOSURE EXPOUT | Mainframe team + Claims team + Actuarial | **preserve** | proposed - layout is a candidate until production samples (FU-13) and consumer sign-off (FU-14) | AB-527 | `jcl/DAILY-EXTRACT.jcl:39`<br>`jcl/DAILY-EXTRACT.jcl:68`<br>`jcl/MONTHLY-EXPOSURE.jcl:33` |
 <!-- END GENERATED: quirk-table -->
@@ -797,6 +798,22 @@ When EXEC CICS RECEIVE MAP fails, 2000-READ-POLICY-DATA (UNDWRT) and 2000-READ-E
   - `cobol/programs/UNDWRT.cbl:94`: `GO TO 2000-EXIT`
   - `cobol/programs/POLRNW.cbl:87`: `GO TO 2000-EXIT`
   - `cobol/programs/UNDWRT.cbl:59`: `PERFORM 2000-READ-POLICY-DATA`
+
+### Q-522-1
+
+**PREMBAT premium arithmetic has no ON SIZE ERROR: overflow silently drops high-order digits** (PREMBAT, numeric semantics)
+
+No COMPUTE in 3200-CALCULATE-PREMIUM has ON SIZE ERROR. A result wider than its receiving field (WS-TERR/CLASS/MOD/FINAL-PREMIUM S9(09)V99, WS-TAX-AMOUNT S9(07)V99) keeps only the low-order digits, so a premium of 1,000,000,000.00 would be stored as 0.00. With today's hardcoded rates and 1.00 factors no input can reach the limit; table-driven factors (Q-03) or loaded base rates could.
+
+- Owner: Actuarial / Pricing lead
+- Proposed decision: **fix** (proposed - pending business sign-off)
+- Rationale: Silently truncated premiums are never correct. The Java rating component (pas-rating PremiumCalculator) checks every step against the COBOL field width and throws RatingOverflowException instead; the batch job reports the policy as an error.
+- Parity / characterization note: Unreachable with the current rates, so no golden file differs. PremiumCalculatorBoundaryTest covers the largest value that fits and the first that overflows for each field.
+- Lands in: AB-522
+- Follow-up: FU-03
+- Evidence:
+  - `cobol/programs/PREMBAT.cbl:66`: `05 WS-TAX-AMOUNT PIC S9(07)V99 COMP-3.`
+  - `cobol/programs/PREMBAT.cbl:186`: `COMPUTE WS-FINAL-PREMIUM =`
 
 ### Q-527-1
 
