@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Comparator;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,7 +14,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobInstance;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.StepExecution;
@@ -22,6 +22,7 @@ import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.batch.JobLauncherApplicationRunner;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -31,10 +32,9 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Launches job {@code premiumRecalculation} the way the CronJob and its pod retry do: through the
- * application's {@link PremiumScheduledLauncher} (Spring Boot's runner) with no arguments. A failed
- * run is restarted (same instance, committed chunks kept); a launch after a completed run is a
- * same-day rerun.
+ * Launches job {@code premiumRecalculation} the way the CronJob and its pod retry do: through
+ * Spring Boot's {@link JobLauncherApplicationRunner} with no arguments. A failed run is restarted
+ * (same instance, committed chunks kept); a launch after a completed run is a same-day rerun.
  */
 @SpringBootTest(
     properties = {
@@ -74,8 +74,8 @@ class PremiumScheduledLaunchIT {
   @Qualifier(PremiumJobConfiguration.JOB)
   Job job;
 
-  @Autowired PremiumJobParameters parameters;
   @Autowired JdbcTemplate jdbc;
+  @Autowired PremiumJobParameters parameters;
 
   PremiumItSupport db;
 
@@ -83,15 +83,16 @@ class PremiumScheduledLaunchIT {
   void clean() {
     db = new PremiumItSupport(jdbc);
     db.reset();
+    // A launch without arguments decides from today's runs, so every test starts without any.
     for (String table :
         List.of(
-            "step_execution_context",
-            "step_execution",
-            "job_execution_context",
-            "job_execution_params",
-            "job_execution",
-            "job_instance")) {
-      jdbc.update("DELETE FROM pas_batch.batch_" + table);
+            "batch_step_execution_context",
+            "batch_job_execution_context",
+            "batch_step_execution",
+            "batch_job_execution_params",
+            "batch_job_execution",
+            "batch_job_instance")) {
+      jdbc.update("DELETE FROM pas_batch." + table);
     }
   }
 
@@ -106,13 +107,6 @@ class PremiumScheduledLaunchIT {
     assertThat(failed.getJobParameters().getString(PremiumJobParameters.BUSINESS_DATE))
         .isEqualTo(TODAY);
     assertThat(failed.getJobParameters().getLong(PremiumJobParameters.RERUN)).isNull();
-    assertThat(job.getJobParametersIncrementer().getNext(failed.getJobParameters()))
-        .as("an explicit next instance (JobOperator.startNextInstance) is still a rerun")
-        .isEqualTo(
-            new JobParametersBuilder()
-                .addString(PremiumJobParameters.BUSINESS_DATE, TODAY)
-                .addLong(PremiumJobParameters.RERUN, 1L)
-                .toJobParameters());
     db.acceptAllPremiums();
 
     JobExecution retried = scheduledLaunch();
@@ -170,11 +164,12 @@ class PremiumScheduledLaunchIT {
   }
 
   @Test
-  void theRetryRestartsTheRunThatFailedLastEvenIfANewerInstanceExists() throws Exception {
+  void theRetryRestartsTheLatestFailedExecutionEvenOfAnOlderInstance() throws Exception {
     db.book(6);
     db.rejectPremiumsOf("POL-00000104", "P0001");
-    JobExecution first = scheduledLaunch();
-    assertThat(first.getStatus()).isEqualTo(BatchStatus.FAILED);
+    JobExecution failed = scheduledLaunch();
+    assertThat(failed.getStatus()).isEqualTo(BatchStatus.FAILED);
+
     db.acceptAllPremiums();
     JobExecution rerun =
         launcher.run(
@@ -184,38 +179,52 @@ class PremiumScheduledLaunchIT {
                 .addLong(PremiumJobParameters.RERUN, 1L)
                 .toJobParameters());
     assertThat(rerun.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+
     db.rejectPremiumsOf("POL-00000104", "P0001");
-    JobExecution manualRestart =
-        launcher.run(job, new JobParameters(first.getJobParameters().getIdentifyingParameters()));
-    assertThat(manualRestart.getJobInstance().getInstanceId())
-        .isEqualTo(first.getJobInstance().getInstanceId());
-    assertThat(manualRestart.getStatus()).isEqualTo(BatchStatus.FAILED);
+    JobExecution restartedAgain = launcher.run(job, failed.getJobParameters());
+    assertThat(restartedAgain.getJobInstance().getInstanceId())
+        .isEqualTo(failed.getJobInstance().getInstanceId());
+    assertThat(restartedAgain.getStatus()).isEqualTo(BatchStatus.FAILED);
+
     db.acceptAllPremiums();
+    scheduledLaunch();
+    JobExecution retried = explorer.getLastJobExecution(failed.getJobInstance());
 
-    JobExecution retried = scheduledLaunch(first.getJobInstance());
-
-    assertThat(retried.getId()).isNotEqualTo(manualRestart.getId());
+    assertThat(retried.getId()).isGreaterThan(restartedAgain.getId());
     assertThat(retried.getStatus()).isEqualTo(BatchStatus.COMPLETED);
     assertThat(explorer.getJobInstances(PremiumJobConfiguration.JOB, 0, 10)).hasSize(2);
   }
 
+  @Test
+  void theNextInstanceAfterAFailedRunIsANewRerunNotARestart() throws Exception {
+    db.book(4);
+    db.rejectPremiumsOf("POL-00000102", "P0001");
+    JobExecution failed = scheduledLaunch();
+    assertThat(failed.getStatus()).isEqualTo(BatchStatus.FAILED);
+    db.acceptAllPremiums();
+
+    JobParameters next =
+        new JobParametersBuilder(explorer).getNextJobParameters(job).toJobParameters();
+
+    assertThat(next.getString(PremiumJobParameters.BUSINESS_DATE)).isEqualTo(TODAY);
+    assertThat(next.getLong(PremiumJobParameters.RERUN)).isEqualTo(1L);
+    assertThat(repository.isJobInstanceExists(PremiumJobConfiguration.JOB, next)).isFalse();
+  }
+
   /** {@code java -jar pas-batch-exec.jar} with PAS_BATCH_JOB=premiumRecalculation and no args. */
   private JobExecution scheduledLaunch() throws Exception {
-    launchWithoutArguments();
-    List<JobInstance> instances = explorer.getJobInstances(PremiumJobConfiguration.JOB, 0, 1);
-    return explorer.getLastJobExecution(instances.get(0));
-  }
-
-  private JobExecution scheduledLaunch(JobInstance instance) throws Exception {
-    launchWithoutArguments();
-    return explorer.getLastJobExecution(instance);
-  }
-
-  private void launchWithoutArguments() throws Exception {
-    PremiumScheduledLauncher runner =
+    JobLauncherApplicationRunner runner =
         new PremiumScheduledLauncher(launcher, explorer, repository, parameters);
     runner.setJobName(PremiumJobConfiguration.JOB);
     runner.setJobs(List.of(job));
     runner.run();
+    return latestExecution();
+  }
+
+  private JobExecution latestExecution() {
+    return explorer.getJobInstances(PremiumJobConfiguration.JOB, 0, 100).stream()
+        .map(explorer::getLastJobExecution)
+        .max(Comparator.comparing(JobExecution::getId))
+        .orElseThrow();
   }
 }

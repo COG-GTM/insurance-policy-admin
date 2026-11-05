@@ -24,11 +24,14 @@ import org.springframework.batch.core.JobParametersValidator;
  * Identifying parameters of a premium run: {@code businessDate} (YYYY-MM-DD, default today in the
  * configured zone) and {@code rerun}.
  *
- * <p>The incrementer always returns a new instance: today's date, with the next {@code rerun}
- * number when today already has a run. It re-rates the whole book and replaces the day's PREMIUMS
- * rows and report (Q-26). {@link #restartOfToday()} is what the scheduler launch ({@link
- * PremiumScheduledLauncher}) restarts instead: today's latest execution when it is {@code FAILED}
- * or {@code STOPPED}.
+ * <p>As an incrementer it always names a new instance: today's date, with the next {@code rerun}
+ * number when today already has a run. That instance re-rates the whole book and replaces the day's
+ * PREMIUMS rows and report (Q-26). Spring Batch's next-instance operation relies on this.
+ *
+ * <p>Restarting a failed run is the scheduler's decision, not the incrementer's: {@link
+ * PremiumScheduledLauncher} asks {@link #restartableRunOfToday()} first, and if today's latest
+ * execution is {@code FAILED} or {@code STOPPED} it relaunches that instance with its own
+ * parameters, so it resumes from the last committed chunk of every partition.
  */
 public class PremiumJobParameters implements JobParametersIncrementer, JobParametersValidator {
 
@@ -76,14 +79,14 @@ public class PremiumJobParameters implements JobParametersIncrementer, JobParame
 
   /**
    * The identifying parameters of today's latest execution (highest execution id, whichever
-   * instance it belongs to) when it is {@code FAILED} or {@code STOPPED}. A pod killed mid-run
-   * leaves its execution {@code STARTED}, which is not restartable.
+   * instance it belongs to) if it is {@code FAILED} or {@code STOPPED}. A {@code STARTED} or {@code
+   * UNKNOWN} execution (killed pod) cannot be restarted by Spring Batch and yields nothing.
    */
-  public Optional<JobParameters> restartOfToday() {
+  public Optional<JobParameters> restartableRunOfToday() {
     return runsOfBusinessDate.apply(today()).stream()
         .max(Comparator.comparing(JobExecution::getId))
-        .filter(latest -> isRestartable(latest.getStatus()))
-        .map(latest -> new JobParameters(latest.getJobParameters().getIdentifyingParameters()));
+        .filter(run -> isRestartable(run.getStatus()))
+        .map(run -> new JobParameters(run.getJobParameters().getIdentifyingParameters()));
   }
 
   private String today() {

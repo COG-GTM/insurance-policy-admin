@@ -50,7 +50,8 @@ import org.springframework.transaction.PlatformTransactionManager;
  * run. Step {@code premiumReport} writes the run report from the recorded outcomes and stores the
  * READ / UPDATED / ERRORS totals in the job execution context. Restarting a failed run resumes the
  * unfinished ranges from their last committed chunk; the scheduler launch without arguments
- * restarts today's failed run itself ({@link PremiumScheduledLauncher}).
+ * restarts today's failed run itself ({@link PremiumScheduledLauncher}, {@link
+ * PremiumLaunchConfiguration}).
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(PremiumProperties.class)
