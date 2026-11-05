@@ -23,6 +23,11 @@ Everything else on the API port is denied (403 with a token, 401 without).
   signature (IdP JWK set `PAS_JWT_JWK_SET_URI`, or a PEM key `PAS_JWT_PUBLIC_KEY_LOCATION` for local
   stacks and tests), `exp` required, 60 s clock skew. Invalid or missing token: 401 with
   `WWW-Authenticate: Bearer`.
+- **Bearer only, no DPoP:** Spring Security 6.5 wires DPoP authentication into every JWT resource
+  server, and its proof replay cache is affected by CVE-2026-41707 (fixed in 6.5.12 for enterprise
+  support only, or in 7.0.7+, which needs Spring Boot 4). `DpopRejectingFilter` answers 401 to any
+  request that uses the `DPoP` scheme or sends a `DPoP` header, before any authentication filter runs,
+  so the affected code is never reached (`PolicyInquiryApiIT`). Upgrade tracked as FU-524-4.
 - **Scopes:** `pas.policy.read` for all three endpoints (403 without it); `pas.policyholder.read` to
   see holder contact details in clear; `pas.ops.read` for `/actuator/info` and `/actuator/prometheus`.
 - **Object-level entitlement:** `JwtClaimsEntitlementResolver` reads `pas_book` (`"*"` = the whole

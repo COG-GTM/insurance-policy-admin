@@ -4,6 +4,7 @@ import static com.acme.insurance.pas.policyservice.security.PasScopes.OPS_READ;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_READ;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.authority;
 
+import com.acme.insurance.pas.policyservice.security.DpopRejectingFilter;
 import com.acme.insurance.pas.policyservice.security.PasSecurityProperties;
 import jakarta.servlet.DispatcherType;
 import java.io.IOException;
@@ -36,6 +37,7 @@ import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.util.StringUtils;
 
 /**
@@ -66,6 +68,7 @@ public class SecurityConfig {
                     .anyRequest()
                     .denyAll())
         .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+        .addFilterBefore(new DpopRejectingFilter(), LogoutFilter.class)
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .csrf(csrf -> csrf.disable())
         .httpBasic(basic -> basic.disable())

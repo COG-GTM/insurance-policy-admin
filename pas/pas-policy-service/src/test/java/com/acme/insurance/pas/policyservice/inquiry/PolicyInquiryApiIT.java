@@ -240,6 +240,26 @@ class PolicyInquiryApiIT {
     assertThat(holder.toString()).doesNotContain("1975").doesNotContain("38-1234567");
   }
 
+  @Test
+  void dpopRequestsAreRejectedBeforeAuthentication() throws Exception {
+    String token = TestJwt.wholeBook(POLICY_READ);
+    List<Map<String, String>> requests =
+        List.of(
+            Map.of("Authorization", "DPoP " + token, "DPoP", token),
+            Map.of("Authorization", "dpop " + token),
+            Map.of("Authorization", "Bearer " + token, "DPoP", token));
+    for (Map<String, String> headers : requests) {
+      HttpResponse<String> response = get("/api/v1/policies/POL-00000001", headers);
+      assertThat(response.statusCode()).as(headers.keySet().toString()).isEqualTo(401);
+      assertThat(response.headers().firstValue("WWW-Authenticate"))
+          .get()
+          .asString()
+          .startsWith("Bearer")
+          .contains("DPoP is not supported");
+      assertThat(response.body()).isEmpty();
+    }
+  }
+
   private HttpResponse<String> get(String path, Map<String, String> headers) throws Exception {
     HttpRequest.Builder request =
         HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));

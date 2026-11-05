@@ -28,6 +28,7 @@ The ticket's acceptance criteria ask for open questions to be raised as follow-u
 | FU-524-1 | IdP settings for the policy service | Issuer, audience, JWK set URI and client registrations per environment for pas-policy-service; which roles and clients get pas.policy.read, pas.policyholder.read and pas.ops.read; confirm the IdP can emit the entitlement claims (pas_book as "*" or ["*"], pas_agents and pas_branches as arrays or space-separated strings). | Security + Platform | Q-36 | AB-524 |
 | FU-524-2 | Facade LAST_UPDATED time zone | Which JVM default time zone the production facade runs in, so epoch-millisecond lastUpdated values match after cutover (PAS_INQUIRY_TIMESTAMP_ZONE). | Java facade owner | Q-524-1 | AB-524 |
 | FU-524-3 | Holder data for agents | Approve the masked policyholder view for callers without pas.policyholder.read, and who gets the clear view. | Data governance + Product Owner | Q-24 | AB-524 |
+| FU-524-4 | Spring Security DPoP advisory | spring-security-oauth2-jose 6.5.11 (Spring Boot 3.5.16) is affected by CVE-2026-41707 (DPoP proof replay). PAS rejects DPoP requests (DpopRejectingFilter), so the code is unreachable; decide between Spring enterprise support (6.5.12) and the Spring Boot 4 / Spring Security 7.0.7+ upgrade, and record the Security risk acceptance until then. | Security + PAS platform team | Q-36 | AB-524 |
 
 ## Questions about the scope of this inventory
 
