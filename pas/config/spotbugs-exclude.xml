@@ -12,4 +12,9 @@
     <Class name="~com\.acme\.insurance\.pas\.batch\.extract\.(FeedDelivery|ExtractJobAlerting)"/>
     <Field name="meters"/>
   </Match>
+  <!-- AB-525: the audit, outbox and claims beans keep their injected collaborators (repositories, KafkaTemplate, RestClient, ObjectMapper). -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="~com\.acme\.insurance\.pas\.policyservice\.(audit\.AuditWriter|claims\.HttpClaimsHistory|events\.OutboxRelay|events\.OutboxWriter)"/>
+  </Match>
 </FindBugsFilter>

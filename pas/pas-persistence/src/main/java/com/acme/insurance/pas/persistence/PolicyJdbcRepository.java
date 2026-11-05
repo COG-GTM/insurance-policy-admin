@@ -9,6 +9,7 @@ import static com.acme.insurance.pas.persistence.Columns.timestamp;
 import com.acme.insurance.pas.domain.Coverage;
 import com.acme.insurance.pas.domain.Policy;
 import com.acme.insurance.pas.domain.Premium;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -49,6 +50,37 @@ public class PolicyJdbcRepository {
         .setOrDefault("last_updated", p.lastUpdated())
         .setOrDefault("updated_by", p.updatedBy())
         .execute(jdbc);
+  }
+
+  /**
+   * UNDWRT {@code 6000-WRITE-DECISION}: UW_STATUS and RISK_SCORE of the policy, LAST_UPDATED from
+   * the database clock. Returns the number of rows changed (0 when the policy is gone).
+   */
+  public int updateUnderwriting(
+      String policyNumber, String uwStatus, Integer riskScore, String updatedBy) {
+    return jdbc.sql(
+            """
+            UPDATE acmeins.policies
+               SET uw_status = ?, risk_score = ?, last_updated = CURRENT_TIMESTAMP, updated_by = ?
+             WHERE policy_number = ?
+            """)
+        .params(uwStatus, riskScore, updatedBy, policyNumber)
+        .update();
+  }
+
+  /**
+   * UNDWRT {@code 4000-CHECK-ACCUMULATION}: total COVERAGE_LIMIT of the branch's active (AC)
+   * policies, 0 when there are none.
+   */
+  public BigDecimal activeCoverageLimitForBranch(String branchCode) {
+    return jdbc.sql(
+            """
+            SELECT COALESCE(SUM(coverage_limit), 0) FROM acmeins.policies
+             WHERE branch_code = ? AND policy_status = 'AC'
+            """)
+        .param(branchCode)
+        .query(BigDecimal.class)
+        .single();
   }
 
   public Optional<Policy> findPolicy(String policyNumber) {
