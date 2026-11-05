@@ -80,6 +80,9 @@ class AcmeinsSchemaIT {
             "base_rates",
             "rating_parameters",
             "extract_delivery",
+            "event_outbox",
+            "policy_audit",
+            "default_coverages",
             "policy_change_audit");
     assertThat(tables("pas_batch"))
         .containsExactlyInAnyOrder(

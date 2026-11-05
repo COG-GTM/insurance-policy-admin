@@ -187,6 +187,28 @@
       }
     },
     {
+      "id": "preferred-high-credit-band-crossing",
+      "description": "Credit 850 preferred, 4 claims, limit 6,000,000: COBOL stores -75 as 75 and refers (325, RS); with the Q-14 clamp Java scores 250 and accepts",
+      "tags": [],
+      "quirks": [
+        "Q-14"
+      ],
+      "run_date": "2025-03-01",
+      "input": {
+        "MAP_POLICY_NUMBER": "POL-00000119",
+        "POLICY_TYPE": "HOM",
+        "TOTAL_PREMIUM": "1000.00",
+        "COVERAGE_LIMIT": "6000000.00",
+        "BRANCH_CODE": "B001",
+        "CUST_TYPE": "I",
+        "CREDIT_SCORE": "850",
+        "RISK_TIER": "P",
+        "CLAIM_COUNT": "4",
+        "TOTAL_INCURRED": "100.00",
+        "BRANCH_ACCUMULATED_LIMIT": "10000000.00"
+      }
+    },
+    {
       "id": "score-over-999",
       "description": "Score 1450: tables get 1450, the 3-digit POLICY-RISK-SCORE in the queue message and map shows 450",
       "tags": [],

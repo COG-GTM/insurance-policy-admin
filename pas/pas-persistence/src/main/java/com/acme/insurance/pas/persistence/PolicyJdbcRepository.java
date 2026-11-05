@@ -78,6 +78,50 @@ public class PolicyJdbcRepository {
         .execute(jdbc);
   }
 
+  /**
+   * UNDWRT {@code 6000-WRITE-DECISION}: UW_STATUS and RISK_SCORE of the policy, LAST_UPDATED from
+   * the database clock. Returns the number of rows changed (0 when the policy is gone).
+   */
+  public int updateUnderwriting(
+      String policyNumber, String uwStatus, Integer riskScore, String updatedBy) {
+    return jdbc.sql(
+            """
+            UPDATE acmeins.policies
+               SET uw_status = ?, risk_score = ?, last_updated = CURRENT_TIMESTAMP, updated_by = ?
+             WHERE policy_number = ?
+            """)
+        .params(uwStatus, riskScore, updatedBy, policyNumber)
+        .update();
+  }
+
+  /**
+   * UNDWRT {@code 4000-CHECK-ACCUMULATION}: total COVERAGE_LIMIT of the branch's active (AC)
+   * policies, 0 when there are none.
+   */
+  public BigDecimal activeCoverageLimitForBranch(String branchCode) {
+    return jdbc.sql(
+            """
+            SELECT COALESCE(SUM(coverage_limit), 0) FROM acmeins.policies
+             WHERE branch_code = ? AND policy_status = 'AC'
+            """)
+        .param(branchCode)
+        .query(BigDecimal.class)
+        .single();
+  }
+
+  /**
+   * Locks the policy row until the end of the transaction, so underwriting decisions and overrides
+   * of one policy run one after the other. Returns false when the policy does not exist.
+   */
+  public boolean lockPolicy(String policyNumber) {
+    return !jdbc.sql(
+            "SELECT policy_number FROM acmeins.policies WHERE policy_number = ? FOR UPDATE")
+        .param(policyNumber)
+        .query(String.class)
+        .list()
+        .isEmpty();
+  }
+
   public Optional<Policy> findPolicy(String policyNumber) {
     return jdbc.sql("SELECT * FROM acmeins.policies WHERE policy_number = ?")
         .param(policyNumber)

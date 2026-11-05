@@ -149,6 +149,62 @@
       "ticket": "AB-526",
       "sign_off": "pending",
       "reason": "POLEND's day counts are unsigned PIC 9(03): 31 days after expiry stores +31 remaining, and a 1096-day term truncates to 96 (factor 5.729166). Java counts days without truncation and clamps the remaining days to 0..term (after expiry: 0, factor 0.000000; three-year term: 1096 days, factor 0.501824). Only the pro-rata probes may differ; the adjustment stays 0.00 because POLEND never applies the factor and no premium change is submitted."
+    },
+    {
+      "id": "KD-09",
+      "suite": "undwrt-decision",
+      "cases": [
+        "loss-ratio-1100-overflow"
+      ],
+      "paths": [
+        "effects[*].probes.WS-LOSS-RATIO"
+      ],
+      "quirk": "Q-15",
+      "decision": "docs/modernization/quirk-register.md#q-15",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "Java keeps the full loss ratio (1100.00) where the COBOL field drops the high-order digit (100.00). Both are above 80, so the surcharge, score, decision code and every write must still match; only the loss-ratio probe may differ."
+    },
+    {
+      "id": "KD-10",
+      "suite": "undwrt-decision",
+      "cases": [
+        "map-receive-failure"
+      ],
+      "paths": [
+        "effects.count",
+        "effects[0].*",
+        "effects[1].*",
+        "effects[2].*",
+        "effects[3].*",
+        "effects[4].*",
+        "effects[5].*"
+      ],
+      "quirk": "Q-520-1",
+      "decision": "docs/modernization/quirk-register.md#q-520-1",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "A request that cannot be read is rejected before any write: Java sends only the 'ERROR RECEIVING UNDERWRITING DATA' text and returns, so the decision insert, POLICIES update, TD message and result map of the COBOL fall-through disappear and the remaining effects shift. Covers the whole effect list because the effect count changes; the outcome must still match."
+    },
+    {
+      "id": "KD-11",
+      "suite": "undwrt-decision",
+      "cases": [
+        "preferred-high-credit-band-crossing"
+      ],
+      "paths": [
+        "effects[*].numbers.RISK_SCORE",
+        "effects[*].numbers.POLICY_RISK_SCORE",
+        "effects[*].text.DECISION_CODE",
+        "effects[*].text.DECISION_REASON",
+        "effects[*].text.UW_STATUS",
+        "effects[*].text.POLICY_UW_STATUS"
+      ],
+      "quirk": "Q-14",
+      "decision": "docs/modernization/quirk-register.md#q-14",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "The Q-14 clamp can move the band: COBOL keeps -75 as 75 (75 + 150 claims + 100 limit = 325, RS) while Java clamps to 0 (250, AP). Score, decision code, reason and UW status may differ; policy number, dates, operations and SQLCODEs must match. Underwriting must sign off the band change, not only the score."
     }
   ]
 }
