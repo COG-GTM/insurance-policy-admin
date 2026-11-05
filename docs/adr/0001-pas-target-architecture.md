@@ -136,6 +136,8 @@ Library modules never depend on an application module. The rule is checked by an
 
 **Why.** Several independent consumers (FileNet, underwriting work queue, future Broker Portal and analytics) need the same facts; Kafka gives fan-out, retention and replay, and the same platform carries the CDC stream (D3). The outbox removes the dual-write problem between database and broker. The MQ bridge keeps FileNet and the UW queue unchanged (DR-6).
 
+*AB-528 implementation:* all five topics are emitted through the outbox with v1 JSON schemas in `pas-events` (registry with SHA-256, BACKWARD compatibility); poison outbox rows are parked after `pas.events.max-attempts` (V80) and Kafka bridge failures go to `pas.events.dlt`, both replayable through `/api/v1/ops/events` (scope `pas.events.replay`). INT-01 is `LegacyRecordBridge` (125-byte POLICY-RECORD on `pas.bridge.*` topics) plus the IBM MQ sink configs in `pas/deploy/messaging`; its retirement is gated in `docs/pas/messaging-decommission.json`. The Broker Portal moves to the inquiry API (`GET /api/v1/policies`), not a read replica. See [`docs/pas/messaging-and-broker-portal.md`](../pas/messaging-and-broker-portal.md).
+
 **Alternatives considered**
 
 | Option | Outcome | Reason |

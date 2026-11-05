@@ -206,6 +206,8 @@ CA-7 triggers, predecessors and restart rules are not in the repo ([FU-12](open-
 | I-9 | **Endorsement audit** | PAS → CICS TSQ | POLEND 6000 | POLICY-RECORD | Unknown reader. **Owner: Compliance (pending)** | Volatile | Q-23 |
 | I-10 | **Operator notification** | PAS → TSO user | PREMIUM-BATCH STEP030 | Fixed text | PASADMIN | n/a | Q-28 |
 
+**AB-528 status.** I-4, I-5 and I-6 are replaced by the Kafka domain events `pas.policy.created/renewed/endorsed` and `pas.underwriting.requested/decided`, with a temporary bridge that keeps the 125-byte POLICY-RECORD on the existing queues until the consumers move; I-3 is replaced by the inquiry API (`GET /api/v1/policies?agentCode|branchCode` plus the AB-524 reads) with no DB2 connection. The queue and linked-server definitions are listed for decommission in [`docs/pas/messaging-decommission.md`](../pas/messaging-decommission.md); design and evidence in [`docs/pas/messaging-and-broker-portal.md`](../pas/messaging-and-broker-portal.md). Consumer moves and sign-offs are pending (FU-528-1..5).
+
 ## 8. Record layouts
 
 Copybook record lengths, computed with the same rules as the compat gate (`compat/check_layouts.py`). These bytes go to MQ, the TSQ and the screen buffers, and must stay stable.

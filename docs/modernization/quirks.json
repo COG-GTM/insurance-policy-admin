@@ -1271,6 +1271,50 @@
       ],
       "follow_up": "FU-525-3",
       "lands_in": "AB-525"
+    },
+    {
+      "id": "Q-528-1",
+      "title": "Queue messages are delivered at least once",
+      "component": "POLNEW",
+      "category": "integration",
+      "description": "POLNEW and UNDWRT write the POLICY-RECORD with EXEC CICS WRITEQ TD inside the CICS unit of work, so a committed transaction produces exactly one TD record. The outbox relay, the Kafka bridge and the MQ sink deliver at least once: a crash between publish and acknowledgement repeats a message.",
+      "owner": "Underwriting ops + ECM/Document team",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending consumer sign-off",
+      "rationale": "Exactly-once across PostgreSQL/DB2, Kafka and MQ would need XA. Every bridged message carries the event id as Kafka header and MQ message property eventId; consumers drop repeats (FileNet by event id, the underwriting queue by event id or policy number + status). Native Kafka consumers use the envelope eventId.",
+      "parity_note": "Not a calculation; MessagingBridgeIT asserts one bridged record per event in the normal path.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "WRITEQ TD"
+        },
+        {
+          "file": "cobol/programs/UNDWRT.cbl",
+          "contains": "WRITEQ TD"
+        }
+      ],
+      "follow_up": "FU-528-1",
+      "lands_in": "AB-528"
+    },
+    {
+      "id": "Q-528-2",
+      "title": "Bridged POLICY-RECORD reflects the policy at bridge time",
+      "component": "POLNEW",
+      "category": "integration",
+      "description": "The CICS programs write POLICY-RECORD from working storage at the moment of the change. The bridge builds the same 125-byte layout from the current policy row when it consumes the event, so if a second change lands before the first event is bridged both messages carry the later state.",
+      "owner": "ECM/Document team + Underwriting ops",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending consumer sign-off",
+      "rationale": "Events carry no direct PII (ADR D5) while POLICY-RECORD needs fields the events do not hold, so the record is re-read. Bridge lag is seconds; the same-policy race needs two changes within that window. Consumers that need the exact change state move to the native events, which carry the before/after values.",
+      "parity_note": "Byte layout is the AB-519 PolicyRecordCodec (125 bytes, EBCDIC, risk score truncated as in Q-14); MessagingBridgeIT decodes each bridged record.",
+      "evidence": [
+        {
+          "file": "cobol/programs/POLNEW.cbl",
+          "contains": "FROM(POLICY-RECORD)"
+        }
+      ],
+      "follow_up": "FU-528-1",
+      "lands_in": "AB-528"
     }
   ]
 }
