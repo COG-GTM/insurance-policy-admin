@@ -207,6 +207,12 @@ class MarkdownAnchorTest(unittest.TestCase):
     def test_table_separator_is_not_a_heading(self):
         self.assertNotIn("-a-b-", ca.anchors("| a | b |\n|---|---|\n"))
 
+    def test_blockquote_is_not_a_heading(self):
+        for quote in (">Quote", "> Quote"):
+            text = f"{quote}\n---\n\n[details](#quote)\n"
+            self.assertNotIn("quote", ca.anchors(text))
+            self.assertTrue(any("broken anchor" in e for e in ca.link_errors("docs/adr/x.md", text)))
+
     def test_fenced_headings_ignored(self):
         for fence in ("```", "~~~"):
             self.assertNotIn("not-a-heading", ca.anchors(f"{fence}\n# Not a heading\n{fence}\n"))

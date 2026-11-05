@@ -251,7 +251,7 @@ def anchors(text):
         heading = m.group(1) if m else None
         if heading is None and i + 1 < len(lines) and re.match(r"^ {0,3}(=+|-+)\s*$", lines[i + 1]):
             prev = lines[i - 1] if i else ""
-            if line.strip() and not line.startswith("    ") and not re.match(r"^\s*([-*+]|\d+[.)]|\||>)\s", line) \
+            if line.strip() and not line.startswith("    ") and not re.match(r"^\s*(([-*+]|\d+[.)])\s|[|>])", line) \
                     and not prev.strip():
                 heading = line.strip()
         if heading:
