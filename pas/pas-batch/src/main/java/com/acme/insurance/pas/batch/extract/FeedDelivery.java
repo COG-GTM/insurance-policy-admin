@@ -61,30 +61,6 @@ public class FeedDelivery {
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         transfer.deliver(destination, file, manifest);
-        receipts.recordDelivery(
-            receipt(
-                file,
-                where,
-                DeliveryReceipt.Status.CONFIRMED,
-                attempt,
-                jobExecutionId,
-                null,
-                LocalDateTime.now(clock)));
-        count(file, "confirmed");
-        log.info(
-            "extract delivery confirmed feed={} businessDate={} records={} bytes={} sha256={}"
-                + " destination={} attempt={}",
-            file.feed().feedId(),
-            file.businessDate(),
-            file.recordCount(),
-            file.byteCount(),
-            file.sha256(),
-            where,
-            attempt);
-        if (properties.purgeAfterDelivery()) {
-          purge(file.path(), manifest);
-        }
-        return;
       } catch (RuntimeException e) {
         last = e;
         log.warn(
@@ -97,9 +73,12 @@ public class FeedDelivery {
             maxAttempts,
             e.getMessage());
         if (attempt < maxAttempts) {
-          backoff(properties.retry().backoff().multipliedBy(attempt));
+          backoff(backoffBefore(attempt + 1));
         }
+        continue;
       }
+      confirm(file, manifest, where, attempt, jobExecutionId);
+      return;
     }
     receipts.recordDelivery(
         receipt(
@@ -113,6 +92,46 @@ public class FeedDelivery {
     count(file, "failed");
     throw new FeedTransfer.DeliveryException(
         file.feed().feedId() + " not delivered after " + maxAttempts + " attempts", last);
+  }
+
+  /**
+   * Records the confirmed delivery once the transfer has succeeded; a receipt failure fails the
+   * step without sending the file again.
+   */
+  private void confirm(
+      StagedFile file, Path manifest, String where, int attempt, Long jobExecutionId) {
+    receipts.recordDelivery(
+        receipt(
+            file,
+            where,
+            DeliveryReceipt.Status.CONFIRMED,
+            attempt,
+            jobExecutionId,
+            null,
+            LocalDateTime.now(clock)));
+    count(file, "confirmed");
+    log.info(
+        "extract delivery confirmed feed={} businessDate={} records={} bytes={} sha256={}"
+            + " destination={} attempt={}",
+        file.feed().feedId(),
+        file.businessDate(),
+        file.recordCount(),
+        file.byteCount(),
+        file.sha256(),
+        where,
+        attempt);
+    if (properties.purgeAfterDelivery()) {
+      purge(file.path(), manifest);
+    }
+  }
+
+  /** Doubling backoff: {@code backoff} before attempt 2, twice that before attempt 3, and so on. */
+  Duration backoffBefore(int attempt) {
+    Duration wait = properties.retry().backoff();
+    for (int i = 2; i < attempt; i++) {
+      wait = wait.multipliedBy(2);
+    }
+    return wait;
   }
 
   private DeliveryReceipt receipt(

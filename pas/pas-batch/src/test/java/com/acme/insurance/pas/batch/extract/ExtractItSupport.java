@@ -3,12 +3,18 @@ package com.acme.insurance.pas.batch.extract;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.PublicKey;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.sshd.common.config.keys.KeyUtils;
 import org.apache.sshd.common.config.keys.PublicKeyEntry;
@@ -16,7 +22,11 @@ import org.apache.sshd.common.config.keys.writer.openssh.OpenSSHKeyPairResourceW
 import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
 import org.apache.sshd.common.keyprovider.KeyPairProvider;
 import org.apache.sshd.server.SshServer;
+import org.apache.sshd.sftp.SftpModuleProperties;
+import org.apache.sshd.sftp.server.FileHandle;
+import org.apache.sshd.sftp.server.SftpFileSystemAccessor;
 import org.apache.sshd.sftp.server.SftpSubsystemFactory;
+import org.apache.sshd.sftp.server.SftpSubsystemProxy;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
@@ -48,7 +58,19 @@ final class ExtractItSupport {
     "spring.flyway.locations=classpath:db/migration/postgresql"
   };
 
-  /** An SFTP endpoint with pinned host key and key-only authentication. */
+  /**
+   * How the server damages the next {@code .part} uploads, as a faulty endpoint or network would.
+   */
+  enum Tamper {
+    NONE,
+    CORRUPT,
+    TRUNCATE
+  }
+
+  /**
+   * An SFTP endpoint with pinned host key and key-only authentication. {@code posixRename=false}
+   * advertises only fsync among the OpenSSH extensions, so clients take the plain-rename fallback.
+   */
   static final class SftpServerFixture {
     final Path dir;
     final Path root;
@@ -57,8 +79,13 @@ final class ExtractItSupport {
     final SshServer server;
     final KeyPair hostKey;
     final AtomicReference<KeyPair> acceptedHostKey;
+    final AtomicReference<Tamper> tamper = new AtomicReference<>(Tamper.NONE);
 
     SftpServerFixture() {
+      this(true);
+    }
+
+    SftpServerFixture(boolean posixRename) {
       try {
         dir = Files.createTempDirectory("pas-extract-it");
         root = Files.createDirectories(dir.resolve("sftp-root"));
@@ -81,7 +108,14 @@ final class ExtractItSupport {
                 "pas-batch".equals(user) && KeyUtils.compareKeys(key, clientPublic));
         server.setPasswordAuthenticator(null);
         server.setKeyboardInteractiveAuthenticator(null);
-        server.setSubsystemFactories(List.of(new SftpSubsystemFactory()));
+        server.setSubsystemFactories(
+            List.of(
+                new SftpSubsystemFactory.Builder()
+                    .withFileSystemAccessor(new TamperingAccessor(tamper))
+                    .build()));
+        if (!posixRename) {
+          SftpModuleProperties.OPENSSH_EXTENSIONS.set(server, "fsync@openssh.com=1");
+        }
         server.setFileSystemFactory(new VirtualFileSystemFactory(root));
         server.start();
         knownHostsFile = dir.resolve("known_hosts");
@@ -120,6 +154,97 @@ final class ExtractItSupport {
         registry.add(prefix + "private-key-file", clientKeyFile::toString);
         registry.add(prefix + "known-hosts-file", knownHostsFile::toString);
       }
+    }
+  }
+
+  /** Damages writes to {@code .part} files according to the fixture's {@link Tamper} mode. */
+  private static final class TamperingAccessor implements SftpFileSystemAccessor {
+    private final AtomicReference<Tamper> mode;
+
+    TamperingAccessor(AtomicReference<Tamper> mode) {
+      this.mode = mode;
+    }
+
+    @Override
+    public SeekableByteChannel openFile(
+        SftpSubsystemProxy subsystem,
+        FileHandle fileHandle,
+        Path file,
+        String handle,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs)
+        throws IOException {
+      SeekableByteChannel channel =
+          SftpFileSystemAccessor.super.openFile(
+              subsystem, fileHandle, file, handle, options, attrs);
+      Tamper tamper = mode.get();
+      if (tamper == Tamper.NONE
+          || !options.contains(StandardOpenOption.WRITE)
+          || !file.getFileName().toString().endsWith(".part")) {
+        return channel;
+      }
+      return new TamperingChannel(channel, tamper);
+    }
+  }
+
+  private static final class TamperingChannel implements SeekableByteChannel {
+    private final SeekableByteChannel delegate;
+    private final Tamper tamper;
+
+    TamperingChannel(SeekableByteChannel delegate, Tamper tamper) {
+      this.delegate = delegate;
+      this.tamper = tamper;
+    }
+
+    @Override
+    public int write(ByteBuffer src) throws IOException {
+      if (tamper == Tamper.CORRUPT && delegate.position() == 0 && src.hasRemaining()) {
+        byte[] bytes = new byte[src.remaining()];
+        src.get(bytes);
+        bytes[0] ^= 0x01;
+        return delegate.write(ByteBuffer.wrap(bytes));
+      }
+      return delegate.write(src);
+    }
+
+    @Override
+    public void close() throws IOException {
+      if (tamper == Tamper.TRUNCATE && delegate.isOpen() && delegate.size() > 0) {
+        delegate.truncate(delegate.size() - 1);
+      }
+      delegate.close();
+    }
+
+    @Override
+    public int read(ByteBuffer dst) throws IOException {
+      return delegate.read(dst);
+    }
+
+    @Override
+    public long position() throws IOException {
+      return delegate.position();
+    }
+
+    @Override
+    public SeekableByteChannel position(long newPosition) throws IOException {
+      delegate.position(newPosition);
+      return this;
+    }
+
+    @Override
+    public long size() throws IOException {
+      return delegate.size();
+    }
+
+    @Override
+    public SeekableByteChannel truncate(long size) throws IOException {
+      delegate.truncate(size);
+      return this;
+    }
+
+    @Override
+    public boolean isOpen() {
+      return delegate.isOpen();
     }
   }
 }

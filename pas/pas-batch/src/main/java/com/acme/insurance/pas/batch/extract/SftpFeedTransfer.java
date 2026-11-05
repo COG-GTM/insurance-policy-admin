@@ -27,9 +27,9 @@ import org.apache.sshd.sftp.common.SftpException;
 
 /**
  * SFTP delivery with Apache MINA SSHD (ADR 0001 D6). Host keys must match the pinned known-hosts
- * file, the client offers public-key authentication only, files are uploaded under a {@code .part}
- * name and renamed into place, and each file is read back and its SHA-256 compared before the
- * delivery counts as confirmed. The manifest goes after the data file so its arrival signals a
+ * file, the client offers public-key authentication only, and files are uploaded under a {@code
+ * .part} name whose size and read-back SHA-256 must match the staged file before it is renamed to
+ * the name consumers pick up. The manifest goes after the data file so its arrival signals a
  * complete delivery.
  */
 public class SftpFeedTransfer implements FeedTransfer {
@@ -71,23 +71,42 @@ public class SftpFeedTransfer implements FeedTransfer {
     }
   }
 
-  private static void put(SftpClient sftp, Path local, String remote, String sha256, long size)
+  /**
+   * Uploads under {@code .part}, checks the size and read-back SHA-256 of the {@code .part} copy,
+   * and publishes it only when both match. A copy that fails the check is removed and the
+   * previously published file is left untouched.
+   */
+  static void put(SftpClient sftp, Path local, String remote, String sha256, long size)
       throws IOException {
     String partial = remote + ".part";
     try (OutputStream out = sftp.write(partial)) {
       Files.copy(local, out);
     }
+    try {
+      verify(sftp, partial, sha256, size);
+    } catch (IOException | RuntimeException e) {
+      try {
+        removeIfPresent(sftp, partial);
+      } catch (IOException cleanup) {
+        e.addSuppressed(cleanup);
+      }
+      throw e;
+    }
     replace(sftp, partial, remote);
-    long remoteSize = sftp.stat(remote).getSize();
+  }
+
+  private static void verify(SftpClient sftp, String path, String sha256, long size)
+      throws IOException {
+    long remoteSize = sftp.stat(path).getSize();
     if (remoteSize != size) {
-      throw new DeliveryException(remote + ": remote size " + remoteSize + ", expected " + size);
+      throw new DeliveryException(path + ": remote size " + remoteSize + ", expected " + size);
     }
     String remoteSha;
-    try (InputStream in = sftp.read(remote)) {
+    try (InputStream in = sftp.read(path)) {
       remoteSha = sha256(in);
     }
     if (!remoteSha.equals(sha256)) {
-      throw new DeliveryException(remote + ": read-back SHA-256 does not match the staged file");
+      throw new DeliveryException(path + ": read-back SHA-256 does not match the staged file");
     }
   }
 

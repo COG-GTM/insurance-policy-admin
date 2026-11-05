@@ -3,6 +3,7 @@ package com.acme.insurance.pas.batch.extract;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 class FeedDeliveryTest {
 
@@ -116,6 +118,50 @@ class FeedDeliveryTest {
     assertThat(receipt.getValue().confirmedAt()).isNull();
     assertThat(file.path()).exists();
     verify(receipts, org.mockito.Mockito.times(1)).recordDelivery(any());
+  }
+
+  @Test
+  void backoffDoublesBetweenAttempts() {
+    properties =
+        new ExtractProperties(
+            dir,
+            ZoneOffset.UTC,
+            StandardCharsets.ISO_8859_1,
+            ExtractProperties.RecordSeparator.CRLF,
+            true,
+            new ExtractProperties.Retry(5, Duration.ofSeconds(10)),
+            properties.claims(),
+            properties.actuarial());
+    FeedTransfer down =
+        (d, f, m) -> {
+          throw new FeedTransfer.DeliveryException("connection refused");
+        };
+    assertThatThrownBy(() -> delivery(down).deliver(file, 1L))
+        .isInstanceOf(FeedTransfer.DeliveryException.class);
+
+    assertThat(waits)
+        .containsExactly(
+            Duration.ofSeconds(10),
+            Duration.ofSeconds(20),
+            Duration.ofSeconds(40),
+            Duration.ofSeconds(80));
+  }
+
+  @Test
+  void aReceiptFailureAfterATransferDoesNotSendTheFileAgain() {
+    int[] calls = {0};
+    FeedTransfer ok = (d, f, m) -> calls[0]++;
+    doThrow(new DataAccessResourceFailureException("db")).when(receipts).recordDelivery(any());
+
+    assertThatThrownBy(() -> delivery(ok).deliver(file, 9L))
+        .isInstanceOf(DataAccessResourceFailureException.class);
+
+    assertThat(calls[0]).isEqualTo(1);
+    assertThat(waits).isEmpty();
+    ArgumentCaptor<DeliveryReceipt> receipt = ArgumentCaptor.forClass(DeliveryReceipt.class);
+    verify(receipts).recordDelivery(receipt.capture());
+    assertThat(receipt.getValue().status()).isEqualTo(DeliveryReceipt.Status.CONFIRMED);
+    assertThat(file.path()).exists();
   }
 
   private static String read(Path p) {
