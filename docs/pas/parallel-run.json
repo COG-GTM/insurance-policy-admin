@@ -1,0 +1,50 @@
+{
+  "_comment": "AB-529 parallel run, reconciliation and rollback plan. Checked by `make migration` (tools/migration/parallel_run.py check). The cycle dates, the rollback window and every sign-off are agreed outside the code and recorded here; until then they are null/pending and the gate fails. No step is ever executed from this branch.",
+  "cycle": {
+    "description": "One full monthly billing cycle (AB-529 acceptance): every business day from the first business day after cycle start through the cycle end, including the 1st-of-month actuarial exposure run.",
+    "start": null,
+    "end": null,
+    "min_business_days": 20,
+    "holidays": [],
+    "follow_up": "FU-529-2"
+  },
+  "rollback": {
+    "window": null,
+    "follow_up": "FU-529-3",
+    "rehearsals": [
+      {
+        "environment": "CI (MigrationJobsIT, PostgreSQL stand-in for DB2)",
+        "result": "passed",
+        "evidence": "pas-batch MigrationJobsIT.rollbackRehearsalPointsBackAtTheLegacyDatabaseWithinTheWindow: cutover, writes on PostgreSQL, migrationReverseSync, zero reconciliation differences, DB2 POLICY_SEQ above PostgreSQL, system of record back to DB2"
+      },
+      {
+        "environment": "Pre-production with DB2 for z/OS and the production-sized book",
+        "result": "pending",
+        "evidence": null
+      }
+    ]
+  },
+  "outputs": [
+    {"pattern": "ACME.PAS.REPORTS.PREMIUM.D*.txt", "job": "premiumRecalculation", "legacy": "PREMIUM-BATCH PREMRPT (LRECL 132)", "required": true, "key": [0, 12]},
+    {"pattern": "premiums.csv", "job": "premiumRecalculation", "legacy": "DSNTIAUL unload of ACMEINS.PREMIUMS after PAS0050, ordered by key", "required": true, "key": [0, 12]},
+    {"pattern": "policy_extract.dat", "job": "claimsDailyExtract", "legacy": "DAILY-EXTRACT STEP010 (LRECL 200)", "required": true, "key": [0, 12]},
+    {"pattern": "coverage_extract.dat", "job": "claimsDailyExtract", "legacy": "DAILY-EXTRACT STEP030 (LRECL 150)", "required": true, "key": [0, 12]},
+    {"pattern": "exposure_monthly.csv", "job": "actuarialMonthlyExposure", "legacy": "MONTHLY-EXPOSURE (1st of month only)", "required": false}
+  ],
+  "runbook": [
+    {"id": "RB-01", "step": "Bulk load: pas-batch migrationBulkLoad into an empty PostgreSQL ACMEINS; reconciliation MATCH", "execute_on_branch": false, "dry_run_default": true},
+    {"id": "RB-02", "step": "Start change sync: migrationDeltaSync on schedule (or the licensed CDC product, FU-529-1); daily migrationReconciliation", "execute_on_branch": false, "dry_run_default": true},
+    {"id": "RB-03", "step": "Parallel run: Java premium batch and extracts on the parallel database every business day; parallel_run.py compare; daily triage", "execute_on_branch": false, "dry_run_default": true},
+    {"id": "RB-04", "step": "Gate: parallel_run.py gate passes for one full cycle, reconciliation MATCH every day, pre-production rollback rehearsal inside the window, every sign-off approved", "execute_on_branch": false, "dry_run_default": true},
+    {"id": "RB-05", "step": "Cutover: DB2 ACMEINS writes stopped, final migrationDeltaSync, reconciliation MATCH, migrationSystemOfRecord system=PG, applications pointed at PostgreSQL", "execute_on_branch": false, "dry_run_default": true},
+    {"id": "RB-06", "step": "Rollback (inside the window): PostgreSQL writes stopped, migrationReverseSync confirmRollback=YES, applications pointed back at DB2", "execute_on_branch": false, "dry_run_default": true}
+  ],
+  "sign_offs": [
+    {"role": "Mainframe team (captured outputs, PREMIUMS unload, read access to ACMEINS, DB2 sequence restart)", "status": "pending"},
+    {"role": "DBA (migration service accounts, CDC/delta load on DB2, pre-production rollback rehearsal)", "status": "pending"},
+    {"role": "Product owner (billing cycle, triage decisions, zero unexplained differences)", "status": "pending"},
+    {"role": "Security / data governance (PII copied to PostgreSQL, acmeins_shadow retention)", "status": "pending"},
+    {"role": "Claims and Actuarial consumers (parallel extract files)", "status": "pending"},
+    {"role": "ARB (DS-02 shadow schema, MSG-02 CDC product)", "status": "pending"}
+  ]
+}

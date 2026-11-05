@@ -59,6 +59,8 @@ Deliberately not changed in the target (dual-run compatibility):
 Deliberate deviation: V13 changes the `UNDERWRITING_DECISIONS` primary key to `DECISION_ID` (Q-18,
 decision "fix"). Migrated rows keep their values. While DB2 is the system of record the CDC sink
 merges DB2 rows on `(POLICY_NUMBER, DECISION_DATE)`, which DB2 still guarantees unique (AB-529).
+The AB-529 migration jobs do exactly this and never write `decision_id`; see
+`docs/pas/data-migration.md`.
 
 ## 3. Copybooks to domain types
 

@@ -1,0 +1,25 @@
+# AB-529 alert rules (Prometheus format) for the migration jobs. A run that finds differences or
+# fails exits non-zero and logs pas.migration.alert with the counts (never row values).
+groups:
+  - name: pas-migration
+    rules:
+      - alert: PasReconciliationFailed
+        expr: max by (job_name) (kube_job_status_condition{namespace="pas", job_name=~"pas-migration-reconciliation-.*", condition="Failed", status="true"}) == 1
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "{{ $labels.job_name }}: DB2 and PostgreSQL differ or the reconciliation failed"
+          runbook: docs/pas/data-migration.md#daily-reconciliation
+      - alert: PasReconciliationMissing
+        expr: time() - kube_cronjob_status_last_successful_time{namespace="pas", cronjob="pas-migration-reconciliation"} > 26 * 3600
+        for: 30m
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "No clean DB2/PostgreSQL reconciliation in the last 26 hours"
+          runbook: docs/pas/data-migration.md#daily-reconciliation
+      - alert: PasDeltaSyncFailing
+        # Three consecutive 15-minute runs failed: PostgreSQL is falling behind DB2.
+        expr: count by (namespace) (kube_job_status_condition{namespace="pas", job_name=~"pas-migration-delta-sync-.*", condition="Failed", status="true"} == 1) >= 3
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "DB2 to PostgreSQL delta sync failing"
+          runbook: docs/pas/data-migration.md#ongoing-change-sync
