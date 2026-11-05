@@ -7,6 +7,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Entry point shared by the premium batch job and the online flows: rates a request with the
@@ -52,12 +54,20 @@ public final class PremiumRater {
     return Optional.ofNullable(version);
   }
 
+  /** Every row list sorted, so the same rows read in another order give the same version. */
+  private static String canonical(RatingRateHistory rows) {
+    return Stream.of(
+            rows.baseRates(), rows.parameters(), rows.territoryFactors(), rows.classFactors())
+        .map(list -> list.stream().map(String::valueOf).sorted().collect(Collectors.joining("\n")))
+        .collect(Collectors.joining("\n--\n"));
+  }
+
   private static String version(RatingRateHistory rows) {
     try {
       return HexFormat.of()
           .formatHex(
               MessageDigest.getInstance("SHA-256")
-                  .digest(rows.toString().getBytes(StandardCharsets.UTF_8)));
+                  .digest(canonical(rows).getBytes(StandardCharsets.UTF_8)));
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException(e);
     }
