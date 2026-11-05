@@ -10,8 +10,12 @@ key=pas/.local-jwt/private.pem
 [[ -f "$key" ]] || { echo "local-token: $key missing, run 'make pas-env'" >&2; exit 1; }
 scopes="${1:?usage: local-token.sh \"<scopes>\" ['<extra JSON claims>']}"
 extra="${2:-}"
-issuer="${PAS_JWT_ISSUER:-https://pas-local.invalid/issuer}"
-audience="${PAS_JWT_AUDIENCE:-pas-policy-service}"
+# Same precedence as docker compose: exported variable, then .env, then the compose default.
+from_env_file() { [[ -f .env ]] && sed -n "s/^$1=//p" .env | tail -n 1 | sed 's/^["'"'"']//; s/["'"'"']$//'; }
+issuer="${PAS_JWT_ISSUER:-$(from_env_file PAS_JWT_ISSUER)}"
+issuer="${issuer:-https://pas-local.invalid/issuer}"
+audience="${PAS_JWT_AUDIENCE:-$(from_env_file PAS_JWT_AUDIENCE)}"
+audience="${audience:-pas-policy-service}"
 
 b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 now=$(date +%s)
