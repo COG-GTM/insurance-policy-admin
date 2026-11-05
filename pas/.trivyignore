@@ -1,0 +1,8 @@
+# Accepted vulnerability findings for the PAS platform. Every entry needs: the reason it does not apply,
+# the owner and an expiry date (Trivy reports the finding again after `exp:`). Reviewed by Security
+# in the AB-519 sign-off (pending).
+
+# spring-webmvc 6.2.x: fixed only in Spring Framework 7.0.9 (Spring Boot 4). PAS does not use XsltView
+# (CVE-2026-47884) or view-rendered Server-Sent Events (CVE-2026-47890). Owner: PAS platform team.
+CVE-2026-47884 exp:2027-02-28
+CVE-2026-47890 exp:2027-02-28

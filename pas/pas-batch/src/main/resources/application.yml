@@ -1,0 +1,27 @@
+# pas-batch (ADR 0001 D1/D2/D8). Configuration from the environment and the secrets manager; no
+# credential defaults. The job repository schema (pas_batch, DS-03) and the jobs arrive in AB-523.
+spring:
+  application:
+    name: pas-batch
+  main:
+    web-application-type: none
+  datasource:
+    url: ${PAS_DB_URL}
+    username: ${PAS_DB_USERNAME}
+    password: ${PAS_DB_PASSWORD}
+  flyway:
+    # Migrations are applied by the policy service / migration job, never by a batch run.
+    enabled: false
+  batch:
+    jdbc:
+      initialize-schema: never
+    job:
+      name: ${PAS_BATCH_JOB:}
+
+logging:
+  structured:
+    format:
+      console: ${PAS_LOG_FORMAT:ecs}
+    ecs:
+      service:
+        name: ${spring.application.name}
