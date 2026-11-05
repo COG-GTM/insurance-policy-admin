@@ -16,6 +16,15 @@ spring:
     placeholder-replacement: false
   lifecycle:
     timeout-per-shutdown-phase: 20s
+  kafka:
+    # Outbox relay producer (ADR 0001 D4). Only used when pas.events.relay-enabled is true.
+    bootstrap-servers: ${PAS_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
 
 server:
   port: ${PAS_HTTP_PORT:8080}
@@ -79,6 +88,28 @@ pas:
     factor-source: ${PAS_RATING_FACTOR_SOURCE:legacy-neutral}
     # How long a loaded rate table is reused; new effective-dated rate rows are seen after this.
     cache-ttl: ${PAS_RATING_CACHE_TTL:PT5M}
+  # Business date of new business and underwriting (CICS region local date, FU-525-6).
+  business-zone: ${PAS_BUSINESS_ZONE:America/New_York}
+  new-business:
+    # Q-08: format of new policy numbers over POLICY_SEQ; confirmed by the mainframe team (FU-05).
+    policy-number-format: ${PAS_POLICY_NUMBER_FORMAT:POL-%08d}
+    # Q-09: term length for the expiry date; product confirms (FU-525-2).
+    term-months: ${PAS_POLICY_TERM_MONTHS:12}
+  underwriting:
+    # UNDWRT thresholds and limits; defaults are the COBOL values.
+    refer-senior-from: ${PAS_UW_REFER_SENIOR_FROM:300}
+    refer-manager-from: ${PAS_UW_REFER_MANAGER_FROM:600}
+    decline-from: ${PAS_UW_DECLINE_FROM:800}
+    branch-accumulation-limit: ${PAS_UW_BRANCH_ACCUMULATION_LIMIT:500000000.00}
+    loss-history-years: ${PAS_UW_LOSS_HISTORY_YEARS:5}
+  claims:
+    # Claims-team history interface (INT-03, FU-17). Without it underwriting answers 503.
+    base-url: ${PAS_CLAIMS_BASE_URL:}
+    client-registration-id: ${PAS_CLAIMS_CLIENT_REGISTRATION_ID:}
+  events:
+    # Outbox relay to Kafka; off unless a broker is configured. Topics come from the platform.
+    relay-enabled: ${PAS_EVENTS_RELAY_ENABLED:false}
+    create-topics: ${PAS_EVENTS_CREATE_TOPICS:false}
   policy-change:
     # Renewal and endorsement (AB-526). Defaults reproduce POLRNW: +5% uplift (Q-05) and a flat 15%
     # rate-increase cap (Q-04), configurable so state-specific caps can follow.

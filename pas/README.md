@@ -94,3 +94,12 @@ token with scope `pas.policy.read` and an entitlement claim (`pas_book`, `pas_ag
 `pas_branches`). The local stack trusts a git-ignored key pair in `pas/.local-jwt/` created by
 `make pas-env`; mint a token with `pas/scripts/local-token.sh "pas.policy.read" '"pas_book":"*"'`.
 Details, PII rules and open items: [docs/pas/policy-inquiry-api.md](../docs/pas/policy-inquiry-api.md).
+
+## New business and underwriting APIs (AB-525)
+
+`POST /api/v1/policies` (scope `pas.policy.write`), `POST .../underwriting-decisions`
+(`pas.underwriting.decide`), `POST .../underwriting-decisions/override` (`pas.underwriting.override`)
+and `GET .../underwriting-decisions` (`pas.policy.read`). Events go through the outbox to the
+`pas.policy.created`, `pas.underwriting.requested` and `pas.underwriting.decided` topics; claims
+history comes from the Claims interface (`PAS_CLAIMS_BASE_URL`, decisions answer 503 without it).
+Details and open items: [docs/pas/new-business-underwriting.md](../docs/pas/new-business-underwriting.md).

@@ -60,7 +60,7 @@
       "stubs": "parity/cobol/stubs/UNDWRT.stubs",
       "fixtures": "fixtures/undwrt-decision.json",
       "owner_ticket": "AB-525",
-      "java_adapter": null,
+      "java_adapter": "com.acme.insurance.pas.parity.adapters.UndwrtDecisionAdapter",
       "scope": "Risk score, accumulation check, decision bands and the decision writes"
     },
     {

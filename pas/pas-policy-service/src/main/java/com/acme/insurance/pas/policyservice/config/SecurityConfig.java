@@ -4,6 +4,9 @@ import static com.acme.insurance.pas.policyservice.security.PasScopes.OPS_READ;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_ENDORSE;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_READ;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_RENEW;
+import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_WRITE;
+import static com.acme.insurance.pas.policyservice.security.PasScopes.UNDERWRITING_DECIDE;
+import static com.acme.insurance.pas.policyservice.security.PasScopes.UNDERWRITING_OVERRIDE;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.authority;
 
 import com.acme.insurance.pas.policyservice.security.DpopRejectingFilter;
@@ -67,6 +70,13 @@ public class SecurityConfig {
                     .denyAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/policies/*", "/api/v1/policies/*/*")
                     .hasAuthority(authority(POLICY_READ))
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies")
+                    .hasAuthority(authority(POLICY_WRITE))
+                    .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/underwriting-decisions")
+                    .hasAuthority(authority(UNDERWRITING_DECIDE))
+                    .requestMatchers(
+                        HttpMethod.POST, "/api/v1/policies/*/underwriting-decisions/override")
+                    .hasAuthority(authority(UNDERWRITING_OVERRIDE))
                     .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/renewals")
                     .hasAuthority(authority(POLICY_RENEW))
                     .requestMatchers(HttpMethod.POST, "/api/v1/policies/*/endorsements")
