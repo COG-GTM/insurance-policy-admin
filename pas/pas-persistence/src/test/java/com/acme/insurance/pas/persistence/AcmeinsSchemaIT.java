@@ -187,7 +187,7 @@ class AcmeinsSchemaIT {
   }
 
   @Test
-  void repositoryInsertsLeaveDefaultedColumnsToTheDatabase() {
+  void repositoryInsertsApplyNotNullDefaultsAndKeepExplicitNulls() {
     PolicyJdbcRepository policies = new PolicyJdbcRepository(jdbc);
     PolicyHolderJdbcRepository holders = new PolicyHolderJdbcRepository(jdbc);
 
@@ -240,12 +240,13 @@ class AcmeinsSchemaIT {
     Policy policy = policies.findPolicy("POL-REPODFLT").orElseThrow();
     assertThat(policy.policyStatusCode()).isEqualTo("PN");
     assertThat(policy.updatedBy()).isEqualTo("SYSTEM");
-    assertThat(policy.totalPremium()).isEqualTo(new BigDecimal("0.00"));
+    assertThat(policy.totalPremium()).isNull();
     assertThat(policy.lastUpdated()).isNotNull();
     assertThat(policy.agentCode()).isNull();
     PolicyHolder holder = holders.find("CUST000088").orElseThrow();
     assertThat(holder.custTypeCode()).isEqualTo("I");
-    assertThat(holder.countryCode()).isEqualTo("USA");
+    assertThat(holder.countryCode()).isNull();
+    assertThat(holder.riskTierCode()).isNull();
     assertThat(holder.createdDate()).isNotNull();
     assertThat(holder.lastUpdated()).isNotNull();
   }

@@ -25,7 +25,7 @@ public class PolicyHolderJdbcRepository {
   public void insert(PolicyHolder h) {
     new Insert("acmeins.policy_holders")
         .set("cust_id", h.custId())
-        .set("cust_type", h.custTypeCode())
+        .setOrDefault("cust_type", h.custTypeCode())
         .set("last_name", h.lastName())
         .set("first_name", h.firstName())
         .set("middle_init", h.middleInit())
@@ -44,8 +44,8 @@ public class PolicyHolderJdbcRepository {
         .set("credit_score", h.creditScore())
         .set("risk_tier", h.riskTierCode())
         .set("gdpr_consent", h.gdprConsent())
-        .set("created_date", h.createdDate())
-        .set("last_updated", h.lastUpdated())
+        .setOrDefault("created_date", h.createdDate())
+        .setOrDefault("last_updated", h.lastUpdated())
         .execute(jdbc);
   }
 

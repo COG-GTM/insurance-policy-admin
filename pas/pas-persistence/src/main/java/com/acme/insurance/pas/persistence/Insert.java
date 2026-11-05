@@ -7,9 +7,11 @@ import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
- * Builds an INSERT that leaves out null values, so the column defaults of the ACMEINS DDL (status
- * 'PN', 'SYSTEM', CURRENT TIMESTAMP, ...) apply exactly as they do for the legacy programs, and
- * columns without a default stay null. Table and column names are constants of the repositories.
+ * Builds a single-row INSERT. {@link #set} always binds the value, so a null in a nullable column
+ * is stored as SQL NULL even when the column has a default. {@link #setOrDefault} is for the {@code
+ * NOT NULL DEFAULT} columns of the ACMEINS DDL (status 'PN', 'SYSTEM', CURRENT TIMESTAMP, ...): a
+ * null leaves the column out so the database default applies, as for the legacy programs. Table and
+ * column names are constants of the repositories.
  */
 final class Insert {
 
@@ -21,6 +23,11 @@ final class Insert {
   }
 
   Insert set(String column, Object value) {
+    values.put(column, value);
+    return this;
+  }
+
+  Insert setOrDefault(String column, Object value) {
     if (value != null) {
       values.put(column, value);
     }

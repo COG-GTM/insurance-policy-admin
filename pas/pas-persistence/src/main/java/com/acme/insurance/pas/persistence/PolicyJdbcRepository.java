@@ -31,7 +31,7 @@ public class PolicyJdbcRepository {
     new Insert("acmeins.policies")
         .set("policy_number", p.policyNumber())
         .set("policy_type", p.policyTypeCode())
-        .set("policy_status", p.policyStatusCode())
+        .setOrDefault("policy_status", p.policyStatusCode())
         .set("effective_date", p.effectiveDate())
         .set("expiry_date", p.expiryDate())
         .set("policyholder_id", p.policyholderId())
@@ -46,8 +46,8 @@ public class PolicyJdbcRepository {
         .set("risk_score", p.riskScore())
         .set("web_indicator", p.webIndicator())
         .set("api_flag", p.apiFlag())
-        .set("last_updated", p.lastUpdated())
-        .set("updated_by", p.updatedBy())
+        .setOrDefault("last_updated", p.lastUpdated())
+        .setOrDefault("updated_by", p.updatedBy())
         .execute(jdbc);
   }
 
@@ -90,7 +90,7 @@ public class PolicyJdbcRepository {
         .set("premium", c.premium())
         .set("effective_date", c.effectiveDate())
         .set("expiry_date", c.expiryDate())
-        .set("status", c.statusCode())
+        .setOrDefault("status", c.statusCode())
         .set("coinsurance_pct", c.coinsurancePct())
         .set("rating_territory", c.ratingTerritory())
         .set("class_code", c.classCode())
