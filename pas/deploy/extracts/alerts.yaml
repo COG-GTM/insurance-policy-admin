@@ -1,0 +1,25 @@
+# AB-527 example alert rules (Prometheus format; Micrometer names with dots become underscores).
+# Routed to the PAS on-call rotation. Who is paged today for PAS0100/PAS0200 is FU-12.
+groups:
+  - name: pas-extracts
+    rules:
+      - alert: PasExtractJobFailed
+        expr: increase(pas_extract_job_failures_total[1h]) > 0
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "{{ $labels.job }} failed"
+          runbook: docs/pas/extracts.md#failure-and-rerun
+      - alert: PasExtractDeliveryFailed
+        expr: increase(pas_extract_deliveries_total{outcome="failed"}[1h]) > 0
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "{{ $labels.feed }} was not confirmed by the SFTP endpoint"
+          runbook: docs/pas/extracts.md#failure-and-rerun
+      - alert: PasClaimsExtractMissing
+        # Nothing confirmed for the Claims feed by 01:00 (the job starts at 23:00).
+        expr: increase(pas_extract_deliveries_total{feed="claims-coverage",outcome="confirmed"}[26h]) == 0
+        for: 30m
+        labels: {severity: page, team: pas}
+        annotations:
+          summary: "No confirmed Claims coverage extract in the last 26 hours"
+          runbook: docs/pas/extracts.md#failure-and-rerun

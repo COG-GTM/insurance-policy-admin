@@ -1,0 +1,35 @@
+{
+  "_comment": "AB-527 cut-over register for the Claims and Actuarial feeds. Checked by `make extract-parity` (tools/extracts/extract_parity.py gate --check); `python3 tools/extracts/extract_parity.py gate` prints the plan and exits 3 while anything is pending. Dates are agreed with each consumer and recorded here; TBD until then.",
+  "feeds": [
+    {
+      "consumer": "Claims",
+      "legacy_job": "DAILY-EXTRACT (CA-7 PAS0100, nightly 23:00)",
+      "new_job": "pas-batch claimsDailyExtract",
+      "remote_files": ["/claims/import/policy_extract.dat", "/claims/import/coverage_extract.dat"],
+      "cutover_date": "TBD",
+      "status": "pending - date to be agreed with Claims after 5 consecutive byte-identical parallel runs (FU-14, FU-15)"
+    },
+    {
+      "consumer": "Actuarial",
+      "legacy_job": "MONTHLY-EXPOSURE (CA-7 PAS0200, 1st of month 02:00)",
+      "new_job": "pas-batch actuarialMonthlyExposure",
+      "remote_files": ["/actuarial/data/exposure_monthly.csv"],
+      "cutover_date": "TBD",
+      "status": "pending - date to be agreed with Actuarial after 5 consecutive byte-identical parallel runs (FU-14, FU-15)"
+    }
+  ],
+  "signoffs": [
+    {"party": "Mainframe team (production samples, unload utility, FU-13)", "status": "pending"},
+    {"party": "Claims (layout, delta semantics, ingest test, cut-over date)", "status": "pending"},
+    {"party": "Actuarial (CSV layout, POLICY_COUNT, row order, ingest test, cut-over date)", "status": "pending"},
+    {"party": "Security (SFTP/MFT endpoints, keys, host keys, no plaintext transfer)", "status": "pending"},
+    {"party": "Mainframe operations (CA-7 hold and retirement of PAS0100/PAS0200)", "status": "pending"},
+    {"party": "ARB (INT-02 component review)", "status": "pending"}
+  ],
+  "legacy_retirement": [
+    {"step": 1, "action": "Parallel run: keep PAS0100/PAS0200 and run the pas-batch jobs to a quarantine SFTP directory; compare with `make extract-parity CAPTURED=... CANDIDATE=...`", "gate": "Security approval of endpoints and keys", "execute_on_branch": false},
+    {"step": 2, "action": "Consumers ingest the new files in their test environment", "gate": "5 consecutive byte-identical runs per feed", "execute_on_branch": false},
+    {"step": 3, "action": "On the agreed date, point pas-batch at the production directories and hold PAS0100/PAS0200 in CA-7", "gate": "Claims and Actuarial sign-off with cut-over date", "execute_on_branch": false},
+    {"step": 4, "action": "Remove the unencrypted transfer steps (STEP030 of DAILY-EXTRACT, STEP020 of MONTHLY-EXPOSURE) and close the plain-text listeners on the consumer side", "gate": "One full month on pas-batch without incident; Mainframe operations change record", "execute_on_branch": false}
+  ]
+}

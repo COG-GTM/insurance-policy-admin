@@ -1,0 +1,39 @@
+name: PAS extract parity (AB-527)
+
+on:
+  pull_request:
+    branches: [main, "devin/ab-516-v3"]
+  workflow_dispatch:
+
+concurrency:
+  group: extract-parity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  extract-parity:
+    name: Claims and Actuarial extracts (JCL SQL parity, SFTP delivery)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: make extract-parity
+        run: make extract-parity
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extract-parity-reports
+          path: |
+            pas/pas-batch/target/surefire-reports/
+            pas/pas-batch/target/failsafe-reports/
+          retention-days: 7

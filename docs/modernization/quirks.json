@@ -1095,6 +1095,54 @@
       ],
       "follow_up": "FU-05",
       "lands_in": "AB-525, AB-526"
+    },
+    {
+      "id": "Q-527-1",
+      "title": "Daily extract window depends on when the job starts",
+      "component": "DAILY-EXTRACT STEP010 (policy delta)",
+      "category": "data contract",
+      "description": "The policy delta selects LAST_UPDATED >= CURRENT DATE - 1 DAY, evaluated when DSNTEP2 runs. A run delayed or restarted after midnight silently shifts the window by a day, so a policy changed on the business day before can be missed and the file cannot be reproduced later.",
+      "owner": "Claims team + Mainframe operations",
+      "proposed_decision": "fix",
+      "decision_status": "proposed - pending Claims sign-off",
+      "rationale": "claimsDailyExtract takes a businessDate job parameter (default: today in pas.extract.business-zone) and selects LAST_UPDATED >= midnight of businessDate - 1 day, the same window as an on-time nightly run. Reruns and restarts use the same date and produce the same file.",
+      "parity_note": "Identical to the mainframe for runs that start on the business date; ExtractParityIT pins CURRENT DATE to the business date. A late mainframe run is compared with businessDate set to the date it actually ran.",
+      "evidence": [
+        {
+          "file": "jcl/DAILY-EXTRACT.jcl",
+          "contains": "LAST_UPDATED >= CURRENT DATE - 1 DAY"
+        }
+      ],
+      "follow_up": "FU-14",
+      "lands_in": "AB-527"
+    },
+    {
+      "id": "Q-527-2",
+      "title": "Extract record bytes are not specified anywhere",
+      "component": "DAILY-EXTRACT POLOUT/COVOUT, MONTHLY-EXPOSURE EXPOUT",
+      "category": "data contract",
+      "description": "The JCL only fixes LRECL 200/150 (RECFM FB) and LRECL 300 (VB) for the exposure CSV. No copybook, header layout or utility control card defines the column positions, number format, NULL representation, CSV header or code page, and DSNTEP2 does not write those DDs at all (Q-30).",
+      "owner": "Mainframe team + Claims team + Actuarial",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - layout is a candidate until production samples (FU-13) and consumer sign-off (FU-14)",
+      "rationale": "FeedLayouts holds a candidate: SELECT-list order, text left-aligned and space padded, ISO dates, signed zero-padded decimals with an explicit point, NULL as spaces, records padded to the LRECL, CRLF, ISO-8859-1, and a CSV header. Once the mainframe team supplies a real file, the layout is corrected in one place and must then match byte for byte.",
+      "parity_note": "Byte-for-byte comparison against captured mainframe files (tools/extracts/extract_parity.py compare) is blocked on FU-13; until then parity is proven against the JCL SQL rendered with the same layout.",
+      "evidence": [
+        {
+          "file": "jcl/DAILY-EXTRACT.jcl",
+          "contains": "LRECL=200"
+        },
+        {
+          "file": "jcl/DAILY-EXTRACT.jcl",
+          "contains": "LRECL=150"
+        },
+        {
+          "file": "jcl/MONTHLY-EXPOSURE.jcl",
+          "contains": "LRECL=300"
+        }
+      ],
+      "follow_up": "FU-13",
+      "lands_in": "AB-527"
     }
   ]
 }

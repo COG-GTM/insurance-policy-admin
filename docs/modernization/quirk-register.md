@@ -63,6 +63,8 @@ Rules for this register:
 | [Q-521-1](#q-521-1) | Copybook last-updated fields hold a date, the columns a timestamp | POLICIES.LAST_UPDATED, POLICY_HOLDERS.LAST_UPDATED; POLICY-RECORD, CUSTOMER-RECORD | Data governance + DBA team | **preserve** | proposed - pending DBA and Data governance sign-off | AB-521 | `cobol/copybooks/POLICY-RECORD.cpy:47`<br>`cobol/copybooks/CUSTOMER-RECORD.cpy:41`<br>`sql/ddl/create-tables.sql:46` |
 | [Q-521-2](#q-521-2) | Nullable numeric columns have no null in the copybooks | POLICIES.RENEWAL_COUNT, POLICIES.RISK_SCORE, COVERAGES.COINSURANCE_PCT, POLICY_HOLDERS.CREDIT_SCORE; POLICY-RECORD, COVERAGE-RECORD, CUSTOMER-RECORD | Data governance + DBA team | **preserve** | proposed - pending DBA and Data governance sign-off | AB-521 | `cobol/copybooks/CUSTOMER-RECORD.cpy:32`<br>`sql/ddl/create-tables.sql:167` |
 | [Q-520-1](#q-520-1) | Failed map RECEIVE falls through the whole program | UNDWRT, POLRNW | Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration | **fix** | proposed - pending mainframe-team verification against production load module | AB-525, AB-526 | `cobol/programs/UNDWRT.cbl:94`<br>`cobol/programs/POLRNW.cbl:87`<br>`cobol/programs/UNDWRT.cbl:59` |
+| [Q-527-1](#q-527-1) | Daily extract window depends on when the job starts | DAILY-EXTRACT STEP010 (policy delta) | Claims team + Mainframe operations | **fix** | proposed - pending Claims sign-off | AB-527 | `jcl/DAILY-EXTRACT.jcl:54` |
+| [Q-527-2](#q-527-2) | Extract record bytes are not specified anywhere | DAILY-EXTRACT POLOUT/COVOUT, MONTHLY-EXPOSURE EXPOUT | Mainframe team + Claims team + Actuarial | **preserve** | proposed - layout is a candidate until production samples (FU-13) and consumer sign-off (FU-14) | AB-527 | `jcl/DAILY-EXTRACT.jcl:39`<br>`jcl/DAILY-EXTRACT.jcl:68`<br>`jcl/MONTHLY-EXPOSURE.jcl:33` |
 <!-- END GENERATED: quirk-table -->
 
 ## Details
@@ -778,5 +780,37 @@ When EXEC CICS RECEIVE MAP fails, 2000-READ-POLICY-DATA (UNDWRT) and 2000-READ-E
   - `cobol/programs/UNDWRT.cbl:94`: `GO TO 2000-EXIT`
   - `cobol/programs/POLRNW.cbl:87`: `GO TO 2000-EXIT`
   - `cobol/programs/UNDWRT.cbl:59`: `PERFORM 2000-READ-POLICY-DATA`
+
+### Q-527-1
+
+**Daily extract window depends on when the job starts** (DAILY-EXTRACT STEP010 (policy delta), data contract)
+
+The policy delta selects LAST_UPDATED >= CURRENT DATE - 1 DAY, evaluated when DSNTEP2 runs. A run delayed or restarted after midnight silently shifts the window by a day, so a policy changed on the business day before can be missed and the file cannot be reproduced later.
+
+- Owner: Claims team + Mainframe operations
+- Proposed decision: **fix** (proposed - pending Claims sign-off)
+- Rationale: claimsDailyExtract takes a businessDate job parameter (default: today in pas.extract.business-zone) and selects LAST_UPDATED >= midnight of businessDate - 1 day, the same window as an on-time nightly run. Reruns and restarts use the same date and produce the same file.
+- Parity / characterization note: Identical to the mainframe for runs that start on the business date; ExtractParityIT pins CURRENT DATE to the business date. A late mainframe run is compared with businessDate set to the date it actually ran.
+- Lands in: AB-527
+- Follow-up: FU-14
+- Evidence:
+  - `jcl/DAILY-EXTRACT.jcl:54`: `LAST_UPDATED >= CURRENT DATE - 1 DAY`
+
+### Q-527-2
+
+**Extract record bytes are not specified anywhere** (DAILY-EXTRACT POLOUT/COVOUT, MONTHLY-EXPOSURE EXPOUT, data contract)
+
+The JCL only fixes LRECL 200/150 (RECFM FB) and LRECL 300 (VB) for the exposure CSV. No copybook, header layout or utility control card defines the column positions, number format, NULL representation, CSV header or code page, and DSNTEP2 does not write those DDs at all (Q-30).
+
+- Owner: Mainframe team + Claims team + Actuarial
+- Proposed decision: **preserve** (proposed - layout is a candidate until production samples (FU-13) and consumer sign-off (FU-14))
+- Rationale: FeedLayouts holds a candidate: SELECT-list order, text left-aligned and space padded, ISO dates, signed zero-padded decimals with an explicit point, NULL as spaces, records padded to the LRECL, CRLF, ISO-8859-1, and a CSV header. Once the mainframe team supplies a real file, the layout is corrected in one place and must then match byte for byte.
+- Parity / characterization note: Byte-for-byte comparison against captured mainframe files (tools/extracts/extract_parity.py compare) is blocked on FU-13; until then parity is proven against the JCL SQL rendered with the same layout.
+- Lands in: AB-527
+- Follow-up: FU-13
+- Evidence:
+  - `jcl/DAILY-EXTRACT.jcl:39`: `LRECL=200`
+  - `jcl/DAILY-EXTRACT.jcl:68`: `LRECL=150`
+  - `jcl/MONTHLY-EXPOSURE.jcl:33`: `LRECL=300`
 
 <!-- END GENERATED: quirk-details -->

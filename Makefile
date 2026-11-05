@@ -85,3 +85,18 @@ parity-record:
 # Java adapters against the golden files (pas/pas-parity); fails on any unexplained difference.
 parity-java:
 	$(PAS_MVN) -pl pas-parity -am verify
+
+# --- AB-527 Claims and Actuarial extracts. ---
+.PHONY: extract-parity
+
+# Tool tests, cut-over register validation, and the pas-batch extract suites: 5 consecutive runs
+# byte-identical to the frozen JCL SQL, real SFTP delivery with checksums and readback. With
+# CAPTURED=<mainframe files> CANDIDATE=<pas-batch files> (one YYYY-MM-DD sub-directory per run)
+# it also compares real mainframe output and needs 5 consecutive identical runs per feed.
+extract-parity:
+	python3 -m unittest discover -s tools/extracts -p 'test_*.py'
+	python3 tools/extracts/extract_parity.py gate --check
+	$(PAS_MVN) -pl pas-batch -am verify -Dtest='FeedLayoutTest,FeedDeliveryTest,SftpDestinationTest' -Dit.test='Extract*IT' -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false
+ifdef CAPTURED
+	python3 tools/extracts/extract_parity.py compare --captured "$(CAPTURED)" --candidate "$(CANDIDATE)" --report extract-parity-report.json
+endif
