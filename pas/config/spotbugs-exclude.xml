@@ -6,4 +6,10 @@
     <Bug pattern="EI_EXPOSE_REP2"/>
     <Class name="~com\.acme\.insurance\.pas\..*(Config|Configuration|Controller|Filter|Properties)"/>
   </Match>
+  <!-- AB-527: the extract delivery and alerting beans keep the injected MeterRegistry to record metrics. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="~com\.acme\.insurance\.pas\.batch\.extract\.(FeedDelivery|ExtractJobAlerting)"/>
+    <Field name="meters"/>
+  </Match>
 </FindBugsFilter>

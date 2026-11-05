@@ -47,7 +47,7 @@ import org.springframework.transaction.PlatformTransactionManager;
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(ExtractProperties.class)
-public class ExtractJobsConfiguration {
+public final class ExtractJobsConfiguration {
 
   public static final String CLAIMS_JOB = "claimsDailyExtract";
   public static final String ACTUARIAL_JOB = "actuarialMonthlyExposure";
