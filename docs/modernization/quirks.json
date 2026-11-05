@@ -978,6 +978,37 @@
       ],
       "follow_up": "FU-20",
       "lands_in": "AB-526"
+    },
+    {
+      "id": "Q-518-1",
+      "title": "Audit user columns hold only 8 characters",
+      "component": "POLICIES, ENDORSEMENTS, UNDERWRITING_DECISIONS, PREMIUMS; POLICY-RECORD, PREMIUM-RECORD",
+      "category": "data contract",
+      "description": "Every 'who changed this' column is CHAR(8): POLICIES.UPDATED_BY, ENDORSEMENTS.PROCESSED_BY, UNDERWRITING_DECISIONS.UNDERWRITER_ID and OVERRIDE_BY, PREMIUMS.CALC_BY, and the copybook fields POLICY-UPDATED-BY / PREM-CALC-BY are PIC X(08). The COBOL programs write their own program name ('POLRNW', 'UNDWRT', 'POLEND', 'PREMBAT'), not a person. An OIDC principal (subject or e-mail) from the new APIs does not fit, and widening the columns would change the 125-byte POLICY-RECORD sent to MQ consumers and the facade contract.",
+      "owner": "Security + DBA team (db2-admin@acme.com)",
+      "proposed_decision": "preserve",
+      "decision_status": "proposed - pending ARB and Security sign-off (ADR 0001 D5)",
+      "rationale": "Column widths and copybook layouts are guarded contracts (compat gate) and stay unchanged while DB2 is the system of record. The Java service writes an 8-character service id (or a mapped 8-character user id) into these columns, and records the full authenticated principal in the new append-only audit table (ADR 0001, component DS-05).",
+      "parity_note": "Parity tests compare the 8-character columns as written today: program names for batch and system writes. Values written by the new APIs are an approved difference once the id mapping is signed off.",
+      "evidence": [
+        {
+          "file": "sql/ddl/create-tables.sql",
+          "contains": "UPDATED_BY          CHAR(8)         NOT NULL DEFAULT 'SYSTEM'"
+        },
+        {
+          "file": "sql/ddl/create-tables.sql",
+          "contains": "PROCESSED_BY        CHAR(8)         NOT NULL"
+        },
+        {
+          "file": "cobol/copybooks/POLICY-RECORD.cpy",
+          "contains": "POLICY-UPDATED-BY        PIC X(08)"
+        },
+        {
+          "file": "cobol/programs/POLRNW.cbl",
+          "contains": "UPDATED_BY = 'POLRNW'"
+        }
+      ],
+      "lands_in": "AB-521, AB-525, AB-526"
     }
   ]
 }

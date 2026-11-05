@@ -1,0 +1,25 @@
+name: ADR check
+
+on:
+  pull_request:
+    branches: [main, "devin/ab-516-v3"]
+  workflow_dispatch:
+
+concurrency:
+  group: adr-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  adr:
+    name: ADRs, component register & ARB pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: ADRs are valid and generated tables are current
+        run: make adr
