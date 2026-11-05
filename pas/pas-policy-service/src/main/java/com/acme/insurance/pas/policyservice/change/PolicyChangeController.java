@@ -17,6 +17,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,6 +34,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/policies")
 public class PolicyChangeController {
+
+  /** pasapp.policy_change_audit.client_id is varchar(64). */
+  private static final int AUDIT_CLIENT_ID_LENGTH = 64;
 
   static final String METRIC = "pas.policy-change.requests";
   static final int DESCRIPTION_LENGTH = 100;
@@ -141,9 +145,18 @@ public class PolicyChangeController {
   }
 
   private static Actor actor(Authentication caller) {
-    return new Actor(
-        caller.getName(),
-        PolicyInquiryController.clientId(caller),
-        MDC.get(CorrelationIdFilter.MDC_KEY));
+    return new Actor(caller.getName(), auditClientId(caller), MDC.get(CorrelationIdFilter.MDC_KEY));
+  }
+
+  /** The token's client as issued (not the metric-safe tag), cut to the audit column width. */
+  static String auditClientId(Authentication caller) {
+    if (caller instanceof JwtAuthenticationToken jwt) {
+      for (String claim : new String[] {"azp", "client_id"}) {
+        if (jwt.getToken().getClaims().get(claim) instanceof String s && !s.isBlank()) {
+          return s.length() > AUDIT_CLIENT_ID_LENGTH ? s.substring(0, AUDIT_CLIENT_ID_LENGTH) : s;
+        }
+      }
+    }
+    return null;
   }
 }

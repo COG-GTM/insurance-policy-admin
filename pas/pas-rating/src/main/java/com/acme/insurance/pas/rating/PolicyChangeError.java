@@ -40,7 +40,7 @@ public enum PolicyChangeError {
     if (code == null || code.isBlank()) {
       return Optional.of(ENDORSEMENT_TYPE_REQUIRED);
     }
-    return EndorsementType.fromCode(code).isPresent()
+    return code.length() == 3 && EndorsementType.fromCode(code).isPresent()
         ? Optional.empty()
         : Optional.of(ENDORSEMENT_TYPE_INVALID);
   }

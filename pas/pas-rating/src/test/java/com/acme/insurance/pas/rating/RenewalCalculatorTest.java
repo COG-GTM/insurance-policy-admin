@@ -64,6 +64,19 @@ class RenewalCalculatorTest {
   }
 
   @Test
+  void capIsComparedOnTheCentAmountNotTheTruncatedPercentage() {
+    RenewalCalculator capped =
+        new RenewalCalculator(
+            new RenewalRules(
+                new BigDecimal("5.00"), new BigDecimal("4.99"), RenewalRules.LeapDayExpiry.FEB_28));
+
+    RenewalQuote quote = capped.quote(new BigDecimal("100.01"), LocalDate.of(2024, 6, 1), 0);
+
+    assertThat(quote.newPremium()).isEqualByComparingTo("105.00");
+    assertThat(quote.capApplied()).isTrue();
+  }
+
+  @Test
   void zeroPremiumRenewsAtZeroInsteadOfDividingByZero() {
     RenewalQuote quote = legacy.quote(BigDecimal.ZERO, LocalDate.of(2024, 6, 1), null);
 

@@ -275,6 +275,7 @@ class PolicyChangeApiIT {
           "{}",
           "{\"endorsementType\":\"   \"}",
           "{\"endorsementType\":\"XYZ\"}",
+          "{\"endorsementType\":\"CAD \"}",
           "{\"endorsementType\":\"CAD\",\"annualPremiumChange\":1.001}",
           "not json"
         }) {
@@ -282,6 +283,22 @@ class PolicyChangeApiIT {
     }
     assertThat(endorsements.findByPolicy(policy)).isEmpty();
     assertThat(audit.findByPolicy(policy)).isEmpty();
+  }
+
+  @Test
+  void auditKeepsTheClientIdAsIssued() throws Exception {
+    String policy = policy("AC", today().minusDays(1), today().plusDays(300), "100.00");
+    String jwt =
+        TestJwt.sign(
+            TestJwt.claims(POLICY_ENDORSE)
+                .claim("azp", "broker/portal")
+                .claim("pas_book", "*")
+                .build());
+
+    assertThat(endorse(policy, "{\"endorsementType\":\"CAD\"}", jwt).statusCode()).isEqualTo(201);
+    assertThat(audit.findByPolicy(policy))
+        .singleElement()
+        .satisfies(a -> assertThat(a.clientId()).isEqualTo("broker/portal"));
   }
 
   @Test

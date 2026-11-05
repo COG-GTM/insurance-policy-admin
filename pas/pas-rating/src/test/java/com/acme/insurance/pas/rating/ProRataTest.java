@@ -117,6 +117,8 @@ class ProRataTest {
         .contains(PolicyChangeError.ENDORSEMENT_TYPE_REQUIRED);
     assertThat(PolicyChangeError.checkEndorsementType("\u0000\u0000\u0000"))
         .contains(PolicyChangeError.ENDORSEMENT_TYPE_INVALID);
+    assertThat(PolicyChangeError.checkEndorsementType("CAD "))
+        .contains(PolicyChangeError.ENDORSEMENT_TYPE_INVALID);
     assertThat(PolicyChangeError.checkEndorsementType("XYZ"))
         .contains(PolicyChangeError.ENDORSEMENT_TYPE_INVALID);
   }
