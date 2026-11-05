@@ -14,7 +14,8 @@ ARG APP
 LABEL org.opencontainers.image.title="${APP}" \
       org.opencontainers.image.source="https://github.com/COG-GTM/insurance-policy-admin" \
       org.opencontainers.image.description="PAS target platform (Java 21 / Spring Boot 3)"
-RUN addgroup -S -g 10001 pas && adduser -S -D -H -u 10001 -G pas pas
+# Pick up OS security fixes published after the base image was built.
+RUN apk upgrade --no-cache && addgroup -S -g 10001 pas && adduser -S -D -H -u 10001 -G pas pas
 WORKDIR /app
 COPY --from=extract /build/extracted/dependencies/ ./
 COPY --from=extract /build/extracted/spring-boot-loader/ ./

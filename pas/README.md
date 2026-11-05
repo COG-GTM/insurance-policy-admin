@@ -6,7 +6,7 @@ which stay unchanged. Architecture: [ADR 0001](../docs/adr/0001-pas-target-archi
 
 ## Quick start
 
-Needs JDK 21, Docker (with Compose v2) and GNU make. From the repository root:
+Needs JDK 21, Maven 3.9+, Docker (with Compose v2), GNU make and openssl. From the repository root:
 
 ```bash
 make pas            # build, all checks and tests, then start the local stack and smoke-test it

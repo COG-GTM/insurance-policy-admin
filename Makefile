@@ -21,11 +21,11 @@ adr:
 	python3 tools/adr/check_adr.py
 	python3 -m unittest discover -s tools/adr -p 'test_*.py'
 
-# --- PAS target platform (pas/, AB-519). JDK 21 required; set PAS_JAVA_HOME if it is not the default. ---
+# --- PAS target platform (pas/, AB-519). JDK 21 and Maven 3.9+ required; set PAS_JAVA_HOME if it is not the default. ---
 .PHONY: pas pas-verify pas-build pas-format pas-env pas-up pas-smoke pas-down pas-images pas-scan
 
 PAS_JAVA_HOME ?= $(JAVA_HOME)
-PAS_MVN = cd pas && JAVA_HOME="$(PAS_JAVA_HOME)" ./mvnw -B -ntp
+PAS_MVN = cd pas && JAVA_HOME="$(PAS_JAVA_HOME)" mvn -B -ntp
 TRIVY_IMAGE ?= aquasec/trivy:0.67.2
 
 # One command for a fresh clone: build, run every check and test, start the local stack, smoke-test it.
@@ -43,7 +43,7 @@ pas-format:
 
 # Creates the git-ignored .env with a random local database password (never committed).
 pas-env:
-	@test -f .env || { sed "s/^PAS_DB_PASSWORD=.*/PAS_DB_PASSWORD=$$(openssl rand -hex 16)/" .env.example > .env && echo "created .env"; }
+	@./pas/scripts/init-env.sh
 
 pas-up: pas-env pas-build
 	docker compose up -d --build --wait
