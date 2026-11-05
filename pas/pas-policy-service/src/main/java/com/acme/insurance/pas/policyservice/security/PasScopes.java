@@ -24,6 +24,9 @@ public final class PasScopes {
   /** Endorse a policy within the caller's entitlement (POLEND, AB-526). */
   public static final String POLICY_ENDORSE = "pas.policy.endorse";
 
+  /** Replay parked outbox events and dead-lettered bridge events (AB-528). */
+  public static final String EVENTS_REPLAY = "pas.events.replay";
+
   /** Read the info and Prometheus management endpoints. */
   public static final String OPS_READ = "pas.ops.read";
 
