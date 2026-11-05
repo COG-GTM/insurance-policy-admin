@@ -61,6 +61,10 @@ public class MigrationConnections implements DisposableBean {
     config.setPassword(settings.password());
     config.setMaximumPoolSize(2);
     config.setAutoCommit(true);
+    if (settings.url().startsWith("jdbc:postgresql:")) {
+      // Keeps "Failing row contains ..." (row values, possibly PII) out of exception messages.
+      config.addDataSourceProperty("logServerErrorDetail", "false");
+    }
     return new HikariDataSource(config);
   }
 

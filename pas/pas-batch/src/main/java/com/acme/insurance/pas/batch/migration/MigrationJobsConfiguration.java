@@ -419,7 +419,7 @@ public final class MigrationJobsConfiguration {
       meters.counter("pas.migration.job.failures", "job", job, "result", result).increment();
       String reasons =
           execution.getAllFailureExceptions().stream()
-              .map(t -> t.getClass().getSimpleName() + ": " + t.getMessage())
+              .map(MigrationJobsConfiguration::alertReason)
               .toList()
               .toString();
       log.error(
@@ -429,5 +429,36 @@ public final class MigrationJobsConfiguration {
           execution.getStatus(),
           reasons);
     }
+  }
+
+  /**
+   * A failure reason that is safe to log: the guard messages this package throws (they carry counts
+   * and job names only) or, for anything else, the SQLSTATE, vendor code (DB2 SQLCODE) and root
+   * class. Driver message text is never logged because it can echo row values ("Failing row
+   * contains ...").
+   */
+  static String alertReason(Throwable t) {
+    if ((t instanceof IllegalStateException || t instanceof IllegalArgumentException)
+        && t.getCause() == null
+        && t.getStackTrace().length > 0
+        && t.getStackTrace()[0]
+            .getClassName()
+            .startsWith(MigrationJobsConfiguration.class.getPackageName())) {
+      return t.getClass().getSimpleName() + ": " + t.getMessage();
+    }
+    Throwable root = t;
+    java.sql.SQLException sql = null;
+    for (Throwable c = t; c != null; c = c.getCause() == c ? null : c.getCause()) {
+      if (c instanceof java.sql.SQLException e && e.getSQLState() != null) {
+        sql = e;
+      }
+      root = c;
+    }
+    String rootClass = root.getClass().getSimpleName();
+    if (sql == null) {
+      return t.getClass().getSimpleName() + " (" + rootClass + ")";
+    }
+    String vendor = sql.getErrorCode() == 0 ? "" : " vendor code " + sql.getErrorCode();
+    return "SQLSTATE " + sql.getSQLState() + vendor + " (" + rootClass + ")";
   }
 }
