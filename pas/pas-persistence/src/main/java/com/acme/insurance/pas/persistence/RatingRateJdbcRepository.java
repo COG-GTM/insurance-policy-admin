@@ -41,6 +41,34 @@ public class RatingRateJdbcRepository {
         .list();
   }
 
+  /** Every row of every effective date, to pin a batch run to one version of the rates. */
+  public List<BaseRate> allBaseRates() {
+    return jdbc.sql(
+            "SELECT policy_type, effective_date, base_rate FROM pasapp.base_rates"
+                + " ORDER BY policy_type, effective_date")
+        .query(
+            (rs, row) ->
+                new BaseRate(
+                    rs.getString("policy_type"),
+                    rs.getObject("effective_date", LocalDate.class),
+                    rs.getBigDecimal("base_rate")))
+        .list();
+  }
+
+  /** Every row of every effective date, to pin a batch run to one version of the rates. */
+  public List<RatingParameter> allParameters() {
+    return jdbc.sql(
+            "SELECT parameter_code, effective_date, parameter_value FROM pasapp.rating_parameters"
+                + " ORDER BY parameter_code, effective_date")
+        .query(
+            (rs, row) ->
+                new RatingParameter(
+                    RatingParameterCode.valueOf(rs.getString("parameter_code")),
+                    rs.getObject("effective_date", LocalDate.class),
+                    rs.getBigDecimal("parameter_value")))
+        .list();
+  }
+
   public List<RatingParameter> parametersInForce(LocalDate ratingDate) {
     return jdbc.sql(
             """

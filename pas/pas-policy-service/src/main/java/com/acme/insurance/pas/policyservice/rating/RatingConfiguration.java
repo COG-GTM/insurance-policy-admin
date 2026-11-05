@@ -39,7 +39,11 @@ public class RatingConfiguration {
   ReferenceRatingTables referenceRatingTables(
       RatingRateJdbcRepository rates, RatingProperties properties) {
     return new ReferenceRatingTables(
-        RatingReferenceData.of(rates::baseRatesInForce, rates::parametersInForce),
+        RatingReferenceData.of(
+            rates::baseRatesInForce,
+            rates::parametersInForce,
+            rates::allBaseRates,
+            rates::allParameters),
         properties.cacheTtl(),
         Clock.systemUTC());
   }

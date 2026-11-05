@@ -79,6 +79,12 @@ class RatingRateRepositoryIT {
     assertThat(surcharge(change.minusDays(1))).isEqualTo("25.00");
     assertThat(surcharge(change.plusYears(1))).isEqualTo("30.00");
     assertThat(rates.baseRatesInForce(change)).hasSize(5);
+    assertThat(rates.allBaseRates())
+        .extracting(BaseRate::policyType, BaseRate::effectiveDate)
+        .contains(org.assertj.core.groups.Tuple.tuple("LIF", change));
+    assertThat(rates.allParameters())
+        .extracting(RatingParameter::code, RatingParameter::effectiveDate)
+        .contains(org.assertj.core.groups.Tuple.tuple(RatingParameterCode.SURCHARGE_AMT, change));
   }
 
   @Test

@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * per date for at most {@code maxAge}, so online requests do not query per premium and a new
  * effective-dated rate row is picked up by every instance within {@code maxAge} without a restart.
  * A batch run that needs one consistent set of rates (PREMBAT 2000-LOAD-RATING-TABLES) takes a
- * {@link #snapshot()}, which never reloads.
+ * {@link #snapshot()}: all rate rows copied once at the start of the run.
  */
 public final class ReferenceRatingTables {
 
@@ -43,9 +43,12 @@ public final class ReferenceRatingTables {
     return new ReferenceRatingTables(data, null, Clock.systemUTC(), true);
   }
 
-  /** A view over the same reference data that loads each date once and never reloads it. */
+  /**
+   * For one batch run: copies every rate row now ({@link RatingReferenceData#pin()}) and resolves
+   * each rating date from that copy, so rows inserted during the run never mix into it.
+   */
   public ReferenceRatingTables snapshot() {
-    return snapshotOf(data);
+    return snapshotOf(data.pin());
   }
 
   public RatingTable tableFor(LocalDate ratingDate) {

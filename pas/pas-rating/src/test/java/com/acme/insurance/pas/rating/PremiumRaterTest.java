@@ -25,7 +25,9 @@ class PremiumRaterTest {
                 loads.add(date);
                 return RatingTableTest.baseRates();
               },
-              date -> RatingTableTest.parameters()));
+              date -> RatingTableTest.parameters(),
+              RatingTableTest::baseRates,
+              RatingTableTest::parameters));
 
   /** Territory T1 = 1.1000 and class C1 = 0.9000 from 2025-01-01. */
   static final FactorLookup TERRITORY =
@@ -152,7 +154,10 @@ class PremiumRaterTest {
     ReferenceRatingTables fresh =
         new ReferenceRatingTables(
             RatingReferenceData.of(
-                date -> List.copyOf(current), date -> RatingTableTest.parameters()),
+                date -> List.copyOf(current),
+                date -> RatingTableTest.parameters(),
+                () -> List.copyOf(current),
+                RatingTableTest::parameters),
             java.time.Duration.ofMinutes(5),
             clock);
     ReferenceRatingTables batchRun = fresh.snapshot();
@@ -166,5 +171,42 @@ class PremiumRaterTest {
     now.set(now.get().plusSeconds(1));
     assertThat(fresh.tableFor(july).baseRate("AUT")).as("after max age").hasToString("900.00");
     assertThat(batchRun.tableFor(july).baseRate("AUT")).as("snapshot").hasToString("700.00");
+  }
+
+  @Test
+  void aSnapshotResolvesEveryDateFromTheRowsCopiedAtItsStart() {
+    LocalDate july = LocalDate.of(2025, 7, 1);
+    LocalDate august = LocalDate.of(2025, 8, 1);
+    List<BaseRate> live = new ArrayList<>(RatingTableTest.baseRates());
+    ReferenceRatingTables tables =
+        ReferenceRatingTables.snapshotOf(
+            RatingReferenceData.history(live, RatingTableTest.parameters()));
+    RatingReferenceData data =
+        RatingReferenceData.of(
+            date ->
+                RatingReferenceData.history(live, RatingTableTest.parameters())
+                    .baseRatesInForce(date),
+            date -> RatingTableTest.parameters(),
+            () -> List.copyOf(live),
+            RatingTableTest::parameters);
+    ReferenceRatingTables batchRun =
+        new ReferenceRatingTables(data, java.time.Duration.ZERO, java.time.Clock.systemUTC())
+            .snapshot();
+
+    assertThat(batchRun.tableFor(july).baseRate("AUT")).hasToString("700.00");
+    live.add(new BaseRate("AUT", july, new BigDecimal("900.00")));
+    // August is first requested after the insert and still sees the rates of the run's start.
+    assertThat(batchRun.tableFor(august).baseRate("AUT")).hasToString("700.00");
+    assertThat(tables.tableFor(august).baseRate("AUT")).hasToString("700.00");
+    assertThat(data.baseRatesInForce(august))
+        .filteredOn(r -> r.policyType().equals("AUT"))
+        .extracting(r -> r.baseRate().toPlainString())
+        .containsExactly("900.00");
+    assertThat(
+            RatingReferenceData.history(live, RatingTableTest.parameters())
+                .baseRatesInForce(july.minusDays(1)))
+        .filteredOn(r -> r.policyType().equals("AUT"))
+        .extracting(r -> r.baseRate().toPlainString())
+        .containsExactly("700.00");
   }
 }
