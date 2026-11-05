@@ -35,11 +35,12 @@ public interface RatingReferenceData {
   }
 
   /**
-   * An immutable copy of every row (all effective dates), so a batch run resolves every rating date
-   * against the same version of the rates even if a row is inserted while it runs.
+   * An immutable copy of every rate and factor row (all effective dates), so a batch run resolves
+   * every rating date against the same version of the rates even if a row is inserted while it
+   * runs. The factor rows are kept so a table-driven rater over the copy still sees them.
    */
   default RatingReferenceData pin() {
-    return history(allRows(false));
+    return history(allRows(true));
   }
 
   /**

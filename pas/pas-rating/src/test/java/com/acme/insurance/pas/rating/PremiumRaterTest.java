@@ -284,7 +284,37 @@ class PremiumRaterTest {
     new PremiumRater(live, RatingFactorMode.TABLE_DRIVEN.source(TERRITORY, CLASS)).snapshot();
     live.snapshot();
 
-    assertThat(reads).containsExactly(false, true, false);
+    assertThat(reads).containsExactly(false, true, true);
+  }
+
+  @Test
+  void pinnedTablesKeepTheirFactorRowsForATableDrivenRater() {
+    TerritoryFactor t1 =
+        new TerritoryFactor("T1    ", LocalDate.of(2025, 1, 1), new BigDecimal("1.2000"));
+    RatingReferenceData data =
+        RatingReferenceData.of(
+            date -> RatingTableTest.baseRates(),
+            date -> RatingTableTest.parameters(),
+            withFactors ->
+                new RatingRateHistory(
+                    RatingTableTest.baseRates(),
+                    RatingTableTest.parameters(),
+                    withFactors ? List.of(t1) : List.of(),
+                    List.of()));
+    ReferenceRatingTables pinned =
+        new ReferenceRatingTables(data, java.time.Duration.ZERO, java.time.Clock.systemUTC())
+            .snapshot();
+
+    PremiumRater batchRun =
+        new PremiumRater(
+                pinned,
+                RatingFactorMode.TABLE_DRIVEN.source(
+                    (code, date) -> Optional.empty(), (code, date) -> Optional.empty()))
+            .snapshot();
+
+    assertThat(batchRun.rate(new RatingRequest("AUT", RUN, "T1", null)).factors())
+        .extracting(RatingFactors::territoryFactor)
+        .hasToString("1.2000");
   }
 
   @Test
