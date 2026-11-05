@@ -213,6 +213,14 @@ class MarkdownAnchorTest(unittest.TestCase):
             self.assertNotIn("quote", ca.anchors(text))
             self.assertTrue(any("broken anchor" in e for e in ca.link_errors("docs/adr/x.md", text)))
 
+    def test_pipe_title_with_equals_underline_is_a_heading(self):
+        text = "|Operator\n========\n\n[details](#operator)\n"
+        self.assertIn("operator", ca.anchors(text))
+        self.assertEqual(ca.link_errors("docs/adr/x.md", text), [])
+
+    def test_pipe_row_over_dashes_is_a_table(self):
+        self.assertNotIn("operator", ca.anchors("|Operator\n---\n"))
+
     def test_fenced_headings_ignored(self):
         for fence in ("```", "~~~"):
             self.assertNotIn("not-a-heading", ca.anchors(f"{fence}\n# Not a heading\n{fence}\n"))

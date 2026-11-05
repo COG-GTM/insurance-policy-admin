@@ -249,9 +249,13 @@ def anchors(text):
     for i, line in enumerate(lines):
         m = re.match(r"^ {0,3}#{1,6}\s+(.+?)\s*#*\s*$", line)
         heading = m.group(1) if m else None
-        if heading is None and i + 1 < len(lines) and re.match(r"^ {0,3}(=+|-+)\s*$", lines[i + 1]):
+        under = re.match(r"^ {0,3}(=+|-+)\s*$", lines[i + 1]) if i + 1 < len(lines) else None
+        if heading is None and under:
             prev = lines[i - 1] if i else ""
-            if line.strip() and not line.startswith("    ") and not re.match(r"^\s*(([-*+]|\d+[.)])\s|[|>])", line) \
+            # a pipe row over a '-' line is a GFM table header; over '=' it is a heading
+            table = under.group(1)[0] == "-" and line.lstrip().startswith("|")
+            if line.strip() and not line.startswith("    ") and not table \
+                    and not re.match(r"^\s*(([-*+]|\d+[.)])\s|>)", line) \
                     and not prev.strip():
                 heading = line.strip()
         if heading:
