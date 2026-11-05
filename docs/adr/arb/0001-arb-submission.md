@@ -17,7 +17,7 @@
 
 **Proposed ARB ticket description:**
 
-> Acme PAS (COBOL/CICS/DB2 z/OS) is being migrated to Java 21 / Spring Boot 3 on the standard container platform under epic AB-516. ADR 0001 (docs/adr/0001-pas-target-architecture.md in COG-GTM/insurance-policy-admin) proposes: one policy service plus one Spring Batch application (D1, D2); PostgreSQL as the target database with DB2 as the only system of record until the parallel run, log-based CDC and reverse CDC for rollback (D3); Kafka domain events with a transactional outbox and an IBM MQ bridge for FileNet and the underwriting queue (D4); OAuth 2.0 / OIDC with scopes and object-level authorisation on every endpoint (D5); SFTP through the enterprise MFT service for the Claims and Actuarial feeds (D6); per-capability strangler routing with an explicit definition of "moved" (D7); platform observability (D8); and column-level protection of policyholder PII (D9). It introduces 16 new components and data stores listed for Security and Data governance review. ARB is asked to approve the decisions and answer the questions A-1..A-8.
+> Acme PAS (COBOL/CICS/DB2 z/OS) is being migrated to Java 21 / Spring Boot 3 on the standard container platform under epic AB-516. ADR 0001 (docs/adr/0001-pas-target-architecture.md in COG-GTM/insurance-policy-admin) proposes: one policy service plus one Spring Batch application (D1, D2); PostgreSQL as the target database with DB2 as the only system of record until the parallel run, log-based CDC and reverse CDC for rollback (D3); Kafka domain events with a transactional outbox and an IBM MQ bridge for FileNet and the underwriting queue (D4); OAuth 2.0 / OIDC with scopes and object-level authorisation on every endpoint (D5); SFTP through the enterprise MFT service for the Claims and Actuarial feeds (D6); per-capability strangler routing with an explicit definition of "moved" (D7); platform observability (D8); and column-level protection of policyholder PII (D9). It introduces 16 new components and data stores listed for Security and Data governance review. ARB is asked to approve the decisions and answer the questions A-1..A-9.
 
 ## Decisions for approval
 
@@ -26,7 +26,7 @@
 | D1 | One `pas-policy-service` + one `pas-batch` from a modular Maven codebase | Approve service boundaries |
 | D2 | Java 21, Spring Boot 3, Spring Batch 5, containers on the standard platform, platform scheduler | Approve runtime; confirm platform (A-1) |
 | D3 | PostgreSQL 16 target; DB2 sole system of record until AB-529 sign-off; log-based CDC; reverse CDC for rollback; no dual writes | Approve database and coexistence; CDC product (A-2, A-3) |
-| D4 | Kafka events via transactional outbox; MQ bridge for legacy consumers; durable audit table | Approve messaging (A-4) |
+| D4 | Kafka events via transactional outbox; MQ bridge for legacy consumers; durable audit table; outbox and audit tables in a new DB2 schema `PASAPP` while DB2 is the system of record | Approve messaging (A-4, A-9) |
 | D5 | OAuth 2.0 / OIDC resource servers, scopes, object-level authorisation, locked-down management endpoints | Approve AuthN/AuthZ (A-5) |
 | D6 | SFTP via MFT with checksums and delivery confirmation; layouts unchanged | Approve file transfer (A-6) |
 | D7 | Per-capability routing (LEGACY/SHADOW/NEW/RETIRED), one writer per capability, definition of moved | Approve strangler approach and exit criteria |
@@ -44,7 +44,8 @@
 | A-5 | Which IdP and token claims carry agent/branch/book entitlements, and who approves client registrations? | AB-524 |
 | A-6 | Is there an enterprise MFT service, and what is the onboarding path for Claims and Actuarial endpoints? | AB-527 |
 | A-7 | Column-level encryption vs tokenisation for SSN last 4 and tax id; key ownership. | AB-521 |
-| A-8 | Retention for the audit table (FU-09), outbox, topics and shadow schema as proposed in the component register. | AB-526, AB-528, AB-529 |
+| A-8 | Retention for the audit table (FU-09), outbox, topics and shadow schema as proposed in the component register. | AB-525, AB-526, AB-528, AB-529 |
+| A-9 | Can the DBA team approve a new DB2 schema `PASAPP` (outbox and audit tables, applied from AB-525's Flyway migrations through the DBA change process) for the transition period? | AB-525 |
 
 ## New components and data stores for Security and Data governance review
 
@@ -58,11 +59,11 @@ Generated from [`0001-components.json`](../0001-components.json). Full details (
 | DS-01 | PostgreSQL schema acmeins (target system of record) | DB2 for z/OS subsystem DBPD, schema ACMEINS (except CLAIMS) | Restricted | yes | AB-521 | pending | pending |
 | DS-02 | PostgreSQL schema acmeins_shadow (parallel-run outputs and reconciliation) | nothing (new) | Restricted | yes | AB-529 | pending | pending |
 | DS-03 | Spring Batch job repository (schema pas_batch) | CA-7 run history and JES job logs | Internal | no | AB-523 | pending | pending |
-| DS-04 | Transactional outbox table (acmeins.event_outbox) | CICS TD queue writes (Q-13) | Confidential | no | AB-525 | pending | pending |
-| DS-05 | Policy audit table (acmeins.policy_audit) | CICS TS queue ENDORSEMENT-AUDIT (Q-23) and 8-character audit columns (Q-518-1) | Restricted | yes | AB-526 | pending | pending |
-| MSG-01 | Kafka topics pas.policy.* and pas.underwriting.* with schema registry subjects | TD queue ACME routed to IBM MQ ACME.PAS.UNDERWRITING.REQUEST/DECISION | Confidential | no | AB-528 | pending | pending |
+| DS-04 | Transactional outbox table (DB2 PASAPP.EVENT_OUTBOX during the transition, PostgreSQL pasapp.event_outbox after cutover) | CICS TD queue writes (Q-13) | Confidential | yes | AB-525 | pending | pending |
+| DS-05 | Policy audit table (DB2 PASAPP.POLICY_AUDIT during the transition, PostgreSQL pasapp.policy_audit after cutover) | CICS TS queue ENDORSEMENT-AUDIT (Q-23) and 8-character audit columns (Q-518-1) | Restricted | yes | AB-525 | pending | pending |
+| MSG-01 | Kafka topics pas.policy.* and pas.underwriting.* with schema registry subjects | TD queue ACME routed to IBM MQ ACME.PAS.UNDERWRITING.REQUEST/DECISION | Confidential | yes | AB-528 | pending | pending |
 | MSG-02 | CDC pipeline DB2 to PostgreSQL (and reverse after cutover) | nothing (temporary, removed in AB-530) | Restricted | yes | AB-529 | pending | pending |
-| INT-01 | Kafka to IBM MQ bridge | nothing (temporary, removed in AB-528/AB-530) | Confidential | no | AB-528 | pending | n/a |
+| INT-01 | Kafka to IBM MQ bridge | nothing (temporary, removed in AB-528/AB-530) | Confidential | yes | AB-528 | pending | pending |
 | INT-02 | SFTP / managed file transfer flows to Claims and Actuarial | z/OS FTP client steps in DAILY-EXTRACT STEP030 and MONTHLY-EXPOSURE STEP020 (Q-32) | Confidential | no | AB-527 | pending | pending |
 | INT-03 | Claims history read interface | Direct reads of ACMEINS.CLAIMS by POLRNW and UNDWRT (I-7, FU-17) | Confidential | no | AB-525 | pending | pending |
 | SEC-01 | Identity provider client registrations, scopes and entitlement claims | Network segmentation only (Q-36) | Confidential | no | AB-524 | pending | n/a |

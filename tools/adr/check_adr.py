@@ -215,14 +215,42 @@ def reference_errors(path, text, refs):
     return errors
 
 
+def slug(heading):
+    """GitHub-style anchor for a Markdown heading."""
+    h = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", heading.strip().lower())
+    h = re.sub(r"[^\w\- ]", "", h)
+    return h.replace(" ", "-")
+
+
+def anchors(text):
+    found, counts, fenced = set(), {}, False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        m = None if fenced else re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
+        if m:
+            s = slug(m.group(1))
+            n = counts.get(s, 0)
+            counts[s] = n + 1
+            found.add(s if n == 0 else f"{s}-{n}")
+    found.update(re.findall(r"<a\s+(?:id|name)=\"([^\"]+)\"", text))
+    return found
+
+
 def link_errors(path, text):
     errors = []
     base = os.path.dirname(path)
-    for target in re.findall(r"\]\(([^)#\s]+)(?:#[^)]*)?\)", text):
-        if re.match(r"^[a-z]+:", target):
+    for target, frag in re.findall(r"\]\(([^)#\s]*)(?:#([^)\s]*))?\)", text):
+        if re.match(r"^[a-z]+:", target) or not (target or frag):
             continue
-        if not exists(os.path.normpath(os.path.join(base, target))):
+        resolved = os.path.normpath(os.path.join(base, target)) if target else path
+        if target and not exists(resolved):
             errors.append(f"{path}: broken link {target}")
+            continue
+        if frag and resolved.endswith(".md"):
+            if frag not in anchors(text if not target else read(resolved)):
+                errors.append(f"{path}: broken anchor {target}#{frag}")
     return errors
 
 

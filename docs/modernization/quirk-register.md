@@ -59,7 +59,7 @@ Rules for this register:
 | [Q-39](#q-39) | Renewal resets UW status to pending but never requests underwriting | POLRNW | Underwriting lead + Product Owner, Policy Administration | **preserve** | proposed - pending business sign-off | AB-526 | `cobol/programs/POLRNW.cbl:152`<br>`cobol/programs/POLRNW.cbl:35` |
 | [Q-40](#q-40) | Nothing in the repo moves a new policy from PN to AC | POLNEW, UNDWRT | Mainframe team (mainframe-ops@acme.com) + Product Owner, Policy Administration | **preserve** | proposed - pending mainframe-team verification against production load module | AB-525 | `cobol/programs/POLNEW.cbl:151`<br>`cobol/programs/UNDWRT.cbl:228` |
 | [Q-41](#q-41) | Zero-premium renewal divides by zero (no guard, no ON SIZE ERROR) | POLRNW | Product Owner, Policy Administration + Mainframe team (mainframe-ops@acme.com) | **fix** | proposed - pending mainframe-team verification against production load module | AB-526 | `cobol/programs/POLRNW.cbl:130`<br>`cobol/programs/UNDWRT.cbl:152` |
-| [Q-518-1](#q-518-1) | Audit user columns hold only 8 characters | POLICIES, ENDORSEMENTS, UNDERWRITING_DECISIONS, PREMIUMS; POLICY-RECORD, PREMIUM-RECORD | Security + DBA team (db2-admin@acme.com) | **preserve** | proposed - pending ARB and Security sign-off (ADR 0001 D5) | AB-521, AB-525, AB-526 | `sql/ddl/create-tables.sql:47`<br>`sql/ddl/create-tables.sql:120`<br>`cobol/copybooks/POLICY-RECORD.cpy:48`<br>`cobol/programs/POLRNW.cbl:163` |
+| [Q-518-1](#q-518-1) | Audit user columns hold only 8 characters | POLICIES, ENDORSEMENTS, UNDERWRITING_DECISIONS, PREMIUMS; POLICY-RECORD, PREMIUM-RECORD | Security + DBA team (db2-admin@acme.com) | **preserve** | proposed - pending ARB and Security sign-off (ADR 0001 D5) | AB-521, AB-525, AB-526 | `sql/ddl/create-tables.sql:47`<br>`sql/ddl/create-tables.sql:120`<br>`cobol/copybooks/POLICY-RECORD.cpy:48`<br>`cobol/programs/POLRNW.cbl:163`<br>`cobol/programs/UNDWRT.cbl:223`<br>`cobol/programs/POLNEW.cbl:163` |
 <!-- END GENERATED: quirk-table -->
 
 ## Details
@@ -713,17 +713,19 @@ POLNEW inserts POLICY_STATUS 'PN'. UNDWRT updates only UW_STATUS and RISK_SCORE,
 
 **Audit user columns hold only 8 characters** (POLICIES, ENDORSEMENTS, UNDERWRITING_DECISIONS, PREMIUMS; POLICY-RECORD, PREMIUM-RECORD, data contract)
 
-Every 'who changed this' column is CHAR(8): POLICIES.UPDATED_BY, ENDORSEMENTS.PROCESSED_BY, UNDERWRITING_DECISIONS.UNDERWRITER_ID and OVERRIDE_BY, PREMIUMS.CALC_BY, and the copybook fields POLICY-UPDATED-BY / PREM-CALC-BY are PIC X(08). The COBOL programs write their own program name ('POLRNW', 'UNDWRT', 'POLEND', 'PREMBAT'), not a person. An OIDC principal (subject or e-mail) from the new APIs does not fit, and widening the columns would change the 125-byte POLICY-RECORD sent to MQ consumers and the facade contract.
+Every 'who changed this' column is CHAR(8): POLICIES.UPDATED_BY, ENDORSEMENTS.PROCESSED_BY, UNDERWRITING_DECISIONS.UNDERWRITER_ID and OVERRIDE_BY, PREMIUMS.CALC_BY, and the copybook fields POLICY-UPDATED-BY / PREM-CALC-BY are PIC X(08). No person is recorded today. Most writes store the program name: POLICIES.UPDATED_BY = 'POLNEW', 'POLRNW', 'POLEND' or 'UNDWRT'; ENDORSEMENTS.PROCESSED_BY = 'POLEND'; PREMIUMS.CALC_BY = 'PREMBAT'. UNDWRT writes the literal 'SYSTEM' to UNDERWRITING_DECISIONS.UNDERWRITER_ID, OVERRIDE_BY is never set by the COBOL (NULL), and POLICIES.UPDATED_BY defaults to 'SYSTEM' for any insert that omits it (POLNEW sets it explicitly). An OIDC principal (subject or e-mail) from the new APIs does not fit, and widening the columns would change the 125-byte POLICY-RECORD sent to MQ consumers and the facade contract.
 
 - Owner: Security + DBA team (db2-admin@acme.com)
 - Proposed decision: **preserve** (proposed - pending ARB and Security sign-off (ADR 0001 D5))
 - Rationale: Column widths and copybook layouts are guarded contracts (compat gate) and stay unchanged while DB2 is the system of record. The Java service writes an 8-character service id (or a mapped 8-character user id) into these columns, and records the full authenticated principal in the new append-only audit table (ADR 0001, component DS-05).
-- Parity / characterization note: Parity tests compare the 8-character columns as written today: program names for batch and system writes. Values written by the new APIs are an approved difference once the id mapping is signed off.
+- Parity / characterization note: Parity baselines compare the 8-character columns as written today: the program names above, 'SYSTEM' in UNDERWRITER_ID (and in UPDATED_BY wherever a row was inserted without it), and NULL in OVERRIDE_BY. Values written by the new APIs are an approved difference once the id mapping is signed off.
 - Lands in: AB-521, AB-525, AB-526
 - Evidence:
   - `sql/ddl/create-tables.sql:47`: `UPDATED_BY CHAR(8) NOT NULL DEFAULT 'SYSTEM'`
   - `sql/ddl/create-tables.sql:120`: `PROCESSED_BY CHAR(8) NOT NULL`
   - `cobol/copybooks/POLICY-RECORD.cpy:48`: `POLICY-UPDATED-BY PIC X(08)`
   - `cobol/programs/POLRNW.cbl:163`: `UPDATED_BY = 'POLRNW'`
+  - `cobol/programs/UNDWRT.cbl:223`: `'SYSTEM', CURRENT TIMESTAMP)`
+  - `cobol/programs/POLNEW.cbl:163`: `MOVE 'POLNEW' TO POL-UPD-BY`
 
 <!-- END GENERATED: quirk-details -->

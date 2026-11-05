@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+import re
 import sys
 import unittest
 
@@ -159,12 +160,39 @@ class RepositoryTest(unittest.TestCase):
         text = ca.read("docs/adr/0001-pas-target-architecture.md")
         _, ds = ca.check_adr("adr", text)
         self.assertGreaterEqual(len(ds), 7)
+        titles = dict(re.findall(r"^### (D\d+): (.+)$", text, re.M))
         for topic in ("Service boundaries", "Runtime", "Target database", "Messaging",
                       "Authentication", "Secure file transfer", "Strangler"):
-            self.assertIn(topic, text)
+            self.assertTrue(any(t.startswith(topic) for t in titles.values()), topic)
+        bodies = ca.decisions(text)
+        for d, phrases in {"D3": ("system of record", "CDC", "*Cutover", "*Rollback"),
+                           "D4": ("outbox", "Where the outbox and audit tables live"),
+                           "D7": ("Definition of moved", "LEGACY", "SHADOW", "RETIRED")}.items():
+            for p in phrases:
+                self.assertIn(p, bodies[d], f"{d}: {p}")
         components = json.loads(ca.read("docs/adr/0001-components.json"))["components"]
         kinds = {c["kind"] for c in components}
         self.assertTrue({"service", "batch", "data-store", "messaging"} <= kinds)
+
+    def test_slug_matches_github(self):
+        self.assertEqual(ca.slug("2. DB2 tables and CRUD matrix"), "2-db2-tables-and-crud-matrix")
+        self.assertEqual(ca.slug("PUWR: UNDWRT (underwriting decision)"), "puwr-undwrt-underwriting-decision")
+        self.assertEqual(ca.slug("Q-518-1"), "q-518-1")
+
+    def test_anchor_in_same_file(self):
+        text = "# T\n\n## Good section\n\n[ok](#good-section) [bad](#missing)\n"
+        errors = ca.link_errors("docs/adr/x.md", text)
+        self.assertEqual(errors, ["docs/adr/x.md: broken anchor #missing"])
+
+    def test_anchor_in_other_file(self):
+        ok = "[q](../modernization/quirk-register.md#q-518-1)"
+        bad = "[q](../modernization/quirk-register.md#q-999)"
+        self.assertEqual(ca.link_errors("docs/adr/x.md", ok), [])
+        self.assertTrue(any("broken anchor" in e for e in ca.link_errors("docs/adr/x.md", bad)))
+
+    def test_headings_in_code_blocks_are_not_anchors(self):
+        self.assertNotIn("not-a-heading", ca.anchors("```\n# not a heading\n```\n"))
+        self.assertIn("dup-1", ca.anchors("## Dup\n## Dup\n"))
 
 
 if __name__ == "__main__":
