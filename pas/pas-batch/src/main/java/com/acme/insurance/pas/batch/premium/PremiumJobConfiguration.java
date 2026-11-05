@@ -49,8 +49,8 @@ import org.springframework.transaction.PlatformTransactionManager;
  * them in parallel, {@code chunk-size} policies per transaction, against one rating snapshot per
  * run. Step {@code premiumReport} writes the run report from the recorded outcomes and stores the
  * READ / UPDATED / ERRORS totals in the job execution context. Restarting a failed run resumes the
- * unfinished ranges from their last committed chunk; a launch without arguments restarts today's
- * failed run itself ({@link PremiumJobParameters}).
+ * unfinished ranges from their last committed chunk; the scheduler launch without arguments
+ * restarts today's failed run itself ({@link PremiumScheduledLauncher}).
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(PremiumProperties.class)
@@ -94,21 +94,24 @@ public final class PremiumJobConfiguration {
   }
 
   @Bean
+  PremiumJobParameters premiumJobParameters(JobExplorer explorer) {
+    return new PremiumJobParameters(
+        clock,
+        properties.zone(),
+        () ->
+            properties.reportDir() == null || properties.reportDir().toString().isBlank()
+                ? "pas.premium.report-dir is not set"
+                : null,
+        businessDate -> runsOf(explorer, businessDate));
+  }
+
+  @Bean
   Job premiumRecalculation(
       JobRepository jobs,
-      JobExplorer explorer,
+      PremiumJobParameters parameters,
       PremiumRunRaters raters,
       PremiumRunJdbcRepository repository,
       Step premiumRatingPartition) {
-    PremiumJobParameters parameters =
-        new PremiumJobParameters(
-            clock,
-            properties.zone(),
-            () ->
-                properties.reportDir() == null || properties.reportDir().toString().isBlank()
-                    ? "pas.premium.report-dir is not set"
-                    : null,
-            businessDate -> runsOf(explorer, businessDate));
     return new JobBuilder(JOB, jobs)
         .incrementer(parameters)
         .validator(parameters)
@@ -245,7 +248,7 @@ public final class PremiumJobConfiguration {
         .build();
   }
 
-  /** The last execution of each recent instance of {@code businessDate}, newest instance first. */
+  /** The last execution of each recent instance of {@code businessDate}. */
   static List<JobExecution> runsOf(JobExplorer explorer, String businessDate) {
     List<JobExecution> runs = new ArrayList<>();
     for (JobInstance instance : explorer.getJobInstances(JOB, 0, RECENT_INSTANCES)) {

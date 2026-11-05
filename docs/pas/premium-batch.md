@@ -70,15 +70,17 @@ java -jar pas-batch-exec.jar businessDate=2025-03-01 rerun=1
    rerun": the committed chunks were rated with the old rates and one run must not mix two rate
    versions. Launch `rerun=<n>` instead, which re-rates the whole book with the current rates.
 4. If the execution is left `UNKNOWN` (the database connection died during rollback), mark it failed
-   first: `UPDATE pasapp.batch_job_execution SET status = 'FAILED', exit_code = 'FAILED' WHERE
+   first: `UPDATE pas_batch.batch_job_execution SET status = 'FAILED', exit_code = 'FAILED' WHERE
    job_execution_id = <id>` and the same for its `STARTED`/`UNKNOWN` step executions, then restart.
    This needs the DBA change process (FU-12).
 
 ### What the scheduler does on failure
 
 The CronJob launches with no arguments, and the Kubernetes Job retries a failed pod once
-(`backoffLimit: 1`), also with no arguments. Without arguments `PremiumJobParameters` looks at
-today's runs (newest instance first; covered by `PremiumScheduledLaunchIT`):
+(`backoffLimit: 1`), also with no arguments. The application's launcher (`PremiumScheduledLauncher`,
+which replaces Spring Boot's `JobLauncherApplicationRunner`) looks at today's latest execution, by
+execution id across all of today's instances, so an older instance restarted by hand counts
+(covered by `PremiumScheduledLaunchIT`):
 
 | Today's latest run | What a launch without arguments does |
 |---|---|
@@ -86,6 +88,10 @@ today's runs (newest instance first; covered by `PremiumScheduledLaunchIT`):
 | `FAILED` or `STOPPED` | **Restart** of that instance with its own parameters (step 3 above, incl. the rate-version check) |
 | `COMPLETED` or `ABANDONED` | Same-day rerun: `businessDate=<today> rerun=<highest + 1>` |
 | `STARTED` or `UNKNOWN` (pod killed, connection lost in rollback) | Same-day rerun as well: Spring Batch cannot restart these. The rerun re-rates the whole book; to resume the old instance instead, apply step 4 first and restart it explicitly |
+
+Only that launch without arguments restarts. Asking Spring Batch for the next instance explicitly
+(the job incrementer, `JobOperator.startNextInstance`) always gives a new same-day rerun, even
+after a failure.
 
 So after a failure:
 
@@ -141,8 +147,8 @@ balanced (`BATCH_STEP_EXECUTION.READ_COUNT` per partition) and that `ix_premiums
 ## Parity
 
 * `make parity` runs suite `prembat-batch-control` through `PrembatBatchControlAdapter`, which runs
-  this job against the Flyway-migrated reference database. Known differences KD-06 (Q-26: a
-  same-day duplicate is replaced, not an error) and KD-07 (Q-25: the run continues after an error)
+  this job against the Flyway-migrated reference database. Known differences KD-09 (Q-26: a
+  same-day duplicate is replaced, not an error) and KD-10 (Q-25: the run continues after an error)
   are pending sign-off. Suite `prembat-rating` (AB-522) covers the rating to the cent.
 * `PremiumJobIT` compares the PREMIUMS rows and the 132-byte report of case `report-totals` with the
   COBOL golden file byte for byte, and covers rerun, per-policy errors, restart and an empty book.
@@ -150,7 +156,7 @@ balanced (`BATCH_STEP_EXECUTION.READ_COUNT` per partition) and that `ix_premiums
 ## Cut-over
 
 1. Parallel run: run the job against a copy of the book after PAS0050 for at least 5 business days
-   and reconcile `PREMIUMS` rows (all columns) and report totals; differences beyond KD-06/KD-07
+   and reconcile `PREMIUMS` rows (all columns) and report totals; differences beyond KD-09/KD-10
    block cut-over.
 2. Put PAS0050 on hold in CA-7, enable the CronJob. Rollback: suspend the CronJob, release PAS0050.
 3. Retirement of `jcl/PREMIUM-BATCH.jcl` and `PREMBAT` follows the epic's decommission ticket;
@@ -160,8 +166,8 @@ balanced (`BATCH_STEP_EXECUTION.READ_COUNT` per partition) and that `ix_premiums
 
 | Item | Who | Status |
 |---|---|---|
-| Q-25 / KD-07 continue after a per-policy error | Mainframe team | pending |
-| Q-26 / KD-06 idempotent upsert, how production avoids -803 today (FU-11) | Actuarial / Pricing + Mainframe team | pending |
+| Q-25 / KD-10 continue after a per-policy error | Mainframe team | pending |
+| Q-26 / KD-09 idempotent upsert, how production avoids -803 today (FU-11) | Actuarial / Pricing + Mainframe team | pending |
 | Q-28 success/warning/failure alerting, paging target, CA-7 calendar and predecessors (FU-12) | Mainframe operations / CA-7 | pending |
 | Q-29 report format from a masked production sample (FU-13) | Mainframe team | pending |
 | Q-38 chunked, partitioned, restartable run | Mainframe team | pending |

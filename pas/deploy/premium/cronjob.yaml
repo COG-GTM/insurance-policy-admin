@@ -33,7 +33,7 @@ spec:
     spec:
       # A failed pod is retried once. The retry launches with no args like the first pod; when today's
       # latest run is FAILED it restarts that Spring Batch instance (same businessDate) from the last
-      # committed chunk of every partition (PremiumJobParameters, PremiumScheduledLaunchIT). A pod
+      # committed chunk of every partition (PremiumScheduledLauncher, PremiumScheduledLaunchIT). A pod
       # killed mid-run (OOM, node loss) leaves its execution STARTED, so the retry is a same-day
       # rerun of the whole book instead (safe: the PREMIUMS upsert is idempotent).
       backoffLimit: 1

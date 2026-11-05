@@ -1,0 +1,217 @@
+openapi: 3.0.3
+info:
+  title: PAS policy renewal and endorsement API
+  version: 1.0.0
+  description: |
+    Renewal and mid-term endorsement for the Policy Administration System (AB-526). Replaces CICS
+    transactions PRWL (program POLRNW) and PEND (program POLEND).
+
+    Every request needs an OAuth 2.0 access token (ADR 0001 D5): scope pas.policy.renew for
+    renewals, pas.policy.endorse for endorsements. Changes are limited to the caller's book of
+    business, taken from the token claims pas_book ("*" for the whole book), pas_agents and
+    pas_branches. A policy outside that entitlement answers 404 with an empty body, exactly like a
+    policy that does not exist.
+
+    Each change runs in one database transaction that holds the policy row lock (POLEND's KEEP
+    UPDATE LOCKS) and writes a durable audit row in PASAPP.POLICY_CHANGE_AUDIT (Q-23); either every
+    write happens or none does (Q-07, Q-22). A refused change answers 422 (409 for a stale
+    expectedExpiryDate) with an RFC 9457 problem detail whose code names the reason and whose detail
+    is the legacy CICS message.
+servers:
+  - url: /
+paths:
+  /api/v1/policies/{policyNumber}/renewals:
+    post:
+      operationId: renewPolicy
+      summary: Renew a policy for one more year (POLRNW)
+      description: |
+        Active (AC) and expired (EX) policies renew. The premium rises by the configured uplift
+        (default 5%, Q-05), capped at the configured rate increase (default 15%, Q-04) and truncated
+        to the cent (Q-06); a 0.00 premium renews at 0.00 (Q-41). The new term starts on the old
+        expiry date and ends one year later on a valid date: a 29 February expiry renews to 28
+        February by default (Q-01, FU-01). RENEWAL_COUNT goes up by one, UW_STATUS becomes PN
+        without an underwriting request (Q-39) and every active coverage gets the new dates. Open
+        claims are counted but not enforced unless configured (Q-02, FU-02).
+      security:
+        - oauth2: [pas.policy.renew]
+      parameters:
+        - $ref: '#/components/parameters/PolicyNumber'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenewalRequest'
+      responses:
+        '200':
+          description: The policy was renewed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Renewal'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Rejected'
+  /api/v1/policies/{policyNumber}/endorsements:
+    post:
+      operationId: endorsePolicy
+      summary: Record a mid-term endorsement (POLEND)
+      description: |
+        Only active (AC) policies are endorsed. The endorsement takes effect on the current
+        business date. The pro-rata factor is the days remaining to expiry divided by the days in
+        the term (6 decimals, truncated; 1 for a zero-length term; remaining days never below 0 or
+        above the term). The premium adjustment is annualPremiumChange times the factor, truncated
+        to the cent, and is added to TOTAL_PREMIUM; without annualPremiumChange it is 0.00, as in
+        POLEND (Q-20, FU-07). A non-zero annualPremiumChange is refused with 422
+        ENDORSEMENT_PREMIUM_CHANGE_DISABLED unless pas.policy-change.endorsement-premium-change-enabled
+        is on, which stays off until FU-526-1 is signed off. No type-specific processing happens, also not for CAN (Q-21, FU-08).
+      security:
+        - oauth2: [pas.policy.endorse]
+      parameters:
+        - $ref: '#/components/parameters/PolicyNumber'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndorsementRequest'
+      responses:
+        '201':
+          description: The endorsement was recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Endorsement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Rejected'
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: Access token from the enterprise IdP (issuer and audience per environment).
+      flows:
+        clientCredentials:
+          tokenUrl: https://idp.example.invalid/oauth2/token
+          scopes:
+            pas.policy.renew: Renew policies within the caller's entitlement.
+            pas.policy.endorse: Endorse policies within the caller's entitlement.
+  parameters:
+    PolicyNumber:
+      name: policyNumber
+      in: path
+      required: true
+      description: ACMEINS.POLICIES.POLICY_NUMBER, CHAR(12), e.g. POL-00000001.
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: |
+        The body is unreadable or invalid (code REQUEST_INVALID, ENDORSEMENT_REQUEST_INVALID,
+        ENDORSEMENT_TYPE_REQUIRED or ENDORSEMENT_TYPE_INVALID). Nothing is read or written (Q-520-1).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthenticated:
+      description: No access token, or the token is invalid or expired.
+    Forbidden:
+      description: The token lacks the operation's scope.
+    NotFound:
+      description: No such policy, or outside the caller's entitlement. Empty body.
+    Conflict:
+      description: The policy no longer expires on expectedExpiryDate (code EXPIRY_DATE_CHANGED).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Rejected:
+      description: |
+        The policy cannot be changed (code NOT_ELIGIBLE_FOR_RENEWAL, TOO_MANY_OPEN_CLAIMS,
+        NOT_ACTIVE_FOR_ENDORSEMENT, POLICY_TERM_INVALID, PREMIUM_OUT_OF_RANGE or
+        ENDORSEMENT_PREMIUM_CHANGE_DISABLED). Nothing is written.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    RenewalRequest:
+      type: object
+      properties:
+        expectedExpiryDate:
+          type: string
+          format: date
+          nullable: true
+          description: >-
+            Strongly recommended. Renew only while the policy still expires on this date, so a
+            retry answers 409 instead of renewing again. Without it every request renews, as POLRNW does.
+    EndorsementRequest:
+      type: object
+      required: [endorsementType]
+      properties:
+        endorsementType:
+          type: string
+          enum: [CAD, CRM, LCH, ACH, CAN]
+          description: Change of address, coverage modification, limit change, add coverage, cancellation (Q-19).
+        description:
+          type: string
+          maxLength: 100
+          nullable: true
+        annualPremiumChange:
+          type: number
+          nullable: true
+          description: >-
+            Full-term premium change, 2 decimals, at most 999999999.99 either way. Absent is 0.00.
+            Non-zero values need pas.policy-change.endorsement-premium-change-enabled (off by default, FU-526-1).
+    Renewal:
+      type: object
+      properties:
+        policyNumber: {type: string}
+        policyStatus: {type: string, description: AC.}
+        effectiveDate: {type: string, format: date}
+        expiryDate: {type: string, format: date}
+        previousPremium: {type: number}
+        totalPremium: {type: number}
+        rateChangePct: {type: number, description: Uncapped uplift in percent, truncated to 2 places.}
+        rateCapApplied: {type: boolean}
+        renewalCount: {type: integer}
+        uwStatus: {type: string, description: PN (Q-39).}
+    Endorsement:
+      type: object
+      properties:
+        policyNumber: {type: string}
+        endorsementSeq: {type: integer}
+        endorsementType: {type: string}
+        effectiveDate: {type: string, format: date}
+        description: {type: string, nullable: true}
+        daysInTerm: {type: integer, format: int64}
+        daysRemaining: {type: integer, format: int64}
+        proRataFactor: {type: number}
+        premiumAdjustment: {type: number}
+        totalPremium: {type: number}
+        policyStatus: {type: string}
+    Problem:
+      type: object
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string, description: The legacy CICS message.}
+        instance: {type: string}
+        code: {type: string}

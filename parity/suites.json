@@ -70,7 +70,7 @@
       "stubs": "parity/cobol/stubs/POLRNW.stubs",
       "fixtures": "fixtures/polrnw-renewal.json",
       "owner_ticket": "AB-526",
-      "java_adapter": null,
+      "java_adapter": "com.acme.insurance.pas.parity.adapters.PolrnwRenewalAdapter",
       "scope": "Eligibility, renewal premium and rate cap, new term dates, policy and coverage updates"
     },
     {
@@ -80,7 +80,7 @@
       "stubs": "parity/cobol/stubs/POLEND.stubs",
       "fixtures": "fixtures/polend-endorsement.json",
       "owner_ticket": "AB-526",
-      "java_adapter": null,
+      "java_adapter": "com.acme.insurance.pas.parity.adapters.PolendEndorsementAdapter",
       "scope": "Validation, pro-rata factor, endorsement row and premium update"
     }
   ]
