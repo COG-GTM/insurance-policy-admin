@@ -21,6 +21,8 @@ If JDK 21 is not your default, pass it: `make pas PAS_JAVA_HOME=/path/to/jdk-21`
 | `make pas-format` | Reformats Java sources (google-java-format) |
 | `make pas-up` | Creates `.env` (random local DB password), builds the jars and images, starts PostgreSQL, Kafka and `pas-policy-service`, waits for readiness, runs `pas/scripts/smoke.sh` |
 | `make pas-smoke` | Smoke test of a running stack |
+| `make pas-api-contract` | Facade REST contract (`compat/api/check_api.py`) against the running stack, with a local token ([policy inquiry API](../docs/pas/policy-inquiry-api.md)) |
+| `make facade-retirement` | Validates and dry-runs the gated facade retirement plan ([facade-retirement.md](../docs/pas/facade-retirement.md)) |
 | `make pas-down` | Stops the stack (the database volume is kept; `docker compose down -v` drops it) |
 | `make pas-images` | Builds both container images |
 | `make pas-scan` | Trivy scan of both images; HIGH/CRITICAL findings fail unless accepted in `pas/.trivyignore` |
@@ -82,3 +84,11 @@ development only and is git-ignored.
 ## CI and repository conventions
 
 See [docs/pas/ci-and-conventions.md](../docs/pas/ci-and-conventions.md).
+
+## Policy inquiry API (AB-524)
+
+`GET /api/v1/policies/{policyNumber}`, `/coverages` and `/policyholder` need an OAuth 2.0 access
+token with scope `pas.policy.read` and an entitlement claim (`pas_book`, `pas_agents`,
+`pas_branches`). The local stack trusts a git-ignored key pair in `pas/.local-jwt/` created by
+`make pas-env`; mint a token with `pas/scripts/local-token.sh "pas.policy.read" '"pas_book":"*"'`.
+Details, PII rules and open items: [docs/pas/policy-inquiry-api.md](../docs/pas/policy-inquiry-api.md).

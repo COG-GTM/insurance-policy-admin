@@ -6,6 +6,7 @@ import static com.acme.insurance.pas.persistence.Columns.text;
 import static com.acme.insurance.pas.persistence.Columns.timestamp;
 
 import com.acme.insurance.pas.domain.PolicyHolder;
+import com.acme.insurance.pas.domain.PolicyHolderContact;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
@@ -77,6 +78,52 @@ public class PolicyHolderJdbcRepository {
                     text(rs, "gdpr_consent"),
                     date(rs, "created_date"),
                     timestamp(rs, "last_updated")))
+        .optional();
+  }
+
+  /**
+   * The inquiry fields of a holder in clear (POLQRY 3000-READ-CUSTOMER). Callers must hold the
+   * entitlement to see personal data; everyone else uses {@link #findMaskedContact(String)}.
+   */
+  public Optional<PolicyHolderContact> findContact(String custId) {
+    return jdbc.sql(
+            "SELECT cust_id, cust_type, last_name, first_name, company_name, phone, email"
+                + " FROM acmeins.policy_holders WHERE cust_id = ?")
+        .param(custId)
+        .query(
+            (rs, row) ->
+                new PolicyHolderContact(
+                    text(rs, "cust_id"),
+                    text(rs, "cust_type"),
+                    text(rs, "last_name"),
+                    text(rs, "first_name"),
+                    text(rs, "company_name"),
+                    text(rs, "phone"),
+                    text(rs, "email"),
+                    false))
+        .optional();
+  }
+
+  /**
+   * The inquiry fields of a holder from acmeins.policy_holders_masked, so the masking rules live in
+   * one place (V12). The view carries no phone number, so it is always null here.
+   */
+  public Optional<PolicyHolderContact> findMaskedContact(String custId) {
+    return jdbc.sql(
+            "SELECT cust_id, cust_type, last_name, first_name, company_name, email"
+                + " FROM acmeins.policy_holders_masked WHERE cust_id = ?")
+        .param(custId)
+        .query(
+            (rs, row) ->
+                new PolicyHolderContact(
+                    text(rs, "cust_id"),
+                    text(rs, "cust_type"),
+                    text(rs, "last_name"),
+                    text(rs, "first_name"),
+                    text(rs, "company_name"),
+                    null,
+                    text(rs, "email"),
+                    true))
         .optional();
   }
 }

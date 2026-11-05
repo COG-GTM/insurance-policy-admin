@@ -35,3 +35,9 @@ When a replacement service takes over the read API, point `COMPAT_API_MODULE`
 
 The Devin "PAS backward-compatibility gate" automation also reviews each PR and
 covers what static checks can't (business-rule parity against COBOL, intent).
+
+AB-524: `make compat-api` still records and checks `java-facade` (unchanged). The replacement
+service is checked against the same snapshots by `FacadeContractIT` (in `make pas-verify`) and by
+`make pas-api-contract` (local stack), with `COMPAT_AUTH_HEADER` carrying a bearer token. The gate is
+repointed, and the authentication status changes approved here, only at retirement gate G4
+(docs/pas/facade-retirement.md).

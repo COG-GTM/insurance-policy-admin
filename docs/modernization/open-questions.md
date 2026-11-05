@@ -25,6 +25,9 @@ The ticket's acceptance criteria ask for open questions to be raised as follow-u
 | FU-19 | Name the owners | Replace the role placeholders (Product Owner, Claims team, Actuarial lead, Underwriting lead, Compliance, Broker Portal, ECM) with named people for the quirk register and the integration table. | Programme manager | all | AB-517 sign-off |
 | FU-20 | Zero-premium renewal behaviour | What does production do when PRWL renews a policy with TOTAL_PREMIUM 0 (abend ASRA / S0CB, or something else)? Should the Java renewal renew at 0% change or reject the renewal? Can zero-premium AC/EX policies exist in DBPD? | Product Owner + Mainframe team | Q-41 | AB-526 |
 | FU-21 | Column-level protection for SSN_LAST4 and TAX_ID | Choose format-preserving tokenisation, envelope encryption in new columns, or another scheme (options in docs/pas/data-model.md section 5); name the token vault / KMS owner; approve the masked view and the no-PII-in-logs controls. | Security + Data governance | ADR 0001 D9 | AB-521 |
+| FU-524-1 | IdP settings for the policy service | Issuer, audience, JWK set URI and client registrations per environment for pas-policy-service; which roles and clients get pas.policy.read, pas.policyholder.read and pas.ops.read. | Security + Platform | Q-36 | AB-524 |
+| FU-524-2 | Facade LAST_UPDATED time zone | Which JVM default time zone the production facade runs in, so epoch-millisecond lastUpdated values match after cutover (PAS_INQUIRY_TIMESTAMP_ZONE). | Java facade owner | Q-524-1 | AB-524 |
+| FU-524-3 | Holder data for agents | Approve the masked policyholder view for callers without pas.policyholder.read, and who gets the clear view. | Data governance + Product Owner | Q-24 | AB-524 |
 
 ## Questions about the scope of this inventory
 

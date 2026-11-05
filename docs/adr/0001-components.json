@@ -253,7 +253,7 @@
       "name": "Identity provider client registrations, scopes and entitlement claims",
       "kind": "security",
       "decision": "D5",
-      "purpose": "OAuth clients and scopes pas.policy.read/write, pas.underwriting.decide/override, pas.batch.operate; agent/branch/book claims",
+      "purpose": "OAuth clients and scopes pas.policy.read/write, pas.policyholder.read, pas.underwriting.decide/override, pas.batch.operate, pas.ops.read; entitlement claims pas_book/pas_agents/pas_branches (AB-524)",
       "replaces": "Network segmentation only (Q-36)",
       "data": "Client ids, scope grants, user entitlement attributes",
       "classification": "Confidential",
