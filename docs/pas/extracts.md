@@ -17,8 +17,10 @@ The SQL is in `ExtractJdbcRepository` and matches the JCL SYSIN statement for st
 
 - **Policy delta:** `POLICY_STATUS IN ('AC','PN') AND LAST_UPDATED >= <window start>`, ordered by
   `POLICY_NUMBER`. The JCL computes the window as `CURRENT DATE - 1 DAY` when the step starts; the
-  job uses midnight of `businessDate - 1 day` instead, so late runs and reruns select the same rows
-  (Q-527-1). `businessDate` is a job parameter and defaults to today in `pas.extract.business-zone`.
+  job uses midnight of `businessDate - 1 day` instead, so a late run or restart keeps the window
+  start of an on-time run (Q-527-1). As in the JCL there is no upper bound on `LAST_UPDATED` and the
+  status filter is evaluated when the query runs, so a rerun also picks up later updates and current
+  statuses; it reproduces the original file only if the book has not changed. `businessDate` is a job parameter and defaults to today in `pas.extract.business-zone`.
 - **Coverages:** every `STATUS = 'AC'` coverage, ordered by `POLICY_NUMBER, SEQUENCE_NUM` (full
   dump, not a delta; Q-31).
 - **Exposure:** active policies joined to active coverages, grouped by `POLICY_TYPE, BRANCH_CODE,
@@ -41,7 +43,9 @@ holds the candidate layout until production samples arrive (FU-13) and the consu
 - Columns in SELECT-list order; text left-aligned and space padded; dates `YYYY-MM-DD`; decimals and
   integers signed, zero padded, with an explicit decimal point; NULL as spaces; each record padded
   with spaces to the LRECL. Values that do not fit fail the job instead of being truncated.
-- CSV: header row, comma separated, RFC 4180 quoting, empty field for NULL.
+- CSV: header row, comma separated, RFC 4180 quoting, empty field for NULL, lines not padded. EXPOUT
+  is `RECFM=FB,LRECL=300` in the JCL, so mainframe lines may be blank padded to 300 bytes; the FU-13
+  samples settle whether the CSV must pad too (see the sample checklist below).
 - ISO-8859-1, CRLF after every record (`pas.extract.charset`, `pas.extract.record-separator`).
 
 | Claims policy (200) | Offset | Width | | Claims coverage (150) | Offset | Width |
@@ -78,8 +82,11 @@ fails it.
   last, so its arrival tells the consumer the data file is complete.
 - Staged files live in `PAS_EXTRACT_STAGING_DIR` (directory 0700, files 0600) and are deleted after
   confirmed delivery. After a failed delivery they are kept for inspection until the next run of
-  the feed rebuilds them; the example CronJobs mount a persistent encrypted volume so they survive
-  the pod.
+  the feed rebuilds them; the example CronJobs mount a persistent encrypted volume per feed so they
+  survive the pod.
+- Integrity before publishing: each file is uploaded as `<file>.part`, its remote size and read-back
+  SHA-256 are checked, and only a matching `.part` is renamed to the consumer-visible name. A
+  mismatch removes the `.part`, leaves the last good delivery in place and counts as a failed attempt.
 - Replacing a file on the endpoint: with the OpenSSH `posix-rename` extension the upload is renamed
   over the published file atomically. Endpoints without it get a fallback: the previous delivery is
   moved to `<file>.prev`, the upload renamed into place, `.prev` removed; a failed rename restores
@@ -101,7 +108,7 @@ fails it.
 | `pas.extract.{claims,actuarial}.private-key-passphrase-file` | `..._SFTP_KEY_PASSPHRASE_FILE` | none (unencrypted key) |
 | `pas.extract.{claims,actuarial}.known-hosts-file` | `..._SFTP_KNOWN_HOSTS_FILE` | none |
 | `pas.extract.{claims,actuarial}.timeout` | | `PT30S` |
-| `pas.extract.retry.max-attempts` / `backoff` | | 3 / `PT1M`, doubling |
+| `pas.extract.retry.max-attempts` / `backoff` | | 3 / `PT1M`, doubling (1, 2, 4 min ...) |
 | `pas.extract.business-zone` | | `America/New_York` |
 | `pas.extract.purge-after-delivery` | | `true` |
 
@@ -113,14 +120,18 @@ the missing property names, never their values.
 - Example CronJobs: [pas/deploy/extracts/cronjobs.yaml](../../pas/deploy/extracts/cronjobs.yaml).
   `PAS_BATCH_JOB` selects the job; `concurrencyPolicy: Forbid` replaces the CA-7 exclusivity.
 - Job repository: Spring Batch metadata lives in schema `pas_batch` (DS-03), created by Flyway V71
-  with the other migrations; batch pods never create tables (`initialize-schema: never`).
+  with the other migrations; batch pods never create tables (`initialize-schema: never`). V71 exists
+  for PostgreSQL and DB2 (`PAS_BATCH`, DBA-applied), so the jobs start on the single datasource
+  whichever database is the system of record.
 - Business date: a scheduled launch passes no arguments; the job incrementer sets `businessDate` to
   today in `pas.extract.business-zone`. Pass `businessDate=YYYY-MM-DD` to run another day.
 - Retries: each file is attempted `max-attempts` times with doubling backoff inside a run, then the
   job fails and the process exits non-zero. Relaunching the same `businessDate` (the Kubernetes Job
   retry, or a manual launch) restarts the failed instance: the extract steps run again
   (`allowStartIfComplete`) and rebuild the files from the book, then delivery runs. The policy delta
-  selects the same window because it is anchored to `businessDate`.
+  keeps the same window start because it is anchored to `businessDate`. Only the transfer is
+  retried: the `CONFIRMED` receipt is written once after it, and a receipt failure fails the step
+  without re-uploading (staged files are kept).
 - Alerting: failed jobs log `pas.extract.alert` at ERROR (job, business date, failure; never
   record content) and exit non-zero. The example rules in
   [pas/deploy/extracts/alerts.yaml](../../pas/deploy/extracts/alerts.yaml) use Kubernetes Job and
@@ -134,9 +145,9 @@ the missing property names, never their values.
 2. Endpoint or key problem: fix the secret or `known_hosts` entry (host-key changes need Security
    approval), then restart the failed execution with the same parameters.
 3. Re-sending a completed day (consumer request): launch with `businessDate=YYYY-MM-DD` and an extra
-   identifying parameter such as `rerun=2`. The policy delta is reproducible because the window is
-   computed from `businessDate`; the coverage dump and exposure reflect the data at run time, as on
-   the mainframe.
+   identifying parameter such as `rerun=2`. The policy delta keeps the window start computed from
+   `businessDate`, but like the coverage dump and exposure it reflects the data at run time (no upper
+   bound, status evaluated at run time, as on the mainframe), so it includes later updates.
 
 ## Parity against the mainframe
 
@@ -171,6 +182,17 @@ prints the plan and exits 3 while anything is pending. Nothing in the plan runs 
 | Security | endpoints, keys, host keys, no unencrypted transfers left (FU-15) | pending |
 | Mainframe operations | CA-7 hold and retirement of PAS0100/PAS0200 (FU-12) | pending |
 | ARB | INT-02, DS-07 | pending |
+
+## FU-13 sample checklist
+
+For each feed, the mainframe team supplies at least 5 consecutive production files plus the DB2
+snapshot or unload they were produced from, and confirms:
+
+- byte layout per column (offsets, padding, number format, NULL representation) and code page;
+- record separator as delivered to the consumer (CRLF, LF or none) and whether a trailer exists;
+- EXPOUT (`RECFM=FB,LRECL=300`): whether CSV lines arrive blank padded to 300 bytes or trimmed by
+  the transfer, and whether a header row is written;
+- the start time of each run, to set `businessDate` for late runs (Q-527-1).
 
 ## Pending outside code
 
