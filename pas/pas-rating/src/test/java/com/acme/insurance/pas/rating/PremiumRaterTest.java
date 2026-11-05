@@ -28,7 +28,7 @@ class PremiumRaterTest {
                 return RatingTableTest.baseRates();
               },
               date -> RatingTableTest.parameters(),
-              () ->
+              withFactors ->
                   new RatingRateHistory(
                       RatingTableTest.baseRates(), RatingTableTest.parameters())));
 
@@ -159,7 +159,7 @@ class PremiumRaterTest {
             RatingReferenceData.of(
                 date -> List.copyOf(current),
                 date -> RatingTableTest.parameters(),
-                () -> new RatingRateHistory(current, RatingTableTest.parameters())),
+                withFactors -> new RatingRateHistory(current, RatingTableTest.parameters())),
             java.time.Duration.ofMinutes(5),
             clock);
     ReferenceRatingTables batchRun = fresh.snapshot();
@@ -189,7 +189,7 @@ class PremiumRaterTest {
                 RatingReferenceData.history(live, RatingTableTest.parameters())
                     .baseRatesInForce(date),
             date -> RatingTableTest.parameters(),
-            () -> new RatingRateHistory(live, RatingTableTest.parameters()));
+            withFactors -> new RatingRateHistory(live, RatingTableTest.parameters()));
     ReferenceRatingTables batchRun =
         new ReferenceRatingTables(data, java.time.Duration.ZERO, java.time.Clock.systemUTC())
             .snapshot();
@@ -225,7 +225,7 @@ class PremiumRaterTest {
                 RatingReferenceData.history(liveRates, RatingTableTest.parameters())
                     .baseRatesInForce(date),
             date -> RatingTableTest.parameters(),
-            () ->
+            withFactors ->
                 new RatingRateHistory(
                     liveRates, RatingTableTest.parameters(), liveTerritories, List.of()));
     FactorLookup liveTerritory =
@@ -263,6 +263,28 @@ class PremiumRaterTest {
             .snapshot();
     assertThat(batchRun.rate(new RatingRequest("AUT", RUN, "T1", "C1")).totalPremium())
         .hasToString("738.00");
+  }
+
+  @Test
+  void onlyATableDrivenSnapshotReadsTheFactorTables() {
+    List<Boolean> reads = new ArrayList<>();
+    RatingReferenceData data =
+        RatingReferenceData.of(
+            date -> RatingTableTest.baseRates(),
+            date -> RatingTableTest.parameters(),
+            withFactors -> {
+              reads.add(withFactors);
+              return new RatingRateHistory(
+                  RatingTableTest.baseRates(), RatingTableTest.parameters());
+            });
+    ReferenceRatingTables live =
+        new ReferenceRatingTables(data, java.time.Duration.ZERO, java.time.Clock.systemUTC());
+
+    new PremiumRater(live, RatingFactorMode.LEGACY_NEUTRAL.source(TERRITORY, CLASS)).snapshot();
+    new PremiumRater(live, RatingFactorMode.TABLE_DRIVEN.source(TERRITORY, CLASS)).snapshot();
+    live.snapshot();
+
+    assertThat(reads).containsExactly(false, true, false);
   }
 
   @Test

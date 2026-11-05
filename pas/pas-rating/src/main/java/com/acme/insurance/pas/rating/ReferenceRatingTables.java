@@ -52,9 +52,12 @@ public final class ReferenceRatingTables {
     return snapshotOf(data.pin());
   }
 
-  /** Every rate and factor row, read as one consistent version (see {@link #snapshot()}). */
-  public RatingRateHistory allRows() {
-    return data.allRows();
+  /**
+   * Every rate row, plus the factor rows when {@code withFactors}, read as one consistent version
+   * (see {@link #snapshot()}).
+   */
+  public RatingRateHistory allRows(boolean withFactors) {
+    return data.allRows(withFactors);
   }
 
   /**

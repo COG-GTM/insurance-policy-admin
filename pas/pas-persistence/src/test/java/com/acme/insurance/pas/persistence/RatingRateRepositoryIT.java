@@ -127,6 +127,20 @@ class RatingRateRepositoryIT {
   }
 
   @Test
+  void historyWithoutFactorsSkipsTheFactorTables() {
+    LocalDate date = LocalDate.of(2034, 1, 1);
+    new RatingFactorJdbcRepository(jdbc)
+        .insert(new TerritoryFactor("T8", date, new BigDecimal("1.1000")));
+
+    RatingRateHistory history = rates.history(false);
+
+    assertThat(history.territoryFactors()).isEmpty();
+    assertThat(history.classFactors()).isEmpty();
+    assertThat(history.baseRates()).isNotEmpty();
+    assertThat(history.parameters()).isNotEmpty();
+  }
+
+  @Test
   void constraintsRejectBadRows() {
     assertThatThrownBy(
             () ->

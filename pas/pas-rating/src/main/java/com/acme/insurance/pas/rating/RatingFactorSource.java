@@ -20,6 +20,14 @@ public interface RatingFactorSource {
     return this;
   }
 
+  /**
+   * Whether {@link #pin} needs the territory and class factor rows. Sources that ignore the factor
+   * tables do not read them, so a factor row they would never use cannot stop a batch run.
+   */
+  default boolean readsFactorTables() {
+    return false;
+  }
+
   /** PREMBAT today: every factor 1.0000, whatever the reference tables hold (quirk Q-03). */
   RatingFactorSource LEGACY_NEUTRAL = request -> RatingFactors.NEUTRAL;
 
@@ -43,6 +51,11 @@ public interface RatingFactorSource {
                 request,
                 RatingFactors.NEUTRAL.territoryFactor()),
             lookup(clazz, request.classCode(), request, RatingFactors.NEUTRAL.classFactor()));
+      }
+
+      @Override
+      public boolean readsFactorTables() {
+        return true;
       }
 
       @Override

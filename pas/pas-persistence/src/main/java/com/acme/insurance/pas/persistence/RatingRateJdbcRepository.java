@@ -53,25 +53,37 @@ public class RatingRateJdbcRepository {
    * pin a batch run.
    */
   public RatingRateHistory history() {
+    return history(true);
+  }
+
+  /**
+   * Every base-rate and parameter row, plus every territory and class factor row when {@code
+   * withFactors}, in one statement so they come from one committed version.
+   */
+  public RatingRateHistory history(boolean withFactors) {
+    String rates =
+        """
+        SELECT 'B' AS row_kind, policy_type AS row_key, effective_date,
+               CAST(base_rate AS DECIMAL(11,4)) AS row_value
+        FROM pasapp.base_rates
+        UNION ALL
+        SELECT 'P', parameter_code, effective_date, parameter_value
+        FROM pasapp.rating_parameters
+        """;
+    String factors =
+        """
+        UNION ALL
+        SELECT 'T', territory_code, effective_date, CAST(rating_factor AS DECIMAL(11,4))
+        FROM acmeins.territory_factors
+        UNION ALL
+        SELECT 'C', class_code, effective_date, CAST(rating_factor AS DECIMAL(11,4))
+        FROM pasapp.class_factors
+        """;
     List<BaseRate> baseRates = new ArrayList<>();
     List<RatingParameter> parameters = new ArrayList<>();
     List<TerritoryFactor> territoryFactors = new ArrayList<>();
     List<ClassFactor> classFactors = new ArrayList<>();
-    jdbc.sql(
-            """
-            SELECT 'B' AS row_kind, policy_type AS row_key, effective_date,
-                   CAST(base_rate AS DECIMAL(11,4)) AS row_value
-            FROM pasapp.base_rates
-            UNION ALL
-            SELECT 'P', parameter_code, effective_date, parameter_value
-            FROM pasapp.rating_parameters
-            UNION ALL
-            SELECT 'T', territory_code, effective_date, CAST(rating_factor AS DECIMAL(11,4))
-            FROM acmeins.territory_factors
-            UNION ALL
-            SELECT 'C', class_code, effective_date, CAST(rating_factor AS DECIMAL(11,4))
-            FROM pasapp.class_factors
-            """)
+    jdbc.sql(withFactors ? rates + factors : rates)
         .query(
             rs -> {
               String key = rs.getString("row_key");

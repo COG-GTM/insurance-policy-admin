@@ -20,12 +20,13 @@ public final class PremiumRater {
   }
 
   /**
-   * A rater for one batch run (PREMBAT 2000-LOAD-RATING-TABLES): copies every rate and factor row
-   * now, in one consistent read, and rates every request of the run from that copy, so rows
-   * inserted while the run is in progress never mix into it.
+   * A rater for one batch run (PREMBAT 2000-LOAD-RATING-TABLES): copies every rate row, and every
+   * factor row if the factor source reads them, now, in one consistent read, and rates every
+   * request of the run from that copy, so rows inserted while the run is in progress never mix into
+   * it.
    */
   public PremiumRater snapshot() {
-    RatingRateHistory rows = tables.allRows();
+    RatingRateHistory rows = tables.allRows(factors.readsFactorTables());
     return new PremiumRater(
         ReferenceRatingTables.snapshotOf(RatingReferenceData.history(rows)), factors.pin(rows));
   }

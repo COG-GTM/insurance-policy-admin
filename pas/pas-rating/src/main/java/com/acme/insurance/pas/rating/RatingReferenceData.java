@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -24,17 +23,23 @@ public interface RatingReferenceData {
   List<RatingParameter> parametersInForce(LocalDate ratingDate);
 
   /**
-   * Every rate and factor row of every effective date, read as one consistent version of the
-   * reference tables.
+   * Every rate row of every effective date, and the territory and class factor rows when {@code
+   * withFactors}, read as one consistent version of the reference tables.
    */
-  RatingRateHistory allRows();
+  RatingRateHistory allRows(boolean withFactors);
+
+  /** Reads {@link #allRows(boolean)} from the database in one statement. */
+  @FunctionalInterface
+  interface RowsReader {
+    RatingRateHistory read(boolean withFactors);
+  }
 
   /**
    * An immutable copy of every row (all effective dates), so a batch run resolves every rating date
    * against the same version of the rates even if a row is inserted while it runs.
    */
   default RatingReferenceData pin() {
-    return history(allRows());
+    return history(allRows(false));
   }
 
   /**
@@ -44,7 +49,7 @@ public interface RatingReferenceData {
   static RatingReferenceData of(
       Function<LocalDate, List<BaseRate>> baseRates,
       Function<LocalDate, List<RatingParameter>> parameters,
-      Supplier<RatingRateHistory> history) {
+      RowsReader history) {
     Objects.requireNonNull(baseRates, "baseRates");
     Objects.requireNonNull(parameters, "parameters");
     Objects.requireNonNull(history, "history");
@@ -60,8 +65,8 @@ public interface RatingReferenceData {
       }
 
       @Override
-      public RatingRateHistory allRows() {
-        return history.get();
+      public RatingRateHistory allRows(boolean withFactors) {
+        return history.read(withFactors);
       }
     };
   }
@@ -82,8 +87,8 @@ public interface RatingReferenceData {
       }
 
       @Override
-      public RatingRateHistory allRows() {
-        return rows;
+      public RatingRateHistory allRows(boolean withFactors) {
+        return withFactors ? rows : new RatingRateHistory(rows.baseRates(), rows.parameters());
       }
 
       @Override
