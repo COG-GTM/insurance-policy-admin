@@ -1017,6 +1017,56 @@
         }
       ],
       "lands_in": "AB-521, AB-525, AB-526"
+    },
+    {
+      "component": "POLICIES.LAST_UPDATED, POLICY_HOLDERS.LAST_UPDATED; POLICY-RECORD, CUSTOMER-RECORD",
+      "category": "data contract",
+      "owner": "Data governance + DBA team",
+      "decision_status": "proposed - pending DBA and Data governance sign-off",
+      "lands_in": "AB-521",
+      "id": "Q-521-1",
+      "title": "Copybook last-updated fields hold a date, the columns a timestamp",
+      "description": "POLICY-LAST-UPDATED and CUST-LAST-UPDATED are PIC 9(08) (YYYYMMDD), while POLICIES.LAST_UPDATED and POLICY_HOLDERS.LAST_UPDATED are TIMESTAMP. Any record built from a row loses the time of day, and a row built from a record gets midnight.",
+      "proposed_decision": "preserve",
+      "rationale": "The copybook layout is a frozen contract for downstream consumers. The Java codecs write only the date part and read the date as midnight; the database keeps full timestamps.",
+      "parity_note": "Parity compares these copybook fields as dates only; table comparisons use the full timestamp.",
+      "evidence": [
+        {
+          "file": "cobol/copybooks/POLICY-RECORD.cpy",
+          "contains": "POLICY-LAST-UPDATED"
+        },
+        {
+          "file": "cobol/copybooks/CUSTOMER-RECORD.cpy",
+          "contains": "CUST-LAST-UPDATED"
+        },
+        {
+          "file": "sql/ddl/create-tables.sql",
+          "contains": "LAST_UPDATED        TIMESTAMP"
+        }
+      ]
+    },
+    {
+      "component": "POLICIES.RENEWAL_COUNT, POLICIES.RISK_SCORE, COVERAGES.COINSURANCE_PCT, POLICY_HOLDERS.CREDIT_SCORE; POLICY-RECORD, COVERAGE-RECORD, CUSTOMER-RECORD",
+      "category": "data contract",
+      "owner": "Data governance + DBA team",
+      "decision_status": "proposed - pending DBA and Data governance sign-off",
+      "lands_in": "AB-521",
+      "id": "Q-521-2",
+      "title": "Nullable numeric columns have no null in the copybooks",
+      "description": "RENEWAL_COUNT, RISK_SCORE, COINSURANCE_PCT and CREDIT_SCORE are nullable SMALLINT columns, but their copybook fields are unsigned PIC 9(03), which has no null and no sign. A null is written as 000 and reads back as 0; a negative value or one above 999 cannot be written.",
+      "proposed_decision": "preserve",
+      "rationale": "The copybook layout is frozen. The codecs write null as zeros and reject values the picture cannot hold instead of truncating them, so no data is silently changed.",
+      "parity_note": "Parity treats null and 0 as equal for these copybook fields.",
+      "evidence": [
+        {
+          "file": "cobol/copybooks/CUSTOMER-RECORD.cpy",
+          "contains": "CUST-CREDIT-SCORE"
+        },
+        {
+          "file": "sql/ddl/create-tables.sql",
+          "contains": "CREDIT_SCORE        SMALLINT"
+        }
+      ]
     }
   ]
 }
