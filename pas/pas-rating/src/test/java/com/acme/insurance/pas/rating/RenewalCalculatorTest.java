@@ -77,6 +77,24 @@ class RenewalCalculatorTest {
   }
 
   @Test
+  void negativePremiumGetsTheSameRateAsAPositiveOne() {
+    RenewalCalculator steep =
+        new RenewalCalculator(
+            new RenewalRules(
+                new BigDecimal("20.00"),
+                new BigDecimal("15.00"),
+                RenewalRules.LeapDayExpiry.FEB_28));
+
+    RenewalQuote below = legacy.quote(new BigDecimal("-100.00"), LocalDate.of(2024, 6, 1), 0);
+    RenewalQuote above = steep.quote(new BigDecimal("-100.00"), LocalDate.of(2024, 6, 1), 0);
+
+    assertThat(below.newPremium()).isEqualByComparingTo("-105.00");
+    assertThat(below.capApplied()).isFalse();
+    assertThat(above.newPremium()).isEqualByComparingTo("-115.00");
+    assertThat(above.capApplied()).isTrue();
+  }
+
+  @Test
   void zeroPremiumRenewsAtZeroInsteadOfDividingByZero() {
     RenewalQuote quote = legacy.quote(BigDecimal.ZERO, LocalDate.of(2024, 6, 1), null);
 

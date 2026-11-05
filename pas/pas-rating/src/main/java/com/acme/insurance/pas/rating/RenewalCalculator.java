@@ -48,10 +48,10 @@ public final class RenewalCalculator {
         old.signum() == 0
             ? BigDecimal.ZERO.setScale(2)
             : newPremium.subtract(old).movePointRight(2).divide(old, 2, RoundingMode.DOWN);
-    BigDecimal capPremium = cents(old.multiply(factor(rules.rateIncreaseCapPct())));
-    boolean capped = newPremium.compareTo(capPremium) > 0;
+    // Compare the configured rates, not amounts: exact, and right for negative premiums too.
+    boolean capped = rules.upliftPct().compareTo(rules.rateIncreaseCapPct()) > 0;
     if (capped) {
-      newPremium = capPremium;
+      newPremium = cents(old.multiply(factor(rules.rateIncreaseCapPct())));
     }
     if (overflows(newPremium)) {
       throw new RatingOverflowException(
