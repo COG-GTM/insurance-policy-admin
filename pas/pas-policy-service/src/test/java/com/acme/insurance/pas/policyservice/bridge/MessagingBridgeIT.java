@@ -268,7 +268,7 @@ class MessagingBridgeIT {
     while (deadLetter == null && System.currentTimeMillis() < deadline) {
       HttpResponse<String> list = send("GET", "/api/v1/ops/events/dead-letters", null, ops);
       assertThat(list.statusCode()).as(list.body()).isEqualTo(200);
-      for (JsonNode d : json.readTree(list.body())) {
+      for (JsonNode d : json.readTree(list.body()).get("deadLetters")) {
         if (event.eventId().toString().equals(d.get("eventId").asText())) {
           deadLetter = d;
         }
@@ -318,6 +318,30 @@ class MessagingBridgeIT {
         send("GET", "/api/v1/ops/events/outbox/parked", null, TestJwt.wholeBook(OPS_READ));
     assertThat(parked.statusCode()).isEqualTo(200);
     assertThat(parked.body()).contains(eventId).doesNotContain("C000000001");
+    assertThat(
+            send(
+                    "GET",
+                    "/api/v1/ops/events/outbox/parked?limit=0",
+                    null,
+                    TestJwt.wholeBook(OPS_READ))
+                .statusCode())
+        .isEqualTo(400);
+    assertThat(
+            send(
+                    "GET",
+                    "/api/v1/ops/events/dead-letters?after=x",
+                    null,
+                    TestJwt.wholeBook(OPS_READ))
+                .statusCode())
+        .isEqualTo(400);
+    assertThat(
+            send(
+                    "POST",
+                    "/api/v1/ops/events/dead-letters/replay",
+                    "{\"eventIds\":[null]}",
+                    TestJwt.wholeBook(EVENTS_REPLAY))
+                .statusCode())
+        .isEqualTo(400);
     assertThat(
             send(
                     "POST",

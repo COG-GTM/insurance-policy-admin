@@ -100,14 +100,20 @@ public class EventOutboxJdbcRepository {
 
   /** Parked rows, oldest first, with when they were parked and how often they were replayed. */
   public List<ParkedEvent> parked(int limit) {
+    return parked(0L, limit);
+  }
+
+  /** Parked rows with {@code outbox_seq} above {@code after}, oldest first (keyset paging). */
+  public List<ParkedEvent> parked(long after, int limit) {
     if (limit <= 0) {
       throw new IllegalArgumentException("limit must be positive");
     }
     return jdbc.sql(
-            "SELECT * FROM pasapp.event_outbox WHERE parked_at IS NOT NULL"
+            "SELECT * FROM pasapp.event_outbox WHERE parked_at IS NOT NULL AND outbox_seq > ?"
                 + " ORDER BY outbox_seq FETCH FIRST "
                 + limit
                 + " ROWS ONLY")
+        .params(after)
         .query(
             (rs, n) ->
                 new ParkedEvent(map(rs), timestamp(rs, "parked_at"), rs.getInt("replay_count")))

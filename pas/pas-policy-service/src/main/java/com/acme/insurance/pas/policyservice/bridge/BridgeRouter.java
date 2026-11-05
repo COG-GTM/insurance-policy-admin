@@ -76,7 +76,41 @@ public class BridgeRouter {
             yield properties.underwritingDecisionTopic();
           }
         };
-    return List.of(new BridgeMessage(target, policyNumber, codec.encode(policy), headers));
+    return List.of(
+        new BridgeMessage(target, policyNumber, codec.encode(legacyView(policy)), headers));
+  }
+
+  /**
+   * The policy as the legacy record carries it: POLICY-RISK-SCORE and POLICY-RENEWAL-COUNT are
+   * unsigned PIC 9(03), so like the COBOL MOVE they keep only the last three digits (Q-14,
+   * Q-521-2); a score of 1450 is sent as 450. The database and the domain event keep the full
+   * value.
+   */
+  static Policy legacyView(Policy p) {
+    return new Policy(
+        p.policyNumber(),
+        p.policyTypeCode(),
+        p.policyStatusCode(),
+        p.effectiveDate(),
+        p.expiryDate(),
+        p.policyholderId(),
+        p.agentCode(),
+        p.branchCode(),
+        p.totalPremium(),
+        p.deductible(),
+        p.coverageLimit(),
+        p.inceptionDate(),
+        pic3(p.renewalCount()),
+        p.uwStatusCode(),
+        pic3(p.riskScore()),
+        p.webIndicator(),
+        p.apiFlag(),
+        p.lastUpdated(),
+        p.updatedBy());
+  }
+
+  private static Integer pic3(Integer value) {
+    return value == null ? null : Math.abs(value) % 1000;
   }
 
   private String document(Map<String, String> headers, String documentType) {

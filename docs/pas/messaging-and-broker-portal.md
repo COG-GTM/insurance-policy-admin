@@ -63,10 +63,10 @@ at event time (Q-528-2), and delivery is at-least-once with `eventId` for de-dup
 
 | Method | Path | Scope |
 |---|---|---|
-| GET | `/api/v1/ops/events/outbox/parked?limit=` | `pas.ops.read` |
+| GET | `/api/v1/ops/events/outbox/parked?after=&limit=` (keyset on outbox sequence, `nextAfter`) | `pas.ops.read` |
 | POST | `/api/v1/ops/events/outbox/{eventId}/replay` | `pas.events.replay` |
-| GET | `/api/v1/ops/events/dead-letters?limit=` | `pas.ops.read` |
-| POST | `/api/v1/ops/events/dead-letters/replay` body `{"eventIds":[...]}` (max 500) | `pas.events.replay` |
+| GET | `/api/v1/ops/events/dead-letters?after=&limit=` (cursor `partition:offset,...`, `nextAfter`) | `pas.ops.read` |
+| POST | `/api/v1/ops/events/dead-letters/replay` body `{"eventIds":[...]}` (max 500; searches the whole retained topic) | `pas.events.replay` |
 
   Replaying an outbox row clears `PARKED_AT`, resets the attempts and increments `REPLAY_COUNT`; a
   dead letter is re-published to its original topic with header `replayOf`. Retention: 7 days on the

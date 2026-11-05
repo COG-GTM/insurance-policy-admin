@@ -3,8 +3,10 @@ package com.acme.insurance.pas.policyservice.events;
 import com.acme.insurance.pas.persistence.EventOutboxJdbcRepository;
 import com.acme.insurance.pas.persistence.ParkedEvent;
 import com.acme.insurance.pas.policyservice.bridge.DeadLetterService;
-import com.acme.insurance.pas.policyservice.bridge.DeadLetterService.DeadLetter;
+import com.acme.insurance.pas.policyservice.bridge.DeadLetterService.DeadLetterPage;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -57,9 +60,16 @@ public class EventOpsController {
     }
   }
 
+  /** One page of parked rows; pass {@code nextAfter} as {@code after} for the next page. */
+  public record ParkedPage(List<ParkedView> events, Long nextAfter) {
+    public ParkedPage {
+      events = List.copyOf(events);
+    }
+  }
+
   public record ReplayRequest(List<String> eventIds) {
     public ReplayRequest {
-      eventIds = eventIds == null ? null : List.copyOf(eventIds);
+      eventIds = eventIds == null ? null : Collections.unmodifiableList(new ArrayList<>(eventIds));
     }
   }
 
@@ -79,8 +89,18 @@ public class EventOpsController {
   }
 
   @GetMapping("/outbox/parked")
-  public List<ParkedView> parked() {
-    return outbox.parked(MAX_REPLAY).stream().map(ParkedView::from).toList();
+  public ResponseEntity<ParkedPage> parked(
+      @RequestParam(defaultValue = "0") long after,
+      @RequestParam(defaultValue = "" + MAX_REPLAY) int limit) {
+    if (after < 0 || limit < 1 || limit > MAX_REPLAY) {
+      return ResponseEntity.badRequest().build();
+    }
+    List<ParkedEvent> rows = outbox.parked(after, limit + 1);
+    boolean more = rows.size() > limit;
+    List<ParkedEvent> page = more ? rows.subList(0, limit) : rows;
+    Long nextAfter = more ? page.get(page.size() - 1).row().outboxSeq() : null;
+    return ResponseEntity.ok(
+        new ParkedPage(page.stream().map(ParkedView::from).toList(), nextAfter));
   }
 
   @PostMapping("/outbox/{eventId}/replay")
@@ -94,9 +114,17 @@ public class EventOpsController {
   }
 
   @GetMapping("/dead-letters")
-  public ResponseEntity<List<DeadLetter>> deadLetters() {
+  public ResponseEntity<DeadLetterPage> deadLetters(
+      @RequestParam(required = false) String after,
+      @RequestParam(defaultValue = "" + MAX_REPLAY) int limit) {
     DeadLetterService service = deadLetters.getIfAvailable();
-    return service == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(service.list());
+    if (service == null) {
+      return ResponseEntity.notFound().build();
+    }
+    if (limit < 1 || limit > MAX_REPLAY || (after != null && !DeadLetterService.isCursor(after))) {
+      return ResponseEntity.badRequest().build();
+    }
+    return ResponseEntity.ok(service.list(after, limit));
   }
 
   @PostMapping("/dead-letters/replay")
