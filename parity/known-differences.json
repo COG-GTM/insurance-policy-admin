@@ -91,6 +91,42 @@
       "ticket": "AB-525",
       "sign_off": "pending",
       "reason": "Java keeps the accumulation reason; score and decision code must still match."
+    },
+    {
+      "id": "KD-06",
+      "suite": "undwrt-decision",
+      "cases": [
+        "loss-ratio-1100-overflow"
+      ],
+      "paths": [
+        "effects[*].probes.WS-LOSS-RATIO"
+      ],
+      "quirk": "Q-15",
+      "decision": "docs/modernization/quirk-register.md#q-15",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "Java keeps the full loss ratio (1100.00) where the COBOL field drops the high-order digit (100.00). Both are above 80, so the surcharge, score, decision code and every write must still match; only the loss-ratio probe may differ."
+    },
+    {
+      "id": "KD-07",
+      "suite": "undwrt-decision",
+      "cases": [
+        "map-receive-failure"
+      ],
+      "paths": [
+        "effects.count",
+        "effects[0].*",
+        "effects[1].*",
+        "effects[2].*",
+        "effects[3].*",
+        "effects[4].*",
+        "effects[5].*"
+      ],
+      "quirk": "Q-520-1",
+      "decision": "docs/modernization/quirk-register.md#q-520-1",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "A request that cannot be read is rejected before any write: Java sends only the 'ERROR RECEIVING UNDERWRITING DATA' text and returns, so the decision insert, POLICIES update, TD message and result map of the COBOL fall-through disappear and the remaining effects shift. Covers the whole effect list because the effect count changes; the outcome must still match."
     }
   ]
 }
