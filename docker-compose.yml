@@ -68,6 +68,7 @@ services:
       # AB-525: outbox relay and local topics; Claims interface URL when a Claims stub is available.
       PAS_EVENTS_RELAY_ENABLED: ${PAS_EVENTS_RELAY_ENABLED:-true}
       PAS_EVENTS_CREATE_TOPICS: ${PAS_EVENTS_CREATE_TOPICS:-true}
+      PAS_BRIDGE_ENABLED: ${PAS_BRIDGE_ENABLED:-false}
       PAS_CLAIMS_BASE_URL: ${PAS_CLAIMS_BASE_URL:-}
     volumes:
       - ./pas/.local-jwt/public.pem:/run/pas-jwt/public.pem:ro

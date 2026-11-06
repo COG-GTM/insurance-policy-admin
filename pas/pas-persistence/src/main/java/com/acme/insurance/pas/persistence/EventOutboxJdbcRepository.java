@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
@@ -34,14 +35,20 @@ public class EventOutboxJdbcRepository {
         .execute(jdbc);
   }
 
-  /** Up to {@code limit} unpublished rows, oldest first. */
+  /**
+   * Up to {@code limit} unpublished rows, oldest first, leaving out parked rows and every row whose
+   * message key has a parked row, so a parked event is never overtaken by a later one of the same
+   * policy (V80, AB-528).
+   */
   public List<OutboxRow> pending(int limit) {
     if (limit <= 0) {
       throw new IllegalArgumentException("limit must be positive");
     }
     // FETCH FIRST takes a literal on DB2 for z/OS; limit is an int, so formatting it is safe.
     return jdbc.sql(
-            "SELECT * FROM pasapp.event_outbox WHERE published_at IS NULL"
+            "SELECT * FROM pasapp.event_outbox WHERE published_at IS NULL AND parked_at IS NULL"
+                + " AND message_key NOT IN (SELECT p.message_key FROM pasapp.event_outbox p"
+                + " WHERE p.parked_at IS NOT NULL)"
                 + " ORDER BY outbox_seq FETCH FIRST "
                 + limit
                 + " ROWS ONLY")
@@ -75,6 +82,56 @@ public class EventOutboxJdbcRepository {
                 + " WHERE outbox_seq = ?")
         .params(message, outboxSeq)
         .update();
+  }
+
+  public Optional<OutboxRow> findByEventId(String eventId) {
+    return jdbc.sql("SELECT * FROM pasapp.event_outbox WHERE event_id = ?")
+        .param(eventId)
+        .query((rs, n) -> map(rs))
+        .optional();
+  }
+
+  /** Parks a row the relay gave up on; it and later rows of its key wait for a replay. */
+  public void park(long outboxSeq, LocalDateTime parkedAt) {
+    jdbc.sql("UPDATE pasapp.event_outbox SET parked_at = ? WHERE outbox_seq = ?")
+        .params(parkedAt, outboxSeq)
+        .update();
+  }
+
+  /** Parked rows, oldest first, with when they were parked and how often they were replayed. */
+  public List<ParkedEvent> parked(int limit) {
+    return parked(0L, limit);
+  }
+
+  /** Parked rows with {@code outbox_seq} above {@code after}, oldest first (keyset paging). */
+  public List<ParkedEvent> parked(long after, int limit) {
+    if (limit <= 0) {
+      throw new IllegalArgumentException("limit must be positive");
+    }
+    return jdbc.sql(
+            "SELECT * FROM pasapp.event_outbox WHERE parked_at IS NOT NULL AND outbox_seq > ?"
+                + " ORDER BY outbox_seq FETCH FIRST "
+                + limit
+                + " ROWS ONLY")
+        .params(after)
+        .query(
+            (rs, n) ->
+                new ParkedEvent(map(rs), timestamp(rs, "parked_at"), rs.getInt("replay_count")))
+        .list();
+  }
+
+  /**
+   * Queues a parked row, or a published row still inside the retention period, for the relay again.
+   * Returns false if no such row exists (already purged or never written).
+   */
+  public boolean replay(String eventId) {
+    return jdbc.sql(
+                "UPDATE pasapp.event_outbox SET parked_at = NULL, published_at = NULL,"
+                    + " attempts = 0, last_error = NULL, replay_count = replay_count + 1"
+                    + " WHERE event_id = ?")
+            .param(eventId)
+            .update()
+        == 1;
   }
 
   /** Deletes rows published before {@code cutoff}; returns how many. */

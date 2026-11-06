@@ -1,0 +1,40 @@
+{
+  "description": "Released PAS event schemas (AB-528). Released files are immutable; the sha256 is checked by EventSchemasTest.",
+  "schemas": [
+    {
+      "subject": "pas.policy.created",
+      "version": 1,
+      "compatibility": "BACKWARD",
+      "file": "pas.policy.created/v1.json",
+      "sha256": "383577d4b9929dc4c127318dfee0867dfc8fa48fefb3f2f851fb22fb474ebe6e"
+    },
+    {
+      "subject": "pas.policy.renewed",
+      "version": 1,
+      "compatibility": "BACKWARD",
+      "file": "pas.policy.renewed/v1.json",
+      "sha256": "cd0e138dca8da8113843fe1c24e13cca1ab4f7e423e4f07d74b01c043b3890cb"
+    },
+    {
+      "subject": "pas.policy.endorsed",
+      "version": 1,
+      "compatibility": "BACKWARD",
+      "file": "pas.policy.endorsed/v1.json",
+      "sha256": "6a07cb6482a3cddcb43b478d9b01005b52bd45a3f3547d04806c2b1298c2239a"
+    },
+    {
+      "subject": "pas.underwriting.requested",
+      "version": 1,
+      "compatibility": "BACKWARD",
+      "file": "pas.underwriting.requested/v1.json",
+      "sha256": "9e2616f3f744188c857b49d198c1922e1ff20482b3c30d4fd4941fb10004cbf8"
+    },
+    {
+      "subject": "pas.underwriting.decided",
+      "version": 1,
+      "compatibility": "BACKWARD",
+      "file": "pas.underwriting.decided/v1.json",
+      "sha256": "afdecb9d0e374beec3f8c2542314a75f602acd868b3a1e130f0eb9b4b1b9274d"
+    }
+  ]
+}

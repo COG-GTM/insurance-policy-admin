@@ -110,6 +110,14 @@ pas:
     # Outbox relay to Kafka; off unless a broker is configured. Topics come from the platform.
     relay-enabled: ${PAS_EVENTS_RELAY_ENABLED:false}
     create-topics: ${PAS_EVENTS_CREATE_TOPICS:false}
+    # Failed publishes before a row is parked for replay (AB-528, V80).
+    max-attempts: ${PAS_EVENTS_MAX_ATTEMPTS:10}
+    # Failed publishes in a row (different policies) after which a relay run stops: broker outage.
+    relay-failure-limit: ${PAS_EVENTS_RELAY_FAILURE_LIMIT:3}
+  bridge:
+    # Kafka-to-legacy bridge for the FileNet document trigger and the underwriting queues (AB-528).
+    # Off until the MQ sink (pas/deploy/messaging) and the consumers' sign-off are in place.
+    enabled: ${PAS_BRIDGE_ENABLED:false}
   policy-change:
     # Renewal and endorsement (AB-526). Defaults reproduce POLRNW: +5% uplift (Q-05) and a flat 15%
     # rate-increase cap (Q-04), configurable so state-specific caps can follow.

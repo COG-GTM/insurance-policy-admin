@@ -3,11 +3,14 @@ package com.acme.insurance.pas.policyservice.change;
 import com.acme.insurance.pas.domain.Endorsement;
 import com.acme.insurance.pas.domain.Policy;
 import com.acme.insurance.pas.domain.PolicyStatus;
+import com.acme.insurance.pas.events.PasEvents;
+import com.acme.insurance.pas.events.PolicyEndorsed;
 import com.acme.insurance.pas.persistence.EndorsementJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyChangeAudit;
 import com.acme.insurance.pas.persistence.PolicyChangeAuditJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyJdbcRepository;
 import com.acme.insurance.pas.policyservice.change.PolicyChangeConfiguration.PolicyChangeClock;
+import com.acme.insurance.pas.policyservice.events.OutboxWriter;
 import com.acme.insurance.pas.policyservice.security.Entitlement;
 import com.acme.insurance.pas.rating.PolicyChangeError;
 import com.acme.insurance.pas.rating.ProRata;
@@ -35,13 +38,18 @@ public class EndorsementService {
   private final PolicyChangeAuditJdbcRepository audit;
   private final PolicyChangeClock clock;
   private final boolean premiumChangeEnabled;
+  private final OutboxWriter outbox;
+  private final PasEvents events;
 
   public EndorsementService(
       PolicyJdbcRepository policies,
       EndorsementJdbcRepository endorsements,
       PolicyChangeAuditJdbcRepository audit,
       PolicyChangeClock clock,
-      PolicyChangeProperties properties) {
+      PolicyChangeProperties properties,
+      OutboxWriter outbox) {
+    this.outbox = outbox;
+    this.events = new PasEvents(clock.clock());
     this.policies = policies;
     this.endorsements = endorsements;
     this.audit = audit;
@@ -117,6 +125,16 @@ public class EndorsementService {
             newPremium,
             current.renewalCount(),
             now));
+    outbox.append(
+        events.policyEndorsed(
+            PolicyEndorsed.of(
+                current,
+                seq,
+                command.endorsementType(),
+                businessDate,
+                proRata.adjustment(),
+                newPremium),
+            actor.correlationId()));
     return ChangeResult.done(
         new EndorsementOutcome(endorsement, proRata, current.policyStatusCode(), newPremium));
   }

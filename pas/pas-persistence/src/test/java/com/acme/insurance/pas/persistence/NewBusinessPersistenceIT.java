@@ -132,6 +132,39 @@ class NewBusinessPersistenceIT {
   }
 
   @Test
+  void parkedEventsHoldTheirPolicyUntilReplayed() {
+    EventOutboxJdbcRepository outbox = new EventOutboxJdbcRepository(jdbc);
+    String a1 = "33333333-3333-3333-3333-333333333331";
+    String a2 = "33333333-3333-3333-3333-333333333332";
+    String b1 = "33333333-3333-3333-3333-333333333333";
+    outbox.append(
+        OutboxRow.pending(a1, "pas.policy.renewed", "pas.policy.renewed", "POL-PARK01", "{}"));
+    outbox.append(
+        OutboxRow.pending(a2, "pas.policy.endorsed", "pas.policy.endorsed", "POL-PARK01", "{}"));
+    outbox.append(
+        OutboxRow.pending(b1, "pas.policy.renewed", "pas.policy.renewed", "POL-PARK02", "{}"));
+    OutboxRow first = outbox.findByEventId(a1).orElseThrow();
+    outbox.markFailed(first.outboxSeq(), "RecordTooLargeException");
+    outbox.park(first.outboxSeq(), LocalDateTime.now());
+
+    assertThat(outbox.pending(100))
+        .extracting(OutboxRow::eventId)
+        .contains(b1)
+        .doesNotContain(a1, a2);
+    assertThat(outbox.parked(10))
+        .singleElement()
+        .satisfies(p -> assertThat(p.row().eventId()).isEqualTo(a1));
+
+    assertThat(outbox.replay(a1)).isTrue();
+    assertThat(outbox.parked(10)).isEmpty();
+    assertThat(outbox.pending(100)).extracting(OutboxRow::eventId).contains(a1, a2, b1);
+    OutboxRow replayed = outbox.findByEventId(a1).orElseThrow();
+    assertThat(replayed.attempts()).isZero();
+    assertThat(replayed.lastError()).isNull();
+    assertThat(outbox.replay("33333333-3333-3333-3333-999999999999")).isFalse();
+  }
+
+  @Test
   void auditIsAppendOnly() {
     PolicyAuditJdbcRepository audit = new PolicyAuditJdbcRepository(jdbc);
     audit.append(

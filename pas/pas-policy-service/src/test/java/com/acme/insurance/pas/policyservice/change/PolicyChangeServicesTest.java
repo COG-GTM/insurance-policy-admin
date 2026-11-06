@@ -12,12 +12,17 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.acme.insurance.pas.domain.Policy;
+import com.acme.insurance.pas.events.PasEvent;
+import com.acme.insurance.pas.events.PasEventType;
+import com.acme.insurance.pas.events.PolicyEndorsed;
+import com.acme.insurance.pas.events.PolicyRenewed;
 import com.acme.insurance.pas.persistence.EndorsementJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyChangeAuditJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyJdbcRepository;
 import com.acme.insurance.pas.policyservice.change.EndorsementService.EndorsementCommand;
 import com.acme.insurance.pas.policyservice.change.PolicyChangeConfiguration.OpenClaimsRule;
 import com.acme.insurance.pas.policyservice.change.PolicyChangeConfiguration.PolicyChangeClock;
+import com.acme.insurance.pas.policyservice.events.OutboxWriter;
 import com.acme.insurance.pas.policyservice.security.Entitlement;
 import com.acme.insurance.pas.rating.PolicyChangeError;
 import com.acme.insurance.pas.rating.RenewalCalculator;
@@ -29,6 +34,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /** Service rules that need no database: the premium-change flag and the one-row update check. */
 class PolicyChangeServicesTest {
@@ -43,6 +49,7 @@ class PolicyChangeServicesTest {
   private final PolicyJdbcRepository policies = mock(PolicyJdbcRepository.class);
   private final EndorsementJdbcRepository endorsements = mock(EndorsementJdbcRepository.class);
   private final PolicyChangeAuditJdbcRepository audit = mock(PolicyChangeAuditJdbcRepository.class);
+  private final OutboxWriter outbox = mock(OutboxWriter.class);
 
   private static PolicyChangeProperties properties(boolean premiumChangeEnabled) {
     return new PolicyChangeProperties(
@@ -84,7 +91,7 @@ class PolicyChangeServicesTest {
 
   private EndorsementService endorsementService(boolean premiumChangeEnabled) {
     return new EndorsementService(
-        policies, endorsements, audit, CLOCK, properties(premiumChangeEnabled));
+        policies, endorsements, audit, CLOCK, properties(premiumChangeEnabled), outbox);
   }
 
   @Test
@@ -134,6 +141,38 @@ class PolicyChangeServicesTest {
 
     assertThat(result.outcome()).isEqualTo(ChangeResult.Outcome.DONE);
     assertThat(result.value().totalPremium()).isGreaterThan(new BigDecimal("100.00"));
+    ArgumentCaptor<PasEvent> event = ArgumentCaptor.forClass(PasEvent.class);
+    verify(outbox).append(event.capture());
+    assertThat(event.getValue().type()).isEqualTo(PasEventType.POLICY_ENDORSED);
+    assertThat(event.getValue().policyNumber()).isEqualTo(NUMBER);
+    PolicyEndorsed data = (PolicyEndorsed) event.getValue().data();
+    assertThat(data.endorsementSeq()).isEqualTo(1);
+    assertThat(data.totalPremium()).isEqualTo(result.value().totalPremium());
+  }
+
+  @Test
+  void aRenewalWritesThePolicyRenewedEventInTheSameTransaction() {
+    lockable();
+    when(policies.updateRenewal(any())).thenReturn(1);
+
+    ChangeResult<RenewalService.Renewal> result =
+        new RenewalService(
+                policies,
+                audit,
+                new RenewalCalculator(properties(false).renewalRules()),
+                OpenClaimsRule.NOT_ENFORCED,
+                CLOCK,
+                outbox)
+            .renew(NUMBER, null, WHOLE_BOOK, ACTOR);
+
+    assertThat(result.outcome()).isEqualTo(ChangeResult.Outcome.DONE);
+    ArgumentCaptor<PasEvent> event = ArgumentCaptor.forClass(PasEvent.class);
+    verify(outbox).append(event.capture());
+    assertThat(event.getValue().type()).isEqualTo(PasEventType.POLICY_RENEWED);
+    PolicyRenewed data = (PolicyRenewed) event.getValue().data();
+    assertThat(data.previousExpiryDate()).isEqualTo(LocalDate.of(2027, 1, 1));
+    assertThat(data.expiryDate()).isAfter(data.previousExpiryDate());
+    assertThat(data.renewalCount()).isEqualTo(1);
   }
 
   @Test
@@ -149,6 +188,7 @@ class PolicyChangeServicesTest {
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("expected 1");
     verify(audit, never()).insert(any());
+    verify(outbox, never()).append(any());
   }
 
   @Test
@@ -161,13 +201,15 @@ class PolicyChangeServicesTest {
             audit,
             new RenewalCalculator(properties(false).renewalRules()),
             OpenClaimsRule.NOT_ENFORCED,
-            CLOCK);
+            CLOCK,
+            outbox);
 
     assertThatThrownBy(() -> service.renew(NUMBER, null, WHOLE_BOOK, ACTOR))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("expected 1");
     verify(policies, never()).redateActiveCoverages(any(), any(), any());
     verify(audit, never()).insert(any());
+    verify(outbox, never()).append(any());
   }
 
   @Test

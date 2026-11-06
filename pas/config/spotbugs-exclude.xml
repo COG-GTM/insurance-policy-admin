@@ -29,4 +29,10 @@
     <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     <Class name="~com\.acme\.insurance\.pas\.batch\.migration\.(MigrationTable|MigrationProperties|ReconciliationReport|TableSnapshot(\$Row)?)"/>
   </Match>
+  <!-- AB-528: the legacy bridge keeps its injected byte-array KafkaTemplate. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="com.acme.insurance.pas.policyservice.bridge.LegacyRecordBridge"/>
+    <Field name="bytes"/>
+  </Match>
 </FindBugsFilter>

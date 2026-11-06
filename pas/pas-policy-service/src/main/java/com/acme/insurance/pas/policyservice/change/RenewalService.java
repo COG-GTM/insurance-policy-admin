@@ -3,11 +3,14 @@ package com.acme.insurance.pas.policyservice.change;
 import com.acme.insurance.pas.domain.Policy;
 import com.acme.insurance.pas.domain.PolicyStatus;
 import com.acme.insurance.pas.domain.UnderwritingStatus;
+import com.acme.insurance.pas.events.PasEvents;
+import com.acme.insurance.pas.events.PolicyRenewed;
 import com.acme.insurance.pas.persistence.PolicyChangeAudit;
 import com.acme.insurance.pas.persistence.PolicyChangeAuditJdbcRepository;
 import com.acme.insurance.pas.persistence.PolicyJdbcRepository;
 import com.acme.insurance.pas.policyservice.change.PolicyChangeConfiguration.OpenClaimsRule;
 import com.acme.insurance.pas.policyservice.change.PolicyChangeConfiguration.PolicyChangeClock;
+import com.acme.insurance.pas.policyservice.events.OutboxWriter;
 import com.acme.insurance.pas.policyservice.security.Entitlement;
 import com.acme.insurance.pas.rating.PolicyChangeError;
 import com.acme.insurance.pas.rating.RatingOverflowException;
@@ -37,13 +40,18 @@ public class RenewalService {
   private final RenewalCalculator calculator;
   private final OpenClaimsRule openClaims;
   private final PolicyChangeClock clock;
+  private final OutboxWriter outbox;
+  private final PasEvents events;
 
   public RenewalService(
       PolicyJdbcRepository policies,
       PolicyChangeAuditJdbcRepository audit,
       RenewalCalculator calculator,
       OpenClaimsRule openClaims,
-      PolicyChangeClock clock) {
+      PolicyChangeClock clock,
+      OutboxWriter outbox) {
+    this.outbox = outbox;
+    this.events = new PasEvents(clock.clock());
     this.policies = policies;
     this.audit = audit;
     this.calculator = calculator;
@@ -127,6 +135,7 @@ public class RenewalService {
             quote.newPremium(),
             quote.renewalCount(),
             now));
+    outbox.append(events.policyRenewed(PolicyRenewed.of(current, renewed), actor.correlationId()));
     return ChangeResult.done(new Renewal(renewed, quote));
   }
 

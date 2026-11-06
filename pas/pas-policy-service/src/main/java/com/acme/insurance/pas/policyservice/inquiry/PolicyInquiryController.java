@@ -3,6 +3,7 @@ package com.acme.insurance.pas.policyservice.inquiry;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICYHOLDER_READ;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.authority;
 
+import com.acme.insurance.pas.domain.Policy;
 import com.acme.insurance.pas.policyservice.security.EntitlementResolver;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -19,6 +20,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -49,6 +51,56 @@ public class PolicyInquiryController {
     this.entitlements = entitlements;
     this.meters = meters;
     this.timestampZone = timestampZone;
+  }
+
+  static final int MAX_PAGE = 200;
+  private static final Pattern CODE = Pattern.compile("[A-Z0-9]{1,6}");
+  private static final Pattern STATUS = Pattern.compile("[A-Z]{2}");
+  private static final Pattern NUMBER = Pattern.compile("[A-Z0-9-]{1,12}");
+
+  /** A page of policies; pass {@code nextAfter} as {@code after} for the next page. */
+  public record PolicyPageView(List<PolicyView> policies, String nextAfter) {
+    public PolicyPageView {
+      policies = List.copyOf(policies);
+    }
+  }
+
+  /**
+   * Policies of one agent or one branch (Broker Portal, AB-528), replacing the portal's
+   * linked-server read of ACMEINS.POLICIES. Exactly one of {@code agentCode} or {@code branchCode}
+   * is required.
+   */
+  @GetMapping
+  public ResponseEntity<PolicyPageView> policyPage(
+      @RequestParam(required = false) String agentCode,
+      @RequestParam(required = false) String branchCode,
+      @RequestParam(required = false) String status,
+      @RequestParam(required = false) String after,
+      @RequestParam(defaultValue = "50") int limit,
+      Authentication caller) {
+    if ((agentCode == null) == (branchCode == null)
+        || (agentCode != null && !CODE.matcher(agentCode).matches())
+        || (branchCode != null && (branchCode.length() > 4 || !CODE.matcher(branchCode).matches()))
+        || (status != null && !STATUS.matcher(status).matches())
+        || (after != null && !NUMBER.matcher(after).matches())
+        || limit < 1
+        || limit > MAX_PAGE) {
+      return ResponseEntity.badRequest().build();
+    }
+    List<Policy> page =
+        inquiry.policyPage(
+            agentCode, branchCode, status, after, limit, entitlements.resolve(caller));
+    Counter.builder(METRIC)
+        .description("Policy inquiry requests by operation, outcome and calling client")
+        .tag("operation", "policy-page")
+        .tag("outcome", page.isEmpty() ? "empty" : "found")
+        .tag("client", clientId(caller))
+        .register(meters)
+        .increment();
+    String next = page.size() == limit ? page.get(page.size() - 1).policyNumber() : null;
+    return ResponseEntity.ok(
+        new PolicyPageView(
+            page.stream().map(p -> PolicyView.from(p, timestampZone)).toList(), next));
   }
 
   @GetMapping("/{policyNumber}")

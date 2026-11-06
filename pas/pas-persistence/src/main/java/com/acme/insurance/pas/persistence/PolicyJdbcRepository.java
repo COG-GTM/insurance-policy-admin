@@ -130,6 +130,36 @@ public class PolicyJdbcRepository {
   }
 
   /**
+   * One page of policies of an agent or a branch, in policy-number order after {@code after}
+   * (keyset paging, portable to DB2 for z/OS). The Broker Portal list read that replaces its SQL
+   * Server linked-server query (AB-528); exactly one of agentCode or branchCode is given.
+   */
+  public List<Policy> findPolicyPage(
+      String agentCode, String branchCode, String statusCode, String after, int limit) {
+    if ((agentCode == null) == (branchCode == null)) {
+      throw new IllegalArgumentException("exactly one of agentCode or branchCode");
+    }
+    if (limit <= 0 || limit > 500) {
+      throw new IllegalArgumentException("limit must be 1..500");
+    }
+    List<Object> params = new java.util.ArrayList<>();
+    StringBuilder sql = new StringBuilder("SELECT * FROM acmeins.policies WHERE ");
+    sql.append(agentCode != null ? "agent_code = ?" : "branch_code = ?");
+    params.add(agentCode != null ? agentCode : branchCode);
+    if (statusCode != null) {
+      sql.append(" AND policy_status = ?");
+      params.add(statusCode);
+    }
+    if (after != null) {
+      sql.append(" AND policy_number > ?");
+      params.add(after);
+    }
+    // FETCH FIRST takes a literal on DB2 for z/OS; limit is a bounded int.
+    sql.append(" ORDER BY policy_number FETCH FIRST ").append(limit).append(" ROWS ONLY");
+    return jdbc.sql(sql.toString()).params(params).query(POLICY_ROW).list();
+  }
+
+  /**
    * Reads the policy and keeps it locked until the transaction ends, the guarantee POLEND gets from
    * {@code WITH RS USE AND KEEP UPDATE LOCKS}: concurrent renewals and endorsements of one policy
    * run one after the other and never overwrite each other's premium. Needs an open transaction.
