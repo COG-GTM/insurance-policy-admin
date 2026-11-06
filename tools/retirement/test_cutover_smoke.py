@@ -29,20 +29,20 @@ class StubPas(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        token = self.headers.get("Authorization", "").removeprefix("Bearer ")
+        bearer = self.headers.get("Authorization", "").removeprefix("Bearer ")
         path = self.path
         if path == "/actuator/health/readiness":
             return self.reply(200, {"status": "UP"})
         if path == "/actuator/prometheus":
-            return self.reply({"": 401, OPS: 200}.get(token, 403))
+            return self.reply({"": 401, OPS: 200}.get(bearer, 403))
         if path.startswith("/api/v2/alerts"):
             return self.reply(200, [])
         if path.startswith("/api/v1/policies?"):
-            return self.reply(400 if token == READ else 401)
+            return self.reply(400 if bearer == READ else 401)
         if path.startswith("/api/v1/policies/"):
-            if not token:
+            if not bearer:
                 return self.reply(401)
-            if token != READ:
+            if bearer != READ:
                 return self.reply(403)
             if path.endswith("/" + POLICY["policyNumber"]):
                 return self.reply(200, POLICY)
