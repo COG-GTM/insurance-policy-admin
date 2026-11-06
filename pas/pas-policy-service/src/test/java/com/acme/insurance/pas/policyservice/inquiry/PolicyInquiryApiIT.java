@@ -143,6 +143,30 @@ class PolicyInquiryApiIT {
   }
 
   @Test
+  void theBrokerPortalListShowsOnlyEntitledPoliciesPageByPage() throws Exception {
+    Map<String, String> branch = TestJwt.bearer(TestJwt.branches(POLICY_READ, "CHI1"));
+    JsonNode first = json.readTree(get("/api/v1/policies?branchCode=CHI1&limit=1", branch).body());
+    assertThat(first.get("policies")).hasSize(1);
+    assertThat(first.at("/policies/0/policyNumber").asText()).isEqualTo("POL-00000001");
+    assertThat(first.get("nextAfter").asText()).isEqualTo("POL-00000001");
+    JsonNode second =
+        json.readTree(
+            get("/api/v1/policies?branchCode=CHI1&limit=1&after=POL-00000001", branch).body());
+    assertThat(second.at("/policies/0/policyNumber").asText()).isEqualTo("POL-00000002");
+
+    Map<String, String> agent = TestJwt.bearer(TestJwt.agents(POLICY_READ, "AG1001"));
+    JsonNode own = json.readTree(get("/api/v1/policies?agentCode=AG1001", agent).body());
+    assertThat(own.get("policies"))
+        .extracting(p -> p.get("agentCode").asText())
+        .containsOnly("AG1001");
+    JsonNode other = json.readTree(get("/api/v1/policies?branchCode=NYC1", agent).body());
+    assertThat(other.get("policies")).isEmpty();
+    assertThat(get("/api/v1/policies?agentCode=AG1001&branchCode=CHI1", agent).statusCode())
+        .isEqualTo(400);
+    assertThat(get("/api/v1/policies?agentCode=x%27or", agent).statusCode()).isEqualTo(400);
+  }
+
+  @Test
   void aTokenWithoutAnyEntitlementSeesNothing() throws Exception {
     String jwt = TestJwt.sign(TestJwt.claims(POLICY_READ).build());
     assertCrossTenantLooksLikeNotFound(jwt, "POL-00000001");
@@ -213,7 +237,7 @@ class PolicyInquiryApiIT {
   @Test
   void otherMethodsAndPathsStayDenied() throws Exception {
     Map<String, String> auth = TestJwt.bearer(TestJwt.wholeBook(POLICY_READ));
-    assertThat(get("/api/v1/policies", auth).statusCode()).isEqualTo(403);
+    assertThat(get("/api/v1/policies", auth).statusCode()).isEqualTo(400);
     assertThat(get("/api/v1/ping", auth).statusCode()).isEqualTo(403);
     HttpRequest.Builder delete =
         HttpRequest.newBuilder(URI.create("http://localhost:" + port + ENDPOINTS.get(0)))

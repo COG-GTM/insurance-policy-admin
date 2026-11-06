@@ -71,6 +71,8 @@ Rules for this register:
 | [Q-525-2](#q-525-2) | Holder without credit score: UNDWRT has no null indicator | UNDWRT | Underwriting lead | **fix** | proposed - pending business sign-off | AB-525 | `cobol/programs/UNDWRT.cbl:104` |
 | [Q-525-3](#q-525-3) | POLNEW accepts any policy type and negative amounts | POLNEW | Product Owner, Policy Administration | **fix** | proposed - pending business sign-off | AB-525 | `cobol/programs/POLNEW.cbl:113` |
 | [Q-525-4](#q-525-4) | Where an underwriting override is stored | UNDWRT | Underwriting lead | **fix** | proposed - pending business sign-off | AB-525 | `cobol/programs/UNDWRT.cbl:231` |
+| [Q-528-1](#q-528-1) | Queue messages are delivered at least once | POLNEW | Underwriting ops + ECM/Document team | **fix** | proposed - pending consumer sign-off | AB-528 | `cobol/programs/POLNEW.cbl:243`<br>`cobol/programs/UNDWRT.cbl:237` |
+| [Q-528-2](#q-528-2) | Bridged POLICY-RECORD reflects the policy at bridge time | POLNEW | ECM/Document team + Underwriting ops | **fix** | proposed - pending consumer sign-off | AB-528 | `cobol/programs/POLNEW.cbl:245` |
 <!-- END GENERATED: quirk-table -->
 
 ## Details
@@ -910,5 +912,36 @@ UNDWRT writes one UNDERWRITING_DECISIONS row per decision with UNDERWRITER_ID 'S
 - Follow-up: FU-525-3
 - Evidence:
   - `cobol/programs/UNDWRT.cbl:231`: `UPDATED_BY = 'UNDWRT'`
+
+### Q-528-1
+
+**Queue messages are delivered at least once** (POLNEW, integration)
+
+POLNEW and UNDWRT write the POLICY-RECORD with EXEC CICS WRITEQ TD inside the CICS unit of work, so a committed transaction produces exactly one TD record. The outbox relay, the Kafka bridge and the MQ sink deliver at least once: a crash between publish and acknowledgement repeats a message.
+
+- Owner: Underwriting ops + ECM/Document team
+- Proposed decision: **fix** (proposed - pending consumer sign-off)
+- Rationale: Exactly-once across PostgreSQL/DB2, Kafka and MQ would need XA. Every bridged message carries the event id as Kafka header and MQ message property eventId; consumers drop repeats (FileNet by event id, the underwriting queue by event id or policy number + status). Native Kafka consumers use the envelope eventId.
+- Parity / characterization note: Not a calculation; MessagingBridgeIT asserts one bridged record per event in the normal path.
+- Lands in: AB-528
+- Follow-up: FU-528-1
+- Evidence:
+  - `cobol/programs/POLNEW.cbl:243`: `WRITEQ TD`
+  - `cobol/programs/UNDWRT.cbl:237`: `WRITEQ TD`
+
+### Q-528-2
+
+**Bridged POLICY-RECORD reflects the policy at bridge time** (POLNEW, integration)
+
+The CICS programs write POLICY-RECORD from working storage at the moment of the change. The bridge builds the same 125-byte layout from the current policy row when it consumes the event, so if a second change lands before the first event is bridged both messages carry the later state.
+
+- Owner: ECM/Document team + Underwriting ops
+- Proposed decision: **fix** (proposed - pending consumer sign-off)
+- Rationale: Events carry no direct PII (ADR D5) while POLICY-RECORD needs fields the events do not hold, so the record is re-read. Bridge lag is seconds; the same-policy race needs two changes within that window. Consumers that need the exact change state move to the native events, which carry the before/after values.
+- Parity / characterization note: Byte layout is the AB-519 PolicyRecordCodec (125 bytes, EBCDIC, risk score truncated as in Q-14); MessagingBridgeIT decodes each bridged record.
+- Lands in: AB-528
+- Follow-up: FU-528-1
+- Evidence:
+  - `cobol/programs/POLNEW.cbl:245`: `FROM(POLICY-RECORD)`
 
 <!-- END GENERATED: quirk-details -->

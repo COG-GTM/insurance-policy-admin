@@ -45,7 +45,7 @@ class OpenApiSpecTest {
     Arrays.stream(PolicyInquiryController.class.getDeclaredMethods())
         .map(m -> m.getAnnotation(GetMapping.class))
         .filter(a -> a != null)
-        .forEach(a -> mapped.add(base + a.value()[0]));
+        .forEach(a -> mapped.add(base + (a.value().length == 0 ? "" : a.value()[0])));
     assertThat(base).isEqualTo(PREFIX);
     assertThat(paths.keySet()).isEqualTo(mapped);
     paths.values().forEach(ops -> assertThat(ops.keySet()).containsOnly("get"));

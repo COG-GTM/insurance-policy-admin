@@ -22,7 +22,7 @@ adr:
 	python3 -m unittest discover -s tools/adr -p 'test_*.py'
 
 # --- PAS target platform (pas/, AB-519). JDK 21 and Maven 3.9+ required; set PAS_JAVA_HOME if it is not the default. ---
-.PHONY: pas pas-verify pas-build pas-format pas-env pas-up pas-smoke pas-api-contract facade-retirement pas-down pas-images pas-scan
+.PHONY: pas pas-verify pas-build pas-format pas-env pas-up pas-smoke pas-api-contract facade-retirement messaging-decommission pas-down pas-images pas-scan
 
 PAS_JAVA_HOME ?= $(JAVA_HOME)
 PAS_MVN = cd pas && JAVA_HOME="$(PAS_JAVA_HOME)" mvn -B -ntp
@@ -61,6 +61,12 @@ facade-retirement:
 	python3 -m unittest discover -s tools/retirement -p 'test_*.py'
 	python3 tools/retirement/facade_retirement.py --check
 	python3 tools/retirement/facade_retirement.py
+
+# Messaging and Broker Portal decommission (AB-528): validate the gated plan and sink configs, dry run.
+messaging-decommission:
+	python3 -m unittest discover -s tools/retirement -p 'test_messaging*.py'
+	python3 tools/retirement/messaging_decommission.py --check
+	python3 tools/retirement/messaging_decommission.py
 
 pas-down:
 	docker compose --profile batch down

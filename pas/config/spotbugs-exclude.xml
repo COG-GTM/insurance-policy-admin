@@ -23,4 +23,10 @@
     <Bug pattern="EI_EXPOSE_REP2"/>
     <Class name="~com\.acme\.insurance\.pas\.policyservice\.(audit\.AuditWriter|claims\.HttpClaimsHistory|events\.OutboxRelay|events\.OutboxWriter)"/>
   </Match>
+  <!-- AB-528: the legacy bridge keeps its injected byte-array KafkaTemplate. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="com.acme.insurance.pas.policyservice.bridge.LegacyRecordBridge"/>
+    <Field name="bytes"/>
+  </Match>
 </FindBugsFilter>

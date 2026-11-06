@@ -1,0 +1,24 @@
+{
+  "name": "pas-mq-sink-filenet-document-trigger",
+  "config": {
+    "connector.class": "com.ibm.eventstreams.connect.mqsink.MQSinkConnector",
+    "tasks.max": "1",
+    "topics": "pas.bridge.filenet.document-trigger",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "mq.queue.manager": "${env:PAS_MQ_QUEUE_MANAGER}",
+    "mq.connection.mode": "client",
+    "mq.connection.name.list": "${env:PAS_MQ_CONNECTION_NAME_LIST}",
+    "mq.channel.name": "${env:PAS_MQ_CHANNEL}",
+    "mq.queue": "${env:PAS_FILENET_TRIGGER_QUEUE}",
+    "mq.user.name": "${file:/opt/kafka/secrets/mq.properties:user}",
+    "mq.password": "${file:/opt/kafka/secrets/mq.properties:password}",
+    "mq.ssl.cipher.suite": "${env:PAS_MQ_CIPHER_SUITE}",
+    "mq.message.builder": "com.ibm.eventstreams.connect.mqsink.builders.DefaultMessageBuilder",
+    "mq.message.body.jms": "false",
+    "mq.persistent": "true",
+    "mq.kafka.headers.copy.to.jms.properties": "true",
+    "errors.tolerance": "none",
+    "errors.retry.timeout": "600000"
+  }
+}

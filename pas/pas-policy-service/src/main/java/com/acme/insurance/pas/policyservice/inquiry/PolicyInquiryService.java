@@ -43,6 +43,27 @@ public class PolicyInquiryService {
         : InquiryResult.denied();
   }
 
+  /**
+   * One page of an agent's or a branch's policies (Broker Portal list, AB-528). A filter the caller
+   * is not entitled to yields an empty page, so it reveals nothing about another agency's book.
+   */
+  public List<Policy> policyPage(
+      String agentCode,
+      String branchCode,
+      String statusCode,
+      String after,
+      int limit,
+      Entitlement entitlement) {
+    boolean permitted =
+        agentCode != null
+            ? entitlement.permits(agentCode, null)
+            : entitlement.permits(null, branchCode);
+    if (!permitted) {
+      return List.of();
+    }
+    return policies.findPolicyPage(agentCode, branchCode, statusCode, after, limit);
+  }
+
   public InquiryResult<List<Coverage>> coverages(String policyNumber, Entitlement entitlement) {
     InquiryResult<Policy> policy = policy(policyNumber, entitlement);
     if (policy.outcome() != InquiryResult.Outcome.FOUND) {

@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:acme:pas:events:pas.policy.created:v1",
+  "title": "pas.policy.created v1",
+  "description": "PAS domain event envelope (ADR 0001 D4, AB-528). Immutable once released: a breaking change is a new version file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "eventType",
+    "schemaVersion",
+    "policyNumber",
+    "occurredAt",
+    "correlationId",
+    "data"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "pattern": "^[0-9a-f-]{36}$"
+    },
+    "eventType": {
+      "const": "pas.policy.created"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "policyNumber": {
+      "type": "string",
+      "maxLength": 12
+    },
+    "occurredAt": {
+      "type": "string"
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policyNumber",
+        "policyType",
+        "policyStatus",
+        "uwStatus",
+        "effectiveDate",
+        "expiryDate",
+        "inceptionDate",
+        "policyholderId",
+        "agentCode",
+        "branchCode",
+        "totalPremium",
+        "deductible",
+        "coverageLimit",
+        "coverages"
+      ],
+      "properties": {
+        "policyNumber": {
+          "type": "string",
+          "maxLength": 12
+        },
+        "policyType": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 3
+        },
+        "policyStatus": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2
+        },
+        "uwStatus": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2
+        },
+        "effectiveDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "expiryDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "inceptionDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "policyholderId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 10
+        },
+        "agentCode": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 6
+        },
+        "branchCode": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4
+        },
+        "totalPremium": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "deductible": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "coverageLimit": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "coverages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sequenceNum",
+              "coverageType",
+              "description"
+            ],
+            "properties": {
+              "sequenceNum": {
+                "type": "integer"
+              },
+              "coverageType": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 40
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

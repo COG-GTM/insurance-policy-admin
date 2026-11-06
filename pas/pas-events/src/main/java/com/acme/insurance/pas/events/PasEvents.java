@@ -50,6 +50,14 @@ public final class PasEvents {
         PolicyCreated.of(policy, coverages));
   }
 
+  public PasEvent policyRenewed(PolicyRenewed renewed, String correlationId) {
+    return event(PasEventType.POLICY_RENEWED, renewed.policyNumber(), correlationId, renewed);
+  }
+
+  public PasEvent policyEndorsed(PolicyEndorsed endorsed, String correlationId) {
+    return event(PasEventType.POLICY_ENDORSED, endorsed.policyNumber(), correlationId, endorsed);
+  }
+
   public PasEvent underwritingRequested(Policy policy, String correlationId) {
     return event(
         PasEventType.UNDERWRITING_REQUESTED,
