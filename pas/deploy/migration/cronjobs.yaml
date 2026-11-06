@@ -1,0 +1,115 @@
+# AB-529 schedules for the DB2 -> PostgreSQL migration jobs (Kubernetes CronJobs). Image, namespace
+# and secret names are placeholders the platform team fills in; nothing here holds a credential.
+# Secret pas-migration-db holds PAS_MIGRATION_DB2_URL/USERNAME/PASSWORD and
+# PAS_MIGRATION_PG_URL/USERNAME/PASSWORD for the migration service accounts (read on DB2 ACMEINS
+# before cutover; write on DB2 ACMEINS only for the rollback window), plus PAS_DB_URL for the Spring
+# Batch job repository. Every URL must enforce TLS (FU-523-1). The bulk load, cutover and rollback
+# are run by hand from the runbook (docs/pas/data-migration.md), never on a schedule.
+# Exit codes (BatchExitCodeGenerator): 0 clean, 10 reconciliation differences, 5 failed. Both
+# differences and failures fail the Kubernetes Job, which the alerts in alerts.yaml page on.
+# Memory: a bucket of both sides is held in memory (TableSnapshot, about 3 KB per row for both
+# sides). The heap is 75% of the 2Gi limit; keep the largest table's rows / 10^bucket-digits under
+# about 300,000 (docs/pas/data-migration.md#memory-and-bucket-sizing). Measured in FU-529-3.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pas-migration-reports
+  labels: {app: pas-batch, ticket: AB-529}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ENCRYPTED_STORAGE_CLASS
+  resources:
+    requests: {storage: 1Gi}
+---
+# Scheduled delta sync until the CDC product is chosen (FU-529-1): every 15 minutes from 05:00 to
+# 22:45, outside the nightly batch window. Each run copies inserts, updates and deletes from DB2 and
+# then reconciles. Suspended once log-based CDC carries the changes.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pas-migration-delta-sync
+  labels: {app: pas-batch, job: migration-delta, ticket: AB-529}
+spec:
+  schedule: "*/15 5-22 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  # PasDeltaSyncFailing looks at the three newest runs; keep at least three of each outcome so a
+  # success between failures is still visible.
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 840
+      template:
+        metadata:
+          labels: {app: pas-batch, job: migration-delta}
+        spec:
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, fsGroup: 10001}
+          containers:
+            - name: pas-batch
+              image: REGISTRY/pas-batch:VERSION
+              envFrom:
+                - secretRef: {name: pas-migration-db}
+              env:
+                - {name: PAS_BATCH_JOB, value: migrationDeltaSync}
+                - {name: PAS_MIGRATION_BUCKET_DIGITS, value: "2"}
+                - {name: PAS_MIGRATION_REPORT_DIR, value: /var/pas/reports/migration}
+                - {name: JAVA_TOOL_OPTIONS, value: "-XX:MaxRAMPercentage=75"}
+              resources:
+                requests: {cpu: "1", memory: 1Gi}
+                limits: {memory: 2Gi}
+              volumeMounts:
+                - {name: reports, mountPath: /var/pas/reports/migration}
+          volumes:
+            - name: reports
+              persistentVolumeClaim: {claimName: pas-migration-reports}
+---
+# Daily reconciliation after the nightly batch (premium 01:00, extracts 23:00). It first copies the
+# DB2 changes made since the last delta sync at 22:45 (PAS_MIGRATION_RECONCILE_CATCH_UP: the premium
+# run and late online changes), then compares counts, premium and limit totals by policy type and
+# branch, orphan holders, record hashes of POLICIES, COVERAGES and PREMIUMS. Results go to
+# acmeins_shadow (view recon_daily_summary) and to the report volume as
+# reconciliation-<date>.md/.json; a difference exits 10 and pages (alerts.yaml).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pas-migration-reconciliation
+  labels: {app: pas-batch, job: migration-recon, ticket: AB-529}
+spec:
+  schedule: "30 3 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 5400
+      template:
+        metadata:
+          labels: {app: pas-batch, job: migration-recon}
+        spec:
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, fsGroup: 10001}
+          containers:
+            - name: pas-batch
+              image: REGISTRY/pas-batch:VERSION
+              envFrom:
+                - secretRef: {name: pas-migration-db}
+              env:
+                - {name: PAS_BATCH_JOB, value: migrationReconciliation}
+                - {name: PAS_MIGRATION_RECONCILE_CATCH_UP, value: "true"}
+                - {name: PAS_MIGRATION_BUCKET_DIGITS, value: "2"}
+                - {name: PAS_MIGRATION_REPORT_DIR, value: /var/pas/reports/migration}
+                - {name: JAVA_TOOL_OPTIONS, value: "-XX:MaxRAMPercentage=75"}
+              resources:
+                requests: {cpu: "1", memory: 1Gi}
+                limits: {memory: 2Gi}
+              volumeMounts:
+                - {name: reports, mountPath: /var/pas/reports/migration}
+          volumes:
+            - name: reports
+              persistentVolumeClaim: {claimName: pas-migration-reports}

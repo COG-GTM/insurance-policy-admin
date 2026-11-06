@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Project-wide SpotBugs exclusions. Every entry needs a reason. -->
+<FindBugsFilter>
+  <!-- Spring injects collaborators through constructors; storing the injected bean is intended. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="~com\.acme\.insurance\.pas\..*(Config|Configuration|Controller|Filter|Properties|Service)"/>
+  </Match>
+  <!-- AB-527: the extract delivery and alerting beans keep the injected MeterRegistry to record metrics. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="~com\.acme\.insurance\.pas\.batch\.extract\.(FeedDelivery|ExtractJobAlerting)"/>
+    <Field name="meters"/>
+  </Match>
+  <!-- AB-523: the premium job's repository, chunk components and alerting keep their injected
+       JdbcTemplate, repository, rating snapshot and MeterRegistry. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="~com\.acme\.insurance\.pas\.(persistence\.PremiumRunJdbcRepository|batch\.premium\..*)"/>
+  </Match>
+  <!-- AB-525: the audit, outbox and claims beans keep their injected collaborators (repositories, KafkaTemplate, RestClient, ObjectMapper). -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="~com\.acme\.insurance\.pas\.policyservice\.(audit\.AuditWriter|claims\.HttpClaimsHistory|events\.OutboxRelay|events\.OutboxWriter)"/>
+  </Match>
+  <!-- AB-529: migration table metadata and reconciliation results hold immutable lists (List.of /
+       List.copyOf); TableSnapshot is a package-internal, per-bucket buffer that is read only. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    <Class name="~com\.acme\.insurance\.pas\.batch\.migration\.(MigrationTable|MigrationProperties|ReconciliationReport|TableSnapshot(\$Row)?)"/>
+  </Match>
+  <!-- AB-528: the legacy bridge keeps its injected byte-array KafkaTemplate. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+    <Class name="com.acme.insurance.pas.policyservice.bridge.LegacyRecordBridge"/>
+    <Field name="bytes"/>
+  </Match>
+</FindBugsFilter>

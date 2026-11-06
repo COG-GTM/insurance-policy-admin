@@ -1,0 +1,351 @@
+{
+  "_generated_by": "tools/discovery/pas_inventory.py --write (do not edit by hand)",
+  "copybooks": {
+    "COVERAGE-RECORD": {
+      "fields": 13,
+      "record_length": 124,
+      "source": "cobol/copybooks/COVERAGE-RECORD.cpy"
+    },
+    "CUSTOMER-RECORD": {
+      "fields": 22,
+      "record_length": 365,
+      "source": "cobol/copybooks/CUSTOMER-RECORD.cpy"
+    },
+    "POLICY-RECORD": {
+      "fields": 19,
+      "record_length": 125,
+      "source": "cobol/copybooks/POLICY-RECORD.cpy"
+    },
+    "PREMIUM-RECORD": {
+      "fields": 17,
+      "record_length": 105,
+      "source": "cobol/copybooks/PREMIUM-RECORD.cpy"
+    }
+  },
+  "ddl": {
+    "sequences": [
+      "POLICY_SEQ"
+    ],
+    "source": "sql/ddl/create-tables.sql",
+    "tables": [
+      "COVERAGES",
+      "ENDORSEMENTS",
+      "POLICIES",
+      "POLICY_HOLDERS",
+      "PREMIUMS",
+      "TERRITORY_FACTORS",
+      "UNDERWRITING_DECISIONS"
+    ]
+  },
+  "ddl_tables_unreferenced": [],
+  "jobs": {
+    "DAILY-EXTRACT": {
+      "job_card": "POLEXT",
+      "outputs": [
+        {
+          "dd": "POLOUT",
+          "disp": "(NEW,CATLG,DELETE)",
+          "dsn": "ACME.PAS.EXTRACT.POLICY.DAILY",
+          "lrecl": 200,
+          "step": "STEP010"
+        },
+        {
+          "dd": "COVOUT",
+          "disp": "(NEW,CATLG,DELETE)",
+          "dsn": "ACME.PAS.EXTRACT.COVERAGE.DAILY",
+          "lrecl": 150,
+          "step": "STEP020"
+        }
+      ],
+      "schedule": "Daily at 23:00 EST (CA-7 Job# PAS0100)",
+      "source": "jcl/DAILY-EXTRACT.jcl",
+      "steps": [
+        {
+          "cond": null,
+          "pgm": "IKJEFT01",
+          "runs": "DSNTEP2",
+          "step": "STEP010"
+        },
+        {
+          "cond": "(4,LT,STEP010)",
+          "pgm": "IKJEFT01",
+          "runs": "DSNTEP2",
+          "step": "STEP020"
+        },
+        {
+          "cond": "(4,LT)",
+          "pgm": "FTP",
+          "runs": null,
+          "step": "STEP030"
+        }
+      ],
+      "tables": {
+        "COVERAGES": "R",
+        "POLICIES": "R"
+      },
+      "transfers": [
+        {
+          "from": "ACME.PAS.EXTRACT.POLICY.DAILY",
+          "host": "CLAIMSRV.ACME.LOCAL",
+          "protocol": "ftp",
+          "step": "STEP030",
+          "to": "/claims/import/policy_extract.dat"
+        },
+        {
+          "from": "ACME.PAS.EXTRACT.COVERAGE.DAILY",
+          "host": "CLAIMSRV.ACME.LOCAL",
+          "protocol": "ftp",
+          "step": "STEP030",
+          "to": "/claims/import/coverage_extract.dat"
+        }
+      ]
+    },
+    "MONTHLY-EXPOSURE": {
+      "job_card": "MONEXP",
+      "outputs": [
+        {
+          "dd": "EXPOUT",
+          "disp": "(NEW,CATLG,DELETE)",
+          "dsn": "ACME.PAS.EXPOSURE.MONTHLY.D&LYYMMDD",
+          "lrecl": 300,
+          "step": "STEP010"
+        }
+      ],
+      "schedule": "1st of month at 02:00 EST (CA-7 Job# PAS0200)",
+      "source": "jcl/MONTHLY-EXPOSURE.jcl",
+      "steps": [
+        {
+          "cond": null,
+          "pgm": "IKJEFT01",
+          "runs": "DSNTEP2",
+          "step": "STEP010"
+        },
+        {
+          "cond": "(4,LT,STEP010)",
+          "pgm": "FTP",
+          "runs": null,
+          "step": "STEP020"
+        }
+      ],
+      "tables": {
+        "COVERAGES": "R",
+        "POLICIES": "R"
+      },
+      "transfers": [
+        {
+          "from": "ACME.PAS.EXPOSURE.MONTHLY.D&LYYMMDD",
+          "host": "ACTUARIAL.ACME.LOCAL",
+          "protocol": "ftp",
+          "step": "STEP020",
+          "to": "/actuarial/data/exposure_monthly.csv"
+        }
+      ]
+    },
+    "PREMIUM-BATCH": {
+      "job_card": "PREMBAT",
+      "outputs": [
+        {
+          "dd": "PREMRPT",
+          "disp": "(NEW,CATLG,DELETE)",
+          "dsn": "ACME.PAS.REPORTS.PREMIUM.D&LYYMMDD",
+          "lrecl": 132,
+          "step": "STEP010"
+        }
+      ],
+      "schedule": "Daily at 01:00 EST (CA-7 Job# PAS0050)",
+      "source": "jcl/PREMIUM-BATCH.jcl",
+      "steps": [
+        {
+          "cond": null,
+          "pgm": "IKJEFT01",
+          "runs": "PREMBAT",
+          "step": "STEP010"
+        },
+        {
+          "cond": "(0,NE,STEP010)",
+          "pgm": "IEFBR14",
+          "runs": null,
+          "step": "STEP020"
+        },
+        {
+          "cond": "(4,LT,STEP010)",
+          "pgm": "IKJEFT01",
+          "runs": null,
+          "step": "STEP030"
+        }
+      ],
+      "tables": {},
+      "transfers": []
+    }
+  },
+  "programs": {
+    "POLEND": {
+      "copybooks": [
+        "COVERAGE-RECORD",
+        "POLICY-RECORD"
+      ],
+      "files": {},
+      "kind": "cics",
+      "maps_received": [
+        "POLEMAPS/POLEMAP"
+      ],
+      "maps_sent": [
+        "POLEMAPS/POLECONF"
+      ],
+      "qualified_tables": [],
+      "sequences": [],
+      "source": "cobol/programs/POLEND.cbl",
+      "tables": {
+        "ENDORSEMENTS": "CR",
+        "POLICIES": "RU"
+      },
+      "td_queues": [],
+      "transid": "PEND",
+      "ts_queues": [
+        "ENDORSEMENT-AUDIT"
+      ]
+    },
+    "POLNEW": {
+      "copybooks": [
+        "COVERAGE-RECORD",
+        "CUSTOMER-RECORD",
+        "POLICY-RECORD"
+      ],
+      "files": {},
+      "kind": "cics",
+      "maps_received": [
+        "POLNMAPS/POLNMAP"
+      ],
+      "maps_sent": [
+        "POLNMAPS/POLNCONF"
+      ],
+      "qualified_tables": [],
+      "sequences": [
+        "POLICY_SEQ"
+      ],
+      "source": "cobol/programs/POLNEW.cbl",
+      "tables": {
+        "COVERAGES": "C",
+        "POLICIES": "C",
+        "POLICY_HOLDERS": "R"
+      },
+      "td_queues": [
+        "ACME.PAS.UNDERWRITING.REQUEST"
+      ],
+      "transid": "PNEW",
+      "ts_queues": []
+    },
+    "POLQRY": {
+      "copybooks": [
+        "COVERAGE-RECORD",
+        "CUSTOMER-RECORD",
+        "POLICY-RECORD",
+        "PREMIUM-RECORD"
+      ],
+      "files": {},
+      "kind": "cics",
+      "maps_received": [
+        "POLQMAPS/POLQMAP"
+      ],
+      "maps_sent": [
+        "POLQMAPS/POLQDET"
+      ],
+      "qualified_tables": [],
+      "sequences": [],
+      "source": "cobol/programs/POLQRY.cbl",
+      "tables": {
+        "COVERAGES": "R",
+        "POLICIES": "R",
+        "POLICY_HOLDERS": "R"
+      },
+      "td_queues": [],
+      "transid": "PQRY",
+      "ts_queues": []
+    },
+    "POLRNW": {
+      "copybooks": [
+        "COVERAGE-RECORD",
+        "POLICY-RECORD",
+        "PREMIUM-RECORD"
+      ],
+      "files": {},
+      "kind": "cics",
+      "maps_received": [
+        "POLRMAPS/POLRMAP"
+      ],
+      "maps_sent": [
+        "POLRMAPS/POLRCONF"
+      ],
+      "qualified_tables": [
+        "ACMEINS.CLAIMS"
+      ],
+      "sequences": [],
+      "source": "cobol/programs/POLRNW.cbl",
+      "tables": {
+        "CLAIMS": "R",
+        "COVERAGES": "U",
+        "POLICIES": "RU"
+      },
+      "td_queues": [],
+      "transid": "PRWL",
+      "ts_queues": []
+    },
+    "PREMBAT": {
+      "copybooks": [
+        "COVERAGE-RECORD",
+        "POLICY-RECORD",
+        "PREMIUM-RECORD"
+      ],
+      "files": {
+        "PREMIUM-REPORT": "PREMRPT"
+      },
+      "kind": "batch",
+      "maps_received": [],
+      "maps_sent": [],
+      "qualified_tables": [],
+      "sequences": [],
+      "source": "cobol/programs/PREMBAT.cbl",
+      "tables": {
+        "POLICIES": "R",
+        "PREMIUMS": "C",
+        "TERRITORY_FACTORS": "R"
+      },
+      "td_queues": [],
+      "transid": null,
+      "ts_queues": []
+    },
+    "UNDWRT": {
+      "copybooks": [
+        "CUSTOMER-RECORD",
+        "POLICY-RECORD"
+      ],
+      "files": {},
+      "kind": "cics",
+      "maps_received": [
+        "UWRTMAPS/UWRTMAP"
+      ],
+      "maps_sent": [
+        "UWRTMAPS/UWRTRES"
+      ],
+      "qualified_tables": [
+        "ACMEINS.CLAIMS"
+      ],
+      "sequences": [],
+      "source": "cobol/programs/UNDWRT.cbl",
+      "tables": {
+        "CLAIMS": "R",
+        "POLICIES": "RU",
+        "POLICY_HOLDERS": "R",
+        "UNDERWRITING_DECISIONS": "C"
+      },
+      "td_queues": [
+        "ACME.PAS.UNDERWRITING.DECISION"
+      ],
+      "transid": "PUWR",
+      "ts_queues": []
+    }
+  },
+  "tables_not_in_ddl": [
+    "CLAIMS"
+  ]
+}

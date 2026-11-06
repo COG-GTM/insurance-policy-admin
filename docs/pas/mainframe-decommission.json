@@ -1,0 +1,92 @@
+{
+  "_comment": "AB-530 mainframe decommission plan. Read by tools/retirement/mainframe_decommission.py (make mainframe-decommission). Dry run by default; --execute refuses while any gate is open or on a protected branch, and the only scripted step removes the legacy trees from the working tree for review in a PR. All mainframe actions are manual and run by the named owner. See docs/pas/mainframe-decommission.md.",
+  "component": "PAS mainframe components (CICS transactions and programs, CA-7 jobs, DB2 ACMEINS, legacy source trees)",
+  "replacement": "pas-policy-service, pas-batch, PostgreSQL ACMEINS",
+  "protected_branches": ["main", "devin/ab-516-v3"],
+  "decommission": [
+    {"id": "D1", "kind": "CICS transaction", "name": "PNEW (program POLNEW)", "defined_in": "README.md", "evidence": "| PNEW | POLNEW |", "replaced_by": "POST /api/v1/policies (C-4)", "owner": "Mainframe team"},
+    {"id": "D2", "kind": "CICS transaction", "name": "PRWL (program POLRNW)", "defined_in": "README.md", "evidence": "| PRWL | POLRNW |", "replaced_by": "POST /api/v1/policies/{policyNumber}/renewals (C-6)", "owner": "Mainframe team"},
+    {"id": "D3", "kind": "CICS transaction", "name": "PEND (program POLEND)", "defined_in": "README.md", "evidence": "| PEND | POLEND |", "replaced_by": "POST /api/v1/policies/{policyNumber}/endorsements (C-7)", "owner": "Mainframe team"},
+    {"id": "D4", "kind": "CICS transaction", "name": "PQRY (program POLQRY)", "defined_in": "README.md", "evidence": "| PQRY | POLQRY |", "replaced_by": "GET /api/v1/policies/{policyNumber} (C-3)", "owner": "Mainframe team"},
+    {"id": "D5", "kind": "CICS transaction", "name": "PUWR (program UNDWRT)", "defined_in": "README.md", "evidence": "| PUWR | UNDWRT |", "replaced_by": "underwriting decision APIs (C-5)", "owner": "Mainframe team"},
+    {"id": "D6", "kind": "CA-7 job", "name": "PAS0050 PREMIUM-BATCH", "defined_in": "jcl/PREMIUM-BATCH.jcl", "evidence": "PAS0050", "replaced_by": "pas-batch premiumRecalculation (C-2)", "owner": "Mainframe team (scheduling)"},
+    {"id": "D7", "kind": "CA-7 job", "name": "PAS0100 DAILY-EXTRACT", "defined_in": "jcl/DAILY-EXTRACT.jcl", "evidence": "PAS0100", "replaced_by": "pas-batch claimsDailyExtract (C-8)", "owner": "Mainframe team (scheduling)"},
+    {"id": "D8", "kind": "CA-7 job", "name": "PAS0200 MONTHLY-EXPOSURE", "defined_in": "jcl/MONTHLY-EXPOSURE.jcl", "evidence": "PAS0200", "replaced_by": "pas-batch actuarialMonthlyExposure (C-9)", "owner": "Mainframe team (scheduling)"},
+    {"id": "D9", "kind": "Load library", "name": "ACME.PAS.LOADLIB (POLNEW, POLRNW, POLEND, POLQRY, UNDWRT, PREMBAT and CSD group)", "defined_in": "jcl/PREMIUM-BATCH.jcl", "evidence": "ACME.PAS.LOADLIB", "replaced_by": "pas-policy-service and pas-batch images", "owner": "Mainframe team"},
+    {"id": "D10", "kind": "DB2 schema", "name": "ACMEINS (archive, then drop tablespace PASTS01)", "defined_in": "sql/ddl/create-tables.sql", "evidence": "CREATE TABLESPACE PASTS01", "replaced_by": "PostgreSQL ACMEINS (C-11)", "owner": "DBA"},
+    {"id": "D11", "kind": "Transition job", "name": "migrationReverseSync and migrationDeltaSync CronJobs, acmeins_shadow schema", "defined_in": "pas/deploy/migration/cronjobs.yaml", "evidence": "migrationDeltaSync", "replaced_by": "nothing (transition only, ADR 0001 MSG-02, DS-02)", "owner": "Platform SRE"},
+    {"id": "D12", "kind": "Service", "name": "java-facade deployment", "defined_in": "docs/pas/facade-retirement.json", "evidence": "java-facade", "replaced_by": "pas-policy-service inquiry API (AB-524 plan)", "owner": "Facade owner"}
+  ],
+  "archive": {
+    "schema": "ACMEINS",
+    "source_ddl": "sql/ddl/create-tables.sql",
+    "out_of_scope_tables": [],
+    "method": "DB2 UNLOAD of every table (with DDL from the catalog) after the last reverse sync, to the enterprise archive as read-only datasets; row counts and SHA-256 of each unload recorded; a sample restore into a scratch DB2 subsystem proves the archive is readable",
+    "tables": [
+      {"table": "POLICIES", "retention": "pending (FU-530-4)", "notes": "policy master; regulatory record"},
+      {"table": "COVERAGES", "retention": "pending (FU-530-4)", "notes": ""},
+      {"table": "PREMIUMS", "retention": "pending (FU-530-4)", "notes": "financial record"},
+      {"table": "ENDORSEMENTS", "retention": "pending (FU-530-4)", "notes": "endorsement audit, FU-09"},
+      {"table": "UNDERWRITING_DECISIONS", "retention": "pending (FU-530-4)", "notes": "includes overrides"},
+      {"table": "POLICY_HOLDERS", "retention": "pending (FU-530-4)", "notes": "PII: encrypted archive, access by Data governance approval only"},
+      {"table": "TERRITORY_FACTORS", "retention": "pending (FU-530-4)", "notes": "reference data"}
+    ]
+  },
+  "repository": {
+    "trees": ["cobol", "jcl", "java-facade"],
+    "kept": ["sql"],
+    "kept_reason": "sql/ddl is the DB2 schema baseline for the compat schema check and the archive restore; it is retired by a separate decision once the archive is accepted",
+    "dependents": [
+      {"path": ".github/pull_request_template.md", "action": "drop the legacy-tree checkbox"},
+      {"path": "README.md", "action": "replace the legacy layout with the post-decommission layout (docs/pas/target-state.md)"},
+      {"path": "compat/", "action": "freeze the copybook/JCL record layouts into compat baselines (check_layouts) and retarget compat-api from java-facade to the pas-policy-service OpenAPI contract (AB-524 G4)"},
+      {"path": "docs/", "action": "historical references; keep, they cite the frozen git history"},
+      {"path": "parity/", "action": "archive the COBOL characterization harness: keep the golden JSON as frozen expectations and drop the cobol/ program/stub references in parity/suites.json"},
+      {"path": "pas/README.md", "action": "update the layout paragraph"},
+      {"path": "pas/pas-batch/", "action": "ExtractParityIT reads the JCL SYSIN: move the frozen SQL into test resources"},
+      {"path": "pas/pas-domain/", "action": "CopybookLayoutsTest reads cobol/copybooks: move the copybooks into test resources"},
+      {"path": "pas/pas-persistence/", "action": "comments only (provenance)"},
+      {"path": "pas/pas-policy-service/", "action": "comments and the facade contract seed: move facade data.sql into test resources"},
+      {"path": "pas/scripts/", "action": "drop the java-facade compat step"},
+      {"path": "tools/", "action": "discovery inventory and parity tools read cobol/: freeze the generated inventory and retire the readers; retirement tools keep the trees as data"},
+      {"path": "Makefile", "action": "drop the parity and compat-api targets that run the legacy code"}
+    ]
+  },
+  "mips": {
+    "baseline_msu": null,
+    "after_msu": null,
+    "measurement": "4-hour rolling average MSU of the PAS CICS region and PAS batch service classes from SMF type 70/72 (or the sub-capacity report), same calendar month before cutover and after decommission",
+    "follow_up": "FU-530-5"
+  },
+  "gates": [
+    {"id": "G1", "description": "Cutover complete: make cutover reports GO and every capability in docs/pas/cutover.json is on NEW", "owner": "Cutover lead", "status": "pending", "evidence": ""},
+    {"id": "G2", "description": "Hypercare exit: 14 days after cutover with no Sev1/Sev2 (make cutover-hypercare)", "owner": "Service owner", "status": "pending", "evidence": ""},
+    {"id": "G3", "description": "Rollback window closed, recorded decision not to roll back", "owner": "Cutover lead + Product owner", "status": "pending", "evidence": ""},
+    {"id": "G4", "description": "No CICS traffic on PNEW, PRWL, PEND, PQRY, PUWR for the agreed period (CICS statistics / SMF 110)", "owner": "Mainframe team", "status": "pending", "evidence": ""},
+    {"id": "G5", "description": "AB-524 facade retirement and AB-528 messaging decommission plans executed (all their gates approved)", "owner": "Platform SRE", "status": "pending", "evidence": ""},
+    {"id": "G6", "description": "DB2 archive taken, row counts and checksums verified, sample restore passed; retention approved by Compliance and Data governance", "owner": "DBA + Compliance", "status": "pending", "evidence": ""},
+    {"id": "G7", "description": "MIPS savings confirmed: mips.after_msu below mips.baseline_msu, confirmed by capacity planning/finance", "owner": "Capacity planning", "status": "pending", "evidence": ""},
+    {"id": "G8", "description": "Architecture docs and support runbook signed off; operations handover accepted (support-runbook.md)", "owner": "Service owner + ARB", "status": "pending", "evidence": ""},
+    {"id": "G9", "description": "Repository dependents repointed (repository.dependents) so make compat, pas-verify and CI pass without the legacy trees", "owner": "PAS tech lead", "status": "pending", "evidence": ""}
+  ],
+  "steps": [
+    {"id": "S1", "description": "Disable and then remove CICS transactions PNEW, PRWL, PEND, PQRY, PUWR and their programs from the CSD group; remove the group from the region's GRPLIST (CEMT SET TRANSACTION(...) DISABLED first, CEDA DELETE after G4)", "command": ""},
+    {"id": "S2", "description": "Remove CA-7 jobs PAS0050, PAS0100, PAS0200 (triggers, predecessors, calendars) after their last held cycle, and the related console alerts (FU-12)", "command": ""},
+    {"id": "S3", "description": "Unload and archive DB2 ACMEINS per archive.tables and retention; revoke the PLT-02 transition account and Broker Portal grants; drop tablespace PASTS01 after G6", "command": ""},
+    {"id": "S4", "description": "Stop and delete the migrationDeltaSync, migrationReverseSync and migrationReconciliation CronJobs and the DB2 datasource; drop schema acmeins_shadow (Flyway migration in the decommission PR)", "command": ""},
+    {"id": "S5", "description": "Scratch ACME.PAS.LOADLIB members and PAS datasets (ACME.PAS.*) after the archive retention review", "command": ""},
+    {"id": "S6", "description": "Repoint the repository dependents listed in repository.dependents (G9)", "command": ""},
+    {"id": "S7", "description": "Remove the legacy trees cobol/, jcl/ and java-facade/ from the working tree", "command": "git rm -r -q cobol jcl java-facade"},
+    {"id": "S8", "description": "Open the decommission PR into main with the MIPS evidence and the signed-off docs; it is reviewed and merged by humans", "command": ""}
+  ],
+  "signoffs": [
+    {"role": "Mainframe team (CICS, CA-7, load libraries)", "status": "pending"},
+    {"role": "DBA (archive and DB2 drop)", "status": "pending"},
+    {"role": "Compliance and Data governance (retention, PII archive)", "status": "pending"},
+    {"role": "Capacity planning / finance (MIPS savings)", "status": "pending"},
+    {"role": "Operations (support handover)", "status": "pending"},
+    {"role": "Security", "status": "pending"},
+    {"role": "Product owner", "status": "pending"},
+    {"role": "ARB", "status": "pending"}
+  ]
+}

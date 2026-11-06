@@ -13,6 +13,11 @@ business contract unless the change is explicitly approved.
 | Security non-regression | `check_security.py` | Added hardcoded secrets/keys, exposed actuator, H2 console outside local profile, plaintext FTP (PII additions are reported as notes) |
 
 Run locally: `make compat` (needs JDK 8 for `java-facade` and Python 3).
+`build_modules.sh` uses `JAVA_HOME_8_X64` when set, but `api/run_facade.sh`
+starts the jar with the first `java` on `PATH`. On a JDK 17/21 machine
+`make compat-api` then fails at startup (`InaccessibleObjectException`), so put
+JDK 8 first, e.g. `PATH=/usr/lib/jvm/java-8-openjdk-amd64/bin:$PATH make compat`.
+CI pins JDK 8, so this only affects local runs.
 
 ## Intentional changes
 If a change is deliberate (e.g. AB-524 adds authentication), add the finding id
@@ -30,3 +35,9 @@ When a replacement service takes over the read API, point `COMPAT_API_MODULE`
 
 The Devin "PAS backward-compatibility gate" automation also reviews each PR and
 covers what static checks can't (business-rule parity against COBOL, intent).
+
+AB-524: `make compat-api` still records and checks `java-facade` (unchanged). The replacement
+service is checked against the same snapshots by `FacadeContractIT` (in `make pas-verify`) and by
+`make pas-api-contract` (local stack), with `COMPAT_AUTH_HEADER` carrying a bearer token. The gate is
+repointed, and the authentication status changes approved here, only at retirement gate G4
+(docs/pas/facade-retirement.md).

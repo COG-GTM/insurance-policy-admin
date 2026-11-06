@@ -1,0 +1,44 @@
+{
+  "name": "main branch protection",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": true,
+        "required_review_thread_resolution": true
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          { "context": "PAS build, tests & static analysis" },
+          { "context": "PAS container images & vulnerability scan" },
+          { "context": "PAS local dev stack smoke test" },
+          { "context": "Schema, layouts & security" },
+          { "context": "Build & tests" },
+          { "context": "REST API contract" },
+          { "context": "ADRs, component register & ARB pack" },
+          { "context": "Behaviour inventory & quirk register" },
+          { "context": "COBOL characterization golden files" },
+          { "context": "Java vs COBOL parity (cent level)" }
+        ]
+      }
+    }
+  ]
+}

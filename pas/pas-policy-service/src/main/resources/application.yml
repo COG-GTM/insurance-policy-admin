@@ -1,0 +1,135 @@
+# pas-policy-service (ADR 0001 D1/D2/D5/D8). Configuration comes from the environment and the
+# platform secrets manager; there are no credential defaults here (fixes the Q-36 pattern).
+spring:
+  application:
+    name: pas-policy-service
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${PAS_DB_URL}
+    username: ${PAS_DB_USERNAME}
+    password: ${PAS_DB_PASSWORD}
+  flyway:
+    locations: classpath:db/migration/{vendor}
+    # Placeholder replacement off: migrations are plain SQL that must also run in the DBA tooling.
+    placeholder-replacement: false
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  kafka:
+    # Outbox relay producer (ADR 0001 D4). Only used when pas.events.relay-enabled is true.
+    bootstrap-servers: ${PAS_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+
+server:
+  port: ${PAS_HTTP_PORT:8080}
+  shutdown: graceful
+  error:
+    include-stacktrace: never
+    include-message: never
+
+management:
+  server:
+    # Separate management port, not routed through ingress (D5).
+    port: ${PAS_MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+  info:
+    env:
+      enabled: false
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${PAS_TRACING_SAMPLING_PROBABILITY:0.1}
+
+logging:
+  structured:
+    # JSON logs (Elastic Common Schema) on stdout; the correlation id and trace ids come from the MDC.
+    format:
+      console: ${PAS_LOG_FORMAT:ecs}
+    ecs:
+      service:
+        name: ${spring.application.name}
+
+pas:
+  security:
+    jwt:
+      # Access-token validation (ADR 0001 D5). No defaults for the issuer: the service does not start
+      # without one. Production uses the IdP's JWK set; local stacks and tests use a PEM public key.
+      issuer: ${PAS_JWT_ISSUER}
+      audience: ${PAS_JWT_AUDIENCE:pas-policy-service}
+      jwk-set-uri: ${PAS_JWT_JWK_SET_URI:}
+      public-key-location: ${PAS_JWT_PUBLIC_KEY_LOCATION:}
+  inquiry:
+    # Zone LAST_UPDATED is interpreted in when it is returned as epoch milliseconds (Q-524-1).
+    timestamp-zone: ${PAS_INQUIRY_TIMESTAMP_ZONE:UTC}
+  rating:
+    # Feature flag (AB-522): legacy-neutral keeps PREMBAT parity (every factor 1.0000, Q-03);
+    # table-driven applies territory/class factors from the reference tables after FU-03 sign-off.
+    factor-source: ${PAS_RATING_FACTOR_SOURCE:legacy-neutral}
+    # How long a loaded rate table is reused; new effective-dated rate rows are seen after this.
+    cache-ttl: ${PAS_RATING_CACHE_TTL:PT5M}
+  # Business date of new business and underwriting (CICS region local date, FU-525-6).
+  business-zone: ${PAS_BUSINESS_ZONE:America/New_York}
+  new-business:
+    # Q-08: format of new policy numbers over POLICY_SEQ; confirmed by the mainframe team (FU-05).
+    policy-number-format: ${PAS_POLICY_NUMBER_FORMAT:POL-%08d}
+    # Q-09: term length for the expiry date; product confirms (FU-525-2).
+    term-months: ${PAS_POLICY_TERM_MONTHS:12}
+  underwriting:
+    # UNDWRT thresholds and limits; defaults are the COBOL values.
+    refer-senior-from: ${PAS_UW_REFER_SENIOR_FROM:300}
+    refer-manager-from: ${PAS_UW_REFER_MANAGER_FROM:600}
+    decline-from: ${PAS_UW_DECLINE_FROM:800}
+    branch-accumulation-limit: ${PAS_UW_BRANCH_ACCUMULATION_LIMIT:500000000.00}
+    loss-history-years: ${PAS_UW_LOSS_HISTORY_YEARS:5}
+  claims:
+    # Claims-team history interface (INT-03, FU-17). Without it underwriting answers 503.
+    base-url: ${PAS_CLAIMS_BASE_URL:}
+    client-registration-id: ${PAS_CLAIMS_CLIENT_REGISTRATION_ID:}
+  events:
+    # Outbox relay to Kafka; off unless a broker is configured. Topics come from the platform.
+    relay-enabled: ${PAS_EVENTS_RELAY_ENABLED:false}
+    create-topics: ${PAS_EVENTS_CREATE_TOPICS:false}
+    # Failed publishes before a row is parked for replay (AB-528, V80).
+    max-attempts: ${PAS_EVENTS_MAX_ATTEMPTS:10}
+    # Failed publishes in a row (different policies) after which a relay run stops: broker outage.
+    relay-failure-limit: ${PAS_EVENTS_RELAY_FAILURE_LIMIT:3}
+  bridge:
+    # Kafka-to-legacy bridge for the FileNet document trigger and the underwriting queues (AB-528).
+    # Off until the MQ sink (pas/deploy/messaging) and the consumers' sign-off are in place.
+    enabled: ${PAS_BRIDGE_ENABLED:false}
+  policy-change:
+    # Renewal and endorsement (AB-526). Defaults reproduce POLRNW: +5% uplift (Q-05) and a flat 15%
+    # rate-increase cap (Q-04), configurable so state-specific caps can follow.
+    renewal-uplift-pct: ${PAS_RENEWAL_UPLIFT_PCT:5.00}
+    rate-increase-cap-pct: ${PAS_RENEWAL_RATE_INCREASE_CAP_PCT:15.00}
+    # Expiry of a renewed 29 February term: FEB_28 (recommended) or MAR_01 (Q-01, FU-01).
+    leap-day-expiry: ${PAS_RENEWAL_LEAP_DAY_EXPIRY:FEB_28}
+    # Open claims are counted but not enforced (Q-02, FU-02). Set a maximum only together with a
+    # Claims read interface (FU-17); the service does not start with a maximum and no interface.
+    max-open-claims: ${PAS_RENEWAL_MAX_OPEN_CLAIMS:}
+    # Zone of the business date an endorsement takes effect on (POLEND's CURRENT DATE).
+    business-zone: ${PAS_BUSINESS_ZONE:UTC}
+    # Non-zero annualPremiumChange on endorsements. Off until Product/Actuarial sign off FU-526-1:
+    # POLEND adjusts by 0.00 (Q-20), so a non-zero change is refused with 422.
+    endorsement-premium-change-enabled: ${PAS_ENDORSEMENT_PREMIUM_CHANGE_ENABLED:false}

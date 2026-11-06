@@ -1,0 +1,26 @@
+{
+  "suite": "prembat-rating",
+  "case": "empty-book",
+  "program": "PREMBAT",
+  "description": "No active policies: no PREMIUMS rows, return code 0",
+  "legacy_source": {
+    "path": "cobol/programs/PREMBAT.cbl",
+    "sha256": "8fd460149e6cc7ca1d6bd639e0f2d0e0b92e951cededcd69c7d4c0125d575690"
+  },
+  "run_date": "2025-03-01",
+  "outcome": {
+    "status": "completed",
+    "return_code": 0
+  },
+  "effects": [],
+  "artifacts": {
+    "PREMRPT": [
+      "ACME INSURANCE - PREMIUM BATCH CALCULATION RUN DATE: 20250301",
+      "------------------------------------------------------------------------------------------------------------------------------------",
+      "====================================================================================================================================",
+      "TOTAL POLICIES READ:    0000000",
+      "TOTAL POLICIES UPDATED: 0000000",
+      "TOTAL ERRORS:           0000000"
+    ]
+  }
+}

@@ -1,2 +1,6 @@
 compat-api.log
 __pycache__/
+target/
+logs/
+.env
+pas/.local-jwt/

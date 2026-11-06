@@ -1,0 +1,80 @@
+{
+  "suite": "undwrt-decision",
+  "case": "map-receive-failure",
+  "program": "UNDWRT",
+  "description": "RECEIVE MAP fails (MAPFAIL): GO TO 2000-EXIT leaves the PERFORM range, so the program falls through and writes a decision for an empty record (score 400) before sending the error text",
+  "legacy_source": {
+    "path": "cobol/programs/UNDWRT.cbl",
+    "sha256": "466aabebcf2780858b8e607a77117e0e265a362e74746f239c086364a864197a"
+  },
+  "run_date": "2025-03-01",
+  "outcome": {
+    "status": "completed",
+    "return_code": 0
+  },
+  "effects": [
+    {
+      "op": "SQL INSERT UNDERWRITING_DECISIONS",
+      "sqlcode": 0,
+      "text": {
+        "POLICY_NUMBER": "POL-00000118",
+        "DECISION_DATE": "20250301",
+        "DECISION_CODE": "RS",
+        "DECISION_REASON": "REFERRED TO SENIOR UNDERWRITER",
+        "UNDERWRITER_ID": "SYSTEM"
+      },
+      "numbers": {
+        "RISK_SCORE": "400"
+      },
+      "probes": {
+        "WS-CLAIM-COUNT": "0",
+        "WS-LOSS-RATIO": "0.00"
+      }
+    },
+    {
+      "op": "SQL UPDATE POLICIES",
+      "sqlcode": 0,
+      "text": {
+        "POLICY_NUMBER": "POL-00000118",
+        "UW_STATUS": "RS",
+        "UPDATED_BY": "UNDWRT"
+      },
+      "numbers": {
+        "RISK_SCORE": "400"
+      }
+    },
+    {
+      "op": "CICS WRITEQ TD",
+      "text": {
+        "QUEUE": "ACME.PAS.UNDERWRITING.DECISION",
+        "POLICY_NUMBER": "POL-00000118",
+        "POLICY_UW_STATUS": "RS"
+      },
+      "numbers": {
+        "POLICY_RISK_SCORE": "400"
+      }
+    },
+    {
+      "op": "CICS SEND MAP UWRTRES",
+      "text": {
+        "POLICY_NUMBER": "POL-00000118",
+        "POLICY_UW_STATUS": "RS"
+      },
+      "numbers": {
+        "POLICY_RISK_SCORE": "400"
+      }
+    },
+    {
+      "op": "CICS SEND TEXT",
+      "text": {
+        "TEXT": "ERROR RECEIVING UNDERWRITING DATA"
+      }
+    },
+    {
+      "op": "CICS RETURN",
+      "text": {
+        "TRANSID": "PUWR"
+      }
+    }
+  ]
+}

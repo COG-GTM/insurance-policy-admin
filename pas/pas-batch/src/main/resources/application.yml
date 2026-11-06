@@ -1,0 +1,73 @@
+# pas-batch (ADR 0001 D1/D2/D8). Configuration from the environment and the secrets manager; no
+# credential defaults. The job repository (schema pas_batch, DS-03) is created by Flyway V71.
+spring:
+  application:
+    name: pas-batch
+  main:
+    web-application-type: none
+  datasource:
+    url: ${PAS_DB_URL}
+    username: ${PAS_DB_USERNAME}
+    password: ${PAS_DB_PASSWORD}
+  flyway:
+    # Migrations are applied by the policy service / migration job, never by a batch run.
+    enabled: false
+  batch:
+    jdbc:
+      initialize-schema: never
+      table-prefix: pas_batch.BATCH_
+    job:
+      name: ${PAS_BATCH_JOB:}
+
+logging:
+  structured:
+    format:
+      console: ${PAS_LOG_FORMAT:ecs}
+    ecs:
+      service:
+        name: ${spring.application.name}
+
+# AB-527: Claims and Actuarial feeds over SFTP (docs/pas/extracts.md). Endpoint, user, key file and
+# known-hosts file come from the secrets manager; there are no defaults for them.
+pas:
+  premium:
+    report-dir: ${PAS_PREMIUM_REPORT_DIR:}
+    zone: ${PAS_PREMIUM_ZONE:America/New_York}
+    partitions: ${PAS_PREMIUM_PARTITIONS:8}
+    chunk-size: ${PAS_PREMIUM_CHUNK_SIZE:500}
+    skip-limit: ${PAS_PREMIUM_SKIP_LIMIT:1000}
+  extract:
+    staging-dir: ${PAS_EXTRACT_STAGING_DIR:}
+    claims:
+      uri: ${PAS_EXTRACT_CLAIMS_SFTP_URI:}
+      username: ${PAS_EXTRACT_CLAIMS_SFTP_USERNAME:}
+      private-key-file: ${PAS_EXTRACT_CLAIMS_SFTP_KEY_FILE:}
+      private-key-passphrase-file: ${PAS_EXTRACT_CLAIMS_SFTP_KEY_PASSPHRASE_FILE:}
+      known-hosts-file: ${PAS_EXTRACT_CLAIMS_SFTP_KNOWN_HOSTS_FILE:}
+    actuarial:
+      uri: ${PAS_EXTRACT_ACTUARIAL_SFTP_URI:}
+      username: ${PAS_EXTRACT_ACTUARIAL_SFTP_USERNAME:}
+      private-key-file: ${PAS_EXTRACT_ACTUARIAL_SFTP_KEY_FILE:}
+      private-key-passphrase-file: ${PAS_EXTRACT_ACTUARIAL_SFTP_KEY_PASSPHRASE_FILE:}
+      known-hosts-file: ${PAS_EXTRACT_ACTUARIAL_SFTP_KNOWN_HOSTS_FILE:}
+  # AB-529: DB2 -> PostgreSQL migration, reconciliation and rollback (docs/pas/data-migration.md).
+  # Both connections come from the secrets manager; there are no defaults for them.
+  migration:
+    db2:
+      url: ${PAS_MIGRATION_DB2_URL:}
+      username: ${PAS_MIGRATION_DB2_USERNAME:}
+      password: ${PAS_MIGRATION_DB2_PASSWORD:}
+    postgres:
+      url: ${PAS_MIGRATION_PG_URL:}
+      username: ${PAS_MIGRATION_PG_USERNAME:}
+      password: ${PAS_MIGRATION_PG_PASSWORD:}
+    bucket-digits: ${PAS_MIGRATION_BUCKET_DIGITS:1}
+    batch-size: ${PAS_MIGRATION_BATCH_SIZE:500}
+    report-dir: ${PAS_MIGRATION_REPORT_DIR:}
+    reconcile-catch-up: ${PAS_MIGRATION_RECONCILE_CATCH_UP:false}
+  rating:
+    # Feature flag (AB-522): legacy-neutral keeps PREMBAT parity (every factor 1.0000, Q-03);
+    # table-driven applies territory/class factors from the reference tables after FU-03 sign-off.
+    factor-source: ${PAS_RATING_FACTOR_SOURCE:legacy-neutral}
+    # How long a loaded rate table is reused; new effective-dated rate rows are seen after this.
+    cache-ttl: ${PAS_RATING_CACHE_TTL:PT5M}

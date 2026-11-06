@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.acme.insurance.pas</groupId>
+    <artifactId>pas-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>pas-parity</artifactId>
+  <name>pas-parity</name>
+  <description>Parity tests (AB-520): runs the Java implementation against the COBOL characterization fixtures in ../../parity and fails on any cent-level difference that is not a signed-off known difference. Not deployed.</description>
+
+  <properties>
+    <maven.deploy.skip>true</maven.deploy.skip>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.acme.insurance.pas</groupId>
+      <artifactId>pas-rating</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.acme.insurance.pas</groupId>
+      <artifactId>pas-persistence</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.acme.insurance.pas</groupId>
+      <artifactId>pas-batch</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.acme.insurance.pas</groupId>
+      <artifactId>pas-underwriting</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.acme.insurance.pas</groupId>
+      <artifactId>pas-events</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <parity.dir>${project.basedir}/../../parity</parity.dir>
+            <parity.report>${project.build.directory}/parity-report.md</parity.report>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

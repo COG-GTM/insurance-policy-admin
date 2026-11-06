@@ -1,0 +1,32 @@
+{
+  "component": "CICS TD/TS queues, IBM MQ queues, Kafka-to-MQ bridge (INT-01) and the Broker Portal DB2 linked server",
+  "replacement": "Kafka domain events pas.policy.* / pas.underwriting.* (MSG-01) and GET /api/v1/policies on pas-policy-service (AB-528)",
+  "protected_branches": ["main", "devin/ab-516-v3"],
+  "decommission": [
+    {"id": "D1", "kind": "CICS TD queue", "name": "ACME", "defined_in": "cobol/programs/POLNEW.cbl", "evidence": "WRITEQ TD", "note": "POLNEW and UNDWRT pass the 29/30-character MQ names as QUEUE(); CICS uses the first 4 characters, so both write TD queue ACME (Q-13). The DCT/CSD entry and its MQ bridge live in the CICS region, outside this repository.", "replaced_by": "pas.underwriting.requested, pas.underwriting.decided", "owner": "Mainframe team"},
+    {"id": "D2", "kind": "IBM MQ queue", "name": "ACME.PAS.UNDERWRITING.REQUEST", "defined_in": "cobol/programs/POLNEW.cbl", "evidence": "ACME.PAS.UNDERWRITING.REQUEST", "note": "I-4. Fed by the bridge sink until the underwriting work queue reads pas.underwriting.requested.", "replaced_by": "pas.underwriting.requested", "owner": "MQ admins + Underwriting ops"},
+    {"id": "D3", "kind": "IBM MQ queue", "name": "ACME.PAS.UNDERWRITING.DECISION", "defined_in": "cobol/programs/UNDWRT.cbl", "evidence": "ACME.PAS.UNDERWRITING.DECISION", "note": "I-5. Fed by the bridge sink until underwriting referrals read pas.underwriting.decided.", "replaced_by": "pas.underwriting.decided", "owner": "MQ admins + Underwriting ops"},
+    {"id": "D4", "kind": "CICS TS queue", "name": "ENDORSEMENT-AUDIT", "defined_in": "cobol/programs/POLEND.cbl", "evidence": "QUEUE('ENDORSEMENT-AUDIT')", "note": "Temporary storage, no reader in the repository; the endorsement is recorded in PASAPP.POLICY_CHANGE_AUDIT (V60) and pas.policy.endorsed.", "replaced_by": "pas.policy.endorsed", "owner": "Mainframe team"},
+    {"id": "D5", "kind": "IBM MQ queue", "name": "FileNet document trigger queue (name pending FU-06)", "defined_in": "README.md", "evidence": "IBM MQ", "note": "I-6. The queue FileNet listens on is not in the repository; the sink config takes it from PAS_FILENET_TRIGGER_QUEUE.", "replaced_by": "pas.policy.created, pas.policy.renewed, pas.policy.endorsed", "owner": "ECM/Document team + MQ admins"},
+    {"id": "D6", "kind": "SQL Server linked server", "name": "Broker Portal linked server to DB2 (ODBC, read-only)", "defined_in": "README.md", "evidence": "SQL Server linked server", "note": "I-3. Definition and queries pending FU-18.", "replaced_by": "GET /api/v1/policies?agentCode|branchCode, /api/v1/policies/{n}, /coverages, /policyholder", "owner": "Broker Portal team"},
+    {"id": "D7", "kind": "DB2 grants", "name": "SELECT grants on ACMEINS for the Broker Portal ODBC user", "defined_in": "", "evidence": "", "note": "Outside the repository (FU-18).", "replaced_by": "OAuth client with pas.policy.read and an entitlement (SEC-01)", "owner": "DBA team"},
+    {"id": "D8", "kind": "Kafka Connect connector + bridge topics", "name": "pas-mq-sink-* and pas.bridge.*", "defined_in": "pas/deploy/messaging/README.md", "evidence": "pas-policy-service", "note": "INT-01 is temporary; retired last, after D1-D5.", "replaced_by": "native consumers of the domain events", "owner": "Platform team"}
+  ],
+  "gates": [
+    {"id": "G1", "description": "Consumer inventory complete: every reader of TD queue ACME, both MQ queues, the FileNet trigger queue (FU-06) and the Broker Portal linked server (FU-18) identified with an owner", "owner": "MQ admins + ECM + Broker Portal team", "status": "pending", "evidence": ""},
+    {"id": "G2", "description": "Test environment: FileNet generates documents for a new, a renewed and an endorsed policy from the bridge (sink) or from the events directly; MessagingBridgeIT is the automated precondition", "owner": "ECM/Document team", "status": "pending", "evidence": ""},
+    {"id": "G3", "description": "Underwriting work queue and referral consumers read pas.underwriting.requested / decided (or the bridged queues) and process them in a test environment", "owner": "Underwriting ops", "status": "pending", "evidence": ""},
+    {"id": "G4", "description": "Broker Portal runs on the inquiry API in production with its DB2 linked server disabled for 30 days without errors (PolicyInquiryApiIT covers the API side)", "owner": "Broker Portal team", "status": "pending", "evidence": ""},
+    {"id": "G5", "description": "CICS PNEW, PUWR, PRWL and PEND switched to NEW (ADR C-4..C-7) and TD queue ACME / both MQ queues receive no messages from CICS for 30 days", "owner": "Mainframe team + MQ admins", "status": "pending", "evidence": ""},
+    {"id": "G6", "description": "Sign-offs: Security, Data governance, ECM, Underwriting ops, Broker Portal team, Platform, ARB", "owner": "ARB", "status": "pending", "evidence": ""},
+    {"id": "G7", "description": "Rollback window closed: one release cycle with the queues disabled (not deleted) and no rollback request", "owner": "Platform operations", "status": "pending", "evidence": ""}
+  ],
+  "steps": [
+    {"id": "S1", "description": "Disable (PUT(DISABLED)) ACME.PAS.UNDERWRITING.REQUEST/DECISION and the FileNet trigger queue; keep the definitions for G7 (MQ admins, outside this repository)", "command": ""},
+    {"id": "S2", "description": "Remove the TD queue ACME and the TS queue use from the CICS CSD with the CICS programs' retirement (AB-530)", "command": ""},
+    {"id": "S3", "description": "Drop the Broker Portal linked server and revoke its DB2 grants (D6, D7)", "command": ""},
+    {"id": "S4", "description": "Delete the three pas-mq-sink connectors and the pas.bridge.* topics; set PAS_BRIDGE_ENABLED=false everywhere", "command": ""},
+    {"id": "S5", "description": "After G7, delete the MQ queue definitions (D2, D3, D5)", "command": ""},
+    {"id": "S6", "description": "Open a PR that removes the bridge package and pas/deploy/messaging; the legacy trees are retired by AB-530, never here", "command": ""}
+  ]
+}

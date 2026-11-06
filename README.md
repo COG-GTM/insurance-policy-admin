@@ -81,6 +81,30 @@ GET /manage/health                              - Health check
 - **Java facade:** SVN (svn://svn.acme.local/pas-facade/trunk)
 - **No CI/CD pipeline** - Manual compilation and deployment
 
+## Modernization (AB-516)
+
+Behaviour inventory, quirk register and open questions: [docs/modernization/](docs/modernization/README.md). Check them with `make inventory`.
+
+The new Java 21 / Spring Boot 3 platform is built in [`pas/`](pas/README.md), next to the legacy trees, which stay unchanged until cutover:
+
+```
+cobol/  jcl/  sql/       legacy COBOL/CICS programs, batch JCL, DB2 DDL (unchanged)
+java-facade/             legacy Java 8 REST facade (unchanged)
+pas/                     target platform (ADR 0001): Maven multi-module build
+  pas-domain/              domain types, no dependencies
+  pas-rating/  pas-underwriting/  pas-persistence/  pas-events/    library modules
+  pas-policy-service/      REST API deployable
+  pas-batch/               Spring Batch deployable
+  pas-architecture-tests/  module dependency rules (ArchUnit)
+docker-compose.yml       local PostgreSQL 16, Kafka and the policy service
+```
+
+Build, test and start it locally with one command (JDK 21, Maven 3.9+ and Docker required): `make pas`. If JDK 21 is not your default JDK, pass it: `make pas PAS_JAVA_HOME=/path/to/jdk-21` (on an older JDK the Maven enforcer stops the build). CI and repository conventions: [docs/pas/](docs/pas/ci-and-conventions.md).
+
+Cutover, rollback and the mainframe decommission are gated runbooks, never executed from the repository: [cutover](docs/pas/cutover-runbook.md), [rollback](docs/pas/rollback-runbook.md), [decommission](docs/pas/mainframe-decommission.md), [support and handover](docs/pas/support-runbook.md), [end-state architecture](docs/pas/target-state.md). Check them with `make cutover mainframe-decommission`.
+
+Parity with the COBOL is proven by the characterization harness in [`parity/`](parity/README.md): the legacy programs run under GnuCOBOL against controlled fixtures, their outputs are stored as golden files, and the Java implementation must match them to the cent. Run it with `make parity`.
+
 ## Team Contacts
 
 - **Mainframe Team:** mainframe-ops@acme.com

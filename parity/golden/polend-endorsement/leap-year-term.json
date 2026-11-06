@@ -1,0 +1,74 @@
+{
+  "suite": "polend-endorsement",
+  "case": "leap-year-term",
+  "program": "POLEND",
+  "description": "Term 1 Jan 2024 - 1 Jan 2025 has 366 days; endorsed 1 Mar 2024 with 306 days remaining",
+  "legacy_source": {
+    "path": "cobol/programs/POLEND.cbl",
+    "sha256": "5f89fa94b3acb258854ddbbc8d0ffad07b03e59d949bc77f4cfd8e341dc39ce2"
+  },
+  "run_date": "2024-03-01",
+  "outcome": {
+    "status": "completed",
+    "return_code": 0
+  },
+  "effects": [
+    {
+      "op": "SQL INSERT ENDORSEMENTS",
+      "sqlcode": 0,
+      "text": {
+        "POLICY_NUMBER": "POL-00000305",
+        "ENDORSEMENT_TYPE": "\\x00\\x00\\x00",
+        "EFFECTIVE_DATE": "20240301",
+        "PROCESSED_BY": "POLEND"
+      },
+      "numbers": {
+        "ENDORSEMENT_SEQ": "3",
+        "PREMIUM_ADJUSTMENT": "0.00"
+      },
+      "probes": {
+        "WS-DAYS-IN-TERM": "366",
+        "WS-DAYS-REMAINING": "306",
+        "WS-PRORATA-FACTOR": "0.836065"
+      }
+    },
+    {
+      "op": "SQL UPDATE POLICIES",
+      "sqlcode": 0,
+      "text": {
+        "POLICY_NUMBER": "POL-00000305",
+        "UPDATED_BY": "POLEND"
+      },
+      "numbers": {
+        "TOTAL_PREMIUM": "1200.00"
+      }
+    },
+    {
+      "op": "CICS WRITEQ TS",
+      "text": {
+        "QUEUE": "ENDORSEMENT-AUDIT",
+        "POLICY_NUMBER": "POL-00000305",
+        "POLICY_STATUS": "AC"
+      },
+      "numbers": {
+        "TOTAL_PREMIUM": "1200.00"
+      }
+    },
+    {
+      "op": "CICS SEND MAP POLECONF",
+      "text": {
+        "POLICY_NUMBER": "POL-00000305",
+        "POLICY_STATUS": "AC"
+      },
+      "numbers": {
+        "TOTAL_PREMIUM": "1200.00"
+      }
+    },
+    {
+      "op": "CICS RETURN",
+      "text": {
+        "TRANSID": "PEND"
+      }
+    }
+  ]
+}

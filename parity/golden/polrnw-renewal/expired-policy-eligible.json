@@ -1,0 +1,68 @@
+{
+  "suite": "polrnw-renewal",
+  "case": "expired-policy-eligible",
+  "program": "POLRNW",
+  "description": "Status EX is eligible for renewal",
+  "legacy_source": {
+    "path": "cobol/programs/POLRNW.cbl",
+    "sha256": "57d80017f7372ef3f9d1e452ad06e1180fd3ad426c7678f49d593e3614ce5e9d"
+  },
+  "run_date": "2025-04-01",
+  "outcome": {
+    "status": "completed",
+    "return_code": 0
+  },
+  "effects": [
+    {
+      "op": "SQL UPDATE POLICIES",
+      "sqlcode": 0,
+      "text": {
+        "POLICY_NUMBER": "POL-00000208",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250315",
+        "EXPIRY_DATE": "20260315",
+        "UW_STATUS": "PN",
+        "UPDATED_BY": "POLRNW"
+      },
+      "numbers": {
+        "TOTAL_PREMIUM": "1050.00",
+        "RENEWAL_COUNT": "3"
+      },
+      "probes": {
+        "WS-OLD-PREMIUM": "1000.00",
+        "WS-NEW-PREMIUM": "1050.00",
+        "WS-RATE-CHANGE-PCT": "5.00",
+        "OPEN-CLAIM-COUNT": "0"
+      }
+    },
+    {
+      "op": "SQL UPDATE COVERAGES",
+      "sqlcode": 0,
+      "text": {
+        "POLICY_NUMBER": "POL-00000208",
+        "EFFECTIVE_DATE": "20250315",
+        "EXPIRY_DATE": "20260315"
+      }
+    },
+    {
+      "op": "CICS SEND MAP POLRCONF",
+      "text": {
+        "POLICY_NUMBER": "POL-00000208",
+        "POLICY_STATUS": "AC",
+        "EFFECTIVE_DATE": "20250315",
+        "EXPIRY_DATE": "20260315",
+        "UW_STATUS": "PN"
+      },
+      "numbers": {
+        "TOTAL_PREMIUM": "1050.00",
+        "RENEWAL_COUNT": "3"
+      }
+    },
+    {
+      "op": "CICS RETURN",
+      "text": {
+        "TRANSID": "PRWL"
+      }
+    }
+  ]
+}

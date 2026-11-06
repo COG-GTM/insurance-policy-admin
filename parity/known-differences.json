@@ -1,0 +1,252 @@
+{
+  "_comment": "Known differences (AB-520): where the Java implementation may differ from the COBOL golden output. Only for quirks whose decision in the quirk register is 'fix', each linked to that decision. sign_off is 'pending' until the quirk owner approves; PARITY_REQUIRE_SIGNOFF=1 (go-live gate, ADR 0001) rejects pending entries. paths name the result paths that may differ (outcome.status, effects.count, effects[*].numbers.RISK_SCORE, effects[1].* ...); a whole-case '*' or effects[*].* is rejected so an unrelated cent difference in the same case still fails. The capability ticket narrows the paths further once its adapter exists.",
+  "differences": [
+    {
+      "id": "KD-01",
+      "suite": "polrnw-renewal",
+      "cases": [
+        "leap-day-expiry"
+      ],
+      "paths": [
+        "effects.count",
+        "effects[0].sqlcode",
+        "effects[0].text.EXPIRY_DATE",
+        "effects[1].*",
+        "effects[2].*",
+        "effects[3].*"
+      ],
+      "quirk": "Q-01",
+      "decision": "docs/modernization/quirk-register.md#q-01",
+      "ticket": "AB-526",
+      "sign_off": "pending",
+      "reason": "29 Feb expiry: Java computes a valid next-year expiry (28 Feb by default, pas.policy-change.leap-day-expiry, FU-01) instead of the invalid 20250229 that DB2 rejects; the policy update succeeds and the 'DB2 ERROR UPDATING RENEWAL' send and the partial update path (Q-07) disappear with it. Narrowed by AB-526 with PolrnwRenewalAdapter: effect 0 differs only in sqlcode and EXPIRY_DATE (premium, renewal count and effective date must match); dropping the error send shifts the coverage update, confirmation and return up by one, so effects[1..3] are compared against different COBOL effects and stay listed."
+    },
+    {
+      "id": "KD-02",
+      "suite": "polrnw-renewal",
+      "cases": [
+        "zero-premium"
+      ],
+      "paths": [
+        "outcome.status",
+        "outcome.return_code",
+        "outcome.abend_code",
+        "effects.count"
+      ],
+      "quirk": "Q-41",
+      "decision": "docs/modernization/quirk-register.md#q-41",
+      "ticket": "AB-526",
+      "sign_off": "pending",
+      "reason": "Zero-premium renewal: COBOL abends (S0CB) on the rate-change division and writes nothing; Java guards the division and completes. Only the outcome and the effect count may differ. Confirmed by AB-526 with PolrnwRenewalAdapter: Java renews at 0.00 with a 0.00 rate change."
+    },
+    {
+      "id": "KD-03",
+      "suite": "undwrt-decision",
+      "cases": [
+        "preferred-high-credit-negative-score",
+        "score-over-999"
+      ],
+      "paths": [
+        "effects[*].numbers.RISK_SCORE",
+        "effects[*].numbers.POLICY_RISK_SCORE"
+      ],
+      "quirk": "Q-14",
+      "decision": "docs/modernization/quirk-register.md#q-14",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "Java clamps negative scores to 0 and carries the full score in the queue message and map instead of the 3-digit truncation. Only the score fields may differ; the decision code must still match."
+    },
+    {
+      "id": "KD-04",
+      "suite": "undwrt-decision",
+      "cases": [
+        "loss-ratio-1050-overflow"
+      ],
+      "paths": [
+        "effects[*].numbers.RISK_SCORE",
+        "effects[*].numbers.POLICY_RISK_SCORE",
+        "effects[*].text.DECISION_CODE",
+        "effects[*].text.DECISION_REASON",
+        "effects[*].text.UW_STATUS",
+        "effects[*].text.POLICY_UW_STATUS",
+        "effects[*].probes.WS-LOSS-RATIO"
+      ],
+      "quirk": "Q-15",
+      "decision": "docs/modernization/quirk-register.md#q-15",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "Java does not truncate the loss ratio, so a loss ratio of 1000% or more gets the +200 surcharge: the loss-ratio probe, the score and the band (decision code, reason, UW status) may differ. Policy number, dates, operations and SQLCODEs must still match."
+    },
+    {
+      "id": "KD-05",
+      "suite": "undwrt-decision",
+      "cases": [
+        "branch-accumulation-exceeded"
+      ],
+      "paths": [
+        "effects[*].text.DECISION_REASON"
+      ],
+      "quirk": "Q-16",
+      "decision": "docs/modernization/quirk-register.md#q-16",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "Java keeps the accumulation reason; score and decision code must still match."
+    },
+    {
+      "id": "KD-06",
+      "suite": "polrnw-renewal",
+      "cases": [
+        "map-receive-failure"
+      ],
+      "paths": [
+        "outcome.status",
+        "outcome.return_code",
+        "outcome.abend_code",
+        "effects.count"
+      ],
+      "quirk": "Q-520-1",
+      "decision": "docs/modernization/quirk-register.md#q-520-1",
+      "ticket": "AB-526",
+      "sign_off": "pending",
+      "reason": "Failed screen receive: COBOL falls through to the premium calculation and abends (S0CB) on the zero premium; the renewal API rejects an unreadable request before any read or write (HTTP 400, 'ERROR RECEIVING RENEWAL DATA'). Only the outcome and the effect count may differ."
+    },
+    {
+      "id": "KD-07",
+      "suite": "polend-endorsement",
+      "cases": [
+        "mid-term-low-values-type",
+        "leap-year-term",
+        "leap-day-start",
+        "zero-length-term",
+        "term-start",
+        "after-expiry",
+        "multi-year-term-truncated",
+        "zero-premium"
+      ],
+      "paths": [
+        "effects[0].text.ENDORSEMENT_TYPE"
+      ],
+      "quirk": "Q-19",
+      "decision": "docs/modernization/quirk-register.md#q-19",
+      "ticket": "AB-526",
+      "sign_off": "pending",
+      "reason": "POLEND never fills its endorsement type from the screen, so these golden cases insert LOW-VALUES into ENDORSEMENTS.ENDORSEMENT_TYPE. The endorsement API requires one of CAD, CRM, LCH, ACH, CAN (Q-19); PolendEndorsementAdapter submits LCH for a LOW-VALUES fixture. Only the inserted type may differ; sequence, adjustment, premium, audit and confirmation must match."
+    },
+    {
+      "id": "KD-08",
+      "suite": "polend-endorsement",
+      "cases": [
+        "after-expiry",
+        "multi-year-term-truncated"
+      ],
+      "paths": [
+        "effects[0].probes.WS-DAYS-REMAINING",
+        "effects[0].probes.WS-DAYS-IN-TERM",
+        "effects[0].probes.WS-PRORATA-FACTOR"
+      ],
+      "quirk": "Q-20",
+      "decision": "docs/modernization/quirk-register.md#q-20",
+      "ticket": "AB-526",
+      "sign_off": "pending",
+      "reason": "POLEND's day counts are unsigned PIC 9(03): 31 days after expiry stores +31 remaining, and a 1096-day term truncates to 96 (factor 5.729166). Java counts days without truncation and clamps the remaining days to 0..term (after expiry: 0, factor 0.000000; three-year term: 1096 days, factor 0.501824). Only the pro-rata probes may differ; the adjustment stays 0.00 because POLEND never applies the factor and no premium change is submitted."
+    },
+    {
+      "id": "KD-09",
+      "suite": "undwrt-decision",
+      "cases": [
+        "loss-ratio-1100-overflow"
+      ],
+      "paths": [
+        "effects[*].probes.WS-LOSS-RATIO"
+      ],
+      "quirk": "Q-15",
+      "decision": "docs/modernization/quirk-register.md#q-15",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "Java keeps the full loss ratio (1100.00) where the COBOL field drops the high-order digit (100.00). Both are above 80, so the surcharge, score, decision code and every write must still match; only the loss-ratio probe may differ."
+    },
+    {
+      "id": "KD-10",
+      "suite": "undwrt-decision",
+      "cases": [
+        "map-receive-failure"
+      ],
+      "paths": [
+        "effects.count",
+        "effects[0].*",
+        "effects[1].*",
+        "effects[2].*",
+        "effects[3].*",
+        "effects[4].*",
+        "effects[5].*"
+      ],
+      "quirk": "Q-520-1",
+      "decision": "docs/modernization/quirk-register.md#q-520-1",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "A request that cannot be read is rejected before any write: Java sends only the 'ERROR RECEIVING UNDERWRITING DATA' text and returns, so the decision insert, POLICIES update, TD message and result map of the COBOL fall-through disappear and the remaining effects shift. Covers the whole effect list because the effect count changes; the outcome must still match."
+    },
+    {
+      "id": "KD-11",
+      "suite": "undwrt-decision",
+      "cases": [
+        "preferred-high-credit-band-crossing"
+      ],
+      "paths": [
+        "effects[*].numbers.RISK_SCORE",
+        "effects[*].numbers.POLICY_RISK_SCORE",
+        "effects[*].text.DECISION_CODE",
+        "effects[*].text.DECISION_REASON",
+        "effects[*].text.UW_STATUS",
+        "effects[*].text.POLICY_UW_STATUS"
+      ],
+      "quirk": "Q-14",
+      "decision": "docs/modernization/quirk-register.md#q-14",
+      "ticket": "AB-525",
+      "sign_off": "pending",
+      "reason": "The Q-14 clamp can move the band: COBOL keeps -75 as 75 (75 + 150 claims + 100 limit = 325, RS) while Java clamps to 0 (250, AP). Score, decision code, reason and UW status may differ; policy number, dates, operations and SQLCODEs must match. Underwriting must sign off the band change, not only the score."
+    },
+    {
+      "id": "KD-12",
+      "suite": "prembat-batch-control",
+      "cases": [
+        "insert-error-stops-run"
+      ],
+      "paths": [
+        "outcome.return_code",
+        "effects.count",
+        "effects[1].sqlcode"
+      ],
+      "quirk": "Q-26",
+      "decision": "docs/modernization/quirk-register.md#q-26",
+      "ticket": "AB-523",
+      "sign_off": "pending",
+      "reason": "The -803 comes from a PREMIUMS row an earlier same-day run left for POL-00000032 (the adapter seeds it). Job premiumRecalculation replaces that row instead of failing (idempotent upsert), so the write succeeds (sqlcode 0), the run continues to POL-00000033 (one more effect, Q-25) and ends clean (return code 0 instead of 4). Every number of the replaced row must still match the COBOL insert."
+    },
+    {
+      "id": "KD-13",
+      "suite": "prembat-batch-control",
+      "cases": [
+        "invalid-term-date"
+      ],
+      "paths": [
+        "effects.count",
+        "effects[0].text.TERM_EXPIRY_DATE",
+        "effects[0].numbers.COVERAGE_SEQ",
+        "effects[0].numbers.BASE_RATE",
+        "effects[0].numbers.TERRITORY_FACTOR",
+        "effects[0].numbers.CLASS_FACTOR",
+        "effects[0].numbers.EXPERIENCE_MOD",
+        "effects[0].numbers.SCHEDULE_MOD",
+        "effects[0].numbers.DISCOUNT_PCT",
+        "effects[0].numbers.SURCHARGE_AMT",
+        "effects[0].numbers.TAX_AMT"
+      ],
+      "quirk": "Q-25",
+      "decision": "docs/modernization/quirk-register.md#q-25",
+      "ticket": "AB-523",
+      "sign_off": "pending",
+      "reason": "A PostgreSQL/DB2 DATE column cannot hold 2025-02-29, so the adapter stores the nearest valid day and makes the database reject that policy's PREMIUMS write with SQLSTATE 22007 (DB2 -181). The job records the policy as an error (sqlcode -181, attempted TOTAL_PREMIUM kept in premium_run_item; the other numbers of a rejected row are not stored) and continues with POL-00000035 instead of stopping (one more effect). Return code 4 (completed with errors) must still match."
+    }
+  ]
+}
