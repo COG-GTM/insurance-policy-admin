@@ -214,6 +214,8 @@ Each capability has a routing state in configuration, owned by the release manag
 
 A capability is **retired** only after the parallel run and cutover (AB-529, AB-530) and once its legacy path has had no traffic for an agreed period.
 
+*AB-530 implementation:* the cutover of all eleven capabilities in one freeze window, with per-capability switch, smoke tests and switch back, is planned in [`docs/pas/cutover.json`](../pas/cutover.json) ([runbook](../pas/cutover-runbook.md)); `make cutover` fails if its capability list drifts from this table and stays NO-GO until the AB-524, AB-527, AB-528 and AB-529 prerequisites, the go/no-go criteria and the named owners are all in place. Rollback after the system-of-record switch is the AB-529 reverse sync plus re-enabling CICS and CA-7 ([rollback runbook](../pas/rollback-runbook.md)). `RETIRED` is reached through the gated [mainframe decommission](../pas/mainframe-decommission.md) (CICS, CA-7, DB2 archive, removal of `cobol/`, `jcl/`, `java-facade/` from `main`), never executed from the epic branch. End state: [`docs/pas/target-state.md`](../pas/target-state.md).
+
 **Alternatives considered**
 
 | Option | Outcome | Reason |

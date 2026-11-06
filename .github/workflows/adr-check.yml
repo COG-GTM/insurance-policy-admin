@@ -27,3 +27,7 @@ jobs:
         run: make facade-retirement
       - name: Messaging decommission plan is valid and gated (AB-528)
         run: make messaging-decommission
+      - name: Cutover plan is valid (AB-530)
+        run: make cutover
+      - name: Mainframe decommission plan is valid and gated (AB-530)
+        run: make mainframe-decommission

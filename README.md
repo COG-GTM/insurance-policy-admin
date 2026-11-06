@@ -101,6 +101,8 @@ docker-compose.yml       local PostgreSQL 16, Kafka and the policy service
 
 Build, test and start it locally with one command (JDK 21, Maven 3.9+ and Docker required): `make pas`. If JDK 21 is not your default JDK, pass it: `make pas PAS_JAVA_HOME=/path/to/jdk-21` (on an older JDK the Maven enforcer stops the build). CI and repository conventions: [docs/pas/](docs/pas/ci-and-conventions.md).
 
+Cutover, rollback and the mainframe decommission are gated runbooks, never executed from the repository: [cutover](docs/pas/cutover-runbook.md), [rollback](docs/pas/rollback-runbook.md), [decommission](docs/pas/mainframe-decommission.md), [support and handover](docs/pas/support-runbook.md), [end-state architecture](docs/pas/target-state.md). Check them with `make cutover mainframe-decommission`.
+
 Parity with the COBOL is proven by the characterization harness in [`parity/`](parity/README.md): the legacy programs run under GnuCOBOL against controlled fixtures, their outputs are stored as golden files, and the Java implementation must match them to the cent. Run it with `make parity`.
 
 ## Team Contacts
