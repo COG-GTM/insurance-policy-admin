@@ -88,6 +88,22 @@ class CutoverPlanTest(unittest.TestCase):
         self.assertIn("GN-01: owner must be a role from 'owners'", errors)
         self.assertTrue(any(e.startswith("CO-03:") for e in errors))
 
+    def test_owner_must_match_a_role_exactly(self):
+        roles = [o["role"] for o in self.plan["owners"]]
+        self.assertTrue(co.role_of("Cutover lead", roles))
+        self.assertTrue(co.role_of("DBA + Mainframe team", roles))
+        for owner in (None, "", " ", "C", "Cutover", "DBA +", "Cutover lead (release manager"):
+            self.assertFalse(co.role_of(owner, roles), owner)
+
+    def test_rollback_needs_a_decision_owner(self):
+        for value in (None, "", "C"):
+            plan = copy.deepcopy(self.plan)
+            if value is None:
+                del plan["rollback"]["decision_owner"]
+            else:
+                plan["rollback"]["decision_owner"] = value
+            self.assertIn("rollback: decision_owner must be a role from 'owners'", co.validate(plan), value)
+
     def test_approved_criterion_needs_evidence(self):
         plan = copy.deepcopy(self.plan)
         plan["go_no_go"][1]["status"] = "approved"

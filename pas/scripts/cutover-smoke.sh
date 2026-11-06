@@ -3,8 +3,9 @@
 # Local stack: run with no environment (ports from docker compose, tokens from local-token.sh).
 # Shared environments: PAS_API_URL, PAS_MGMT_URL, PAS_READ_JWT (pas.policy.read) and
 # PAS_OPS_JWT (pas.ops.read) from the enterprise IdP; optional PAS_SMOKE_POLICY and
-# PAS_SMOKE_PREMIUM (CO-02 policy and its DB2 premium), PAS_SMOKE_AGENT. PAS_ALERTMANAGER_URL is
-# required in shared environments; only the local stack may skip the SM-07 alert check.
+# PAS_SMOKE_PREMIUM (CO-02 policy and its DB2 TOTAL_PREMIUM, compared with the API's totalPremium),
+# PAS_SMOKE_AGENT. PAS_ALERTMANAGER_URL is required in shared environments; only the local stack
+# may skip the SM-07 alert check.
 # SM-03 and SM-08 are manual and must be recorded in the change record before CO-09.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -36,15 +37,16 @@ body_file=$(mktemp)
 trap 'rm -f "$body_file"' EXIT
 
 # SM-01: readiness and a known policy (premium compared with DB2 when given).
-[[ $(status "$PAS_MGMT_URL/actuator/health/readiness") == 200 ]] && grep -q '"UP"' "$body_file" \
-  || fail "SM-01 readiness is not UP"
+if ! { [[ $(status "$PAS_MGMT_URL/actuator/health/readiness") == 200 ]] && grep -q '"UP"' "$body_file"; }; then
+  fail "SM-01 readiness is not UP"
+fi
 if [[ -n "$policy" ]]; then
   code=$(status "$PAS_API_URL/api/v1/policies/$policy" "$PAS_READ_JWT")
   [[ "$code" == 200 ]] || fail "SM-01 GET policy $policy returned HTTP $code"
   if [[ -n "${PAS_SMOKE_PREMIUM:-}" ]]; then
     python3 - "$body_file" "$PAS_SMOKE_PREMIUM" <<'PY' || fail "SM-01 premium of $policy differs from DB2"
 import decimal, json, sys
-premium = json.load(open(sys.argv[1])).get("premium")
+premium = json.load(open(sys.argv[1])).get("totalPremium")
 sys.exit(0 if premium is not None and decimal.Decimal(str(premium)) == decimal.Decimal(sys.argv[2]) else 1)
 PY
   fi
@@ -64,7 +66,9 @@ ok "SM-02 401 without a token, 403 without scope"
 # SM-04: Broker Portal list endpoint.
 if [[ -n "$agent" ]]; then
   code=$(status "$PAS_API_URL/api/v1/policies?agentCode=$agent&limit=1" "$PAS_READ_JWT")
-  [[ "$code" == 200 ]] && grep -q '"policies"' "$body_file" || fail "SM-04 list for agent $agent returned HTTP $code"
+  if ! { [[ "$code" == 200 ]] && grep -q '"policies"' "$body_file"; }; then
+    fail "SM-04 list for agent $agent returned HTTP $code"
+  fi
 else
   code=$(status "$PAS_API_URL/api/v1/policies?limit=1" "$PAS_READ_JWT")
   [[ "$code" == 400 ]] || fail "SM-04 list without a filter returned HTTP $code, expected 400"

@@ -84,7 +84,9 @@ SM-01, SM-02, SM-04 (list endpoint) and SM-07 are automated in
 Against the local stack it runs with no arguments (tokens minted by `local-token.sh`); against a
 shared environment set `PAS_API_URL`, `PAS_MGMT_URL`, `PAS_READ_JWT` (scope `pas.policy.read`),
 `PAS_OPS_JWT` (scope `pas.ops.read`), and optionally `PAS_SMOKE_POLICY`/`PAS_SMOKE_PREMIUM` (the
-CO-02 policy and its DB2 premium) and `PAS_SMOKE_AGENT`. `PAS_ALERTMANAGER_URL` is mandatory whenever
+CO-02 policy and its DB2 `TOTAL_PREMIUM`, compared with `totalPremium` in the inquiry response) and
+`PAS_SMOKE_AGENT`. `tools/retirement/test_cutover_smoke.py` (part of `make cutover`) runs the script
+against a stub API, including the premium comparison. `PAS_ALERTMANAGER_URL` is mandatory whenever
 `PAS_API_URL` is set: outside the local stack the script fails rather than skip the SM-07 alert check. Tokens come from the
 enterprise IdP and are passed through the environment, never written to files.
 

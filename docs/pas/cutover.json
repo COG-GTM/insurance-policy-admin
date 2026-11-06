@@ -12,7 +12,7 @@
     {"role": "Product owner (business acceptance)", "name": null, "follow_up": "FU-530-1"},
     {"role": "Security", "name": null, "follow_up": "FU-530-1"},
     {"role": "Claims and Actuarial feed owners", "name": null, "follow_up": "FU-530-1"},
-    {"role": "Service owner after handover (operations)", "name": null, "follow_up": "FU-530-1"}
+    {"role": "Service owner (operations, after handover)", "name": null, "follow_up": "FU-530-1"}
   ],
   "prerequisites": [
     {"id": "P1", "description": "Parallel run: one clean billing cycle, rollback window agreed, production-sized rollback rehearsal, AB-529 sign-offs", "plan": "docs/pas/parallel-run.json", "collections": ["sign_offs", "rollback.rehearsals"], "required_fields": ["cycle.start", "cycle.end", "rollback.window"]},

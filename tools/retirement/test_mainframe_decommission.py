@@ -91,6 +91,12 @@ class MainframeDecommissionTest(unittest.TestCase):
         plan["mips"]["after_msu"] = -1
         self.assertTrue(any("non-negative" in e for e in md.validate(plan)))
 
+    def test_zero_baseline_is_a_validation_error(self):
+        plan = copy.deepcopy(self.plan)
+        plan["mips"].update(baseline_msu=0, after_msu=0)
+        self.assertIn("mips: baseline_msu must be greater than 0", md.validate(plan))
+        self.assertIsNone(md.mips_saving(plan))
+
     def test_dry_run_changes_nothing(self):
         with mock.patch.object(md.subprocess, "run", wraps=md.subprocess.run) as run, redirect_stdout(io.StringIO()) as out:
             self.assertEqual(md.main([]), 0)

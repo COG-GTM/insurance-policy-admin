@@ -46,9 +46,16 @@ def adr_capabilities(path):
         return CAPABILITY_ROW.findall(f.read())
 
 
+def role_name(role):
+    """'Cutover lead (release manager, ...)' -> 'Cutover lead'."""
+    return role.split(" (", 1)[0].strip()
+
+
 def role_of(owner, roles):
-    """Each '+'-joined part of an owner must start a role in plan['owners']."""
-    return all(any(r.startswith(part.strip()) for r in roles) for part in owner.split("+"))
+    """Each '+'-joined part of an owner must name a role in plan['owners'] exactly."""
+    names = {role_name(r) for r in roles}
+    parts = [part.strip() for part in (owner or "").split("+")]
+    return all(parts) and all(part in names for part in parts)
 
 
 def prerequisite_items(prereq, root=ROOT):

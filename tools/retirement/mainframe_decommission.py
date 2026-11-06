@@ -73,7 +73,7 @@ def mips_saving(plan):
     """(saving_msu, saving_percent) once both measurements are recorded, else None."""
     mips = plan.get("mips", {})
     before, after = mips.get("baseline_msu"), mips.get("after_msu")
-    if before is None or after is None:
+    if before is None or after is None or before <= 0:
         return None
     return before - after, round(100.0 * (before - after) / before, 1)
 
@@ -138,8 +138,10 @@ def validate(plan, root=ROOT, files=None):
     mips = plan["mips"]
     for key in ("baseline_msu", "after_msu"):
         value = mips.get(key)
-        if value is not None and (not isinstance(value, (int, float)) or value < 0):
+        if value is not None and (not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0):
             errors.append(f"mips: {key} must be a non-negative number or null")
+    if mips.get("baseline_msu") == 0:
+        errors.append("mips: baseline_msu must be greater than 0")
     if not errors:
         saving = mips_saving(plan)
         g7 = next((g for g in plan["gates"] if "MIPS" in g["description"]), None)
