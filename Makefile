@@ -129,3 +129,21 @@ premium-batch:
 premium-load-test:
 	$(PAS_MVN) -pl pas-batch -am verify -Dtest=none -Dit.test='PremiumJobLoadIT' -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false $(if $(POLICIES),-Dpas.premium.load.policies=$(POLICIES)) $(if $(FULL_BOOK),-Dpas.premium.load.full-book=$(FULL_BOOK))
 	cat pas/pas-batch/target/premium-load-test.txt
+
+# --- AB-529 data migration, reconciliation, parallel run and rollback. ---
+.PHONY: migration migration-parallel-run
+
+# Tool tests, plan and triage register validation, and the migration suites: bulk load, delta sync
+# (insert/update/delete), reconciliation differences, cutover guard and rollback rehearsal against
+# two PostgreSQL containers (one standing in for DB2).
+migration:
+	python3 -m unittest discover -s tools/migration -p 'test_*.py'
+	python3 tools/migration/parallel_run.py check
+	$(PAS_MVN) -pl pas-batch -am verify -Dtest='MigrationTableTest,RowCanonicalizerTest' -Dit.test='MigrationJobsIT' -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false
+
+# Daily parallel-run diff and the full-cycle gate over real captured outputs:
+# CAPTURED=<mainframe files> CANDIDATE=<pas-batch files> REPORTS=<report dir>, one YYYY-MM-DD
+# sub-directory per business date.
+migration-parallel-run:
+	python3 tools/migration/parallel_run.py compare --captured "$(CAPTURED)" --candidate "$(CANDIDATE)" --out "$(REPORTS)"
+	python3 tools/migration/parallel_run.py gate --reports "$(REPORTS)"

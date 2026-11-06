@@ -1,0 +1,4 @@
+{
+  "_comment": "AB-529 parallel-run triage register. Every difference between a mainframe output and the Java output for the same business date must match an entry here, or it is 'unexplained' and the day is not clean. classification: bug (Java is wrong; reference = defect or follow-up id; the day stays not clean until status is 'resolved' and the day is re-run), approved_fix (Java deliberately differs; quirk = a quirk whose decision in docs/modernization/quirks.json is 'fix'), data_issue (source data, not code; reference = data-fix ticket or runbook step). files is a glob, key_regex matches the record key (policy number), dates is an optional [from, to] range. Catch-all entries are rejected by `make migration`. Entries are added by the daily triage meeting (docs/pas/data-migration.md); the register starts empty because no parallel run has happened yet.",
+  "entries": []
+}

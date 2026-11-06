@@ -50,6 +50,21 @@ pas:
       private-key-file: ${PAS_EXTRACT_ACTUARIAL_SFTP_KEY_FILE:}
       private-key-passphrase-file: ${PAS_EXTRACT_ACTUARIAL_SFTP_KEY_PASSPHRASE_FILE:}
       known-hosts-file: ${PAS_EXTRACT_ACTUARIAL_SFTP_KNOWN_HOSTS_FILE:}
+  # AB-529: DB2 -> PostgreSQL migration, reconciliation and rollback (docs/pas/data-migration.md).
+  # Both connections come from the secrets manager; there are no defaults for them.
+  migration:
+    db2:
+      url: ${PAS_MIGRATION_DB2_URL:}
+      username: ${PAS_MIGRATION_DB2_USERNAME:}
+      password: ${PAS_MIGRATION_DB2_PASSWORD:}
+    postgres:
+      url: ${PAS_MIGRATION_PG_URL:}
+      username: ${PAS_MIGRATION_PG_USERNAME:}
+      password: ${PAS_MIGRATION_PG_PASSWORD:}
+    bucket-digits: ${PAS_MIGRATION_BUCKET_DIGITS:1}
+    batch-size: ${PAS_MIGRATION_BATCH_SIZE:500}
+    report-dir: ${PAS_MIGRATION_REPORT_DIR:}
+    reconcile-catch-up: ${PAS_MIGRATION_RECONCILE_CATCH_UP:false}
   rating:
     # Feature flag (AB-522): legacy-neutral keeps PREMBAT parity (every factor 1.0000, Q-03);
     # table-driven applies territory/class factors from the reference tables after FU-03 sign-off.
