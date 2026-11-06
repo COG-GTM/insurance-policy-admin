@@ -55,12 +55,19 @@ def prerequisite_items(prereq, root=ROOT):
     with open(os.path.join(root, prereq["plan"]), encoding="utf-8") as f:
         plan = json.load(f)
     items = []
+    rules = prereq.get("entry_rules", {})
     for collection in prereq.get("collections", []):
+        rule = rules.get(collection, {})
+        done_states = set(rule.get("done", DONE))
         for entry in lookup(plan, collection) or []:
             if prereq.get("ids") and entry.get("id") not in prereq["ids"]:
                 continue
-            label = entry.get("id") or entry.get("role") or entry.get("party") or entry.get("environment")
-            items.append((f"{collection} {label}", entry.get("status", entry.get("result")) in DONE))
+            label = (entry.get("id") or entry.get("role") or entry.get("party") or entry.get("consumer")
+                     or entry.get("environment"))
+            done = entry.get("status", entry.get("result")) in done_states
+            done = done and ("evidence" not in entry or bool(entry.get("evidence")))
+            done = done and all(entry.get(f) not in (None, "", "TBD") for f in rule.get("fields", []))
+            items.append((f"{collection} {label}", done))
     for field in prereq.get("required_fields", []):
         items.append((f"{field} set", lookup(plan, field) not in (None, "", "TBD")))
     return items
@@ -106,6 +113,16 @@ def validate(plan, root=ROOT):
     for sid in sorted(smoke_ids - covered):
         errors.append(f"{sid}: not referenced by any capability")
 
+    blocking = {s["id"] for s in plan["smoke_tests"] if s.get("blocks_reopen") is True}
+    for s in plan["smoke_tests"]:
+        if not isinstance(s.get("blocks_reopen"), bool):
+            errors.append(f"{s.get('id')}: blocks_reopen must be true (checked before writes reopen) or false (hypercare)")
+    gates = [st for st in plan["steps"] if "requires_smoke" in st]
+    if len(gates) != 1:
+        errors.append("steps: exactly one step (the end-of-freeze go/no-go) must list requires_smoke")
+    elif set(gates[0]["requires_smoke"]) != blocking:
+        errors.append(f"{gates[0].get('id')}: requires_smoke must be exactly the blocks_reopen smoke tests "
+                      f"({', '.join(sorted(blocking))})")
     for step in plan["steps"]:
         if step.get("execute_on_branch") is not False:
             errors.append(f"{step.get('id')}: execute_on_branch must be false")
@@ -134,6 +151,9 @@ def validate(plan, root=ROOT):
         for gid in prereq.get("ids", []):
             if gid not in known:
                 errors.append(f"{prereq['id']}: {gid} not found in {prereq['plan']}")
+        for collection in prereq.get("entry_rules", {}):
+            if collection not in prereq.get("collections", []):
+                errors.append(f"{prereq['id']}: entry_rules for {collection}, which is not in collections")
         if not prereq_has_items(prereq, root):
             errors.append(f"{prereq['id']}: requires nothing from {prereq['plan']}")
 

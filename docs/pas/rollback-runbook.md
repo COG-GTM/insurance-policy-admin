@@ -11,8 +11,8 @@ transaction is lost. The database part is AB-529's `migrationReverseSync`
 | Step | Action | Owner |
 |---|---|---|
 | RR-01 | Declare rollback in the change record; notify channels and downstream owners | Cutover lead |
-| RR-02 | Stop all PostgreSQL writes: gateway 503 on API write routes, scale `pas-policy-service` and `pas-batch` to zero, suspend `premiumRecalculation`, `claimsDailyExtract`, `actuarialMonthlyExposure` | Platform SRE |
-| RR-03 | Let the outbox relay and the MQ bridge drain (no rows waiting in `/api/v1/ops/events/outbox/parked`, bridge lag 0) so FileNet and the underwriting work queue have every message written on the new platform | Platform SRE |
+| RR-02 | Stop all PostgreSQL writes: gateway 503 on API write routes; suspend `premiumRecalculation`, `claimsDailyExtract`, `actuarialMonthlyExposure` and wait for running pas-batch jobs to finish. Keep `pas-policy-service` running: its `OutboxRelay` and the ops events API are needed in RR-03 | Platform SRE |
+| RR-03 | Let the outbox relay and the MQ bridge drain (no rows waiting in `/api/v1/ops/events/outbox/parked`, bridge lag 0) so FileNet and the underwriting work queue have every message written on the new platform; then scale `pas-policy-service` and `pas-batch` to zero before the reverse sync | Platform SRE |
 | RR-04 | `PAS_BATCH_JOB=migrationReverseSync confirmRollback=YES`: copies PostgreSQL ACMEINS to DB2, restarts `ACMEINS.POLICY_SEQ` above the PostgreSQL high-water mark, reconciles, and only on a clean reconciliation sets DB2 back as system of record. Same-day underwriting decisions: export, then rerun with `collapseSameDayDecisions=YES` (Q-18) | DBA |
 | RR-05 | Confirm `migrationReconciliation` MATCH with DB2 as system of record | DBA |
 | RR-06 | Enable CICS PNEW, PRWL, PEND, PUWR (`CEMT SET TRANSACTION(...) ENABLED`); channels back to 3270 | Mainframe team |

@@ -3,14 +3,18 @@
 # Local stack: run with no environment (ports from docker compose, tokens from local-token.sh).
 # Shared environments: PAS_API_URL, PAS_MGMT_URL, PAS_READ_JWT (pas.policy.read) and
 # PAS_OPS_JWT (pas.ops.read) from the enterprise IdP; optional PAS_SMOKE_POLICY and
-# PAS_SMOKE_PREMIUM (CO-02 policy and its DB2 premium), PAS_SMOKE_AGENT, PAS_ALERTMANAGER_URL.
+# PAS_SMOKE_PREMIUM (CO-02 policy and its DB2 premium), PAS_SMOKE_AGENT. PAS_ALERTMANAGER_URL is
+# required in shared environments; only the local stack may skip the SM-07 alert check.
+# SM-03 and SM-08 are manual and must be recorded in the change record before CO-09.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 fail() { echo "cutover-smoke: FAIL - $*" >&2; exit 1; }
 ok() { echo "cutover-smoke: $*"; }
 
+shared=1
 if [[ -z "${PAS_API_URL:-}" ]]; then
+  shared=0
   api_port=$(docker compose port pas-policy-service 8080) || fail "pas-policy-service is not running"
   mgmt_port=$(docker compose port pas-policy-service 8081) || fail "pas-policy-service is not running"
   PAS_API_URL="http://localhost:${api_port##*:}"
@@ -18,6 +22,7 @@ if [[ -z "${PAS_API_URL:-}" ]]; then
   PAS_READ_JWT=$(pas/scripts/local-token.sh "pas.policy.read" '"pas_book":"*"')
   PAS_OPS_JWT=$(pas/scripts/local-token.sh "pas.ops.read")
 fi
+[[ $shared == 0 || -n "${PAS_ALERTMANAGER_URL:-}" ]] || fail "PAS_ALERTMANAGER_URL is required outside the local stack (SM-07)"
 : "${PAS_MGMT_URL:?set PAS_MGMT_URL}" "${PAS_READ_JWT:?set PAS_READ_JWT}" "${PAS_OPS_JWT:?set PAS_OPS_JWT}"
 policy="${PAS_SMOKE_POLICY:-}"
 agent="${PAS_SMOKE_AGENT:-}"
@@ -75,6 +80,6 @@ if [[ -n "${PAS_ALERTMANAGER_URL:-}" ]]; then
   [[ -z "$firing" ]] || fail "SM-07 PAS alerts firing: $firing"
   ok "SM-07 metrics protected, no PAS alert firing"
 else
-  ok "SM-07 metrics protected (no PAS_ALERTMANAGER_URL, alert check skipped)"
+  ok "SM-07 metrics protected (local stack without Alertmanager, alert check skipped)"
 fi
-ok "all automated checks passed"
+ok "all automated checks passed; record SM-03 and SM-08 evidence before CO-09"

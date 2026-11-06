@@ -56,8 +56,8 @@ write routes. This is the single-writer rule of ADR 0001 D7 applied to the whole
 | CO-05 | Final sync | Restart the PostgreSQL policy-number sequence above the DB2 high-water mark plus the DB2 cache ([data-migration.md](data-migration.md)) | DBA |
 | CO-06 | Switch | `PAS_BATCH_JOB=migrationSystemOfRecord system=PG confirm=YES changedBy=<id> "reason=<change ticket>"`; point `pas-policy-service` and `pas-batch` at PostgreSQL; enable `migrationReverseSync` readiness for the rollback window | DBA + Platform SRE |
 | CO-07 | Switch | Route capabilities in order C-11, C-3, C-10, C-4, C-5, C-6, C-7, C-1/C-2, C-8, C-9 (table below); record each `LEGACY` → `NEW` change | Cutover lead |
-| CO-08 | Verify | `pas/scripts/cutover-smoke.sh` against production (SM-01, SM-02, SM-04, SM-07); SM-03 by the product owner; SM-05/SM-06 on the first scheduled runs | Platform SRE |
-| CO-09 | Freeze end | Go/no-go 2: all smoke tests passed and no open Sev1/Sev2 → reopen writes; otherwise run the rollback runbook before the window closes | Cutover lead |
+| CO-08 | Verify | `pas/scripts/cutover-smoke.sh` against production with `PAS_ALERTMANAGER_URL` (SM-01, SM-02, SM-04, SM-07); SM-03 by the product owner; SM-08 event delivery evidence. SM-05/SM-06 are not run inside the freeze: the first scheduled batch runs fall in hypercare (CO-10) | Platform SRE |
+| CO-09 | Freeze end | Go/no-go 2: SM-01, SM-02, SM-03, SM-04, SM-07 and SM-08 passed (`requires_smoke`, checked by `make cutover` against the `blocks_reopen` smoke tests) and no open Sev1/Sev2 → reopen writes; otherwise run the rollback runbook before the window closes | Cutover lead |
 | CO-10 | +14 days | Hypercare: daily reconciliation and alert review; every Sev1/Sev2 recorded in `hypercare.incidents`; `make cutover-hypercare` decides exit | Service owner |
 
 ## Routing switch per capability
@@ -66,7 +66,7 @@ write routes. This is the single-writer rule of ADR 0001 D7 applied to the whole
 |---|---|---|---|---|
 | C-11 System of record | DB2 ACMEINS | `migrationSystemOfRecord system=PG`; datasource to PostgreSQL | SM-01, SM-07 | [rollback-runbook.md](rollback-runbook.md) |
 | C-3 Policy inquiry | PQRY, `java-facade` | gateway route `/api/v1/policies/**` to `pas-policy-service` | SM-01, SM-02 | gateway route back to the facade |
-| C-10 Events, Broker Portal | TD queue `ACME`, ODBC linked server | outbox + Kafka + MQ bridge; Broker Portal on `GET /api/v1/policies` | SM-04 | CICS path writes the TD queue again with C-4..C-7 on `LEGACY` |
+| C-10 Events, Broker Portal | TD queue `ACME`, ODBC linked server | outbox + Kafka + MQ bridge; Broker Portal on `GET /api/v1/policies` | SM-04, SM-08 | CICS path writes the TD queue again with C-4..C-7 on `LEGACY` |
 | C-4 New business | CICS PNEW | channel on `POST /api/v1/policies`; PNEW disabled | SM-03 | `CEMT SET TRANSACTION(PNEW) ENABLED` |
 | C-5 Underwriting | CICS PUWR | channel on the underwriting APIs; PUWR disabled | SM-03 | `CEMT SET TRANSACTION(PUWR) ENABLED` |
 | C-6 Renewal | CICS PRWL | channel on `.../renewals`; PRWL disabled | SM-03 | `CEMT SET TRANSACTION(PRWL) ENABLED` |
@@ -84,12 +84,17 @@ SM-01, SM-02, SM-04 (list endpoint) and SM-07 are automated in
 Against the local stack it runs with no arguments (tokens minted by `local-token.sh`); against a
 shared environment set `PAS_API_URL`, `PAS_MGMT_URL`, `PAS_READ_JWT` (scope `pas.policy.read`),
 `PAS_OPS_JWT` (scope `pas.ops.read`), and optionally `PAS_SMOKE_POLICY`/`PAS_SMOKE_PREMIUM` (the
-CO-02 policy and its DB2 premium), `PAS_SMOKE_AGENT` and `PAS_ALERTMANAGER_URL`. Tokens come from the
+CO-02 policy and its DB2 premium) and `PAS_SMOKE_AGENT`. `PAS_ALERTMANAGER_URL` is mandatory whenever
+`PAS_API_URL` is set: outside the local stack the script fails rather than skip the SM-07 alert check. Tokens come from the
 enterprise IdP and are passed through the environment, never written to files.
 
 SM-03 (one test policy created, underwritten, endorsed, renewed and then cancelled by the product
-owner on a test agent/branch), SM-05 (first premium run totals) and SM-06 (first extracts received)
-are manual and recorded in the change record.
+owner on a test agent/branch) and SM-08 (the SM-03 events published, none parked, and delivered
+through the bridge to FileNet and the underwriting work queue) are manual and recorded in the change
+record before CO-09. SM-05 (first premium run totals) and SM-06 (first extracts received) depend on
+the first scheduled batch runs, which fall after the freeze; they are checked in hypercare (CO-10) and
+a failure is a rollback trigger. `make cutover` checks that CO-09's `requires_smoke` is exactly the
+smoke tests marked `blocks_reopen`.
 
 ## Go/no-go criteria
 

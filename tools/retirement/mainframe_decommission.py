@@ -11,6 +11,7 @@ action is manual."""
 import argparse
 import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -128,6 +129,8 @@ def validate(plan, root=ROOT, files=None):
         errors.append(f"repository: {path} references a legacy tree but has no dependents entry")
 
     scripted = [s for s in plan["steps"] if s.get("command")]
+    if not all(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", t) for t in trees):
+        errors.append("repository.trees: names must be plain top-level directory names")
     expected_cmd = "git rm -r -q " + " ".join(trees)
     if [s["command"] for s in scripted] != [expected_cmd]:
         errors.append(f"steps: the only scripted step must be '{expected_cmd}'")
@@ -192,7 +195,7 @@ def main(argv=None):
     for step in plan["steps"]:
         if step.get("command"):
             print(f"mainframe-decommission: {step['id']}: {step['command']}")
-            subprocess.run(step["command"], shell=True, cwd=ROOT, check=True)
+            subprocess.run(shlex.split(step["command"]), cwd=ROOT, check=True)
     print("mainframe-decommission: working tree changed; repoint dependents, commit and open a PR")
     return 0
 

@@ -3,6 +3,7 @@ import datetime as dt
 import io
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -19,8 +20,16 @@ def approve_everything(plan, root):
         with open(os.path.join(co.ROOT, prereq["plan"]), encoding="utf-8") as f:
             data = json.load(f)
         for collection in prereq["collections"]:
+            rule = prereq.get("entry_rules", {}).get(collection, {})
             for entry in co.lookup(data, collection):
-                entry["status" if "status" in entry else "result"] = "approved" if "status" in entry else "passed"
+                if "status" in entry:
+                    entry["status"] = rule.get("done", ["approved"])[0]
+                else:
+                    entry["result"] = "passed"
+                if "evidence" in entry:
+                    entry["evidence"] = "CHG-1"
+                for field in rule.get("fields", []):
+                    entry[field] = "2027-01-01"
         for field in prereq["required_fields"]:
             parent, _, leaf = field.rpartition(".")
             (co.lookup(data, parent) if parent else data)[leaf] = "2027-01-01"
@@ -146,5 +155,49 @@ class HypercareTest(unittest.TestCase):
         self.assertTrue(any("severity" in e for e in errors))
 
 
+    def _closed_plan_dir(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        return tmp, approve_everything(self.plan, tmp)
+
+    def _rewrite(self, tmp, rel, change):
+        path = os.path.join(tmp, rel)
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        change(data)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+    def test_approved_gate_without_evidence_stays_open(self):
+        tmp, plan = self._closed_plan_dir()
+        self.assertEqual(co.decision(plan, tmp), (True, []))
+        self._rewrite(tmp, "docs/pas/messaging-decommission.json",
+                      lambda d: next(g for g in d["gates"] if g["id"] == "G2").update(evidence=""))
+        go, reasons = co.decision(plan, tmp)
+        self.assertFalse(go)
+        self.assertTrue(any("gates G2" in r for r in reasons), reasons)
+
+    def test_extract_feeds_need_a_date_and_confirmation(self):
+        tmp, plan = self._closed_plan_dir()
+        self._rewrite(tmp, "docs/pas/extracts-cutover.json",
+                      lambda d: d["feeds"][0].update(cutover_date="TBD"))
+        go, reasons = co.decision(plan, tmp)
+        self.assertFalse(go)
+        self.assertTrue(any("feeds Claims" in r for r in reasons), reasons)
+        self._rewrite(tmp, "docs/pas/extracts-cutover.json",
+                      lambda d: d["feeds"][0].update(cutover_date="2027-01-01", status="pending"))
+        self.assertFalse(co.decision(plan, tmp)[0])
+
+    def test_end_of_freeze_must_require_exactly_the_blocking_smoke_tests(self):
+        plan = copy.deepcopy(self.plan)
+        gate = next(s for s in plan["steps"] if "requires_smoke" in s)
+        gate["requires_smoke"].append("SM-05")
+        self.assertTrue(any("requires_smoke" in e for e in co.validate(plan)))
+        plan = copy.deepcopy(self.plan)
+        del plan["smoke_tests"][0]["blocks_reopen"]
+        self.assertTrue(any("blocks_reopen" in e for e in co.validate(plan)))
+
+
 if __name__ == "__main__":
     unittest.main()
+

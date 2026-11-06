@@ -10,8 +10,8 @@ import mainframe_decommission as md
 
 
 def shell_calls(run):
-    """Scripted steps run with shell=True; the git ls-files scan for dependents does not."""
-    return [c for c in run.call_args_list if c.kwargs.get("shell")]
+    """Calls that would remove the trees; the git ls-files scan for dependents is read-only."""
+    return [c for c in run.call_args_list if list(c.args[0][:2]) == ["git", "rm"]]
 
 
 class MainframeDecommissionTest(unittest.TestCase):
@@ -111,6 +111,25 @@ class MainframeDecommissionTest(unittest.TestCase):
             g.update(status="approved", evidence="x")
         self.assertEqual(md.fr.refusal(plan, "devin/ab-516-v3"), "refusing to run on protected branch devin/ab-516-v3")
         self.assertIsNone(md.fr.refusal(plan, "decommission"))
+
+
+    def test_execute_runs_git_without_a_shell(self):
+        plan = copy.deepcopy(self.plan)
+        for g in plan["gates"]:
+            g.update(status="approved", evidence="CHG-1")
+        with mock.patch.object(md.fr, "load", return_value=plan), \
+                mock.patch.object(md.fr, "current_branch", return_value="decommission/pas"), \
+                mock.patch.object(md, "validate", return_value=[]), \
+                mock.patch.object(md.subprocess, "run") as run, \
+                mock.patch.object(md, "print_report"), redirect_stdout(io.StringIO()):
+            self.assertEqual(md.main(["--execute"]), 0)
+        self.assertEqual(shell_calls(run),
+                         [mock.call(["git", "rm", "-r", "-q", "cobol", "jcl", "java-facade"], cwd=md.ROOT, check=True)])
+
+    def test_tree_names_cannot_carry_shell_syntax(self):
+        plan = copy.deepcopy(self.plan)
+        plan["repository"]["trees"] = ["cobol;touch x"]
+        self.assertTrue(any("plain top-level directory" in e for e in md.validate(plan)))
 
 
 if __name__ == "__main__":
