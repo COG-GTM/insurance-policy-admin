@@ -1,0 +1,91 @@
+{
+  "_comment": "AB-530 cutover plan. Read by tools/retirement/cutover.py (make cutover). Every step is executed by a named owner in production, never from this repository; the tool only validates the plan and computes the go/no-go and hypercare decisions. See docs/pas/cutover-runbook.md.",
+  "component": "PAS on COBOL/CICS/DB2 (CICS PNEW, PRWL, PEND, PQRY, PUWR; CA-7 PAS0050, PAS0100, PAS0200; DB2 ACMEINS)",
+  "replacement": "pas-policy-service and pas-batch on PostgreSQL ACMEINS",
+  "adr": "docs/adr/0001-pas-target-architecture.md",
+  "protected_branches": ["main", "devin/ab-516-v3"],
+  "owners": [
+    {"role": "Cutover lead (release manager, owns routing state and the go/no-go call)", "name": null, "follow_up": "FU-530-1"},
+    {"role": "Mainframe team (CICS, CA-7, DB2 freeze and unfreeze)", "name": null, "follow_up": "FU-530-1"},
+    {"role": "DBA (final sync, reconciliation, sequence alignment, reverse sync)", "name": null, "follow_up": "FU-530-1"},
+    {"role": "Platform SRE (deployments, gateway routes, scheduler, alerts)", "name": null, "follow_up": "FU-530-1"},
+    {"role": "Product owner (business acceptance)", "name": null, "follow_up": "FU-530-1"},
+    {"role": "Security", "name": null, "follow_up": "FU-530-1"},
+    {"role": "Claims and Actuarial feed owners", "name": null, "follow_up": "FU-530-1"},
+    {"role": "Service owner after handover (operations)", "name": null, "follow_up": "FU-530-1"}
+  ],
+  "prerequisites": [
+    {"id": "P1", "description": "Parallel run: one clean billing cycle, rollback window agreed, production-sized rollback rehearsal, AB-529 sign-offs", "plan": "docs/pas/parallel-run.json", "collections": ["sign_offs", "rollback.rehearsals"], "required_fields": ["cycle.start", "cycle.end", "rollback.window"]},
+    {"id": "P2", "description": "Claims and Actuarial extracts: parallel runs passed and consumers signed off (AB-527)", "plan": "docs/pas/extracts-cutover.json", "collections": ["signoffs"], "required_fields": []},
+    {"id": "P3", "description": "Policy inquiry consumers moved off java-facade and onto the IdP (AB-524 G1, G2, G4)", "plan": "docs/pas/facade-retirement.json", "collections": ["gates"], "ids": ["G1", "G2", "G4"], "required_fields": []},
+    {"id": "P4", "description": "Event path and bridge verified with FileNet and the underwriting work queue; Broker Portal on the inquiry API (AB-528 G1, G2, G3)", "plan": "docs/pas/messaging-decommission.json", "collections": ["gates"], "ids": ["G1", "G2", "G3"], "required_fields": []}
+  ],
+  "freeze_window": {
+    "start": null,
+    "end": null,
+    "max_hours": 10,
+    "description": "Saturday night after the PAS0050 01:00 premium run and before Monday 06:00 channel opening, outside month end (PAS0200 runs on the 1st) and outside the Claims cut-off. No PAS writes on any path during the window: CICS transactions PNEW, PRWL, PEND, PUWR disabled, CA-7 PAS0050/PAS0100/PAS0200 held, API write routes return 503.",
+    "follow_up": "FU-530-2"
+  },
+  "capabilities": [
+    {"id": "C-1", "name": "Rating", "legacy": "PREMBAT 3200-CALCULATE-PREMIUM", "new": "pas-rating library inside premiumRecalculation", "switch": "moves with C-2 (library call)", "smoke": ["SM-05"], "rollback": "moves with C-2", "state": "LEGACY", "target": "NEW"},
+    {"id": "C-2", "name": "Premium batch", "legacy": "PREMIUM-BATCH (CA-7 PAS0050, daily 01:00)", "new": "pas-batch premiumRecalculation", "switch": "CA-7: HOLD PAS0050; platform scheduler: enable premiumRecalculation", "smoke": ["SM-05"], "rollback": "suspend the platform job, RELEASE PAS0050", "state": "LEGACY", "target": "NEW"},
+    {"id": "C-3", "name": "Policy inquiry", "legacy": "PQRY and java-facade", "new": "GET /api/v1/policies/{policyNumber} on pas-policy-service", "switch": "API gateway route /api/v1/policies/** to pas-policy-service", "smoke": ["SM-01", "SM-02"], "rollback": "gateway route back to java-facade; PQRY stays enabled until decommission", "state": "LEGACY", "target": "NEW"},
+    {"id": "C-4", "name": "New business", "legacy": "CICS PNEW (POLNEW)", "new": "POST /api/v1/policies", "switch": "channel calls the API; CEMT SET TRANSACTION(PNEW) DISABLED", "smoke": ["SM-03"], "rollback": "CEMT SET TRANSACTION(PNEW) ENABLED; channel back to 3270", "state": "LEGACY", "target": "NEW"},
+    {"id": "C-5", "name": "Underwriting decision", "legacy": "CICS PUWR (UNDWRT)", "new": "underwriting decision, override and history APIs", "switch": "channel calls the API; CEMT SET TRANSACTION(PUWR) DISABLED", "smoke": ["SM-03"], "rollback": "CEMT SET TRANSACTION(PUWR) ENABLED", "state": "LEGACY", "target": "NEW"},
+    {"id": "C-6", "name": "Renewal", "legacy": "CICS PRWL (POLRNW)", "new": "POST /api/v1/policies/{policyNumber}/renewals", "switch": "channel calls the API; CEMT SET TRANSACTION(PRWL) DISABLED", "smoke": ["SM-03"], "rollback": "CEMT SET TRANSACTION(PRWL) ENABLED", "state": "LEGACY", "target": "NEW"},
+    {"id": "C-7", "name": "Endorsement", "legacy": "CICS PEND (POLEND)", "new": "POST /api/v1/policies/{policyNumber}/endorsements", "switch": "channel calls the API; CEMT SET TRANSACTION(PEND) DISABLED", "smoke": ["SM-03"], "rollback": "CEMT SET TRANSACTION(PEND) ENABLED", "state": "LEGACY", "target": "NEW"},
+    {"id": "C-8", "name": "Claims extract", "legacy": "DAILY-EXTRACT (CA-7 PAS0100, daily 23:00)", "new": "pas-batch claimsDailyExtract over SFTP", "switch": "CA-7: HOLD PAS0100; enable claimsDailyExtract", "smoke": ["SM-06"], "rollback": "suspend claimsDailyExtract, RELEASE PAS0100", "state": "LEGACY", "target": "NEW"},
+    {"id": "C-9", "name": "Actuarial feed", "legacy": "MONTHLY-EXPOSURE (CA-7 PAS0200, 1st of month 02:00)", "new": "pas-batch actuarialMonthlyExposure over SFTP", "switch": "CA-7: HOLD PAS0200; enable actuarialMonthlyExposure", "smoke": ["SM-06"], "rollback": "suspend actuarialMonthlyExposure, RELEASE PAS0200", "state": "LEGACY", "target": "NEW"},
+    {"id": "C-10", "name": "Events and Broker Portal access", "legacy": "TD queue ACME writes, Broker Portal ODBC linked server", "new": "Kafka domain events (outbox), Kafka-to-MQ bridge, GET /api/v1/policies", "switch": "event-producing capabilities write the outbox; Broker Portal reads the API", "smoke": ["SM-04"], "rollback": "CICS path writes the TD queue again once C-4..C-7 are back on LEGACY", "state": "LEGACY", "target": "NEW"},
+    {"id": "C-11", "name": "System of record", "legacy": "DB2 ACMEINS", "new": "PostgreSQL ACMEINS", "switch": "PAS_BATCH_JOB=migrationSystemOfRecord system=PG confirm=YES; pas-persistence datasource to PostgreSQL", "smoke": ["SM-01", "SM-07"], "rollback": "docs/pas/rollback-runbook.md (migrationReverseSync)", "state": "LEGACY", "target": "NEW"}
+  ],
+  "steps": [
+    {"id": "CO-01", "phase": "T-5 business days", "action": "Go/no-go 1: confirm every prerequisite (P1-P4) is closed and every criterion GN-01..GN-08 has evidence; publish the freeze notice to channels, Claims, Actuarial, Broker Portal, FileNet and underwriting work queue owners", "owner": "Cutover lead", "execute_on_branch": false},
+    {"id": "CO-02", "phase": "T-1", "action": "Last parallel-run day clean (make migration-parallel-run on the captured outputs); latest migrationReconciliation MATCH; take DB2 image copies of ACMEINS and a PostgreSQL base backup", "owner": "DBA", "execute_on_branch": false},
+    {"id": "CO-03", "phase": "Freeze", "action": "Start of freeze: disable CICS PNEW, PRWL, PEND, PUWR (PQRY stays enabled read-only); HOLD CA-7 PAS0050, PAS0100, PAS0200; set API write routes to 503 at the gateway", "owner": "Mainframe team + Platform SRE", "execute_on_branch": false},
+    {"id": "CO-04", "phase": "Final sync", "action": "Run PAS_BATCH_JOB=migrationDeltaSync until a run applies zero changes, then PAS_BATCH_JOB=migrationReconciliation; any difference is NO-GO", "owner": "DBA", "execute_on_branch": false},
+    {"id": "CO-05", "phase": "Final sync", "action": "Align the PostgreSQL policy-number sequence above the DB2 high-water mark plus the DB2 cache (data-migration.md, sequence step)", "owner": "DBA", "execute_on_branch": false},
+    {"id": "CO-06", "phase": "Switch", "action": "PAS_BATCH_JOB=migrationSystemOfRecord system=PG confirm=YES changedBy=<id> reason=<change ticket>; point pas-policy-service and pas-batch at PostgreSQL; enable migrationReverseSync for the rollback window", "owner": "DBA + Platform SRE", "execute_on_branch": false},
+    {"id": "CO-07", "phase": "Switch", "action": "Route each capability in order C-11, C-3, C-10, C-4, C-5, C-6, C-7, C-1/C-2, C-8, C-9 using the switch in this plan; record each state change (LEGACY to NEW) in the change record", "owner": "Cutover lead", "execute_on_branch": false},
+    {"id": "CO-08", "phase": "Verify", "action": "Run pas/scripts/cutover-smoke.sh against production (SM-01..SM-04, SM-07) and confirm SM-05/SM-06 on the first scheduled batch runs", "owner": "Platform SRE", "execute_on_branch": false},
+    {"id": "CO-09", "phase": "Decide", "action": "Go/no-go 2 (end of freeze): all smoke tests passed and no open Sev1/Sev2: reopen writes; otherwise execute docs/pas/rollback-runbook.md before the window closes", "owner": "Cutover lead", "execute_on_branch": false},
+    {"id": "CO-10", "phase": "Hypercare", "action": "14 days of hypercare: daily reconciliation, daily review of alerts and incidents; record every Sev1/Sev2 in hypercare.incidents; make cutover-hypercare decides exit", "owner": "Service owner", "execute_on_branch": false}
+  ],
+  "smoke_tests": [
+    {"id": "SM-01", "capability": "C-3, C-11", "check": "readiness UP, GET /api/v1/policies/{known policy} returns 200 with the expected premium (policy chosen at CO-02 and compared with DB2)", "automated": true},
+    {"id": "SM-02", "capability": "C-3", "check": "unauthenticated call returns 401 and a call without pas.policy.read returns 403", "automated": true},
+    {"id": "SM-03", "capability": "C-4..C-7", "check": "one test policy created, underwritten, endorsed and renewed through the API by a business user on a test agent/branch; policy then cancelled per the product owner's procedure", "automated": false},
+    {"id": "SM-04", "capability": "C-10", "check": "GET /api/v1/policies (Broker Portal list) returns 200; the SM-03 events reach Kafka and the bridge delivers the 125-byte POLICY-RECORD to FileNet and the underwriting work queue", "automated": true},
+    {"id": "SM-05", "capability": "C-1, C-2", "check": "first premiumRecalculation run completes, PREMRPT totals match the DB2 premium totals for the business date", "automated": false},
+    {"id": "SM-06", "capability": "C-8, C-9", "check": "first claimsDailyExtract (and actuarialMonthlyExposure when due) delivered with receipts; Claims/Actuarial confirm import", "automated": false},
+    {"id": "SM-07", "capability": "C-11", "check": "Prometheus reachable with a token; no PasReconciliationFailed, PasDeltaSyncFailing or bridge DLT alert firing", "automated": true}
+  ],
+  "go_no_go": [
+    {"id": "GN-01", "criterion": "Prerequisites P1-P4 closed (make cutover reports 0 open prerequisite items)", "owner": "Cutover lead", "status": "pending", "evidence": ""},
+    {"id": "GN-02", "criterion": "Final migrationReconciliation MATCH on all 7 tables after the last delta sync", "owner": "DBA", "status": "pending", "evidence": ""},
+    {"id": "GN-03", "criterion": "Rollback rehearsed end to end on a production-sized copy within the agreed window (rollback-runbook.md RR-01..RR-09)", "owner": "DBA + Mainframe team", "status": "pending", "evidence": ""},
+    {"id": "GN-04", "criterion": "Automated smoke tests pass in pre-production with the production configuration", "owner": "Platform SRE", "status": "pending", "evidence": ""},
+    {"id": "GN-05", "criterion": "Dashboards, alerts and on-call rota live for pas-policy-service and pas-batch; support-runbook.md accepted by operations", "owner": "Service owner", "status": "pending", "evidence": ""},
+    {"id": "GN-06", "criterion": "Downstream owners (Claims, Actuarial, Broker Portal, FileNet, underwriting work queue) confirm readiness and the freeze window", "owner": "Claims and Actuarial feed owners", "status": "pending", "evidence": ""},
+    {"id": "GN-07", "criterion": "Security approval of the production configuration (IdP clients, SFTP keys, secrets)", "owner": "Security", "status": "pending", "evidence": ""},
+    {"id": "GN-08", "criterion": "Product owner business acceptance and ARB approval of ADR 0001", "owner": "Product owner", "status": "pending", "evidence": ""}
+  ],
+  "rollback": {
+    "runbook": "docs/pas/rollback-runbook.md",
+    "window_from": "docs/pas/parallel-run.json rollback.window",
+    "triggers": [
+      "a Sev1, or a Sev2 without a fix inside 4 hours, attributable to the new platform",
+      "reconciliation difference that is not explained within one business day",
+      "a downstream feed (Claims, Actuarial, FileNet, underwriting work queue) missed or rejected",
+      "a smoke test fails at CO-08 and cannot be fixed before the end of the freeze"
+    ],
+    "decision_owner": "Cutover lead"
+  },
+  "hypercare": {
+    "days": 14,
+    "cutover_completed_at": null,
+    "incident_source": "the production incident tool, PAS service (FU-530-3)",
+    "incidents": []
+  }
+}

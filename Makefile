@@ -22,7 +22,7 @@ adr:
 	python3 -m unittest discover -s tools/adr -p 'test_*.py'
 
 # --- PAS target platform (pas/, AB-519). JDK 21 and Maven 3.9+ required; set PAS_JAVA_HOME if it is not the default. ---
-.PHONY: pas pas-verify pas-build pas-format pas-env pas-up pas-smoke pas-api-contract facade-retirement messaging-decommission pas-down pas-images pas-scan
+.PHONY: pas pas-verify pas-build pas-format pas-env pas-up pas-smoke pas-api-contract facade-retirement messaging-decommission cutover cutover-hypercare mainframe-decommission pas-down pas-images pas-scan
 
 PAS_JAVA_HOME ?= $(JAVA_HOME)
 PAS_MVN = cd pas && JAVA_HOME="$(PAS_JAVA_HOME)" mvn -B -ntp
@@ -67,6 +67,21 @@ messaging-decommission:
 	python3 -m unittest discover -s tools/retirement -p 'test_messaging*.py'
 	python3 tools/retirement/messaging_decommission.py --check
 	python3 tools/retirement/messaging_decommission.py
+
+# AB-530: cutover plan and go/no-go (prints the decision; never switches anything).
+cutover:
+	python3 -m unittest discover -s tools/retirement -p 'test_cutover*.py'
+	python3 tools/retirement/cutover.py --check
+	python3 tools/retirement/cutover.py
+
+# AB-530 acceptance: 14 days after cutover without Sev1/Sev2 (exit 3 while running, 4 if breached).
+cutover-hypercare:
+	python3 tools/retirement/cutover.py --hypercare --gate
+
+mainframe-decommission:
+	python3 -m unittest discover -s tools/retirement -p 'test_mainframe*.py'
+	python3 tools/retirement/mainframe_decommission.py --check
+	python3 tools/retirement/mainframe_decommission.py
 
 pas-down:
 	docker compose --profile batch down
