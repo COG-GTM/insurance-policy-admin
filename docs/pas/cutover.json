@@ -50,7 +50,7 @@
     {"id": "CO-07", "phase": "Switch", "action": "Route each capability in order C-11, C-3, C-10, C-4, C-5, C-6, C-7, C-1/C-2, C-8, C-9 using the switch in this plan; record each state change (LEGACY to NEW) in the change record", "owner": "Cutover lead", "execute_on_branch": false},
     {"id": "CO-08", "phase": "Verify", "action": "Run pas/scripts/cutover-smoke.sh against production with PAS_ALERTMANAGER_URL (SM-01, SM-02, SM-04, SM-07); record manual evidence for SM-03 (product owner) and SM-08 (event ids delivered through the bridge). SM-05/SM-06 run on the first scheduled batch runs in hypercare (CO-10), never inside the freeze", "owner": "Platform SRE", "execute_on_branch": false},
     {"id": "CO-09", "phase": "Decide", "action": "Go/no-go 2 (end of freeze): SM-01, SM-02, SM-03, SM-04, SM-07 and SM-08 passed and no open Sev1/Sev2: reopen writes; otherwise execute docs/pas/rollback-runbook.md before the window closes", "owner": "Cutover lead", "requires_smoke": ["SM-01", "SM-02", "SM-03", "SM-04", "SM-07", "SM-08"], "execute_on_branch": false},
-    {"id": "CO-10", "phase": "Hypercare", "action": "14 days of hypercare: SM-05 and SM-06 on the first scheduled premium and extract runs (failure is a rollback trigger), daily reconciliation, daily review of alerts and incidents; record every Sev1/Sev2 in hypercare.incidents; make cutover-hypercare decides exit", "owner": "Service owner", "execute_on_branch": false}
+    {"id": "CO-10", "phase": "Hypercare", "action": "14 days of hypercare: SM-05 and SM-06 on the first scheduled premium and extract runs (failure is a rollback trigger), daily reconciliation, daily review of alerts and incidents; record every Sev1/Sev2 in hypercare.incidents and the SM-05/SM-06 results in hypercare.checks; make cutover-hypercare decides exit (it stays open past day 14 until every check has passed)", "owner": "Service owner", "execute_on_branch": false}
   ],
   "smoke_tests": [
     {"id": "SM-01", "capability": "C-3, C-11", "check": "readiness UP, GET /api/v1/policies/{known policy} returns 200 with the expected premium (policy chosen at CO-02 and compared with DB2)", "automated": true, "blocks_reopen": true},
@@ -60,7 +60,7 @@
     {"id": "SM-05", "capability": "C-1, C-2", "check": "first scheduled premiumRecalculation run (during hypercare) completes, PREMRPT totals match the DB2 premium totals for the business date; a failure is a rollback trigger", "automated": false, "blocks_reopen": false},
     {"id": "SM-06", "capability": "C-8, C-9", "check": "first scheduled claimsDailyExtract (and actuarialMonthlyExposure when due) during hypercare delivered with receipts; Claims/Actuarial confirm import; a missed or rejected feed is a rollback trigger", "automated": false, "blocks_reopen": false},
     {"id": "SM-07", "capability": "C-11", "check": "Prometheus reachable with a token; Alertmanager reports no Pas* alert firing (PasReconciliationFailed, PasDeltaSyncFailing, bridge DLT); PAS_ALERTMANAGER_URL is mandatory outside the local stack", "automated": true, "blocks_reopen": true},
-    {"id": "SM-08", "capability": "C-10", "check": "the SM-03 events are in /api/v1/ops/events (published, none parked) and the bridge delivered the 125-byte POLICY-RECORD for each to FileNet and the underwriting work queue (event ids recorded in the change record)", "automated": false, "blocks_reopen": true}
+    {"id": "SM-08", "capability": "C-10", "check": "for each SM-03 event id: pasapp.event_outbox.published_at is set (read-only DBA query), the id is absent from GET /api/v1/ops/events/outbox/parked and the dead-letter list, and the bridge delivered its 125-byte POLICY-RECORD to the destination for its event type: policy lifecycle events to FileNet, underwriting events to the underwriting work queue; the flow must reach both destinations (event ids recorded in the change record)", "automated": false, "blocks_reopen": true}
   ],
   "go_no_go": [
     {"id": "GN-01", "criterion": "Prerequisites P1-P4 closed (make cutover reports 0 open prerequisite items)", "owner": "Cutover lead", "status": "pending", "evidence": ""},
@@ -87,6 +87,10 @@
     "days": 14,
     "cutover_completed_at": null,
     "incident_source": "the production incident tool, PAS service (FU-530-3)",
-    "incidents": []
+    "incidents": [],
+    "checks": [
+      {"id": "SM-05", "status": "pending", "evidence": ""},
+      {"id": "SM-06", "status": "pending", "evidence": "", "note": "includes the first actuarialMonthlyExposure run; hypercare stays open past day 14 until it has run"}
+    ]
   }
 }

@@ -89,11 +89,13 @@ CO-02 policy and its DB2 premium) and `PAS_SMOKE_AGENT`. `PAS_ALERTMANAGER_URL` 
 enterprise IdP and are passed through the environment, never written to files.
 
 SM-03 (one test policy created, underwritten, endorsed, renewed and then cancelled by the product
-owner on a test agent/branch) and SM-08 (the SM-03 events published, none parked, and delivered
-through the bridge to FileNet and the underwriting work queue) are manual and recorded in the change
+owner on a test agent/branch) and SM-08 (for each SM-03 event id: `published_at` set in `pasapp.event_outbox`, not parked or
+dead-lettered, and delivered by the bridge to the destination for its event type: FileNet for policy
+lifecycle events, the underwriting work queue for underwriting events) are manual and recorded in the change
 record before CO-09. SM-05 (first premium run totals) and SM-06 (first extracts received) depend on
 the first scheduled batch runs, which fall after the freeze; they are checked in hypercare (CO-10) and
-a failure is a rollback trigger. `make cutover` checks that CO-09's `requires_smoke` is exactly the
+a failure is a rollback trigger. Their results go in `hypercare.checks`, and `make cutover-hypercare`
+stays open past day 14 until both have passed (the first monthly actuarial run can fall after day 14). `make cutover` checks that CO-09's `requires_smoke` is exactly the
 smoke tests marked `blocks_reopen`.
 
 ## Go/no-go criteria

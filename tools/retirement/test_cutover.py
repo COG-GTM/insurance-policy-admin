@@ -134,6 +134,11 @@ class HypercareTest(unittest.TestCase):
     def test_running_passed_and_breached(self):
         self.plan["hypercare"]["cutover_completed_at"] = "2027-03-07T06:00:00-05:00"
         self.assertEqual(co.hypercare(self.plan, NOW)[0], "running")
+        status, detail = co.hypercare(self.plan, NOW + dt.timedelta(days=2))
+        self.assertEqual(status, "running")
+        self.assertIn("still waiting for SM-05, SM-06", detail)
+        for check in self.plan["hypercare"]["checks"]:
+            check.update(status="passed", evidence="CHG-2")
         self.assertEqual(co.hypercare(self.plan, NOW + dt.timedelta(days=2))[0], "passed")
         self.plan["hypercare"]["incidents"] = [
             {"id": "INC-1", "severity": "Sev3", "opened": "2027-03-08T10:00:00-05:00"},
@@ -145,6 +150,16 @@ class HypercareTest(unittest.TestCase):
         status, detail = co.hypercare(self.plan, NOW + dt.timedelta(days=30))
         self.assertEqual(status, "breached")
         self.assertIn("INC-3 (Sev1)", detail)
+
+    def test_failed_or_unevidenced_check(self):
+        self.plan["hypercare"]["cutover_completed_at"] = "2027-03-07T06:00:00-05:00"
+        self.plan["hypercare"]["checks"][1].update(status="failed", evidence="")
+        self.assertTrue(any("without evidence" in e for e in co.validate(self.plan)))
+        self.plan["hypercare"]["checks"][1]["evidence"] = "INC-9"
+        self.assertEqual(co.validate(self.plan), [])
+        self.assertEqual(co.hypercare(self.plan, NOW)[0], "breached")
+        del self.plan["hypercare"]["checks"][0]
+        self.assertTrue(any("deferred to hypercare" in e for e in co.validate(self.plan)))
 
     def test_hypercare_is_at_least_fourteen_days_and_incidents_are_well_formed(self):
         self.plan["hypercare"]["days"] = 7

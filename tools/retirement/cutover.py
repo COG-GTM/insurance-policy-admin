@@ -21,6 +21,7 @@ ROOT = fr.ROOT
 PLAN = os.path.join(ROOT, "docs", "pas", "cutover.json")
 STATES = ("LEGACY", "SHADOW", "NEW", "RETIRED")
 DONE = {"approved", "passed"}
+CHECK_STATUSES = {"pending", "passed", "failed"}
 STATUSES = {"pending", "approved", "rejected"}
 SEVERITIES = {"Sev1", "Sev2", "Sev3", "Sev4"}
 CAPABILITY_ROW = re.compile(r"^\|\s*(C-\d+)\s", re.M)
@@ -180,6 +181,15 @@ def validate(plan, root=ROOT):
     for inc in hyper.get("incidents", []):
         if not inc.get("id") or inc.get("severity") not in SEVERITIES or not inc.get("opened"):
             errors.append(f"hypercare: incident {inc} needs id, severity in {sorted(SEVERITIES)} and opened")
+    deferred = sorted(s["id"] for s in plan["smoke_tests"] if s.get("blocks_reopen") is False)
+    checks = hyper.get("checks", [])
+    if sorted(c.get("id") for c in checks) != deferred:
+        errors.append(f"hypercare: checks must list exactly the smoke tests deferred to hypercare ({', '.join(deferred)})")
+    for c in checks:
+        if c.get("status") not in CHECK_STATUSES:
+            errors.append(f"hypercare: check {c.get('id')} status must be one of {', '.join(sorted(CHECK_STATUSES))}")
+        elif c["status"] != "pending" and not c.get("evidence"):
+            errors.append(f"hypercare: check {c.get('id')} is {c['status']} without evidence")
     return errors
 
 
@@ -216,8 +226,14 @@ def hypercare(plan, now):
               if i["severity"] in ("Sev1", "Sev2") and start <= parse_time(i["opened"]) < end]
     if severe:
         return "breached", "Sev1/Sev2 during hypercare: " + ", ".join(f"{i['id']} ({i['severity']})" for i in severe)
+    failed = [c["id"] for c in hyper.get("checks", []) if c.get("status") == "failed"]
+    if failed:
+        return "breached", "hypercare check failed: " + ", ".join(failed)
     if now < end:
         return "running", f"no Sev1/Sev2 so far; ends {end.isoformat()}"
+    waiting = [c["id"] for c in hyper.get("checks", []) if c.get("status") != "passed"]
+    if waiting:
+        return "running", f"{hyper['days']} days elapsed without Sev1/Sev2, still waiting for {', '.join(waiting)}"
     return "passed", f"{hyper['days']} days without Sev1/Sev2 (ended {end.isoformat()})"
 
 
