@@ -2,6 +2,8 @@ package com.acme.insurance.pas.batch.migration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.acme.insurance.pas.batch.BatchExitCodeGenerator;
+import com.acme.insurance.pas.batch.PasBatchApplication;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,11 +23,15 @@ import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParametersBuilder;
+import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -280,6 +286,36 @@ class MigrationJobsIT {
   }
 
   @Test
+  void scheduledReconciliationExitsNonZeroOnDifferencesAndCatchUpCopiesTheNightlyBatch() {
+    // Launched like the CronJob (PAS_BATCH_JOB, Boot's job runner, SpringApplication.exit), so
+    // the process exit code the Kubernetes Job sees is asserted, not only the exit status.
+    assertThat(runProcess(BatchStatus.COMPLETED, MigrationJobsConfiguration.BULK_LOAD_JOB, false))
+        .isZero();
+    target.update(
+        "UPDATE acmeins.premiums SET calc_by = 'TAMPERED' WHERE policy_number = ?",
+        MigrationFixtures.policy(9));
+
+    assertThat(
+            runProcess(BatchStatus.COMPLETED, MigrationJobsConfiguration.RECONCILIATION_JOB, false))
+        .isEqualTo(BatchExitCodeGenerator.DIFFERENCES);
+    assertThat(latestRun()).containsEntry("status", "DIFFERENCES");
+
+    // The nightly premium run changed DB2 after the last delta sync: the catch-up copies it (and
+    // repairs the planted difference) before comparing.
+    legacy.update(
+        "UPDATE acmeins.policies SET total_premium = total_premium + 3.50 WHERE policy_number = ?",
+        MigrationFixtures.policy(3));
+    assertThat(
+            runProcess(BatchStatus.COMPLETED, MigrationJobsConfiguration.RECONCILIATION_JOB, true))
+        .isZero();
+    assertThat(latestRun()).containsEntry("status", "MATCH");
+
+    cutoverForProcessTest();
+    assertThat(runProcess(BatchStatus.FAILED, MigrationJobsConfiguration.RECONCILIATION_JOB, true))
+        .isEqualTo(BatchStatus.FAILED.ordinal());
+  }
+
+  @Test
   void forwardSyncRefusesOnceTheTargetIsTheSystemOfRecord() throws Exception {
     launch(bulkLoad, Map.of());
     cutover();
@@ -425,6 +461,34 @@ class MigrationJobsIT {
             systemOfRecord,
             Map.of("system", "PG", "confirm", "YES", "reason", "IT cutover", "changedBy", "it"));
     assertThat(cut.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+  }
+
+  private void cutoverForProcessTest() {
+    target.update("UPDATE acmeins_shadow.system_of_record SET system_name = 'PG' WHERE id = 1");
+  }
+
+  private static int runProcess(BatchStatus expected, String jobName, boolean catchUp) {
+    try (ConfigurableApplicationContext context =
+        new SpringApplicationBuilder(PasBatchApplication.class)
+            .run(
+                "--spring.batch.job.enabled=true",
+                "--spring.batch.job.name=" + jobName,
+                "--spring.datasource.url=" + TARGET.getJdbcUrl(),
+                "--spring.datasource.username=" + TARGET.getUsername(),
+                "--spring.datasource.password=" + TARGET.getPassword(),
+                "--pas.migration.db2.url=" + LEGACY.getJdbcUrl(),
+                "--pas.migration.db2.username=" + LEGACY.getUsername(),
+                "--pas.migration.db2.password=" + LEGACY.getPassword(),
+                "--pas.migration.postgres.url=" + TARGET.getJdbcUrl(),
+                "--pas.migration.postgres.username=" + TARGET.getUsername(),
+                "--pas.migration.postgres.password=" + TARGET.getPassword(),
+                "--pas.migration.report-dir=" + reports,
+                "--pas.migration.reconcile-catch-up=" + catchUp)) {
+      assertThat(context.getBean(JobExplorer.class).getLastJobInstance(jobName))
+          .extracting(i -> context.getBean(JobExplorer.class).getLastJobExecution(i).getStatus())
+          .isEqualTo(expected);
+      return SpringApplication.exit(context);
+    }
   }
 
   private JobExecution launch(Job job, Map<String, String> extra) throws Exception {

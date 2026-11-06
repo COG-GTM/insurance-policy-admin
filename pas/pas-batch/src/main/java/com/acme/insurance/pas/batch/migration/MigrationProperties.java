@@ -20,6 +20,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param zone business zone used for the default business date
  * @param sequenceGap how far the receiving POLICY_SEQ is set above the sending high-water mark;
  *     covers numbers cached by DB2 (CACHE 20) or PostgreSQL that are not yet visible
+ * @param reconcileCatchUp whether {@code migrationReconciliation} first copies the DB2 changes made
+ *     since the last delta sync (the nightly batch and late online changes) before comparing
  */
 @ConfigurationProperties("pas.migration")
 public record MigrationProperties(
@@ -30,7 +32,8 @@ public record MigrationProperties(
     @DefaultValue({"POLICIES", "COVERAGES", "PREMIUMS"}) List<MigrationTable> hashTables,
     Path reportDir,
     @DefaultValue("America/New_York") ZoneId zone,
-    @DefaultValue("100") long sequenceGap) {
+    @DefaultValue("100") long sequenceGap,
+    @DefaultValue("false") boolean reconcileCatchUp) {
 
   public MigrationProperties {
     hashTables = List.copyOf(hashTables);

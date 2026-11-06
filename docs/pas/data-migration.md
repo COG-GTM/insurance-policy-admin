@@ -23,7 +23,8 @@ keeps using `PAS_DB_URL`):
 |---|---|---|
 | `pas.migration.db2.url/username/password` | `PAS_MIGRATION_DB2_URL`, `PAS_MIGRATION_DB2_USERNAME`, `PAS_MIGRATION_DB2_PASSWORD` | DB2 for z/OS (`jdbc:db2://...:sslConnection=true;`). Read-only grant on ACMEINS before cutover. |
 | `pas.migration.postgres.url/username/password` | `PAS_MIGRATION_PG_URL`, `PAS_MIGRATION_PG_USERNAME`, `PAS_MIGRATION_PG_PASSWORD` | PostgreSQL with `sslmode=verify-full`; owns writes to `acmeins` and `acmeins_shadow`. |
-| `pas.migration.bucket-digits` | `PAS_MIGRATION_BUCKET_DIGITS` | Default 1 (10 buckets by the last key digit). Use 2 or 3 for the full book so a bucket fits in memory. |
+| `pas.migration.bucket-digits` | `PAS_MIGRATION_BUCKET_DIGITS` | Default 1 (10 buckets by the last key digit). Use 2 or 3 for the full book so a bucket fits in memory; the CronJobs set 2 (see [Memory and bucket sizing](#memory-and-bucket-sizing)). |
+| `pas.migration.reconcile-catch-up` | `PAS_MIGRATION_RECONCILE_CATCH_UP` | Default false; the daily reconciliation CronJob sets true (see [Daily reconciliation](#daily-reconciliation)). |
 | `pas.migration.batch-size` | `PAS_MIGRATION_BATCH_SIZE` | JDBC batch size, default 500. |
 | `pas.migration.report-dir` | `PAS_MIGRATION_REPORT_DIR` | Daily `reconciliation-<date>.json/.md`; empty = reports only in `acmeins_shadow`. |
 | `pas.migration.hash-tables` | | Default `POLICIES, COVERAGES, PREMIUMS` (the ticket's record-hash tables). |
@@ -31,7 +32,20 @@ keeps using `PAS_DB_URL`):
 
 The vendor of each side is detected from the JDBC metadata (`DatabaseVendor`), so the same code
 reads DB2 and PostgreSQL; the SQL used on `ACMEINS` is portable (`RIGHT`, `RTRIM`, `COALESCE`,
-`SUM`, `COUNT`, `GROUP BY`).
+`SUM`, `COUNT`, `GROUP BY`). These DB2 paths (bucketing SQL, the `SYSIBM.SYSSEQUENCES` read and
+`ALTER SEQUENCE` in `SequenceAligner`, DB2 JDBC type mapping) run in CI only against the PostgreSQL
+stand-in; they are exercised on DB2 for z/OS in the FU-529-3 rehearsal.
+
+### Memory and bucket sizing
+
+`TableSnapshot` holds one bucket of **both** sides in memory (key, canonical row and hash), so the
+largest bucket bounds the heap. Budget about 3 KB per row for both sides together (the widest table,
+`POLICY_HOLDERS`, plus the hash and map overhead). The CronJobs give the container a 2Gi limit and
+the JVM 75% of it (`-XX:MaxRAMPercentage=75`), about 1.5 GB, so keep
+`rows of the largest table / 10^bucket-digits` under about 300,000 (half the heap). With
+`bucket-digits: 2` that covers up to about 30 million rows per table; use 3 above that, or raise the
+limit. The per-row figure is an estimate from the row widths and is measured with the production
+book in the FU-529-3 rehearsal (record the peak heap there).
 
 ## How rows are compared
 
@@ -81,7 +95,16 @@ row is read, so a trailing-blank-only edit of a `VARCHAR` value is still synced.
 ## Daily reconciliation
 
 `migrationReconciliation` (03:30 America/New_York, after the premium batch and the extracts) runs
-and stores:
+and stores the checks below.
+
+Timing: the last delta sync runs at 22:45, but DB2 keeps changing after it (online changes until the
+CICS region closes, then PREMBAT and the extracts), while the Java batch has written its own premium
+run to PostgreSQL. Comparing directly would report all of those as differences. The CronJob
+therefore sets `PAS_MIGRATION_RECONCILE_CATCH_UP=true`: the job first copies DB2 to PostgreSQL with
+the delta sync's upsert and delete passes (`catchUp` step, refused unless DB2 is the system of
+record) and then reconciles. What remains is a real difference (a copy that failed, or a change
+committed during the run itself, which the next run repairs). During the parallel run the Java
+batch's premium output is compared in the candidate tree by `parallel_run.py`, not by this job.
 
 | Check | What |
 |---|---|
@@ -97,8 +120,14 @@ Visibility for the team:
   differing records, first 1,000 per run; the total is always counted). Row values and hashes are
   never stored, logged or reported, because `POLICY_HOLDERS` carries PII.
 - `reconciliation-<date>.md` and `.json` in `PAS_MIGRATION_REPORT_DIR` for the daily stand-up.
-- A run with differences or a failure exits non-zero, logs `pas.migration.alert` and pages
-  (`PasReconciliationFailed`, `PasReconciliationMissing`, `PasDeltaSyncFailing`).
+- A run with differences ends with exit status `DIFFERENCES` and **exit code 10**, a failure with
+  exit code 5 (`BatchExitCodeGenerator`, which keeps Spring Boot's batch-status codes and the
+  premium job's `COMPLETED_WITH_ERRORS` at 0). Either fails the Kubernetes Job, logs
+  `pas.migration.alert` and pages (`PasReconciliationFailed`, `PasReconciliationMissing`).
+  The reconcile steps of bulk load, delta sync and reverse sync behave the same.
+- `PasDeltaSyncFailing` pages when the three newest delta-sync Jobs (by `kube_job_created`) have all
+  failed; the CronJob keeps three successful and three failed Jobs so that window is always
+  retained and a success in between resets the alert.
 
 ## Parallel run
 

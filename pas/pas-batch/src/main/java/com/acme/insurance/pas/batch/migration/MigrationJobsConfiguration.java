@@ -44,7 +44,8 @@ import org.springframework.transaction.PlatformTransactionManager;
  *       above the DB2 high-water mark, then a full reconciliation.
  *   <li>{@code migrationDeltaSync}: the scheduled change sync while both systems run (until the
  *       log-based CDC product of ADR 0001 D3 is licensed, FU-529-1), then a reconciliation.
- *   <li>{@code migrationReconciliation}: the daily reconciliation on its own.
+ *   <li>{@code migrationReconciliation}: the daily reconciliation, optionally after a catch-up copy
+ *       of DB2 changes made since the last delta sync ({@code pas.migration.reconcile-catch-up}).
  *   <li>{@code migrationReverseSync}: rollback, PostgreSQL back into DB2 after a cutover, DB2
  *       POLICY_SEQ moved above PostgreSQL, reconciliation, and DB2 restored as system of record.
  *   <li>{@code migrationSystemOfRecord}: records the cutover (PG) or rollback (DB2) decision that
@@ -52,7 +53,8 @@ import org.springframework.transaction.PlatformTransactionManager;
  * </ul>
  *
  * Results go to acmeins_shadow and to JSON/Markdown reports; differences raise {@code
- * pas.migration.alert}. Row values are never logged.
+ * pas.migration.alert} and end with exit status {@code DIFFERENCES}, which the process turns into a
+ * non-zero exit code ({@code BatchExitCodeGenerator}). Row values are never logged.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(MigrationProperties.class)
@@ -66,7 +68,7 @@ public final class MigrationJobsConfiguration {
 
   static final String RUN_ID_KEY = "migration.runId";
   static final String RESULT_KEY = "migration.result";
-  static final String DIFFERENCES = "DIFFERENCES";
+  public static final String DIFFERENCES = "DIFFERENCES";
   static final String COLLAPSE_SAME_DAY_DECISIONS = "collapseSameDayDecisions";
   private static final String SAME_DAY_DECISIONS =
       "SELECT COUNT(*) FROM (SELECT POLICY_NUMBER, DECISION_DATE FROM"
@@ -114,7 +116,8 @@ public final class MigrationJobsConfiguration {
     return new JobBuilder(RECONCILIATION_JOB, jobs)
         .incrementer(parameters())
         .listener(new RunListener(connections, Direction.NONE))
-        .start(reconcileStep(jobs, connections, RECONCILIATION_JOB, false))
+        .start(catchUpStep(jobs, connections))
+        .next(reconcileStep(jobs, connections, RECONCILIATION_JOB, false))
         .build();
   }
 
@@ -134,7 +137,8 @@ public final class MigrationJobsConfiguration {
           if (reason.isBlank() || by.isBlank()) {
             throw new IllegalArgumentException("pass reason= and changedBy= for the audit trail");
           }
-          for (String sync : List.of(BULK_LOAD_JOB, DELTA_SYNC_JOB, REVERSE_SYNC_JOB)) {
+          for (String sync :
+              List.of(BULK_LOAD_JOB, DELTA_SYNC_JOB, RECONCILIATION_JOB, REVERSE_SYNC_JOB)) {
             if (!explorer.findRunningJobExecutions(sync).isEmpty()) {
               throw new IllegalStateException(
                   sync
@@ -171,9 +175,7 @@ public final class MigrationJobsConfiguration {
     for (MigrationTable table : MigrationTable.values()) {
       builder.next(syncStep(jobs, connections, direction, table, Phase.UPSERT));
     }
-    List<MigrationTable> childFirst = new ArrayList<>(Arrays.asList(MigrationTable.values()));
-    java.util.Collections.reverse(childFirst);
-    for (MigrationTable table : childFirst) {
+    for (MigrationTable table : childFirst()) {
       builder.next(syncStep(jobs, connections, direction, table, Phase.DELETE));
     }
     builder.next(sequenceStep(jobs, connections, direction));
@@ -236,55 +238,113 @@ public final class MigrationJobsConfiguration {
       Direction direction,
       MigrationTable table,
       Phase phase) {
-    Side from = direction == Direction.PG_TO_DB2 ? Side.POSTGRES : Side.DB2;
-    Side to = direction == Direction.PG_TO_DB2 ? Side.DB2 : Side.POSTGRES;
     Tasklet tasklet =
         (contribution, chunk) -> {
-          TableSynchronizer synchronizer =
-              new TableSynchronizer(properties.bucketDigits(), properties.batchSize());
-          var params = chunk.getStepContext().getStepExecution().getJobParameters();
-          String authoritative = direction == Direction.PG_TO_DB2 ? "PG" : "DB2";
-          MigrationRunStore guardStore = store(connections);
-          Runnable guard =
-              () -> {
-                String system = guardStore.systemOfRecord();
-                if (!authoritative.equals(system)) {
-                  throw new IllegalStateException(
-                      "system of record changed to " + system + " during the sync; stopped");
-                }
-              };
-          boolean collapse =
-              direction == Direction.PG_TO_DB2
-                  && table == MigrationTable.UNDERWRITING_DECISIONS
-                  && "YES".equals(params.getString(COLLAPSE_SAME_DAY_DECISIONS));
           TableSynchronizer.Result result =
-              synchronizer.sync(
+              syncTable(
+                  connections,
+                  direction,
                   table,
                   phase,
-                  connections.client(from),
-                  new JdbcTemplate(connections.dataSource(to)),
-                  guard,
-                  collapse);
-          long runId = runId(chunk.getStepContext().getStepExecution().getJobExecution());
-          store(connections).recordSync(runId, table, result);
+                  chunk.getStepContext().getStepExecution().getJobExecution());
           contribution.incrementWriteCount(result.inserted() + result.updated() + result.deleted());
-          meters
-              .counter("pas.migration.rows", "table", table.name(), "direction", direction.name())
-              .increment(result.inserted() + result.updated() + result.deleted());
-          log.info(
-              "migration sync table={} phase={} direction={} sourceRows={} inserted={} updated={}"
-                  + " deleted={}",
-              table,
-              phase,
-              direction,
-              result.sourceRows(),
-              result.inserted(),
-              result.updated(),
-              result.deleted());
           return RepeatStatus.FINISHED;
         };
     String name = "sync" + (phase == Phase.UPSERT ? "Upsert" : "Delete") + "-" + table.name();
     return new StepBuilder(name, jobs).tasklet(tasklet, NO_TX).build();
+  }
+
+  private TableSynchronizer.Result syncTable(
+      MigrationConnections connections,
+      Direction direction,
+      MigrationTable table,
+      Phase phase,
+      JobExecution job) {
+    Side from = direction == Direction.PG_TO_DB2 ? Side.POSTGRES : Side.DB2;
+    Side to = direction == Direction.PG_TO_DB2 ? Side.DB2 : Side.POSTGRES;
+    TableSynchronizer synchronizer =
+        new TableSynchronizer(properties.bucketDigits(), properties.batchSize());
+    var params = job.getJobParameters();
+    String authoritative = direction == Direction.PG_TO_DB2 ? "PG" : "DB2";
+    MigrationRunStore store = store(connections);
+    Runnable guard =
+        () -> {
+          String system = store.systemOfRecord();
+          if (!authoritative.equals(system)) {
+            throw new IllegalStateException(
+                "system of record changed to " + system + " during the sync; stopped");
+          }
+        };
+    boolean collapse =
+        direction == Direction.PG_TO_DB2
+            && table == MigrationTable.UNDERWRITING_DECISIONS
+            && "YES".equals(params.getString(COLLAPSE_SAME_DAY_DECISIONS));
+    TableSynchronizer.Result result =
+        synchronizer.sync(
+            table,
+            phase,
+            connections.client(from),
+            new JdbcTemplate(connections.dataSource(to)),
+            guard,
+            collapse);
+    store.recordSync(runId(job), table, result);
+    meters
+        .counter("pas.migration.rows", "table", table.name(), "direction", direction.name())
+        .increment(result.inserted() + result.updated() + result.deleted());
+    log.info(
+        "migration sync table={} phase={} direction={} sourceRows={} inserted={} updated={}"
+            + " deleted={}",
+        table,
+        phase,
+        direction,
+        result.sourceRows(),
+        result.inserted(),
+        result.updated(),
+        result.deleted());
+    return result;
+  }
+
+  /**
+   * The daily reconciliation runs after the nightly batch, when DB2 holds the premium run and the
+   * online changes made since the last delta sync (22:45). With {@code
+   * pas.migration.reconcile-catch-up} it first copies those changes (the delta sync's upsert and
+   * delete passes, while DB2 is the system of record), so only changes committed during the run
+   * itself can still show as differences. Without it the step does nothing.
+   */
+  private Step catchUpStep(JobRepository jobs, MigrationConnections connections) {
+    Tasklet tasklet =
+        (contribution, chunk) -> {
+          if (!properties.reconcileCatchUp()) {
+            return RepeatStatus.FINISHED;
+          }
+          String system = store(connections).systemOfRecord();
+          if (!"DB2".equals(system)) {
+            throw new IllegalStateException(
+                "system of record is "
+                    + system
+                    + "; the reconciliation catch-up copies DB2 to PostgreSQL and would overwrite"
+                    + " it");
+          }
+          JobExecution job = chunk.getStepContext().getStepExecution().getJobExecution();
+          long written = 0;
+          for (MigrationTable table : MigrationTable.values()) {
+            var r = syncTable(connections, Direction.DB2_TO_PG, table, Phase.UPSERT, job);
+            written += r.inserted() + r.updated();
+          }
+          for (MigrationTable table : childFirst()) {
+            written +=
+                syncTable(connections, Direction.DB2_TO_PG, table, Phase.DELETE, job).deleted();
+          }
+          contribution.incrementWriteCount(written);
+          return RepeatStatus.FINISHED;
+        };
+    return new StepBuilder("catchUp", jobs).tasklet(tasklet, NO_TX).build();
+  }
+
+  private static List<MigrationTable> childFirst() {
+    List<MigrationTable> tables = new ArrayList<>(Arrays.asList(MigrationTable.values()));
+    java.util.Collections.reverse(tables);
+    return tables;
   }
 
   private Step sequenceStep(
