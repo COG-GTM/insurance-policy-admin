@@ -15,6 +15,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param sendTimeout how long one publish may take before the row is retried
  * @param retention how long published rows stay in the outbox (DS-04: 7 days)
  * @param partitions partitions of topics created at start-up
+ * @param maxAttempts failed publishes before a row is parked for replay (AB-528, V80)
+ * @param relayFailureLimit failed publishes in a row, without a success in between, after which a
+ *     relay run stops (a broker outage, not one bad row)
  */
 @ConfigurationProperties("pas.events")
 public record EventsProperties(
@@ -24,4 +27,5 @@ public record EventsProperties(
     @DefaultValue("PT10S") Duration sendTimeout,
     @DefaultValue("P7D") Duration retention,
     @DefaultValue("3") int partitions,
-    @DefaultValue("10") int maxAttempts) {}
+    @DefaultValue("10") int maxAttempts,
+    @DefaultValue("3") int relayFailureLimit) {}

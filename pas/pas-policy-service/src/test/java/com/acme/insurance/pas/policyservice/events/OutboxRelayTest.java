@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,7 +40,7 @@ class OutboxRelayTest {
   OutboxRelay relay(int maxAttempts) {
     EventsProperties properties =
         new EventsProperties(
-            true, false, 100, Duration.ofSeconds(1), Duration.ofDays(7), 3, maxAttempts);
+            true, false, 100, Duration.ofSeconds(1), Duration.ofDays(7), 3, maxAttempts, 3);
     when(kafka.send(argThat((ProducerRecord<String, String> r) -> true)))
         .thenAnswer(
             inv -> {
@@ -68,15 +69,51 @@ class OutboxRelayTest {
   }
 
   @Test
-  void aFailureBelowTheLimitStopsTheRunSoNothingOvertakesIt() {
+  void aFailureBelowTheLimitHoldsBackOnlyThatPolicy() {
     when(outbox.pending(100))
-        .thenReturn(List.of(row(1, "POL-A", "poison", 0), row(2, "POL-B", "{}", 0)));
+        .thenReturn(
+            List.of(
+                row(1, "POL-A", "poison", 0), row(2, "POL-A", "{}", 0), row(3, "POL-B", "{}", 0)));
 
     relay(10).relay();
 
     verify(outbox).markFailed(eq(1L), anyString());
     verify(outbox, never()).park(anyLong(), org.mockito.ArgumentMatchers.any());
+    verify(outbox, never()).markPublished(eq(2L), org.mockito.ArgumentMatchers.any());
+    assertThat(sent).containsExactly("e3");
+  }
+
+  @Test
+  void consecutiveFailuresOnSeveralPoliciesStopTheRun() {
+    when(outbox.pending(100))
+        .thenReturn(
+            List.of(
+                row(1, "POL-A", "poison", 0),
+                row(2, "POL-B", "poison", 0),
+                row(3, "POL-C", "poison", 0),
+                row(4, "POL-D", "{}", 0)));
+
+    relay(10).relay();
+
+    verify(outbox).markFailed(eq(3L), anyString());
+    verify(kafka, times(3)).send(argThat((ProducerRecord<String, String> r) -> true));
     assertThat(sent).isEmpty();
+  }
+
+  @Test
+  void aSuccessResetsTheFailureCount() {
+    when(outbox.pending(100))
+        .thenReturn(
+            List.of(
+                row(1, "POL-A", "poison", 0),
+                row(2, "POL-B", "poison", 0),
+                row(3, "POL-C", "{}", 0),
+                row(4, "POL-D", "poison", 0),
+                row(5, "POL-E", "{}", 0)));
+
+    relay(10).relay();
+
+    assertThat(sent).containsExactly("e3", "e5");
   }
 
   @Test

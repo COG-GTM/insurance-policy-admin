@@ -24,6 +24,12 @@ public final class PasScopes {
   /** Endorse a policy within the caller's entitlement (POLEND, AB-526). */
   public static final String POLICY_ENDORSE = "pas.policy.endorse";
 
+  /**
+   * List parked outbox events and dead-lettered bridge events (AB-528): whole book, metadata only,
+   * kept apart from {@link #OPS_READ} so metrics scrapers do not see policy numbers or errors.
+   */
+  public static final String EVENTS_READ = "pas.events.read";
+
   /** Replay parked outbox events and dead-lettered bridge events (AB-528). */
   public static final String EVENTS_REPLAY = "pas.events.replay";
 

@@ -14,6 +14,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param underwritingRequestTopic POLICY-RECORD for ACME.PAS.UNDERWRITING.REQUEST (I-4)
  * @param underwritingDecisionTopic POLICY-RECORD for ACME.PAS.UNDERWRITING.DECISION (I-5)
  * @param deadLetterTopic where events the bridge cannot process go after the retries
+ * @param retryTopic where a dead-letter replay goes: only the bridge reads it, so native
+ *     subscribers of the domain topics do not see replayed events again
  */
 @ConfigurationProperties("pas.bridge")
 public record BridgeProperties(
@@ -25,4 +27,5 @@ public record BridgeProperties(
     @DefaultValue("pas.events.dlt") String deadLetterTopic,
     @DefaultValue("3") int retries,
     @DefaultValue("PT1S") Duration retryInterval,
-    @DefaultValue("PT10S") Duration sendTimeout) {}
+    @DefaultValue("PT10S") Duration sendTimeout,
+    @DefaultValue("pas.bridge.retry") String retryTopic) {}

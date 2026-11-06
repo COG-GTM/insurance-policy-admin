@@ -54,7 +54,10 @@ at event time (Q-528-2), and delivery is at-least-once with `eventId` for de-dup
 
 - **Outbox (publish to Kafka fails):** `OutboxRelay` retries a row on every run; after
   `pas.events.max-attempts` (default 10) it parks the row (`PARKED_AT`, V80) and logs an error. Later
-  rows for the same policy wait behind it so order per policy is kept; other policies continue.
+  rows for the same policy wait behind it so order per policy is kept; other policies continue in the
+  same run, also before the row is parked. After `pas.events.relay-failure-limit` (default 3) failures
+  in a row on different policies with no success in between the run stops (broker outage), so an
+  outage costs a few send timeouts per run, not one per pending row.
 - **Bridge (an event cannot be bridged):** `DefaultErrorHandler` retries `pas.bridge.retries` times
   (`retry-interval`), then `DeadLetterPublishingRecoverer` writes the original record to
   `pas.events.dlt` with the Spring Kafka `kafka_dlt-*` headers. Schema failures, unknown events and
@@ -63,15 +66,36 @@ at event time (Q-528-2), and delivery is at-least-once with `eventId` for de-dup
 
 | Method | Path | Scope |
 |---|---|---|
-| GET | `/api/v1/ops/events/outbox/parked?after=&limit=` (keyset on outbox sequence, `nextAfter`) | `pas.ops.read` |
+| GET | `/api/v1/ops/events/outbox/parked?after=&limit=` (keyset on outbox sequence, `nextAfter`) | `pas.events.read` |
 | POST | `/api/v1/ops/events/outbox/{eventId}/replay` | `pas.events.replay` |
-| GET | `/api/v1/ops/events/dead-letters?after=&limit=` (cursor `partition:offset,...`, `nextAfter`) | `pas.ops.read` |
+| GET | `/api/v1/ops/events/dead-letters?after=&limit=` (cursor `partition:offset,...`, `nextAfter`) | `pas.events.read` |
 | POST | `/api/v1/ops/events/dead-letters/replay` body `{"eventIds":[...]}` (max 500; searches the whole retained topic) | `pas.events.replay` |
 
   Replaying an outbox row clears `PARKED_AT`, resets the attempts and increments `REPLAY_COUNT`; a
-  dead letter is re-published to its original topic with header `replayOf`. Retention: 7 days on the
-  business topics, 30 days on `pas.events.dlt` (MSG-01); alert on any parked row or DLT message
+  dead letter is re-published to the bridge-only retry topic `pas.bridge.retry`
+  (`pas.bridge.retry-topic`) with its domain topic in header `originalTopic` and header `replayOf`.
+  Only the bridge reads the retry topic, so native subscribers of the domain topics never receive a
+  replayed event a second time; a replay that fails again is dead-lettered with its domain topic kept.
+  Retention: 7 days on the business topics, 30 days on `pas.events.dlt` (MSG-01); alert on any parked
+  row or DLT message (FU-528-3).
+- **Scopes:** the lists are whole-book and show policy numbers and error text (no payloads, no direct
+  PII), so they need `pas.events.read`, kept apart from `pas.ops.read` (actuator info and metrics
+  scrapers). Who holds `pas.events.read` and `pas.events.replay` is part of the Security sign-off
   (FU-528-3).
+- **Synchronous DLT reads:** list and replay read `pas.events.dlt` inside the HTTP request. A list
+  page stops at `limit` (max 500); a replay reads at most the retained topic up to the end offsets
+  at call time and stops once every requested id is found. With alerting on any dead letter
+  (FU-528-3) the topic is expected to stay small; if it does not, replay moves to an asynchronous job
+  (FU-528-6).
+
+## Money fields in the events
+
+Amounts (`totalPremium`, `previousPremium`, `premiumAdjustment`, coverage premiums, limits and
+deductibles) are JSON numbers written from `BigDecimal` with the column scale (2 decimals, cent-exact).
+Consumers must parse them as decimals (Jackson `USE_BIG_DECIMAL_FOR_FLOATS`, Python
+`json.loads(..., parse_float=Decimal)`, `decimal` in Avro/Connect converters), never as binary
+floating point. Changing them to string decimals or adding `multipleOf: 0.01` is a schema decision for
+v2 with the consumers (FU-528-6).
 
 ## Broker Portal without DB2
 
@@ -99,7 +123,7 @@ replica (FU-528-4).
 | Documents still generated for new, renewed and endorsed policies | `MessagingBridgeIT` creates, renews and endorses a policy through the HTTP APIs with PostgreSQL and Kafka (Testcontainers) and asserts a 125-byte POLICY-RECORD with `documentType` `NEW_BUSINESS`, `RENEWAL`, `ENDORSEMENT` on the FileNet trigger topic, plus the underwriting request | G2: FileNet produces the documents in a test environment from the sink/queue (ECM) |
 | Broker Portal works with no connection to DB2 | `PolicyInquiryApiIT` (list, paging, entitlement, validation) and the OpenAPI contract `policy-inquiry-v1.yaml` | G4: the portal team switches the portal and disables the linked server |
 | Old queue definitions listed for decommission | `docs/pas/messaging-decommission.json` / `.md`, `make messaging-decommission` in CI | G1, G5-G7 and the steps S1-S6 |
-| Dead letters and replay | `MessagingBridgeIT` (DLT listing + replay, parked outbox replay through the ops API), `OutboxRelayTest`, `NewBusinessPersistenceIT` | alerting (FU-528-3) |
+| Dead letters and replay | `MessagingBridgeIT` (DLT listing + replay through the bridge-only retry topic, parked outbox replay through the ops API, `pas.events.read` vs `pas.ops.read`), `OutboxRelayTest`, `BridgeRouterTest` (underwriting decision route), `NewBusinessPersistenceIT`; the DB2 V80 script is checked by the Flyway conventions test only | alerting (FU-528-3); V80 on DB2 applied by the DBA (no DB2 container in CI) |
 
 ## Sign-offs
 

@@ -25,10 +25,11 @@ import org.springframework.kafka.support.KafkaHeaders;
 
 /**
  * Lists and replays the bridge's dead-letter topic. Replay republishes the original event, value
- * and headers, to its original topic with a {@code replayOf} header; consumers deduplicate on
- * {@code eventId}, so replaying an event that also succeeded elsewhere is harmless. The DLT itself
- * is never modified; its retention (30 days, MSG-01) bounds what can be replayed. Listing pages by
- * partition offsets; replay searches the whole retained topic.
+ * and headers, to the bridge-only retry topic with its domain topic in an {@code originalTopic}
+ * header and a {@code replayOf} header, so native subscribers of the domain topics never see it
+ * twice; the bridge deduplicates downstream on {@code eventId}. The DLT itself is never modified;
+ * its retention (30 days, MSG-01) bounds what can be replayed. Listing pages by partition offsets;
+ * replay searches the whole retained topic.
  */
 public class DeadLetterService {
 
@@ -98,16 +99,17 @@ public class DeadLetterService {
         Map.of(),
         r -> {
           String eventId = header(r, "eventId");
-          if (eventId != null
-              && eventIds.contains(eventId)
-              && header(r, KafkaHeaders.DLT_ORIGINAL_TOPIC) != null) {
+          if (eventId != null && eventIds.contains(eventId) && domainTopic(r) != null) {
             found.putIfAbsent(eventId, r);
           }
           return found.size() < eventIds.size();
         });
     for (ConsumerRecord<String, String> r : found.values()) {
       ProducerRecord<String, String> again =
-          new ProducerRecord<>(header(r, KafkaHeaders.DLT_ORIGINAL_TOPIC), r.key(), r.value());
+          new ProducerRecord<>(properties.retryTopic(), r.key(), r.value());
+      again
+          .headers()
+          .add(LegacyRecordBridge.ORIGINAL_TOPIC, domainTopic(r).getBytes(StandardCharsets.UTF_8));
       for (String name : new String[] {"eventId", "eventType", "schemaVersion"}) {
         String value = header(r, name);
         if (value != null) {
@@ -194,10 +196,22 @@ public class DeadLetterService {
     return cursor.toString();
   }
 
-  private static DeadLetter describe(ConsumerRecord<String, String> r) {
+  /**
+   * The domain topic the event was published to: a replayed event that failed again was
+   * dead-lettered from the retry topic and still carries its domain topic in {@code originalTopic}.
+   */
+  private String domainTopic(ConsumerRecord<String, String> r) {
+    String topic = header(r, KafkaHeaders.DLT_ORIGINAL_TOPIC);
+    if (topic != null && topic.equals(properties.retryTopic())) {
+      return header(r, LegacyRecordBridge.ORIGINAL_TOPIC);
+    }
+    return topic;
+  }
+
+  private DeadLetter describe(ConsumerRecord<String, String> r) {
     return new DeadLetter(
         header(r, "eventId"),
-        header(r, KafkaHeaders.DLT_ORIGINAL_TOPIC),
+        domainTopic(r),
         r.partition(),
         r.offset(),
         Instant.ofEpochMilli(r.timestamp()),

@@ -80,6 +80,7 @@ public class BridgeConfiguration {
         new NewTopic(properties.documentTriggerTopic(), events.partitions(), (short) 1),
         new NewTopic(properties.underwritingRequestTopic(), events.partitions(), (short) 1),
         new NewTopic(properties.underwritingDecisionTopic(), events.partitions(), (short) 1),
-        new NewTopic(properties.deadLetterTopic(), events.partitions(), (short) 1));
+        new NewTopic(properties.deadLetterTopic(), events.partitions(), (short) 1),
+        new NewTopic(properties.retryTopic(), events.partitions(), (short) 1));
   }
 }

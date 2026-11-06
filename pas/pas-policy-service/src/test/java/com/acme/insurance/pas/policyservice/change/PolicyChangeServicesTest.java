@@ -188,6 +188,7 @@ class PolicyChangeServicesTest {
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("expected 1");
     verify(audit, never()).insert(any());
+    verify(outbox, never()).append(any());
   }
 
   @Test

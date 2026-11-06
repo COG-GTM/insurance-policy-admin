@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Dead-letter handling and replay (AB-528). GETs need {@code pas.ops.read}, POSTs {@code
+ * Dead-letter handling and replay (AB-528). GETs need {@code pas.events.read}, POSTs {@code
  * pas.events.replay}. Responses carry ids, topics and errors, never event payloads.
  */
 @RestController

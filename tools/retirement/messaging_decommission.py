@@ -53,7 +53,8 @@ def validate(plan, root=ROOT):
 
 def bridge_topics(path=BRIDGE_PROPERTIES):
     source = open(path, encoding="utf-8").read()
-    return set(re.findall(r'@DefaultValue\("(pas\.bridge\.[a-z.-]+)"\)', source))
+    # Only MQ-bound topics need a sink; pas.bridge.retry is Kafka-internal (DLT replay).
+    return set(re.findall(r'@DefaultValue\("(pas\.bridge\.(?:mq|filenet)\.[a-z.-]+)"\)', source))
 
 
 def check_sinks(directory=SINKS, topics=None):

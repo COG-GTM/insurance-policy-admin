@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.policyservice.bridge;
 
+import static com.acme.insurance.pas.policyservice.security.PasScopes.EVENTS_READ;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.EVENTS_REPLAY;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.OPS_READ;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_ENDORSE;
@@ -33,11 +34,13 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Test;
@@ -178,6 +181,33 @@ class MessagingBridgeIT {
     return found;
   }
 
+  /** Records on {@code topic} with this {@code eventId} header, read to the current end. */
+  private long countOn(String topic, String eventId) {
+    Properties p = new Properties();
+    p.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers());
+    try (KafkaConsumer<String, byte[]> consumer =
+        new KafkaConsumer<>(p, new StringDeserializer(), new ByteArrayDeserializer())) {
+      List<TopicPartition> partitions =
+          consumer.partitionsFor(topic).stream()
+              .map(i -> new TopicPartition(topic, i.partition()))
+              .toList();
+      consumer.assign(partitions);
+      consumer.seekToBeginning(partitions);
+      Map<TopicPartition, Long> end = consumer.endOffsets(partitions);
+      long count = 0;
+      long deadline = System.currentTimeMillis() + 30_000;
+      while (partitions.stream().anyMatch(tp -> consumer.position(tp) < end.get(tp))
+          && System.currentTimeMillis() < deadline) {
+        for (ConsumerRecord<String, byte[]> r : consumer.poll(Duration.ofMillis(500))) {
+          if (eventId.equals(header(r, "eventId"))) {
+            count++;
+          }
+        }
+      }
+      return count;
+    }
+  }
+
   private void assertDocumentTrigger(
       ConsumerRecord<String, byte[]> r, String policyNumber, String documentType) {
     assertThat(r.topic()).isEqualTo(DOCS);
@@ -262,7 +292,11 @@ class MessagingBridgeIT {
     PasEvent event = events.policyCreated(policy, coverages, "it-dlt");
     outbox.append(event);
 
-    String ops = TestJwt.wholeBook(OPS_READ);
+    String ops = TestJwt.wholeBook(EVENTS_READ);
+    assertThat(
+            send("GET", "/api/v1/ops/events/dead-letters", null, TestJwt.wholeBook(OPS_READ))
+                .statusCode())
+        .isEqualTo(403);
     JsonNode deadLetter = null;
     long deadline = System.currentTimeMillis() + 45_000;
     while (deadLetter == null && System.currentTimeMillis() < deadline) {
@@ -283,6 +317,7 @@ class MessagingBridgeIT {
     String body = "{\"eventIds\":[\"" + event.eventId() + "\"]}";
     assertThat(send("POST", "/api/v1/ops/events/dead-letters/replay", body, ops).statusCode())
         .isEqualTo(403);
+    long domainEventsBefore = countOn("pas.policy.created", event.eventId().toString());
 
     insertPolicy(number, today().minusDays(10), today().plusDays(355));
     HttpResponse<String> replay =
@@ -298,6 +333,10 @@ class MessagingBridgeIT {
     assertThat(docs).hasSize(1);
     assertDocumentTrigger(docs.get(0), number, BridgeRouter.DOCUMENT_NEW);
     assertThat(header(docs.get(0), "eventId")).isEqualTo(event.eventId().toString());
+    assertThat(countOn("pas.bridge.retry", event.eventId().toString())).isEqualTo(1);
+    assertThat(countOn("pas.policy.created", event.eventId().toString()))
+        .as("native subscribers of the domain topic do not see the replay")
+        .isEqualTo(domainEventsBefore);
   }
 
   @Test
@@ -315,7 +354,7 @@ class MessagingBridgeIT {
         });
 
     HttpResponse<String> parked =
-        send("GET", "/api/v1/ops/events/outbox/parked", null, TestJwt.wholeBook(OPS_READ));
+        send("GET", "/api/v1/ops/events/outbox/parked", null, TestJwt.wholeBook(EVENTS_READ));
     assertThat(parked.statusCode()).isEqualTo(200);
     assertThat(parked.body()).contains(eventId).doesNotContain("C000000001");
     assertThat(
@@ -323,7 +362,7 @@ class MessagingBridgeIT {
                     "GET",
                     "/api/v1/ops/events/outbox/parked?limit=0",
                     null,
-                    TestJwt.wholeBook(OPS_READ))
+                    TestJwt.wholeBook(EVENTS_READ))
                 .statusCode())
         .isEqualTo(400);
     assertThat(
@@ -331,7 +370,7 @@ class MessagingBridgeIT {
                     "GET",
                     "/api/v1/ops/events/dead-letters?after=x",
                     null,
-                    TestJwt.wholeBook(OPS_READ))
+                    TestJwt.wholeBook(EVENTS_READ))
                 .statusCode())
         .isEqualTo(400);
     assertThat(
@@ -347,7 +386,7 @@ class MessagingBridgeIT {
                     "POST",
                     "/api/v1/ops/events/outbox/" + eventId + "/replay",
                     null,
-                    TestJwt.wholeBook(OPS_READ))
+                    TestJwt.wholeBook(EVENTS_READ))
                 .statusCode())
         .isEqualTo(403);
     assertThat(

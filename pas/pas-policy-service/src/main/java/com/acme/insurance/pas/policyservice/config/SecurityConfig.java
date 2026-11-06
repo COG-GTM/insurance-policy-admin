@@ -1,5 +1,6 @@
 package com.acme.insurance.pas.policyservice.config;
 
+import static com.acme.insurance.pas.policyservice.security.PasScopes.EVENTS_READ;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.EVENTS_REPLAY;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.OPS_READ;
 import static com.acme.insurance.pas.policyservice.security.PasScopes.POLICY_ENDORSE;
@@ -70,7 +71,7 @@ public class SecurityConfig {
                     .requestMatchers(EndpointRequest.toAnyEndpoint())
                     .denyAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/ops/events/**")
-                    .hasAuthority(authority(OPS_READ))
+                    .hasAuthority(authority(EVENTS_READ))
                     .requestMatchers(HttpMethod.POST, "/api/v1/ops/events/**")
                     .hasAuthority(authority(EVENTS_REPLAY))
                     .requestMatchers(
