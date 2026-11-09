@@ -8,7 +8,7 @@ SELF = "compat/check_security.py"
 RULES = [
     ("FAIL", "private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), None),
     ("FAIL", "hardcoded-secret", re.compile(r"(?i)(password|passwd|secret|api[_-]?key|token)\s*[=:]\s*['\"]?(?!\$\{)(?!changeme\b)[^\s'\"${}<>]{6,}"), LOCAL_OR_TEST),
-    ("FAIL", "actuator-exposed", re.compile(r"(?i)(management\.security\.enabled\s*=\s*false|management\.endpoints\.web\.exposure\.include\s*=\s*\*)"), LOCAL_OR_TEST),
+    ("FAIL", "actuator-exposed", re.compile(r"(?i)(management\.security\.enabled\s*=\s*false|management\.endpoints\.web\.exposure\.include\s*=\s*\*|endpoints\.(heapdump|env|configprops|trace|dump)\.enabled\s*=\s*true|endpoints\.(sensitive|heapdump\.sensitive|env\.sensitive|configprops\.sensitive|trace\.sensitive|dump\.sensitive)\s*=\s*false)"), LOCAL_OR_TEST),
     ("FAIL", "h2-console-enabled", re.compile(r"(?i)spring\.h2\.console\.enabled\s*=\s*true"), LOCAL_OR_TEST),
     ("FAIL", "plaintext-ftp", re.compile(r"(?i)(PGM=FTP\b|\bftp://)"), None),
     ("NOTE", "pii-field", re.compile(r"(?i)\b(ssn_?last4|tax_?id|date_?of_?birth|credit_?score)\b"), re.compile(r"(^sql/|schema\.sql|data\.sql|\.cpy$|/src/test/|^compat/)")),
