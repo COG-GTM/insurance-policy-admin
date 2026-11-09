@@ -19,7 +19,9 @@ permissions:
 jobs:
   api-contract-live:
     name: REST API contract (authenticated)
-    if: github.ref == 'refs/heads/main' && vars.COMPAT_LIVE_BASE_URL != ''
+    # Environment-scoped vars aren't visible to job-level `if`, so the opt-in
+    # toggle is a repository variable; the URL and secret live on compat-live.
+    if: github.ref == 'refs/heads/main' && vars.COMPAT_LIVE_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: compat-live
     steps:
@@ -33,4 +35,9 @@ jobs:
         env:
           COMPAT_BASE_URL: ${{ vars.COMPAT_LIVE_BASE_URL }}
           COMPAT_AUTH_HEADER: ${{ secrets.COMPAT_AUTH_HEADER }}
-        run: python3 compat/api/check_api.py
+        run: |
+          if [ -z "$COMPAT_BASE_URL" ]; then
+            echo "::error::Set the COMPAT_LIVE_BASE_URL variable on the compat-live environment"
+            exit 1
+          fi
+          python3 compat/api/check_api.py
