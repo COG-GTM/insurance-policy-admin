@@ -1,0 +1,6 @@
+# The compat gate decides what may merge to main. Changes to its exceptions,
+# its checks or the workflow that runs it need an owner's review, so a PR
+# cannot waive or rewrite the gate it is being judged by.
+/compat/allowed-changes.json @milind-cognition @abhay-codeium
+/compat/                     @milind-cognition @abhay-codeium
+/.github/                    @milind-cognition @abhay-codeium

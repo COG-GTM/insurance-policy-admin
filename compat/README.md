@@ -22,7 +22,23 @@ printed by the check to `allowed-changes.json` with the ticket and reason:
 {"allowed": [{"id": "api:GET /api/v1/policies/POL-00000001:status", "ticket": "AB-524", "reason": "endpoint now requires OAuth2; consumers migrated"}]}
 ```
 
-Reviewers see the approval in the PR diff. When the API under test needs
+The gate reads `allowed-changes.json` from the base branch (`COMPAT_BASE_REF`,
+default `origin/main`), never from the change under test, so a PR cannot
+approve its own failures. Merge the exception first in its own reviewed PR,
+then the change it covers; an entry added in the same PR is reported as
+`PENDING` and the finding still fails. Entries need a ticket key like `AB-524`
+and a non-empty reason, otherwise they are ignored. Exceptions for
+`security:` ids also need two distinct reviewers in `approvers`:
+
+```json
+{"allowed": [{"id": "security:actuator-exposed:java-facade/src/main/resources/application-dev.properties", "ticket": "AB-530", "reason": "dev profile only, network-isolated", "approvers": ["alice", "bob"]}]}
+```
+
+`.github/CODEOWNERS` requires an owner's review for `allowed-changes.json`, the
+gate scripts and the workflow; turn on "Require review from Code Owners" for
+`main` so that review is enforced. `make compat-test` runs the gate's own tests.
+
+When the API under test needs
 credentials, set the `COMPAT_AUTH_HEADER` repository secret (`Name: value`).
 When a replacement service takes over the read API, point `COMPAT_API_MODULE`
 / `COMPAT_API_START` at it; the snapshots stay the contract. Re-record snapshots
