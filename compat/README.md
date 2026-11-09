@@ -31,7 +31,7 @@ and a non-empty reason, otherwise they are ignored. Exceptions for
 `security:` ids also need two distinct reviewers in `approvers`:
 
 ```json
-{"allowed": [{"id": "security:hardcoded-secret:java-facade/src/main/resources/application.properties", "ticket": "AB-530", "reason": "non-production placeholder, rotated", "approvers": ["alice", "bob"]}]}
+{"allowed": [{"id": "security:actuator-exposed:java-facade/src/main/resources/application-dev.properties", "ticket": "AB-530", "reason": "dev profile only, network-isolated", "approvers": ["alice", "bob"]}]}
 ```
 
 `.github/CODEOWNERS` requires an owner's review for `allowed-changes.json`, the

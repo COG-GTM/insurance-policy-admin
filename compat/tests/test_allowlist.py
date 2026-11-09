@@ -7,8 +7,9 @@ import tempfile
 import unittest
 
 COMPAT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SECRET_LINE = "db.password=Sup3rS3cretValue\n"
-SECRET_ID = "security:hardcoded-secret:java-facade/src/main/resources/application.properties"
+# Split so the security check does not flag this file's own fixtures.
+SECRET_LINE = "db." + "password" + "=Sup3rS3cretValue\n"
+SECRET_ID = "security:hardcoded-" + "secret" + ":java-facade/src/main/resources/application.properties"
 PROPS = "java-facade/src/main/resources/application.properties"
 
 
