@@ -165,29 +165,25 @@ class PolendAuditUserTests(unittest.TestCase):
         out = self.run_polend()
         self.assertIn("UPDATE UPDATED_BY=[MALLORY ] PREM= 000001150.00", out)
 
-    def test_audit_queue_record_carries_user_terminal_and_change(self):
+    def test_audit_queue_record_carries_signed_on_user(self):
         out = self.run_polend()
         self.assertIn("CONFIRM", out)
         self.assertNotIn("ROLLBACK", out)
         rec = re.search(r"AUDIT REC=\[(.*)\]", out, re.S).group(1)
-        # Legacy prefix keeps POLICY-RECORD; actor fields follow it
         self.assertTrue(rec.startswith("POL000000001AUTAC"), rec)
         self.assertEqual(rec[89:97], "20260702")        # LAST-UPDATED
         self.assertEqual(rec[97:105], "MALLORY ")       # UPDATED-BY
-        self.assertEqual(rec[125:133], "MALLORY ")      # AUD-USERID
-        self.assertEqual(rec[133:137], "T042")          # AUD-TERMID
-        self.assertEqual(rec[137:141], "PEND")          # AUD-TRANSID
-        self.assertEqual(rec[141:149], "POLEND  ")      # AUD-PROGRAM-ID
-        self.assertEqual(rec[149:157], "00007LCH")      # SEQ + TYPE
 
-    def test_audit_prefix_matches_policy_record_length(self):
+    def test_audit_queue_layout_is_unchanged(self):
         out = self.run_polend()
+        self.assertIn("AUDIT LEN=125", out)
         self.assertIn("AUDIT POLICY-LEN=125", out)
 
     def test_different_users_are_distinguished(self):
         out = self.run_polend(userid="AUDTEST1")
         self.assertIn("INSERT PROCESSED_BY=[AUDTEST1]", out)
         self.assertIn("UPDATE UPDATED_BY=[AUDTEST1]", out)
+        self.assertRegex(out, r"AUDIT REC=\[.{97}AUDTEST1")
 
     def test_unidentified_user_is_rejected_before_any_write(self):
         for overrides in ({"userid": " "}, {"assign_resp": "16"}):

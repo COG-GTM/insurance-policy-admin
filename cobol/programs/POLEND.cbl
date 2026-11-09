@@ -45,19 +45,6 @@
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
 
-      *    ENDORSEMENT-AUDIT queue record: the policy image written
-      *    before 2026 (unchanged, first 125 bytes) followed by who
-      *    made the change and what was booked.
-       01  WS-AUDIT-RECORD.
-           05  AUD-POLICY-IMAGE      PIC X(125).
-           05  AUD-USERID            PIC X(08).
-           05  AUD-TERMID            PIC X(04).
-           05  AUD-TRANSID           PIC X(04).
-           05  AUD-PROGRAM-ID        PIC X(08).
-           05  AUD-ENDORSEMENT-SEQ   PIC 9(05).
-           05  AUD-ENDORSEMENT-TYPE  PIC X(03).
-           05  AUD-PREMIUM-ADJUST    PIC S9(09)V99 COMP-3.
-           05  AUD-PROCESSED-DATE    PIC 9(08).
 
            EXEC SQL INCLUDE SQLCA END-EXEC.
 
@@ -218,27 +205,19 @@
            IF SQLCODE NOT = 0
                MOVE 'DB2 ERROR UPDATING POLICY PREMIUM'
                    TO WS-ERROR-MSG
-           ELSE
-               MOVE WS-CURRENT-DATE TO POLICY-LAST-UPDATED
-               MOVE WS-USERID TO POLICY-UPDATED-BY
            END-IF
            .
 
        6000-WRITE-AUDIT-TRAIL.
       *    Added 2016 for regulatory compliance
-           MOVE POLICY-RECORD       TO AUD-POLICY-IMAGE
-           MOVE WS-USERID           TO AUD-USERID
-           MOVE EIBTRMID            TO AUD-TERMID
-           MOVE EIBTRNID            TO AUD-TRANSID
-           MOVE WS-PROGRAM-ID       TO AUD-PROGRAM-ID
-           MOVE WS-ENDORSEMENT-SEQ  TO AUD-ENDORSEMENT-SEQ
-           MOVE WS-ENDORSEMENT-TYPE TO AUD-ENDORSEMENT-TYPE
-           MOVE WS-PREMIUM-ADJUST   TO AUD-PREMIUM-ADJUST
-           MOVE WS-CURRENT-DATE     TO AUD-PROCESSED-DATE
+      *    Queue item layout is unchanged (POLICY-RECORD); the actor
+      *    is carried in POLICY-UPDATED-BY / POLICY-LAST-UPDATED
+           MOVE WS-USERID           TO POLICY-UPDATED-BY
+           MOVE WS-CURRENT-DATE     TO POLICY-LAST-UPDATED
            EXEC CICS WRITEQ TS
                QUEUE('ENDORSEMENT-AUDIT')
-               FROM(WS-AUDIT-RECORD)
-               LENGTH(LENGTH OF WS-AUDIT-RECORD)
+               FROM(POLICY-RECORD)
+               LENGTH(LENGTH OF POLICY-RECORD)
                RESP(WS-RESPONSE-CODE)
            END-EXEC
            IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
