@@ -14,4 +14,4 @@ compat-api:
 	./compat/api/run_facade.sh
 
 cobol-test:
-	python3 -m unittest discover -s cobol/tests -t . -v
+	python3 -m unittest discover -s cobol/tests -p "test_*.py" -v
