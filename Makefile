@@ -1,11 +1,14 @@
-.PHONY: compat compat-static compat-api compat-build
+.PHONY: compat compat-static compat-api compat-build compat-selftest
 
 compat: compat-static compat-build compat-api
 
-compat-static:
+compat-static: compat-selftest
 	python3 compat/check_schema.py
 	python3 compat/check_layouts.py
 	python3 compat/check_security.py
+
+compat-selftest:
+	python3 -m unittest discover -s compat/tests
 
 compat-build:
 	./compat/build_modules.sh
