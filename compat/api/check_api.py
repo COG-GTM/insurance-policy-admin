@@ -2,7 +2,8 @@
 """Compare a running PAS read API against recorded contract snapshots.
 
 Usage: check_api.py [--record] [--base-url http://localhost:8080]
-Set COMPAT_AUTH_HEADER="Name: value" when the API under test requires auth.
+Set COMPAT_AUTH_HEADER="Name: value" when the API under test requires auth
+(trusted code only: never pass it to a job that runs pull request code).
 
 Rules: status codes must match; every field in the snapshot must exist with
 the same JSON type and value (fields in VOLATILE are type-checked only);

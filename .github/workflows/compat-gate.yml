@@ -61,9 +61,9 @@ jobs:
           distribution: temurin
           java-version: "8"
           cache: maven
+      # Runs PR code against the local H2 facade, which has no auth: never pass secrets here.
+      # Authenticated checks live in compat-api-live.yml (main only, protected environment).
       - name: Compare GET /api/v1/policies responses with recorded snapshots
-        env:
-          COMPAT_AUTH_HEADER: ${{ secrets.COMPAT_AUTH_HEADER }}
         run: ./compat/api/run_facade.sh
       - name: Upload API log
         if: failure()

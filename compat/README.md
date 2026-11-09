@@ -22,8 +22,15 @@ printed by the check to `allowed-changes.json` with the ticket and reason:
 {"allowed": [{"id": "api:GET /api/v1/policies/POL-00000001:status", "ticket": "AB-524", "reason": "endpoint now requires OAuth2; consumers migrated"}]}
 ```
 
-Reviewers see the approval in the PR diff. When the API under test needs
-credentials, set the `COMPAT_AUTH_HEADER` repository secret (`Name: value`).
+Reviewers see the approval in the PR diff. The PR gate runs PR code against the
+local H2 facade, which needs no auth, so it gets no secrets. To check a deployed
+API that needs credentials, use `.github/workflows/compat-api-live.yml`: it runs
+only on `main` (push or manual dispatch) in the `compat-live` environment, once
+the `COMPAT_LIVE_ENABLED` repository variable is `true`. Set the
+`COMPAT_LIVE_BASE_URL` variable and the `COMPAT_AUTH_HEADER` secret
+(`Name: value`) on that environment, require reviewers, and limit its deployment
+branches to `main`. Don't store `COMPAT_AUTH_HEADER` as a repository secret: a
+PR from a branch in this repo can edit workflows and read repository secrets.
 When a replacement service takes over the read API, point `COMPAT_API_MODULE`
 / `COMPAT_API_START` at it; the snapshots stay the contract. Re-record snapshots
 (`compat/api/run_facade.sh --record`) only with an approved contract change.
