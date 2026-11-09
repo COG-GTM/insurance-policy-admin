@@ -19,6 +19,9 @@ import static org.junit.Assert.assertNull;
  */
 @RunWith(SpringRunner.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+        // Boot 1.5 adds spring.config.location to the default search path, so
+        // rename the config to keep src/test/resources/application.properties out.
+        "spring.config.name=pas-facade-production-only",
         "spring.config.location=file:src/main/resources/application.properties",
         "spring.datasource.url=jdbc:h2:mem:actuatordb;DB_CLOSE_DELAY=-1;MODE=DB2",
         "spring.datasource.username=sa",
