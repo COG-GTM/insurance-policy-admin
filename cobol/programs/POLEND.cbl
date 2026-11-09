@@ -8,6 +8,8 @@
       * Date:     1999-02-10
       * Modified: 2007-04-15 - Added mid-term cancellation
       *           2016-08-01 - Added endorsement audit trail
+      *           2026-11-09 - Audit trail records signed-on user;
+      *                        failed writes are rolled back
       *
       * Processes policy endorsements (changes to existing policy):
       * - Coverage additions/removals
@@ -30,6 +32,9 @@
        01  WS-DAYS-IN-TERM           PIC 9(03).
        01  WS-PRORATA-FACTOR         PIC S9(01)V9(06) COMP-3.
        01  WS-PREMIUM-ADJUST         PIC S9(09)V99 COMP-3.
+       01  WS-USERID                 PIC X(08) VALUE SPACES.
+       01  WS-ROLLBACK-SW            PIC X(01) VALUE 'N'.
+           88  WS-ROLLBACK-NEEDED    VALUE 'Y'.
        01  WS-ENDORSEMENT-TYPE        PIC X(03).
            88  END-TYPE-COV-ADD       VALUE 'CAD'.
            88  END-TYPE-COV-REM       VALUE 'CRM'.
@@ -40,6 +45,20 @@
        COPY POLICY-RECORD.
        COPY COVERAGE-RECORD.
 
+      *    ENDORSEMENT-AUDIT queue record: the policy image written
+      *    before 2026 (unchanged, first 125 bytes) followed by who
+      *    made the change and what was booked.
+       01  WS-AUDIT-RECORD.
+           05  AUD-POLICY-IMAGE      PIC X(125).
+           05  AUD-USERID            PIC X(08).
+           05  AUD-TERMID            PIC X(04).
+           05  AUD-TRANSID           PIC X(04).
+           05  AUD-PROGRAM-ID        PIC X(08).
+           05  AUD-ENDORSEMENT-SEQ   PIC 9(05).
+           05  AUD-ENDORSEMENT-TYPE  PIC X(03).
+           05  AUD-PREMIUM-ADJUST    PIC S9(09)V99 COMP-3.
+           05  AUD-PROCESSED-DATE    PIC 9(08).
+
            EXEC SQL INCLUDE SQLCA END-EXEC.
 
        LINKAGE SECTION.
@@ -48,16 +67,25 @@
        PROCEDURE DIVISION.
        0000-MAIN-LOGIC.
            PERFORM 1000-INITIALIZE
-           PERFORM 2000-RECEIVE-ENDORSEMENT
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 2000-RECEIVE-ENDORSEMENT
+           END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 3000-VALIDATE-ENDORSEMENT
            END-IF
            IF WS-ERROR-MSG = SPACES
                PERFORM 4000-CALCULATE-PRORATA
                PERFORM 5000-APPLY-ENDORSEMENT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 6000-WRITE-AUDIT-TRAIL
+           END-IF
+           IF WS-ERROR-MSG = SPACES
                PERFORM 7000-SEND-CONFIRMATION
            ELSE
+               IF WS-ROLLBACK-NEEDED
+                   PERFORM 8500-ROLLBACK
+               END-IF
                PERFORM 8000-SEND-ERROR
            END-IF
            PERFORM 9999-RETURN
@@ -70,6 +98,16 @@
                ABSTIME(WS-CURRENT-DATE)
                YYYYMMDD(WS-CURRENT-DATE)
            END-EXEC
+      *    Every change is attributed to the signed-on user
+           EXEC CICS ASSIGN
+               USERID(WS-USERID)
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+              OR WS-USERID = SPACES OR WS-USERID = LOW-VALUES
+               MOVE 'UNABLE TO IDENTIFY SIGNED-ON USER'
+                   TO WS-ERROR-MSG
+           END-IF
            .
 
        2000-RECEIVE-ENDORSEMENT.
@@ -136,7 +174,19 @@
                FROM ENDORSEMENTS
                WHERE POLICY_NUMBER = :POLICY-NUMBER
            END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE 'DB2 ERROR READING ENDORSEMENT SEQUENCE'
+                   TO WS-ERROR-MSG
+           ELSE
+               PERFORM 5100-INSERT-ENDORSEMENT
+           END-IF
+           IF WS-ERROR-MSG = SPACES
+               PERFORM 5200-UPDATE-PREMIUM
+           END-IF
+           .
 
+       5100-INSERT-ENDORSEMENT.
+           MOVE 'Y' TO WS-ROLLBACK-SW
            EXEC SQL
                INSERT INTO ENDORSEMENTS
                (POLICY_NUMBER, ENDORSEMENT_SEQ,
@@ -147,32 +197,54 @@
                (:POLICY-NUMBER, :WS-ENDORSEMENT-SEQ,
                 :WS-ENDORSEMENT-TYPE, :WS-CURRENT-DATE,
                 :WS-PREMIUM-ADJUST, CURRENT TIMESTAMP,
-                'POLEND')
+                :WS-USERID)
            END-EXEC
            IF SQLCODE NOT = 0
                MOVE 'DB2 ERROR INSERTING ENDORSEMENT'
                    TO WS-ERROR-MSG
            END-IF
+           .
 
-      *    Update policy premium
+       5200-UPDATE-PREMIUM.
            COMPUTE POLICY-TOTAL-PREMIUM =
                POLICY-TOTAL-PREMIUM + WS-PREMIUM-ADJUST
            EXEC SQL
                UPDATE POLICIES
                SET TOTAL_PREMIUM = :POLICY-TOTAL-PREMIUM,
                    LAST_UPDATED = CURRENT TIMESTAMP,
-                   UPDATED_BY = 'POLEND'
+                   UPDATED_BY = :WS-USERID
                WHERE POLICY_NUMBER = :POLICY-NUMBER
            END-EXEC
+           IF SQLCODE NOT = 0
+               MOVE 'DB2 ERROR UPDATING POLICY PREMIUM'
+                   TO WS-ERROR-MSG
+           ELSE
+               MOVE WS-CURRENT-DATE TO POLICY-LAST-UPDATED
+               MOVE WS-USERID TO POLICY-UPDATED-BY
+           END-IF
            .
 
        6000-WRITE-AUDIT-TRAIL.
       *    Added 2016 for regulatory compliance
+           MOVE POLICY-RECORD       TO AUD-POLICY-IMAGE
+           MOVE WS-USERID           TO AUD-USERID
+           MOVE EIBTRMID            TO AUD-TERMID
+           MOVE EIBTRNID            TO AUD-TRANSID
+           MOVE WS-PROGRAM-ID       TO AUD-PROGRAM-ID
+           MOVE WS-ENDORSEMENT-SEQ  TO AUD-ENDORSEMENT-SEQ
+           MOVE WS-ENDORSEMENT-TYPE TO AUD-ENDORSEMENT-TYPE
+           MOVE WS-PREMIUM-ADJUST   TO AUD-PREMIUM-ADJUST
+           MOVE WS-CURRENT-DATE     TO AUD-PROCESSED-DATE
            EXEC CICS WRITEQ TS
                QUEUE('ENDORSEMENT-AUDIT')
-               FROM(POLICY-RECORD)
-               LENGTH(LENGTH OF POLICY-RECORD)
+               FROM(WS-AUDIT-RECORD)
+               LENGTH(LENGTH OF WS-AUDIT-RECORD)
+               RESP(WS-RESPONSE-CODE)
            END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               MOVE 'ERROR WRITING ENDORSEMENT AUDIT TRAIL'
+                   TO WS-ERROR-MSG
+           END-IF
            .
 
        7000-SEND-CONFIRMATION.
@@ -190,6 +262,16 @@
                LENGTH(79)
                ERASE
            END-EXEC
+           .
+
+       8500-ROLLBACK.
+      *    Back out the endorsement row and premium change together
+           EXEC CICS SYNCPOINT ROLLBACK
+               RESP(WS-RESPONSE-CODE)
+           END-EXEC
+           IF WS-RESPONSE-CODE NOT = DFHRESP(NORMAL)
+               EXEC CICS ABEND ABCODE('PEND') END-EXEC
+           END-IF
            .
 
        9999-RETURN.
