@@ -26,6 +26,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Gate self-tests
+        run: python3 -m unittest discover -s compat/tests
       - name: DB schema compatibility
         run: python3 compat/check_schema.py
       - name: Record & file layout compatibility
