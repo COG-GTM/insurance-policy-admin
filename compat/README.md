@@ -27,7 +27,16 @@ default `origin/main`), never from the change under test, so a PR cannot
 approve its own failures. Merge the exception first in its own reviewed PR,
 then the change it covers; an entry added in the same PR is reported as
 `PENDING` and the finding still fails. Entries need a ticket key like `AB-524`
-and a non-empty reason, otherwise they are ignored.
+and a non-empty reason, otherwise they are ignored. Exceptions for
+`security:` ids also need two distinct reviewers in `approvers`:
+
+```json
+{"allowed": [{"id": "security:hardcoded-secret:java-facade/src/main/resources/application.properties", "ticket": "AB-530", "reason": "non-production placeholder, rotated", "approvers": ["alice", "bob"]}]}
+```
+
+`.github/CODEOWNERS` requires an owner's review for `allowed-changes.json`, the
+gate scripts and the workflow; turn on "Require review from Code Owners" for
+`main` so that review is enforced. `make compat-test` runs the gate's own tests.
 
 When the API under test needs
 credentials, set the `COMPAT_AUTH_HEADER` repository secret (`Name: value`).

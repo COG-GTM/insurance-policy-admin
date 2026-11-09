@@ -9,6 +9,9 @@ ROOT = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=Tru
 BASE_REF = os.environ.get("COMPAT_BASE_REF", "origin/main")
 ALLOWED_PATH = "compat/allowed-changes.json"
 TICKET_RE = re.compile(r"^[A-Z][A-Z0-9]+-[1-9][0-9]*$")
+HANDLE_RE = re.compile(r"^@?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$")
+SECURITY_PREFIX = "security:"
+SECURITY_MIN_APPROVERS = 2
 
 
 def git(*args, check=True):
@@ -62,8 +65,24 @@ def _parse_allowed(text, source):
         if not isinstance(reason, str) or not reason.strip():
             problems.append(f"{source}: {fid} ignored, reason is empty")
             continue
-        entries[fid] = {"id": fid, "ticket": ticket, "reason": reason.strip()}
+        entry = {"id": fid, "ticket": ticket, "reason": reason.strip()}
+        if fid.startswith(SECURITY_PREFIX):
+            approvers = _approvers(e.get("approvers"))
+            if len(approvers) < SECURITY_MIN_APPROVERS:
+                problems.append(f"{source}: {fid} ignored, security exceptions need "
+                                f"{SECURITY_MIN_APPROVERS} distinct approvers")
+                continue
+            entry["approvers"] = approvers
+        entries[fid] = entry
     return entries, problems
+
+
+def _approvers(value):
+    """Distinct, well-formed GitHub handles from an entry's approvers list."""
+    if not isinstance(value, list):
+        return []
+    handles = {v.strip().lstrip("@").lower() for v in value if isinstance(v, str) and HANDLE_RE.match(v.strip())}
+    return sorted(handles)
 
 
 def allowed_ids():
@@ -94,7 +113,8 @@ def report(check_name, findings):
     """findings: list of (severity, id, message). severity in {FAIL, NOTE}.
 
     A FAIL whose id is listed in compat/allowed-changes.json on the base branch
-    (with a ticket and reason) is downgraded to an approved change. Entries
+    (with a ticket and reason, plus two approvers for security: ids) is
+    downgraded to an approved change. Entries
     added by the change under test are reported as PENDING and still fail.
     Exits non-zero if any FAIL remains."""
     allowed, problems = allowed_ids()
@@ -103,7 +123,8 @@ def report(check_name, findings):
     for sev, fid, msg in findings:
         if sev == "FAIL" and fid in allowed:
             e = allowed[fid]
-            lines.append(f"APPROVED  {fid}: {msg} (ticket {e['ticket']}: {e['reason']}; approved on {BASE_REF})")
+            by = f" by {', '.join(e['approvers'])}" if "approvers" in e else ""
+            lines.append(f"APPROVED  {fid}: {msg} (ticket {e['ticket']}: {e['reason']}; approved{by} on {BASE_REF})")
         else:
             failed |= sev == "FAIL"
             lines.append(f"{sev:<9} {fid}: {msg}")
