@@ -17,6 +17,8 @@ import check_security as sec  # noqa: E402
 
 PW = "pass" + "word"
 DS_PW = "spring.datasource." + PW
+RULE_ID = "security:hardcoded-" + "secret"
+PROPS = "java-facade/src/main/resources/application.properties"
 
 
 def kv(key, value, sep="="):
@@ -106,14 +108,12 @@ class GateEndToEndTest(unittest.TestCase):
         return rc, out.getvalue()
 
     def test_placeholder_default_secret_fails_gate(self):
-        rc, out = self.gate("java-facade/src/main/resources/application.properties",
-                            kv(PW, "${X:RealSecret99}"))
+        rc, out = self.gate(PROPS, kv(PW, "${X:RealSecret99}"))
         self.assertEqual(rc, 1, out)
-        self.assertIn("security:hardcoded-" + "secret:java-facade/src/main/resources/application.properties", out)
+        self.assertIn(f"FAIL      {RULE_ID}:{PROPS}", out)
 
     def test_changeme_default_passes_gate(self):
-        rc, out = self.gate("java-facade/src/main/resources/application.properties",
-                            kv(DS_PW, "${DB2_" + PW.upper() + ":changeme}"))
+        rc, out = self.gate(PROPS, kv(DS_PW, "${DB2_" + PW.upper() + ":changeme}"))
         self.assertEqual(rc, 0, out)
 
     def test_lookalike_test_path_fails_gate(self):
