@@ -21,6 +21,11 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 - **Purpose:** Read-only REST API for modern system integration
 - **Deployment:** Docker container on Linux VM (not on z/OS)
 
+### Underwriting Service (UNDWRT port)
+- **Language:** Java 17, Spring Boot 3 (`underwriting-service/`)
+- **Purpose:** `POST /api/v1/underwriting/decisions`, 1:1 port of CICS PUWR / UNDWRT
+- **Docs:** [docs/UNDWRT-migration.md](docs/UNDWRT-migration.md)
+
 ## CICS Transactions
 
 | Transaction | Program | Description |

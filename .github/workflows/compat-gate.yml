@@ -51,6 +51,25 @@ jobs:
       - name: Build and test all Maven modules
         run: ./compat/build_modules.sh
 
+  underwriting-service:
+    name: UNDWRT underwriting-service (JDK 17)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Build and run golden parity tests
+        run: mvn -B -ntp -f underwriting-service/pom.xml verify
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: underwriting-service-surefire
+          path: underwriting-service/target/surefire-reports
+
   api-contract:
     name: REST API contract
     runs-on: ubuntu-latest
