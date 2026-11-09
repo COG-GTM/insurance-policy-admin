@@ -1,0 +1,36 @@
+name: PAS API contract (authenticated)
+
+# Uses COMPAT_AUTH_HEADER, so it must only ever run trusted code from main.
+# Store the secret on the `compat-live` environment (required reviewers,
+# deployment branches limited to main), never as a repository secret: a
+# same-repo PR branch can edit workflows and read any repository secret.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: compat-api-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  api-contract-live:
+    name: REST API contract (authenticated)
+    if: github.ref == 'refs/heads/main' && vars.COMPAT_LIVE_BASE_URL != ''
+    runs-on: ubuntu-latest
+    environment: compat-live
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compare GET /api/v1/policies responses with recorded snapshots
+        env:
+          COMPAT_BASE_URL: ${{ vars.COMPAT_LIVE_BASE_URL }}
+          COMPAT_AUTH_HEADER: ${{ secrets.COMPAT_AUTH_HEADER }}
+        run: python3 compat/api/check_api.py
