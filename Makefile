@@ -1,6 +1,6 @@
 .PHONY: compat compat-static compat-api compat-build compat-test
 
-compat: compat-static compat-build compat-api
+compat: compat-test compat-static compat-build compat-api
 
 compat-static:
 	python3 compat/check_schema.py
