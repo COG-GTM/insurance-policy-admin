@@ -1,4 +1,4 @@
-.PHONY: compat compat-static compat-api compat-build
+.PHONY: compat compat-static compat-api compat-build compat-test
 
 compat: compat-static compat-build compat-api
 
@@ -12,3 +12,6 @@ compat-build:
 
 compat-api:
 	./compat/api/run_facade.sh
+
+compat-test:
+	python3 -m unittest discover -s compat/tests
