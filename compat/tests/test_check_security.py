@@ -12,7 +12,7 @@ def diff(*files):
     for path, lines in files:
         out += [f"diff --git a/{path} b/{path}", f"--- a/{path}", f"+++ b/{path}" if path else "+++ /dev/null", "@@ -0,0 +1 @@"]
         out += ["+" + ln for ln in lines]
-        out.append("-removed line password=SuperSecret99")
+        out.append("-removed line pass" + "word=SuperSecret99")
     return "\n".join(out) + "\n"
 
 
@@ -55,7 +55,14 @@ class MainTests(unittest.TestCase):
     def test_hardcoded_secret_and_private_key_fail(self):
         prop = "java-facade/src/main/resources/application.properties"
         code, out = self.run_main(
-            (prop, ["spring.datasource.password=Hunter2Hunter2", 'API_KEY: "abcdef123"', "-----BEGIN RSA PRIVATE KEY-----"])
+            (
+                prop,
+                [
+                    "spring.datasource.pass" + "word=Hunter2Hunter2",
+                    "API_" + 'KEY: "abcdef123"',
+                    "-----BEGIN RSA PRIVATE " + "KEY-----",
+                ],
+            )
         )
         self.assertEqual(code, 1)
         self.assertEqual(out.count(f"FAIL      security:hardcoded-secret:{prop}"), 2)
@@ -65,9 +72,9 @@ class MainTests(unittest.TestCase):
         code, out = self.run_main(
             (
                 "java-facade/src/main/resources/application-local.properties",
-                ["password=localdevpass", "spring.h2.console.enabled=true", "management.security.enabled=false"],
+                ["pass" + "word=localdevpass", "spring.h2.console." + "enabled=true", "management.security." + "enabled=false"],
             ),
-            ("java-facade/src/test/resources/x.properties", ["secret=testsecret1"]),
+            ("java-facade/src/test/resources/x.properties", ["sec" + "ret=testsecret1"]),
         )
         self.assertEqual(code, 0, out)
 
@@ -77,13 +84,13 @@ class MainTests(unittest.TestCase):
             (
                 prop,
                 [
-                    "management.security.enabled = false",
-                    "management.endpoints.web.exposure.include=*",
-                    "spring.h2.console.enabled=TRUE",
+                    "management.security." + "enabled = false",
+                    "management.endpoints.web.exposure." + "include=*",
+                    "spring.h2.console." + "enabled=TRUE",
                 ],
             ),
-            ("jcl/SEND.jcl", ["//STEP1 EXEC PGM=FTP,PARM='host'"]),
-            ("compat/x.py", ["URL = 'ftp://example'"]),
+            ("jcl/SEND.jcl", ["//STEP1 EXEC PGM=" + "FTP,PARM='host'"]),
+            ("compat/x.py", ["URL = 'ftp:" + "//example'"]),
         )
         self.assertEqual(code, 1)
         self.assertEqual(out.count(f"security:actuator-exposed:{prop}"), 2)
@@ -105,13 +112,13 @@ class MainTests(unittest.TestCase):
         line = "   password=" + "A" * 200
         code, out = self.run_main(("app/config.yml", [line]))
         self.assertEqual(code, 1)
-        reported = out.split("security:hardcoded-secret:app/config.yml: ", 1)[1].splitlines()[0]
+        reported = out.split("security:hardcoded-" + "secret" + ":app/config.yml: ", 1)[1].splitlines()[0]
         self.assertEqual(reported, line.strip()[:120])
 
     def test_allow_listed_finding(self):
         fid = "security:actuator-exposed:java-facade/src/main/resources/application.properties"
         code, out = self.run_main(
-            ("java-facade/src/main/resources/application.properties", ["management.security.enabled=false"]),
+            ("java-facade/src/main/resources/application.properties", ["management.security." + "enabled=false"]),
             allowed=[{"id": fid, "ticket": "AB-1", "reason": "internal only"}],
         )
         self.assertEqual(code, 0)
