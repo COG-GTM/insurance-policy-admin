@@ -45,7 +45,7 @@ Deliberate changes are waived by adding the printed finding id to `compat/allowe
 ```bash
 make compat                      # all gate checks (JDK 8 + Python 3)
 cd java-facade && mvn verify     # build + 6 tests on H2
-java -jar target/pas-facade-1.0.0.jar --spring.profiles.active=local
+java -jar target/pas-facade-1.0.0.jar --spring.profiles.active=local   # keep running; curl from a second terminal
 curl localhost:8080/api/v1/policies/POL-00000001
 curl localhost:8080/api/v1/policies/POL-00000001/coverages
 curl localhost:8080/manage/health

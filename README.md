@@ -28,7 +28,7 @@ Full description and diagram: [docs/architecture.md](docs/architecture.md). The 
 
 ### Local Development Profile (Added 2026)
 - `java -jar java-facade/target/pas-facade-1.0.0.jar --spring.profiles.active=local` runs the facade on an in-memory H2 database (DB2 mode) built from `schema.sql` and seeded from `data.sql` (policies `POL-00000001` to `POL-00000003`)
-- The H2 console is enabled at `/h2-console` in this profile only
+- The H2 console is enabled at `/h2-console` in this profile only; tables live in the `ACMEINS` schema, so query them qualified (`SELECT * FROM ACMEINS.POLICIES;`)
 - The tests (`mvn verify` in `java-facade/`) use the same H2 setup, so no DB2 connection is needed
 
 ### Backward-Compatibility Gate (Added 2026)
