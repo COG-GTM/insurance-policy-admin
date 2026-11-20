@@ -1,0 +1,56 @@
+// PAS architecture. Edit this file, then run ./render.sh to refresh
+// architecture.png and architecture.svg.
+digraph PAS {
+  graph [rankdir=TB, fontname="DejaVu Sans", fontsize=18, labelloc=t,
+         label="Policy Administration System (PAS) - architecture on main",
+         nodesep=0.5, ranksep=0.7, pad=0.3, newrank=true];
+  node  [shape=box, style="rounded,filled", fontname="DejaVu Sans",
+         fontsize=16, fillcolor=white, color="#555555", margin="0.2,0.1"];
+  edge  [fontname="DejaVu Sans", fontsize=13, color="#444444"];
+
+  users  [label="CICS terminal users\n(underwriters, CSRs)", shape=oval, fillcolor="#eeeeee"];
+  modern [label="Modern consumers\n(internal VPN, no auth)", shape=oval, fillcolor="#eeeeee"];
+
+  subgraph cluster_zos {
+    label="IBM z/OS 2.5 mainframe"; style="rounded,filled"; fillcolor="#e8f0fb"; color="#4a74b5"; fontsize=17;
+    cics [label="CICS TS 5.6 (COBOL 85)\nPNEW POLNEW | PRWL POLRNW | PEND POLEND\nPQRY POLQRY | PUWR UNDWRT"];
+    batch [label="JES2 batch (CA-7)\nPREMIUM-BATCH 01:00 -> PREMBAT\nDAILY-EXTRACT 23:00 | MONTHLY-EXPOSURE 1st"];
+    db2 [label="DB2 v12 DBPD, schema ACMEINS\nPOLICIES, COVERAGES, PREMIUMS, ENDORSEMENTS,\nUNDERWRITING_DECISIONS, POLICY_HOLDERS,\nTERRITORY_FACTORS, POLICY_SEQ", shape=cylinder, fillcolor="#fdf6e3"];
+    mq [label="IBM MQ 9.2\nACME.PAS.UNDERWRITING.REQUEST\nACME.PAS.UNDERWRITING.DECISION", shape=box3d, fillcolor="#fdf6e3"];
+    { rank=same; cics; batch; }
+  }
+
+  subgraph cluster_facade {
+    label="java-facade (Docker on Linux VM)"; style="rounded,filled"; fillcolor="#eaf6ea"; color="#4a9a4a"; fontsize=17;
+    facade [label="PAS REST Facade, read-only\nJava 8, Spring Boot 1.5.22, JdbcTemplate\nGET /api/v1/policies/{n}[/coverages]\nGET /manage/health"];
+    h2 [label="H2 in-memory (MODE=DB2)\nprofile 'local' and tests\nschema.sql + data.sql seed", shape=cylinder, fillcolor="#fdf6e3"];
+  }
+
+  subgraph cluster_down {
+    label="Downstream systems"; style="rounded,dashed"; color="#888888"; fontsize=17;
+    claims [label="Claims Engine\n(flat files via FTP)"];
+    act [label="Actuarial / SAS\n(monthly exposure CSV via FTP)"];
+    broker [label="Broker Portal\n(SQL Server linked server, ODBC)"];
+    docs [label="Document Management\n(FileNet, MQ events)"];
+    { rank=same; claims; act; broker; docs; }
+  }
+
+  subgraph cluster_gate {
+    label="compat/ backward-compatibility gate (GitHub Actions, PRs to main)"; style="rounded,filled"; fillcolor="#fbeaea"; color="#b54a4a"; fontsize=17;
+    gate [label="check_schema.py | check_layouts.py | check_security.py\nbuild_modules.sh (mvn verify per module JDK)\napi/run_facade.sh -> check_api.py vs snapshots/\nwaivers: allowed-changes.json"];
+  }
+
+  users  -> cics   [label="3270 / CICS txns"];
+  modern -> facade [label="HTTP/JSON GET"];
+  cics   -> db2    [label="EXEC SQL read/write"];
+  batch  -> db2    [label="read / write PREMIUMS"];
+  cics   -> mq     [label="MQ PUT (POLNEW, UNDWRT)"];
+  facade -> db2    [label="JDBC Type 4 (JCC)\nread-only, port 5023"];
+  facade -> h2     [label="local / test\ninstead of DB2", style=dashed];
+  batch  -> claims [label="DAILY-EXTRACT", minlen=2];
+  batch  -> act    [label="MONTHLY-EXPOSURE", minlen=2];
+  db2    -> broker [label="read-only ODBC"];
+  mq     -> docs   [label="events"];
+  facade -> gate   [label="boots 'local' profile,\ncompares responses", dir=back, style=dashed, color="#b54a4a", fontcolor="#b54a4a"];
+  db2    -> gate   [label="DDL, copybook and\nJCL LRECL diffs", dir=back, style=dashed, color="#b54a4a", fontcolor="#b54a4a"];
+}
