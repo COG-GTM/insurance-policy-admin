@@ -13,7 +13,7 @@ business contract unless the change is explicitly approved.
 | Security non-regression | `check_security.py` | Added hardcoded secrets/keys, exposed actuator, H2 console outside local profile, plaintext FTP (PII additions are reported as notes) |
 
 Run locally: `make compat` (needs Maven 3.6.1+, Python 3.7+, GNU grep and JDK 8 for `java-facade`, with
-`JAVA_HOME` pointing at JDK 8; the tests fail on newer JDKs). See the
+`JAVA_HOME` and `PATH` pointing at JDK 8: the tests fail on newer JDKs, and the API launcher runs `java` from `PATH`). See the
 [Local Quickstart](../README.md#local-quickstart).
 
 ## Intentional changes

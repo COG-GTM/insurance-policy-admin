@@ -71,7 +71,7 @@ make compat
 This runs the schema, layout and security checks, `mvn verify` for `java-facade`, and the REST contract check on port 18080. That check starts the facade under the `local` profile on all interfaces, with no authentication, while it runs; to keep it on loopback, add the bind address through `COMPAT_API_START`:
 
 ```bash
-COMPAT_API_START="java -jar java-facade/target/pas-facade-1.0.0.jar --spring.profiles.active=local --server.port=18080 --server.address=127.0.0.1" make compat
+COMPAT_API_START="java -jar java-facade/target/pas-facade-1.0.0.jar --spring.profiles.active=local --server.port=${COMPAT_PORT:-18080} --server.address=127.0.0.1" make compat
 ```
 
 See [compat/README.md](compat/README.md) for details.
