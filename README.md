@@ -23,13 +23,14 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 
 ## Local Quickstart
 
-Runs the REST facade and the backward-compatibility checks on a Linux or macOS machine. No mainframe access is needed: the `local` profile uses an in-memory H2 database seeded from `java-facade/src/main/resources/data.sql`.
+Runs the REST facade and the backward-compatibility checks on a Linux machine (macOS needs GNU grep, see below). No mainframe access is needed: the `local` profile uses an in-memory H2 database seeded from `java-facade/src/main/resources/data.sql`.
 
 ### Prerequisites
 
 - JDK 8, with `JAVA_HOME` pointing at it (the build fails on newer JDKs such as 21 because Spring Boot 1.5 cannot run there)
-- Maven 3
-- Python 3, `make`, `curl` and `git`
+- Maven 3.6.1 or later (the compat scripts pass `-ntp`)
+- Python 3.7 or later, `make`, `curl` and `git`
+- GNU grep: `compat/build_modules.sh` reads each POM's Java version with `grep -P`, which the stock macOS grep lacks. On macOS run `brew install grep` and put `$(brew --prefix)/opt/grep/libexec/gnubin` first on `PATH`
 
 ```bash
 export JAVA_HOME=/path/to/jdk8            # e.g. /usr/lib/jvm/java-8-openjdk-amd64
@@ -42,7 +43,7 @@ java -version                             # should report 1.8
 ```bash
 cd java-facade
 mvn -B package
-java -jar target/pas-facade-1.0.0.jar --spring.profiles.active=local
+java -jar target/pas-facade-1.0.0.jar --spring.profiles.active=local --server.address=127.0.0.1
 ```
 
 In another terminal:
@@ -55,11 +56,11 @@ curl http://localhost:8080/api/v1/policies/POL-00000001/coverages
 
 The H2 console is at http://localhost:8080/h2-console (JDBC URL `jdbc:h2:mem:pasdb`, user `sa`, empty password). Tables are in schema `ACMEINS`, so qualify them, e.g. `SELECT * FROM ACMEINS.POLICIES`.
 
-Without `--spring.profiles.active=local` the facade uses the DB2 settings in `application.properties` (`mainframe.acme.local`), which only resolve on the Acme network.
+`--server.address=127.0.0.1` keeps the facade on loopback: the `local` profile has no authentication on the API, the Actuator endpoints under `/manage`, or the H2 console. Without `--spring.profiles.active=local` the facade uses the DB2 settings in `application.properties` (`mainframe.acme.local`), which only resolve on the Acme network.
 
 ### Run the compatibility checks
 
-From the repository root, with `JAVA_HOME` set as above:
+From the repository root of a `git clone`, with `JAVA_HOME` set as above. The checks compare `HEAD` with its merge base with `origin/main`, so the clone needs that ref and enough history to reach the merge base (fetch more history if a shallow clone fails). If your main remote has another name, set it, e.g. `export COMPAT_BASE_REF=upstream/main`:
 
 ```bash
 make compat
