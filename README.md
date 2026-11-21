@@ -74,7 +74,7 @@ This runs the schema, layout and security checks, `mvn verify` for `java-facade`
 COMPAT_API_START="java -jar java-facade/target/pas-facade-1.0.0.jar --spring.profiles.active=local --server.port=${COMPAT_PORT:-18080} --server.address=127.0.0.1" make compat
 ```
 
-See [compat/README.md](compat/README.md) for details.
+To use another port, `export COMPAT_PORT=<port>` first so the launcher and the contract check agree. See [compat/README.md](compat/README.md) for details.
 
 ## CICS Transactions
 
