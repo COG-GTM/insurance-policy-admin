@@ -21,6 +21,52 @@ The Policy Administration System is the **core insurance platform** for Acme Ins
 - **Purpose:** Read-only REST API for modern system integration
 - **Deployment:** Docker container on Linux VM (not on z/OS)
 
+## Local Quickstart
+
+Runs the REST facade and the backward-compatibility checks on a Linux or macOS machine. No mainframe access is needed: the `local` profile uses an in-memory H2 database seeded from `java-facade/src/main/resources/data.sql`.
+
+### Prerequisites
+
+- JDK 8, with `JAVA_HOME` pointing at it (the build fails on newer JDKs such as 21 because Spring Boot 1.5 cannot run there)
+- Maven 3
+- Python 3, `make`, `curl` and `git`
+
+```bash
+export JAVA_HOME=/path/to/jdk8            # e.g. /usr/lib/jvm/java-8-openjdk-amd64
+export PATH="$JAVA_HOME/bin:$PATH"
+java -version                             # should report 1.8
+```
+
+### Run the REST facade
+
+```bash
+cd java-facade
+mvn -B package
+java -jar target/pas-facade-1.0.0.jar --spring.profiles.active=local
+```
+
+In another terminal:
+
+```bash
+curl http://localhost:8080/manage/health
+curl http://localhost:8080/api/v1/policies/POL-00000001
+curl http://localhost:8080/api/v1/policies/POL-00000001/coverages
+```
+
+The H2 console is at http://localhost:8080/h2-console (JDBC URL `jdbc:h2:mem:pasdb`, user `sa`, empty password). Tables are in schema `ACMEINS`, so qualify them, e.g. `SELECT * FROM ACMEINS.POLICIES`.
+
+Without `--spring.profiles.active=local` the facade uses the DB2 settings in `application.properties` (`mainframe.acme.local`), which only resolve on the Acme network.
+
+### Run the compatibility checks
+
+From the repository root, with `JAVA_HOME` set as above:
+
+```bash
+make compat
+```
+
+This runs the schema, layout and security checks, `mvn verify` for `java-facade`, and the REST contract check on port 18080. See [compat/README.md](compat/README.md) for details.
+
 ## CICS Transactions
 
 | Transaction | Program | Description |
