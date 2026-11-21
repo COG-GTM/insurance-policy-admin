@@ -38,6 +38,8 @@ export PATH="$JAVA_HOME/bin:$PATH"
 java -version                             # should report 1.8
 ```
 
+If `JAVA_HOME_8_X64` is set (as on CI runners), `compat/build_modules.sh` uses it instead of `JAVA_HOME`, so unset it or point it at the same JDK 8.
+
 ### Run the REST facade
 
 ```bash
@@ -60,13 +62,19 @@ The H2 console is at http://localhost:8080/h2-console (JDBC URL `jdbc:h2:mem:pas
 
 ### Run the compatibility checks
 
-From the repository root of a `git clone`, with `JAVA_HOME` set as above. The checks compare `HEAD` with its merge base with `origin/main`, so the clone needs that ref and enough history to reach the merge base (fetch more history if a shallow clone fails). If your main remote has another name, set it, e.g. `export COMPAT_BASE_REF=upstream/main`:
+From the repository root of a `git clone`, with `JAVA_HOME` set as above. The checks compare your working tree, uncommitted edits included, with the merge base of `HEAD` and `origin/main`, so the clone needs that ref and enough history to reach the merge base (fetch more history if a shallow clone fails). If your main remote has another name, set it, e.g. `export COMPAT_BASE_REF=upstream/main`:
 
 ```bash
 make compat
 ```
 
-This runs the schema, layout and security checks, `mvn verify` for `java-facade`, and the REST contract check on port 18080. See [compat/README.md](compat/README.md) for details.
+This runs the schema, layout and security checks, `mvn verify` for `java-facade`, and the REST contract check on port 18080. That check starts the facade under the `local` profile on all interfaces, with no authentication, while it runs; to keep it on loopback, add the bind address through `COMPAT_API_START`:
+
+```bash
+COMPAT_API_START="java -jar java-facade/target/pas-facade-1.0.0.jar --spring.profiles.active=local --server.port=18080 --server.address=127.0.0.1" make compat
+```
+
+See [compat/README.md](compat/README.md) for details.
 
 ## CICS Transactions
 
