@@ -12,7 +12,9 @@ business contract unless the change is explicitly approved.
 | Record & file layouts | `check_layouts.py` | Copybook record length or field offset/size changes; JCL output dataset LRECL changes (Claims/Actuarial feeds) |
 | Security non-regression | `check_security.py` | Added hardcoded secrets/keys, exposed actuator, H2 console outside local profile, plaintext FTP (PII additions are reported as notes) |
 
-Run locally: `make compat` (needs JDK 8 for `java-facade` and Python 3).
+Run locally: `make compat` (needs Maven 3.6.1+, Python 3.7+, GNU grep and JDK 8 for `java-facade`, with
+`JAVA_HOME` and `PATH` pointing at JDK 8: the tests fail on newer JDKs, and the API launcher runs `java` from `PATH`). See the
+[Local Quickstart](../README.md#local-quickstart).
 
 ## Intentional changes
 If a change is deliberate (e.g. AB-524 adds authentication), add the finding id
