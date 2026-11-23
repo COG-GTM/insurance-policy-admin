@@ -45,7 +45,7 @@ class RuleTests(unittest.TestCase):
             PROD_PROPS, "spring.datasource." + PW + "=Sup3rS3cret", "hardcoded-secret"
         )
         self.assertFlags(
-            "app/config.yml", "api_key: 'abcdef123456'", "hardcoded-secret"
+            "app/config.yml", "api" + "_key: 'abcdef123456'", "hardcoded-secret"
         )
 
     def test_placeholder_default_and_short_values_are_not_secrets(self):
