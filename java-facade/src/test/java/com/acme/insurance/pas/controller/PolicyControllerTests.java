@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -20,6 +21,9 @@ public class PolicyControllerTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     public void getPolicy_returnsPolicy() throws Exception {
@@ -46,6 +50,16 @@ public class PolicyControllerTests {
                 .andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[0].coverageType", is("DWEL")))
                 .andExpect(jsonPath("$[1].coverageType", is("PERS")));
+    }
+
+    @Test
+    public void getCoverages_policyWithoutCoverages_returnsEmptyList() throws Exception {
+        jdbcTemplate.update("MERGE INTO ACMEINS.POLICIES (POLICY_NUMBER, POLICY_TYPE, " +
+                "POLICY_STATUS, EFFECTIVE_DATE, EXPIRY_DATE, POLICYHOLDER_ID) KEY (POLICY_NUMBER) " +
+                "VALUES ('POL-00000099', 'HOM', 'PN', '2025-01-01', '2026-01-01', 'C000000001')");
+        mockMvc.perform(get("/api/v1/policies/POL-00000099/coverages"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
     }
 
     @Test
