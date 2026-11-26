@@ -48,13 +48,11 @@ public class PolicyController {
     @GetMapping("/{policyNumber}/coverages")
     public ResponseEntity<List<Coverage>> getCoverages(
             @PathVariable String policyNumber) {
-        // First verify the policy exists
-        Policy policy = policyRepository.findByPolicyNumber(policyNumber);
-        if (policy == null) {
+        List<Coverage> coverages = policyRepository.findCoveragesIfPolicyExists(
+                policyNumber);
+        if (coverages == null) {
             return new ResponseEntity<List<Coverage>>(HttpStatus.NOT_FOUND);
         }
-        List<Coverage> coverages = policyRepository.findCoveragesByPolicyNumber(
-                policyNumber);
         return new ResponseEntity<List<Coverage>>(coverages, HttpStatus.OK);
     }
 }
